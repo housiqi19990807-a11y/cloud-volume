@@ -24,7 +24,11 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
   }) async {
-    final cachedPath = await _cacheStore.findUsableCachePath(bucket, object);
+    final remoteObject = await api.headObject(config, bucket, object.key);
+    final cachedPath = await _cacheStore.findUsableCachePath(
+      bucket,
+      remoteObject,
+    );
     if (cachedPath != null) {
       await LocalFileOpener.openPath(cachedPath);
       return;
@@ -54,7 +58,7 @@ class FileAccessService {
       onSuccess: () async {
         await _cacheStore.upsertCacheRecord(
           bucket: bucket,
-          object: object,
+          object: remoteObject,
           localPath: cachePath,
         );
         await LocalFileOpener.openPath(cachePath);
@@ -62,7 +66,7 @@ class FileAccessService {
       onFailure: () async {
         await _cacheStore.removeCacheRecord(
           bucket: bucket,
-          objectKey: object.key,
+          objectKey: remoteObject.key,
           localPath: cachePath,
           deleteFile: true,
         );

@@ -44,6 +44,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listBuckets(args)
 	case "list_objects":
 		return listObjects(args)
+	case "head_object":
+		return headObject(args)
 	case "create_directory":
 		return createDirectory(args)
 	case "delete_object":
@@ -156,6 +158,12 @@ type objectListArgs struct {
 	Prefix string                            `json:"prefix"`
 }
 
+type objectHeadArgs struct {
+	Config storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket string                            `json:"bucket"`
+	Key    string                            `json:"key"`
+}
+
 type createDirectoryArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`
 	Bucket string                            `json:"bucket"`
@@ -212,6 +220,14 @@ func listObjects(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return s3ops.ListObjects(input.Config, input.Bucket, input.Prefix)
+}
+
+func headObject(args json.RawMessage) (any, error) {
+	var input objectHeadArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	return s3ops.HeadObject(input.Config, input.Bucket, input.Key)
 }
 
 func createDirectory(args json.RawMessage) (any, error) {

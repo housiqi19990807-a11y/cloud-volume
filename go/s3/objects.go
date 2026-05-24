@@ -25,6 +25,28 @@ type ObjectInfo struct {
 	IsDir        bool   `json:"isDir"`
 }
 
+// HeadObject returns the current remote file metadata used for cache validation.
+func HeadObject(cfg storageconfig.RemoteStorageConfig, bucket, key string) (ObjectInfo, error) {
+	client := NewClient(cfg)
+	out, err := client.HeadObject(Ctx(), &s3.HeadObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if err != nil {
+		return ObjectInfo{}, err
+	}
+
+	info := ObjectInfo{
+		Key:   key,
+		Size:  aws.ToInt64(out.ContentLength),
+		IsDir: false,
+	}
+	if out.LastModified != nil {
+		info.LastModified = out.LastModified.Format("2006-01-02 15:04:05")
+	}
+	return info, nil
+}
+
 // ListObjects returns objects and common prefixes under a bucket + prefix.
 func ListObjects(cfg storageconfig.RemoteStorageConfig, bucket, prefix string) ([]ObjectInfo, error) {
 	client := NewClient(cfg)

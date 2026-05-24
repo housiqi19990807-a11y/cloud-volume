@@ -27,5 +27,5 @@
 - Upload now supports selecting multiple files at once, and active upload/download tasks can be canceled from the transfers page and sidebar hover card.
 - Breadcrumbs now stay fully expanded when there is enough room, and collapse the oldest left-side path segments into `...` only when the header becomes narrow.
 - Added a default-on setting to hide files and directories whose names start with `.`, while still allowing users to reveal them from Settings.
-- Clicking a file now reuses a SQLite-tracked local cache when available, otherwise downloads into the cache and opens it automatically, while the context menu keeps an explicit download-to-path action.
+- Clicking a file now first sends a `HEAD` request to validate the SQLite-tracked local cache against the remote file size and last-modified time; stale cache entries are discarded and re-downloaded before opening, while the context menu keeps an explicit download-to-path action.
 - Full Chinese interface.

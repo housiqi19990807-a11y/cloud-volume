@@ -20,12 +20,15 @@ class FileCacheStore {
   Database? _database;
   Directory? _cacheRoot;
 
-  Future<String?> findUsableCachePath(String bucket, ObjectInfo object) async {
+  Future<String?> findUsableCachePath(
+    String bucket,
+    ObjectInfo remoteObject,
+  ) async {
     final db = await _openDatabase();
     final rows = await db.query(
       _tableName,
       where: 'bucket = ? AND object_key = ?',
-      whereArgs: <Object?>[bucket, object.key],
+      whereArgs: <Object?>[bucket, remoteObject.key],
       limit: 1,
     );
     if (rows.isEmpty) {
@@ -34,8 +37,17 @@ class FileCacheStore {
 
     final record = CachedFileRecord.fromJson(rows.first);
     final file = File(record.localPath);
-    if (!await file.exists() || !_matchesObject(record, object)) {
-      await removeCacheRecord(bucket: bucket, objectKey: object.key);
+    final fileExists = await file.exists();
+    final fileSize = fileExists ? await file.length() : -1;
+    if (!fileExists ||
+        !_matchesRemoteObject(record, remoteObject) ||
+        fileSize != remoteObject.size) {
+      await removeCacheRecord(
+        bucket: bucket,
+        objectKey: remoteObject.key,
+        localPath: record.localPath,
+        deleteFile: true,
+      );
       return null;
     }
     return record.localPath;
@@ -165,11 +177,11 @@ class FileCacheStore {
     return cacheDir;
   }
 
-  bool _matchesObject(CachedFileRecord record, ObjectInfo object) {
-    final sameSize = record.fileSize == object.size;
+  bool _matchesRemoteObject(CachedFileRecord record, ObjectInfo remoteObject) {
+    final sameSize = record.fileSize == remoteObject.size;
     final sameTimestamp =
-        object.lastModified.isEmpty ||
-        record.lastModified == object.lastModified;
+        remoteObject.lastModified.isEmpty ||
+        record.lastModified == remoteObject.lastModified;
     return sameSize && sameTimestamp;
   }
 

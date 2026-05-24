@@ -19,6 +19,11 @@ abstract class RemoteStorageGateway {
     String bucket,
     String prefix,
   );
+  Future<ObjectInfo> headObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+  );
   Future<void> createDirectory(
     RemoteStorageConfig config,
     String bucket,
@@ -130,6 +135,20 @@ class RemoteStorageApi implements RemoteStorageGateway {
       'prefix': prefix,
     });
     return _parseList(result, (m) => ObjectInfo.fromJson(m));
+  }
+
+  @override
+  Future<ObjectInfo> headObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+  ) async {
+    final result = _bridge.call('head_object', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': key,
+    });
+    return ObjectInfo.fromJson(result as Map<String, dynamic>);
   }
 
   @override
