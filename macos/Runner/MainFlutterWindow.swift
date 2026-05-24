@@ -26,7 +26,7 @@ func hideYunjuanMainWindow() {
 // MenuBarController owns the macOS tray item so it survives as long as the
 // main window object lives, mirroring the proven CloudPlayer setup.
 final class MenuBarController: NSObject {
-  private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+  private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
   private let menu = NSMenu()
 
   override init() {
@@ -40,11 +40,9 @@ final class MenuBarController: NSObject {
       return
     }
     button.toolTip = "云卷"
-    button.lineBreakMode = .byTruncatingTail
     button.imageScaling = .scaleProportionallyDown
-    button.imagePosition = .imageLeading
-    button.title = " 云卷"
-    button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+    button.imagePosition = .imageOnly
+    button.title = ""
     button.target = self
     button.action = #selector(handleStatusItemPressed(_:))
 

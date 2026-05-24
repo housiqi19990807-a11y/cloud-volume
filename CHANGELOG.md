@@ -19,7 +19,7 @@
 - Added a custom SVG app mark and Chinese product name `云卷`, applied to the sidebar brand area and macOS app icon/name.
 - Added a macOS menu bar status icon that can reopen the main window, and refreshed the rounded Dock icon to match the `云卷` brand.
 - The macOS tray exit action now exits immediately without an extra confirmation dialog.
-- The macOS tray now uses a dedicated template icon asset, and the default main window size is smaller.
+- The macOS tray now uses a dedicated logo-only template icon asset, and the default main window size is smaller.
 - The macOS main window now reopens at the default centered size on launch instead of restoring the prior session size.
 - New folder creation now uses a MinIO-compatible zero-byte directory placeholder flow for better S3-compatible endpoint support.
 - Added a configurable default download directory in settings, with fallback to the system Downloads folder.
