@@ -57,5 +57,6 @@ The initial setup page persists these S3-compatible settings:
 - Upload now supports multi-file selection, and in-flight upload/download tasks can be canceled from both the transfers page and the sidebar hover list.
 - Breadcrumbs now stay fully expanded when space allows, and only collapse the oldest left-side path segments into `...` when the header becomes tight.
 - Settings now default to hiding files and directories whose names start with `.`, with a switch to reveal them when needed.
+- Clicking a file now opens it directly: cached files launch immediately, otherwise the app downloads them into a local SQLite-tracked cache and opens them after completion; the right-click menu still exposes an explicit download action for choosing a save path.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

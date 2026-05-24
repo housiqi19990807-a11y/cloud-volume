@@ -6,18 +6,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/services/file_access_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
-import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/utils/object_visibility.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
-import 'package:remote_storage/widgets/file_grid_item.dart';
+import 'package:remote_storage/widgets/file_manager_bucket_browser.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
-import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
-import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class FileManagerPage extends StatefulWidget {
@@ -154,26 +152,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  Future<void> _download(ObjectInfo obj) async {
-    if (_activeBucket == null) return;
-    final initialDirectory = await resolveDefaultDownloadDirectory(
-      widget.config.defaultDownloadDirectory,
-    );
-    final savePath = await FilePicker.saveFile(
-      dialogTitle: '下载到',
-      fileName: obj.displayName,
-      initialDirectory: initialDirectory,
-    );
-    if (savePath == null) return;
-    final task = TransferQueue.instance.startTask(
-      isUpload: false,
-      bucket: _activeBucket!,
-      key: obj.key,
-      localPath: savePath,
-    );
-    unawaited(_runDownloadTask(task));
-  }
-
   Future<void> _createDirectory() async {
     if (_activeBucket == null) return;
     final controller = TextEditingController();
@@ -242,39 +220,49 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  Future<void> _runDownloadTask(TransferTask task) async {
+  Future<void> _openObject(ObjectInfo object) async {
+    if (_activeBucket == null) return;
     try {
-      await widget.api.downloadFile(
-        widget.config,
-        task.bucket,
-        task.key,
-        task.localPath,
-        task.id,
+      await FileAccessService.instance.openObject(
+        api: widget.api,
+        config: widget.config,
+        bucket: _activeBucket!,
+        object: object,
       );
-      TransferQueue.instance.markTaskDone(task.id);
-    } catch (e) {
-      TransferQueue.instance.markTaskFailed(task.id, e);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _downloadObject(ObjectInfo object) async {
+    if (_activeBucket == null) return;
+    try {
+      await FileAccessService.instance.downloadObjectWithPicker(
+        api: widget.api,
+        config: widget.config,
+        bucket: _activeBucket!,
+        object: object,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
   Future<void> _showObjectActions(ObjectInfo object, Offset position) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        overlay.size.width - position.dx,
-        overlay.size.height - position.dy,
-      ),
-      items: const [
-        PopupMenuItem<String>(value: 'rename', child: Text('重命名')),
-        PopupMenuItem<String>(value: 'delete', child: Text('删除')),
-      ],
-    );
+    final selected = await showObjectActionMenu(context, position, object);
     if (!mounted || selected == null || _activeBucket == null) return;
     try {
-      if (selected == 'rename') {
+      if (selected == FileObjectAction.download) {
+        await _downloadObject(object);
+        return;
+      }
+      if (selected == FileObjectAction.rename) {
         final newName = await showRenameObjectDialog(context, object);
         if (newName == null ||
             newName.isEmpty ||
@@ -288,7 +276,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
           object.isDir,
           newName,
         );
-      } else if (selected == 'delete') {
+        await FileAccessService.instance.evictCacheForObject(
+          bucket: _activeBucket!,
+          object: object,
+        );
+      } else if (selected == FileObjectAction.delete) {
         final confirmed = await showDeleteObjectDialog(context, object);
         if (!confirmed) return;
         await widget.api.deleteObject(
@@ -296,6 +288,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
           _activeBucket!,
           object.key,
           object.isDir,
+        );
+        await FileAccessService.instance.evictCacheForObject(
+          bucket: _activeBucket!,
+          object: object,
         );
       }
       if (!mounted) return;
@@ -399,41 +395,12 @@ class _FileManagerPageState extends State<FileManagerPage> {
     if (_buckets!.isEmpty) {
       return _empty(theme, LucideIcons.database, '没有可用的存储桶');
     }
-    if (_isGrid) {
-      return _gridWrap(
-        _buckets!
-            .map(
-              (b) => FileGridItem(
-                leading: const WhiteSurFileIcon(
-                  assetPath: 'assets/icons/whitesur/places/network-server.svg',
-                  size: _bucketGridIconSize,
-                ),
-                title: b.name,
-                subtitle: '存储桶',
-                onTap: () => unawaited(_navToBucket(b.name)),
-              ),
-            )
-            .toList(),
-      );
-    }
-    return ShadCard(
-      padding: const EdgeInsets.all(4),
-      child: ListView.builder(
-        itemCount: _buckets!.length,
-        itemBuilder: (ctx, i) {
-          final bucket = _buckets![i];
-          return FileListTile(
-            leading: const WhiteSurFileIcon(
-              assetPath: 'assets/icons/whitesur/places/network-server.svg',
-              size: _listIconSize,
-            ),
-            title: bucket.name,
-            subtitle: '存储桶',
-            onTap: () => unawaited(_navToBucket(bucket.name)),
-            showDivider: i != _buckets!.length - 1,
-          );
-        },
-      ),
+    return FileManagerBucketBrowser(
+      buckets: _buckets!,
+      isGrid: _isGrid,
+      gridIconSize: _bucketGridIconSize,
+      listIconSize: _listIconSize,
+      onOpenBucket: (bucket) => unawaited(_navToBucket(bucket)),
     );
   }
 
@@ -449,28 +416,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
       gridIconSize: _gridIconSize,
       listIconSize: _listIconSize,
       onOpenDirectory: (prefix) => unawaited(_navToPrefix(prefix)),
-      onDownload: (object) => unawaited(_download(object)),
+      onOpenFile: (object) => unawaited(_openObject(object)),
       onNavigateUp: () => unawaited(_navUp()),
       onShowObjectActions: (object, position) =>
           unawaited(_showObjectActions(object, position)),
-    );
-  }
-
-  Widget _gridWrap(List<Widget> children) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = (constraints.maxWidth / 118).floor().clamp(
-          4,
-          10,
-        );
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
-          childAspectRatio: 0.92,
-          children: children,
-        );
-      },
     );
   }
 

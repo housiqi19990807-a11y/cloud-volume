@@ -16,7 +16,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.gridIconSize,
     required this.listIconSize,
     required this.onOpenDirectory,
-    required this.onDownload,
+    required this.onOpenFile,
     required this.onNavigateUp,
     required this.onShowObjectActions,
   });
@@ -34,7 +34,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final double gridIconSize;
   final double listIconSize;
   final ValueChanged<String> onOpenDirectory;
-  final ValueChanged<ObjectInfo> onDownload;
+  final ValueChanged<ObjectInfo> onOpenFile;
   final VoidCallback onNavigateUp;
   final void Function(ObjectInfo object, Offset position) onShowObjectActions;
 
@@ -159,7 +159,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   VoidCallback _tapHandler(ObjectInfo object) {
     if (_isParentDirectory(object)) return onNavigateUp;
     if (object.isDir) return () => onOpenDirectory(object.key);
-    return () => onDownload(object);
+    return () => onOpenFile(object);
   }
 
   bool _isParentDirectory(ObjectInfo object) {

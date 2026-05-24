@@ -146,6 +146,25 @@ class TransferQueue extends ChangeNotifier {
 
   bool isCancelRequested(String id) => _cancelRequestedIds.contains(id);
 
+  TransferStatus? statusOf(String id) => _taskById(id)?.status;
+
+  TransferTask? findActiveTask({
+    required bool isUpload,
+    required String bucket,
+    required String key,
+    required String localPath,
+  }) {
+    for (final task in _tasks) {
+      if (task.isUpload != isUpload) continue;
+      if (task.bucket != bucket || task.key != key) continue;
+      if (task.localPath != localPath) continue;
+      if (!task.isFinished) {
+        return task;
+      }
+    }
+    return null;
+  }
+
   void refreshFromSnapshots(List<TransferSnapshot> snapshots) {
     for (final snapshot in snapshots) {
       final task = _taskById(snapshot.id) ?? _addRemoteTask(snapshot);
