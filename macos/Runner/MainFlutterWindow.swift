@@ -90,23 +90,7 @@ final class MenuBarController: NSObject {
   }
 
   @objc private func handleTerminate() {
-    let alert = NSAlert()
-    alert.messageText = "退出云卷"
-    alert.informativeText = "确定要退出应用，还是仅将主窗口最小化到托盘？"
-    alert.alertStyle = .warning
-    alert.addButton(withTitle: "确定退出")
-    alert.addButton(withTitle: "最小化到托盘")
-    alert.addButton(withTitle: "取消")
-
-    let response = alert.runModal()
-    switch response {
-    case .alertFirstButtonReturn:
-      NSApp.terminate(nil)
-    case .alertSecondButtonReturn:
-      hideYunjuanMainWindow()
-    default:
-      return
-    }
+    NSApp.terminate(nil)
   }
 }
 
