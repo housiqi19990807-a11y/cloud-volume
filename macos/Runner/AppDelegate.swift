@@ -35,15 +35,17 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   private func installStatusItem() {
-    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     guard let button = item.button else {
       return
     }
 
     button.image = makeStatusBarImage()
-    button.imagePosition = .imageOnly
+    button.imagePosition = .imageLeading
+    button.title = "云卷"
     button.toolTip = "打开云卷"
     button.imageScaling = .scaleProportionallyDown
+    button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
     item.menu = buildStatusMenu()
     statusItem = item
   }
@@ -53,6 +55,11 @@ class AppDelegate: FlutterAppDelegate {
     menu.addItem(
       withTitle: "打开云卷",
       action: #selector(openMainWindow(_:)),
+      keyEquivalent: ""
+    )
+    menu.addItem(
+      withTitle: "隐藏主窗口",
+      action: #selector(hideMainWindow(_:)),
       keyEquivalent: ""
     )
     menu.addItem(.separator())
@@ -96,6 +103,10 @@ class AppDelegate: FlutterAppDelegate {
 
   @objc private func terminateApp(_ sender: Any?) {
     NSApp.terminate(sender)
+  }
+
+  @objc private func hideMainWindow(_ sender: Any?) {
+    reusableMainWindow()?.orderOut(sender)
   }
 
   private func reusableMainWindow() -> NSWindow? {
