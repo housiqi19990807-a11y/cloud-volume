@@ -11,7 +11,7 @@ class AppBrandMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SvgPicture.asset(
-      'assets/brand/yunti_brand.svg',
+      'assets/brand/yunjuan_brand.svg',
       width: size,
       height: size,
     );

@@ -1,0 +1,38 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="176" y1="140" x2="848" y2="896" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7BC0FF"/>
+      <stop offset="0.52" stop-color="#5C8CFF"/>
+      <stop offset="1" stop-color="#425CF0"/>
+    </linearGradient>
+    <linearGradient id="disk" x1="278" y1="324" x2="742" y2="764" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDFEFF"/>
+      <stop offset="0.5" stop-color="#E7EEF8"/>
+      <stop offset="1" stop-color="#CDD9E9"/>
+    </linearGradient>
+    <linearGradient id="diskEdge" x1="312" y1="642" x2="708" y2="754" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C7D6EA"/>
+      <stop offset="1" stop-color="#AABDD5"/>
+    </linearGradient>
+    <linearGradient id="cloud" x1="392" y1="382" x2="646" y2="610" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white"/>
+      <stop offset="1" stop-color="#EAF6FF"/>
+    </linearGradient>
+    <linearGradient id="slot" x1="418" y1="594" x2="606" y2="594" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8EE9FF"/>
+      <stop offset="1" stop-color="#68C6FF"/>
+    </linearGradient>
+  </defs>
+  <rect x="170" y="148" width="684" height="684" rx="168" fill="#2042A0" opacity="0.08"/>
+  <rect x="158" y="128" width="708" height="708" rx="174" fill="url(#bg)"/>
+  <path d="M276 184C276 157.49 297.49 136 324 136H706C769.513 136 821 187.487 821 251V278C821 304.51 799.51 326 773 326H324C297.49 326 276 304.51 276 278V184Z" fill="white" fill-opacity="0.22"/>
+  <circle cx="708" cy="280" r="34" fill="#C3FBFF" fill-opacity="0.88"/>
+  <path d="M286 392C286 336.772 330.772 292 386 292H638C693.228 292 738 336.772 738 392V642C738 697.228 693.228 742 638 742H386C330.772 742 286 697.228 286 642V392Z" fill="url(#disk)"/>
+  <path d="M286 610H738V650C738 701.915 695.915 744 644 744H380C328.085 744 286 701.915 286 650V610Z" fill="url(#diskEdge)"/>
+  <path d="M342 436C342 402.863 368.863 376 402 376C414.478 376 426.067 379.811 435.666 386.332C450.316 361.099 477.644 344 509 344C551.302 344 586.608 375.148 594.209 415.333C600.126 413.822 606.328 413 612.722 413C653.752 413 687 446.248 687 487.278C687 528.308 653.752 561.556 612.722 561.556H408C371.549 561.556 342 532.007 342 495.556C342 475.369 351.069 457.301 365.342 445.195C350.964 448.433 342 441.345 342 436Z" fill="url(#cloud)"/>
+  <rect x="408" y="572" width="208" height="54" rx="27" fill="url(#slot)"/>
+  <rect x="438" y="590" width="148" height="18" rx="9" fill="#F7FEFF"/>
+  <rect x="350" y="664" width="324" height="24" rx="12" fill="#B8CAE0"/>
+  <circle cx="672" cy="676" r="12" fill="#7BFFB5"/>
+  <circle cx="632" cy="676" r="12" fill="#B9C8DA"/>
+</svg>
