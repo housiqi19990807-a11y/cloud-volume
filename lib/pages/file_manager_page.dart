@@ -339,18 +339,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
           ),
         ),
         const SizedBox(width: 16),
-        Flexible(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: FileManagerActionBar(
-              theme: theme,
-              isGrid: _isGrid,
-              onToggleView: () => setState(() => _isGrid = !_isGrid),
-              onCreateDirectory: _activeBucket == null || _loading
-                  ? null
-                  : _createDirectory,
-              onUpload: _activeBucket == null || _loading ? null : _upload,
-            ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FileManagerActionBar(
+            theme: theme,
+            isGrid: _isGrid,
+            onToggleView: () => setState(() => _isGrid = !_isGrid),
+            onCreateDirectory: _activeBucket == null || _loading
+                ? null
+                : _createDirectory,
+            onUpload: _activeBucket == null || _loading ? null : _upload,
           ),
         ),
       ],

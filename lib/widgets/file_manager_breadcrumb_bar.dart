@@ -72,8 +72,8 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
                   if (i == layout.visibleCrumbs.length - 1)
                     Expanded(child: _buildCrumb(layout.visibleCrumbs[i], true))
                   else
-                    Flexible(
-                      fit: FlexFit.loose,
+                    SizedBox(
+                      width: _labelWidth(layout.visibleCrumbs[i].label),
                       child: _buildCrumb(layout.visibleCrumbs[i], false),
                     ),
                 ],
@@ -136,7 +136,7 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
       maxLines: 1,
       textDirection: TextDirection.ltr,
     )..layout();
-    return painter.width.clamp(28.0, 160.0);
+    return painter.width.clamp(28.0, 220.0);
   }
 
   Widget _buildCrumb(_CrumbEntry crumb, bool isCurrent) {
