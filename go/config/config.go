@@ -18,6 +18,7 @@ type BootstrapState struct {
 	ConfigPath string              `json:"configPath"`
 	Configured bool                `json:"configured"`
 	Config     RemoteStorageConfig `json:"config"`
+	Profiles   []ProfileInfo       `json:"profiles"`
 }
 
 // DefaultConfig seeds new users with path-style access enabled for broader compatibility.

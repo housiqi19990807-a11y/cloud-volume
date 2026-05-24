@@ -12,6 +12,15 @@ type saveConfigArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`
 }
 
+type profileArgs struct {
+	Name   string                           `json:"name"`
+	Config storageconfig.RemoteStorageConfig `json:"config"`
+}
+
+type profileNameArgs struct {
+	Name string `json:"name"`
+}
+
 // invokeBridgeMethod translates JSON RPC-like method names into typed Go operations.
 func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 	switch method {
@@ -19,6 +28,18 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return loadBootstrapState()
 	case "save_config":
 		return saveConfig(args)
+	case "migrate_default":
+		return migrateAndBootstrap()
+	// Profile management.
+	case "list_profiles":
+		return listProfiles()
+	case "load_profile":
+		return loadProfile(args)
+	case "save_profile":
+		return saveProfile(args)
+	case "delete_profile":
+		return deleteProfile(args)
+	// S3 operations.
 	case "list_buckets":
 		return listBuckets(args)
 	case "list_objects":
@@ -33,33 +54,87 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 }
 
 func loadBootstrapState() (storageconfig.BootstrapState, error) {
-	store, err := storageconfig.NewDefaultStore()
-	if err != nil {
-		return storageconfig.BootstrapState{}, err
+	// Auto-migrate legacy config to profiles dir.
+	_ = storageconfig.MigrateDefault()
+
+	profiles, _ := storageconfig.ListProfiles()
+	configured := len(profiles) > 0
+
+	var config storageconfig.RemoteStorageConfig
+	var configPath string
+	if configured {
+		config, _ = storageconfig.LoadProfile(profiles[0].Name)
+		p, _ := storageconfig.ProfileConfigPath(profiles[0].Name)
+		configPath = p
+	} else {
+		config = storageconfig.DefaultConfig()
+		p, _ := storageconfig.DefaultConfigPath()
+		configPath = p
 	}
-	return store.LoadBootstrapState()
+
+	return storageconfig.BootstrapState{
+		ConfigPath: configPath,
+		Configured: config.IsConfigured(),
+		Config:     config,
+		Profiles:   profiles,
+	}, nil
+}
+
+func migrateAndBootstrap() (storageconfig.BootstrapState, error) {
+	_ = storageconfig.MigrateDefault()
+	return loadBootstrapState()
 }
 
 func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
-	store, err := storageconfig.NewDefaultStore()
-	if err != nil {
-		return storageconfig.BootstrapState{}, err
-	}
 	var input saveConfigArgs
 	if err := decodeArgs(args, &input); err != nil {
 		return storageconfig.BootstrapState{}, err
 	}
-	if err := store.Save(input.Config); err != nil {
+	// Save to "default" profile.
+	if err := storageconfig.SaveProfile("default", input.Config); err != nil {
 		return storageconfig.BootstrapState{}, err
 	}
-	return store.LoadBootstrapState()
+	return loadBootstrapState()
+}
+
+// --- Profile management ---
+
+func listProfiles() (any, error) {
+	_ = storageconfig.MigrateDefault()
+	return storageconfig.ListProfiles()
+}
+
+func loadProfile(args json.RawMessage) (any, error) {
+	var input profileNameArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	return storageconfig.LoadProfile(input.Name)
+}
+
+func saveProfile(args json.RawMessage) (any, error) {
+	var input profileArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := storageconfig.SaveProfile(input.Name, input.Config); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
+func deleteProfile(args json.RawMessage) (any, error) {
+	var input profileNameArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := storageconfig.DeleteProfile(input.Name); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
 }
 
 // --- S3 operations ---
-
-type configArgs struct {
-	Config storageconfig.RemoteStorageConfig `json:"config"`
-}
 
 type bucketArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`

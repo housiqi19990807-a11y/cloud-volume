@@ -7,24 +7,21 @@ import 'package:remote_storage/models/s3_objects.dart';
 
 abstract class RemoteStorageGateway {
   Future<BootstrapState> loadBootstrapState();
-
   Future<BootstrapState> saveConfig(RemoteStorageConfig config);
-
+  Future<RemoteStorageConfig> loadProfile(String name);
+  Future<List<ProfileInfo>> listProfiles();
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config);
-
   Future<List<ObjectInfo>> listObjects(
     RemoteStorageConfig config,
     String bucket,
     String prefix,
   );
-
   Future<void> uploadFile(
     RemoteStorageConfig config,
     String bucket,
     String key,
     String localPath,
   );
-
   Future<void> downloadFile(
     RemoteStorageConfig config,
     String bucket,
@@ -69,11 +66,30 @@ class RemoteStorageApi implements RemoteStorageGateway {
   }
 
   @override
+  Future<RemoteStorageConfig> loadProfile(String name) async {
+    final result = _bridge.call('load_profile', <String, dynamic>{
+      'name': name,
+    });
+    return RemoteStorageConfig.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<List<ProfileInfo>> listProfiles() async {
+    final result = _bridge.call('list_profiles');
+    if (result is List) {
+      return result
+          .map((e) => ProfileInfo.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
+  @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
     final result = _bridge.call('list_buckets', <String, dynamic>{
       'config': config.toJson(),
     });
-    return _parseList<BucketInfo>(result, (m) => BucketInfo.fromJson(m));
+    return _parseList(result, (m) => BucketInfo.fromJson(m));
   }
 
   @override
@@ -87,7 +103,7 @@ class RemoteStorageApi implements RemoteStorageGateway {
       'bucket': bucket,
       'prefix': prefix,
     });
-    return _parseList<ObjectInfo>(result, (m) => ObjectInfo.fromJson(m));
+    return _parseList(result, (m) => ObjectInfo.fromJson(m));
   }
 
   @override
@@ -120,7 +136,6 @@ class RemoteStorageApi implements RemoteStorageGateway {
     });
   }
 
-  /// Parses a JSON list from bridge response into typed Dart objects.
   List<T> _parseList<T>(
     dynamic result,
     T Function(Map<String, dynamic>) fromJson,

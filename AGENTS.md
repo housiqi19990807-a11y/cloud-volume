@@ -31,6 +31,9 @@
 - Route local Go and Flutter build outputs to `bin/`, `build/`, or tool-managed build directories.
 - For ad-hoc Go smoke validation from the repository root, do not run bare `go build .`.
 - Use `go build -o bin/...` for manual bridge smoke tests, and remove temporary one-off outputs if they were created.
+- The macOS app must be started through the Go binding workflow, not plain Flutter alone.
+- `make run` is the canonical local launch command. It first runs `make bridge`, which builds `./bridge` as `bin/bridge/libremote_storage_bridge.dylib`, then launches Flutter with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter run -d macos`.
+- When validating integrated app startup, prefer `make run` over a bare `flutter run -d macos` so the bridge binary and Xcode path are both set correctly.
 
 ## Git Workflow
 
@@ -42,6 +45,6 @@
 ## Validation
 
 - After each meaningful refactor batch, run the narrowest useful validation first.
-- Before finishing, run `go test ./...`, `flutter analyze`, and a final `flutter run -d macos` smoke validation.
+- Before finishing, run `go test ./...`, `flutter analyze`, and a final `make run` smoke validation.
 - The final validation must confirm the app launches and renders correctly on macOS.
   `flutter analyze` or `flutter build macos` alone is not sufficient.
