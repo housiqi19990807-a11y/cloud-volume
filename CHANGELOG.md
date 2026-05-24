@@ -13,6 +13,7 @@
 - Sidebar page switches now preserve in-memory page state through an `IndexedStack`.
 - Sidebar footer now shows live transfer activity, aggregate speeds, and a hover task list for recent uploads/downloads.
 - Sidebar footer now adds a task-count badge while uploads or downloads are pending.
+- File manager breadcrumbs now sit above a separate action bar, support in-place folder creation, and show a `..` parent entry in non-root directories.
 - WhiteSur SVG assets are vendored in-repo as an optional secondary icon library.
 - Sidebar, bucket, and transfer entry icons now use Fluent System Icons for a more native app-style navigation set.
 - Full Chinese interface.

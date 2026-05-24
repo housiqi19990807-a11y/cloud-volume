@@ -9,10 +9,12 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/widgets/create_directory_dialog.dart';
+import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
+import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
-import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -166,6 +168,57 @@ class _FileManagerPageState extends State<FileManagerPage> {
     unawaited(_runDownloadTask(task));
   }
 
+  Future<void> _createDirectory() async {
+    if (_activeBucket == null) return;
+    final controller = TextEditingController();
+    String? errorText;
+    bool creating = false;
+
+    await showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return CreateDirectoryDialog(
+              controller: controller,
+              errorText: errorText,
+              creating: creating,
+              onCancel: () => Navigator.of(dialogContext).pop(),
+              onCreate: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) {
+                  setDialogState(() => errorText = '目录名称不能为空');
+                  return;
+                }
+                setDialogState(() {
+                  creating = true;
+                  errorText = null;
+                });
+                try {
+                  await widget.api.createDirectory(
+                    widget.config,
+                    _activeBucket!,
+                    _prefix,
+                    name,
+                  );
+                  if (!mounted || !dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                  await _loadObjects(_activeBucket!, _prefix);
+                } catch (e) {
+                  setDialogState(() {
+                    creating = false;
+                    errorText = e.toString();
+                  });
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+  }
+
   Future<void> _runUploadTask(TransferTask task, String bucket) async {
     try {
       await widget.api.uploadFile(
@@ -215,56 +268,33 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Widget _buildHeader(ShadThemeData theme) {
-    final p = theme.colorScheme.primary;
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: FileManagerBreadcrumbBar(
-            theme: theme,
-            activeBucket: _activeBucket,
-            breadcrumbs: _breadcrumbs,
-            onOpenBucketList: () => _navCrumb(-1),
-            onOpenBucketRoot: () => _navToBucket(_activeBucket!),
-            onOpenCrumb: _navCrumb,
-          ),
-        ),
-        ShadButton.outline(
-          size: ShadButtonSize.sm,
-          onPressed: () => setState(() => _isGrid = !_isGrid),
-          child: Icon(
-            _isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
-            size: 14,
-            color: p,
-          ),
-        ),
-        if (_activeBucket != null) ...[
-          const SizedBox(width: 6),
-          ShadButton.outline(
-            size: ShadButtonSize.sm,
-            onPressed: _loading ? null : _upload,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.upload, size: 14, color: p),
-                const SizedBox(width: 5),
-                const Text('上传'),
-              ],
+        Row(
+          children: [
+            Expanded(
+              child: FileManagerBreadcrumbBar(
+                theme: theme,
+                activeBucket: _activeBucket,
+                breadcrumbs: _breadcrumbs,
+                onOpenBucketList: () => _navCrumb(-1),
+                onOpenBucketRoot: () => _navToBucket(_activeBucket!),
+                onOpenCrumb: _navCrumb,
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          ShadButton.outline(
-            size: ShadButtonSize.sm,
-            onPressed: _loading ? null : _navUp,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.arrowLeft, size: 14, color: p),
-                const SizedBox(width: 5),
-                const Text('返回'),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
+        const SizedBox(height: 10),
+        FileManagerActionBar(
+          theme: theme,
+          isGrid: _isGrid,
+          onToggleView: () => setState(() => _isGrid = !_isGrid),
+          onCreateDirectory: _activeBucket == null || _loading
+              ? null
+              : _createDirectory,
+          onUpload: _activeBucket == null || _loading ? null : _upload,
+          onGoBack: _activeBucket == null || _loading ? null : _navUp,
+        ),
       ],
     );
   }
@@ -353,44 +383,15 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
-    if (_objects!.isEmpty) {
-      return _empty(theme, LucideIcons.folderOpen, '此目录为空');
-    }
-    if (_isGrid) {
-      return _gridWrap(
-        _objects!.map((o) {
-          return FileGridItem(
-            leading: LocalCloudPanFileIcon(
-              name: o.displayName,
-              isDirectory: o.isDir,
-              size: _gridIconSize,
-            ),
-            title: o.displayName,
-            subtitle: o.isDir ? '' : o.sizeText,
-            onTap: o.isDir ? () => _navToPrefix(o.key) : () => _download(o),
-          );
-        }).toList(),
-      );
-    }
-    return ShadCard(
-      padding: const EdgeInsets.all(4),
-      child: ListView.builder(
-        itemCount: _objects!.length,
-        itemBuilder: (ctx, i) {
-          final o = _objects![i];
-          return FileListTile(
-            leading: LocalCloudPanFileIcon(
-              name: o.displayName,
-              isDirectory: o.isDir,
-              size: _listIconSize,
-            ),
-            title: o.displayName,
-            subtitle: o.isDir ? '文件夹' : '${o.sizeText}  ${o.lastModified}',
-            onTap: o.isDir ? () => _navToPrefix(o.key) : () => _download(o),
-            showDivider: i != _objects!.length - 1,
-          );
-        },
-      ),
+    return FileManagerObjectBrowser(
+      objects: _objects!,
+      prefix: _prefix,
+      isGrid: _isGrid,
+      gridIconSize: _gridIconSize,
+      listIconSize: _listIconSize,
+      onOpenDirectory: _navToPrefix,
+      onDownload: _download,
+      onNavigateUp: _navUp,
     );
   }
 

@@ -44,6 +44,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listBuckets(args)
 	case "list_objects":
 		return listObjects(args)
+	case "create_directory":
+		return createDirectory(args)
 	case "upload_file":
 		return uploadFile(args)
 	case "download_file":
@@ -148,6 +150,13 @@ type objectListArgs struct {
 	Prefix string                            `json:"prefix"`
 }
 
+type createDirectoryArgs struct {
+	Config storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket string                            `json:"bucket"`
+	Prefix string                            `json:"prefix"`
+	Name   string                            `json:"name"`
+}
+
 type uploadArgs struct {
 	Config    storageconfig.RemoteStorageConfig `json:"config"`
 	Bucket    string                            `json:"bucket"`
@@ -178,6 +187,22 @@ func listObjects(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return s3ops.ListObjects(input.Config, input.Bucket, input.Prefix)
+}
+
+func createDirectory(args json.RawMessage) (any, error) {
+	var input createDirectoryArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := s3ops.CreateDirectory(
+		input.Config,
+		input.Bucket,
+		input.Prefix,
+		input.Name,
+	); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
 }
 
 func uploadFile(args json.RawMessage) (any, error) {

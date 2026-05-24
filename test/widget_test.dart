@@ -71,6 +71,14 @@ class _FakeApi implements RemoteStorageGateway {
   ) async => [];
 
   @override
+  Future<void> createDirectory(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+    String name,
+  ) async {}
+
+  @override
   Future<void> uploadFile(
     RemoteStorageConfig config,
     String bucket,

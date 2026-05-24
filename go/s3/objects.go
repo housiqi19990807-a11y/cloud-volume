@@ -3,6 +3,7 @@
 package s3
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -59,6 +60,25 @@ func ListObjects(cfg storageconfig.RemoteStorageConfig, bucket, prefix string) (
 		result = []ObjectInfo{}
 	}
 	return result, nil
+}
+
+// CreateDirectory creates an empty S3 prefix placeholder ending in "/".
+func CreateDirectory(cfg storageconfig.RemoteStorageConfig, bucket, prefix, name string) error {
+	client := NewClient(cfg)
+	trimmedName := strings.Trim(strings.TrimSpace(name), "/")
+	if trimmedName == "" {
+		return fmt.Errorf("directory name is required")
+	}
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	key := prefix + trimmedName + "/"
+	_, err := client.PutObject(Ctx(), &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   bytes.NewReader(nil),
+	})
+	return err
 }
 
 // UploadFile uploads a local file to the given bucket + key.
