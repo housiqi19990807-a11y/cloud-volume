@@ -60,6 +60,7 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
     final theme = ShadTheme.of(context);
     final queue = TransferQueue.instance;
     final foreground = queue.hasRunning ? widget.accent : widget.muted;
+    final badgeCount = queue.runningCount;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -96,34 +97,64 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
                   ),
                   child: Row(
                     children: [
-                      ScaleTransition(
-                        scale: Tween<double>(begin: 1, end: 1.08).animate(
-                          CurvedAnimation(
-                            parent: _controller,
-                            curve: Curves.easeInOut,
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          ScaleTransition(
+                            scale: Tween<double>(begin: 1, end: 1.08).animate(
+                              CurvedAnimation(
+                                parent: _controller,
+                                curve: Curves.easeInOut,
+                              ),
+                            ),
+                            child: Opacity(
+                              opacity: queue.hasRunning ? 1 : 0.9,
+                              child: FluentSystemIcon(
+                                glyph: FluentSystemGlyph.transfers,
+                                size: 16,
+                                color: foreground,
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Opacity(
-                          opacity: queue.hasRunning ? 1 : 0.9,
-                          child: FluentSystemIcon(
-                            glyph: FluentSystemGlyph.transfers,
-                            size: 16,
-                            color: foreground,
-                          ),
-                        ),
+                          if (badgeCount > 0)
+                            Positioned(
+                              right: -9,
+                              top: -8,
+                              child: _TransferTaskBadge(
+                                count: badgeCount,
+                                accent: widget.accent,
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              '上传下载',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: foreground,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '上传下载',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: foreground,
+                                  ),
+                                ),
+                                if (badgeCount > 0) ...[
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '$badgeCount 项',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: widget.accent,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 2),
                             Text(
@@ -145,6 +176,45 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TransferTaskBadge extends StatelessWidget {
+  const _TransferTaskBadge({required this.count, required this.accent});
+
+  final int count;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 99 ? '99+' : '$count';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+      decoration: BoxDecoration(
+        color: accent,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.28),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
+        ),
       ),
     );
   }

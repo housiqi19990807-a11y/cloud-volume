@@ -41,7 +41,7 @@ The initial setup page persists these S3-compatible settings:
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
 - Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
 - Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
-- Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, and a hover task list.
+- Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, an active-task badge, and a hover task list.
 - WhiteSur SVG resources are also vendored as an optional backup icon library.
 - Internal folder grids stay borderless and use larger document-style icons.
 - Full Chinese interface.
