@@ -5,6 +5,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 文件管理页的 Finder 风格网格项。
 class FileGridItem extends StatelessWidget {
+  static const double _selectionControlSize = 18;
+  static const double _selectionControlInset = 24;
+
   const FileGridItem({
     super.key,
     required this.leading,
@@ -53,9 +56,11 @@ class FileGridItem extends StatelessWidget {
             child: Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 6,
+                  padding: EdgeInsets.fromLTRB(
+                    showSelectionControl ? _selectionControlInset : 4,
+                    6,
+                    showSelectionControl ? _selectionControlInset : 4,
+                    6,
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -102,6 +107,7 @@ class FileGridItem extends StatelessWidget {
                     top: 2,
                     right: 2,
                     child: _SelectionIndicator(
+                      size: _selectionControlSize,
                       isSelected: isSelected,
                       hovered: hovered || isSelected,
                       onTap: onSelectionTap,
@@ -118,11 +124,13 @@ class FileGridItem extends StatelessWidget {
 
 class _SelectionIndicator extends StatelessWidget {
   const _SelectionIndicator({
+    required this.size,
     required this.isSelected,
     required this.hovered,
     required this.onTap,
   });
 
+  final double size;
   final bool isSelected;
   final bool hovered;
   final VoidCallback? onTap;
@@ -136,8 +144,8 @@ class _SelectionIndicator extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        width: 18,
-        height: 18,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: isSelected
               ? accent
