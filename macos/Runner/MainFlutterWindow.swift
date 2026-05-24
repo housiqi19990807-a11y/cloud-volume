@@ -1,50 +1,131 @@
 import Cocoa
 import FlutterMacOS
 
-// WindowCoordinator centralizes how the main Flutter window is created and shown.
-enum WindowCoordinator {
-  static func configure(window: NSWindow, controller: FlutterViewController) {
-    let frame = window.frame
-    window.contentViewController = controller
-    window.setFrame(frame, display: true)
-    window.titlebarAppearsTransparent = true
-    window.titleVisibility = .hidden
-    window.styleMask.insert(.fullSizeContentView)
-    window.toolbar = nil
-    window.isReleasedWhenClosed = false
-    window.setContentSize(NSSize(width: 1320, height: 860))
-    window.minSize = NSSize(width: 980, height: 680)
-    RegisterGeneratedPlugins(registry: controller)
+func yunjuanMainWindow() -> NSWindow? {
+  NSApp.windows.first { $0 is MainFlutterWindow } ?? NSApp.mainWindow ?? NSApp.windows.first
+}
+
+func showYunjuanMainWindow() {
+  guard let window = yunjuanMainWindow() else {
+    return
+  }
+  if window.isMiniaturized {
+    window.deminiaturize(nil)
+  }
+  NSApp.activate(ignoringOtherApps: true)
+  window.makeKeyAndOrderFront(nil)
+}
+
+func hideYunjuanMainWindow() {
+  yunjuanMainWindow()?.orderOut(nil)
+}
+
+// MenuBarController owns the macOS tray item so it survives as long as the
+// main window object lives, mirroring the proven CloudPlayer setup.
+final class MenuBarController: NSObject {
+  private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+  private let menu = NSMenu()
+
+  override init() {
+    super.init()
+    configureStatusItem()
+    configureMenu()
   }
 
-  static func createMainWindow() -> MainFlutterWindow {
-    let styleMask: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-    let window = MainFlutterWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
-      styleMask: styleMask,
-      backing: .buffered,
-      defer: false
+  private func configureStatusItem() {
+    guard let button = statusItem.button else {
+      return
+    }
+    button.toolTip = "云卷"
+    button.lineBreakMode = .byTruncatingTail
+    button.imageScaling = .scaleProportionallyDown
+    button.imagePosition = .imageLeading
+    button.title = " 云卷"
+    button.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+    button.target = self
+    button.action = #selector(handleStatusItemPressed(_:))
+
+    if let image = NSApp.applicationIconImage.copy() as? NSImage {
+      image.isTemplate = true
+      image.size = NSSize(width: 18, height: 18)
+      button.image = image
+    }
+  }
+
+  private func configureMenu() {
+    let showItem = NSMenuItem(title: "显示主窗口", action: #selector(handleShowMainWindow), keyEquivalent: "")
+    showItem.target = self
+    let hideItem = NSMenuItem(title: "隐藏到托盘", action: #selector(handleHideMainWindow), keyEquivalent: "")
+    hideItem.target = self
+    let quitItem = NSMenuItem(title: "退出云卷", action: #selector(handleTerminate), keyEquivalent: "q")
+    quitItem.target = self
+
+    menu.autoenablesItems = false
+    menu.items = [
+      showItem,
+      hideItem,
+      .separator(),
+      quitItem,
+    ]
+  }
+
+  @objc private func handleStatusItemPressed(_ sender: NSStatusBarButton) {
+    menu.popUp(
+      positioning: nil,
+      at: NSPoint(x: 0, y: sender.bounds.maxY + 6),
+      in: sender
     )
-    let controller = FlutterViewController()
-    configure(window: window, controller: controller)
-    window.center()
-    return window
   }
 
-  static func show(window: NSWindow?) -> NSWindow {
-    let resolvedWindow = window ?? createMainWindow()
-    resolvedWindow.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
-    return resolvedWindow
+  @objc private func handleShowMainWindow() {
+    showYunjuanMainWindow()
+  }
+
+  @objc private func handleHideMainWindow() {
+    hideYunjuanMainWindow()
+  }
+
+  @objc private func handleTerminate() {
+    let alert = NSAlert()
+    alert.messageText = "退出云卷"
+    alert.informativeText = "确定要退出应用，还是仅将主窗口最小化到托盘？"
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: "确定退出")
+    alert.addButton(withTitle: "最小化到托盘")
+    alert.addButton(withTitle: "取消")
+
+    let response = alert.runModal()
+    switch response {
+    case .alertFirstButtonReturn:
+      NSApp.terminate(nil)
+    case .alertSecondButtonReturn:
+      hideYunjuanMainWindow()
+    default:
+      return
+    }
   }
 }
 
-// MainFlutterWindow uses a transparent titlebar so Flutter renders
-// seamlessly under the traffic-light area, matching modern macOS apps.
+// MainFlutterWindow keeps the macOS host chrome thin and owns the menu-bar
+// controller so tray behavior stays alive across window show/hide cycles.
 class MainFlutterWindow: NSWindow {
+  private var menuBarController: MenuBarController?
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
-    WindowCoordinator.configure(window: self, controller: flutterViewController)
+    let windowFrame = self.frame
+    self.contentViewController = flutterViewController
+    self.setFrame(windowFrame, display: true)
+
+    self.titlebarAppearsTransparent = true
+    self.titleVisibility = .hidden
+    self.styleMask.insert(.fullSizeContentView)
+    self.toolbar = nil
+    self.isReleasedWhenClosed = false
+
+    RegisterGeneratedPlugins(registry: flutterViewController)
+    menuBarController = MenuBarController()
+
     super.awakeFromNib()
   }
 }
