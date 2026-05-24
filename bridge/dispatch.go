@@ -46,6 +46,10 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listObjects(args)
 	case "create_directory":
 		return createDirectory(args)
+	case "delete_object":
+		return deleteObject(args)
+	case "rename_object":
+		return renameObject(args)
 	case "upload_file":
 		return uploadFile(args)
 	case "download_file":
@@ -157,6 +161,21 @@ type createDirectoryArgs struct {
 	Name   string                            `json:"name"`
 }
 
+type objectMutationArgs struct {
+	Config      storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket      string                            `json:"bucket"`
+	Key         string                            `json:"key"`
+	IsDirectory bool                              `json:"isDirectory"`
+}
+
+type renameObjectArgs struct {
+	Config      storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket      string                            `json:"bucket"`
+	Key         string                            `json:"key"`
+	IsDirectory bool                              `json:"isDirectory"`
+	NewName     string                            `json:"newName"`
+}
+
 type uploadArgs struct {
 	Config    storageconfig.RemoteStorageConfig `json:"config"`
 	Bucket    string                            `json:"bucket"`
@@ -199,6 +218,39 @@ func createDirectory(args json.RawMessage) (any, error) {
 		input.Bucket,
 		input.Prefix,
 		input.Name,
+	); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
+func deleteObject(args json.RawMessage) (any, error) {
+	var input objectMutationArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := s3ops.DeleteObject(
+		input.Config,
+		input.Bucket,
+		input.Key,
+		input.IsDirectory,
+	); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
+func renameObject(args json.RawMessage) (any, error) {
+	var input renameObjectArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := s3ops.RenameObject(
+		input.Config,
+		input.Bucket,
+		input.Key,
+		input.IsDirectory,
+		input.NewName,
 	); err != nil {
 		return nil, err
 	}

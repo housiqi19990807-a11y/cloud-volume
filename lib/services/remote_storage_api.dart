@@ -25,6 +25,19 @@ abstract class RemoteStorageGateway {
     String prefix,
     String name,
   );
+  Future<void> deleteObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    bool isDirectory,
+  );
+  Future<void> renameObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    bool isDirectory,
+    String newName,
+  );
   Future<void> uploadFile(
     RemoteStorageConfig config,
     String bucket,
@@ -130,6 +143,38 @@ class RemoteStorageApi implements RemoteStorageGateway {
       'bucket': bucket,
       'prefix': prefix,
       'name': name,
+    });
+  }
+
+  @override
+  Future<void> deleteObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    bool isDirectory,
+  ) async {
+    _bridge.call('delete_object', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': key,
+      'isDirectory': isDirectory,
+    });
+  }
+
+  @override
+  Future<void> renameObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    bool isDirectory,
+    String newName,
+  ) async {
+    _bridge.call('rename_object', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': key,
+      'isDirectory': isDirectory,
+      'newName': newName,
     });
   }
 

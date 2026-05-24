@@ -50,5 +50,6 @@ The initial setup page persists these S3-compatible settings:
 - Internal folder grids stay borderless and use larger document-style icons.
 - New folder creation uses a MinIO-compatible placeholder upload path so S3-compatible endpoints can create directories reliably.
 - Settings now allow configuring a default download directory; the save dialog falls back to the system Downloads folder when none is set.
+- File and folder items now expose a desktop-style right-click menu for rename and delete actions in both list and grid views.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

@@ -11,12 +11,14 @@ class FileGridItem extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.onSecondaryTapDown,
   });
 
   final Widget leading;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +27,7 @@ class FileGridItem extends StatelessWidget {
       builder: (hovered) {
         return GestureDetector(
           onTap: onTap,
+          onSecondaryTapDown: onSecondaryTapDown,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             curve: Curves.easeOut,

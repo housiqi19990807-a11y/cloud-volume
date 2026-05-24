@@ -18,6 +18,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.onOpenDirectory,
     required this.onDownload,
     required this.onNavigateUp,
+    required this.onShowObjectActions,
   });
 
   static const ObjectInfo _parentDirectoryEntry = ObjectInfo(
@@ -35,6 +36,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final ValueChanged<String> onOpenDirectory;
   final ValueChanged<ObjectInfo> onDownload;
   final VoidCallback onNavigateUp;
+  final void Function(ObjectInfo object, Offset position) onShowObjectActions;
 
   @override
   Widget build(BuildContext context) {
@@ -87,6 +89,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
                   title: _title(object),
                   subtitle: _subtitle(object, forGrid: true),
                   onTap: _tapHandler(object),
+                  onSecondaryTapDown: _isParentDirectory(object)
+                      ? null
+                      : (details) =>
+                            onShowObjectActions(object, details.globalPosition),
                 ),
               )
               .toList(),
@@ -107,6 +113,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
             title: _title(object),
             subtitle: _subtitle(object),
             onTap: _tapHandler(object),
+            onSecondaryTapDown: _isParentDirectory(object)
+                ? null
+                : (details) =>
+                      onShowObjectActions(object, details.globalPosition),
             showDivider: index != objects.length - 1,
           );
         },

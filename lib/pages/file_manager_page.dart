@@ -15,6 +15,7 @@ import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
+import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -251,6 +252,57 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
+  Future<void> _showObjectActions(ObjectInfo object, Offset position) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        overlay.size.width - position.dx,
+        overlay.size.height - position.dy,
+      ),
+      items: const [
+        PopupMenuItem<String>(value: 'rename', child: Text('重命名')),
+        PopupMenuItem<String>(value: 'delete', child: Text('删除')),
+      ],
+    );
+    if (!mounted || selected == null || _activeBucket == null) return;
+    try {
+      if (selected == 'rename') {
+        final newName = await showRenameObjectDialog(context, object);
+        if (newName == null ||
+            newName.isEmpty ||
+            newName == object.displayName) {
+          return;
+        }
+        await widget.api.renameObject(
+          widget.config,
+          _activeBucket!,
+          object.key,
+          object.isDir,
+          newName,
+        );
+      } else if (selected == 'delete') {
+        final confirmed = await showDeleteObjectDialog(context, object);
+        if (!confirmed) return;
+        await widget.api.deleteObject(
+          widget.config,
+          _activeBucket!,
+          object.key,
+          object.isDir,
+        );
+      }
+      if (!mounted) return;
+      await _loadObjects(_activeBucket!, _prefix);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -393,6 +445,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onOpenDirectory: (prefix) => unawaited(_navToPrefix(prefix)),
       onDownload: (object) => unawaited(_download(object)),
       onNavigateUp: () => unawaited(_navUp()),
+      onShowObjectActions: (object, position) =>
+          unawaited(_showObjectActions(object, position)),
     );
   }
 

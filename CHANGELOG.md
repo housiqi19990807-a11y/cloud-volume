@@ -20,4 +20,5 @@
 - Added a macOS menu bar status icon that can reopen the main window, and refreshed the rounded Dock icon to match the `云卷` brand.
 - New folder creation now uses a MinIO-compatible zero-byte directory placeholder flow for better S3-compatible endpoint support.
 - Added a configurable default download directory in settings, with fallback to the system Downloads folder.
+- File and folder items now support right-click rename and delete actions in both list and grid views.
 - Full Chinese interface.
