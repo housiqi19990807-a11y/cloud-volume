@@ -1,5 +1,5 @@
 // 右侧表单面板：端点、区域、认证、保存。
-// 使用 Column 布局，确保 100vh 内无需滚动即可完整显示。
+// 标题固定顶部，按钮固定底部，中间字段区可滚动以防溢出。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -86,11 +86,11 @@ class ConfigRightFormPanel extends StatelessWidget {
 
     return Container(
       color: theme.colorScheme.background,
-      // Column layout for 100vh fit, no scroll.
       padding: const EdgeInsets.only(left: 40, right: 40, top: 48, bottom: 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Fixed header.
           Text(
             '初始化配置',
             style: theme.textTheme.h3.copyWith(
@@ -107,107 +107,115 @@ class ConfigRightFormPanel extends StatelessWidget {
             ),
           ),
 
-          const Spacer(),
-
-          // 连接配置
-          const SectionLabel('连接配置'),
-          const SizedBox(height: 8),
-          FormFieldRow(
-            label: '端点地址',
-            child: ShadInput(
-              controller: endpointController,
-              placeholder: const Text('https://s3.example.com'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          FormFieldRow(
-            label: '区域',
-            child: ShadInput(
-              controller: regionController,
-              placeholder: const Text('auto / us-east-1'),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // 认证信息
-          const SectionLabel('认证信息'),
-          const SizedBox(height: 8),
-          FormFieldRow(
-            label: '访问密钥 ID',
-            child: ShadInput(
-              controller: accessKeyController,
-              placeholder: const Text('AKIA...'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          FormFieldRow(
-            label: '访问密钥',
-            child: ShadInput(
-              controller: secretKeyController,
-              placeholder: const Text('请输入密钥'),
-              obscureText: true,
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // 选项
-          ShadSwitch(
-            value: usePathStyle,
-            onChanged: isSaving ? null : onPathStyleChanged,
-            label: Text(
-              '使用路径风格访问',
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.foreground,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            sublabel: Text(
-              '推荐用于大多数 S3 兼容及私有对象存储。',
-              style: TextStyle(
-                color: theme.colorScheme.mutedForeground,
-                fontSize: 12,
-              ),
-            ),
-          ),
-
-          if (errorText != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.destructive.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.colorScheme.destructive.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
+          // Scrollable middle area for fields + error.
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 16,
-                    color: theme.colorScheme.destructive,
+                  const SectionLabel('连接配置'),
+                  const SizedBox(height: 8),
+                  FormFieldRow(
+                    label: '端点地址',
+                    child: ShadInput(
+                      controller: endpointController,
+                      placeholder: const Text('https://s3.example.com'),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      errorText!,
+                  const SizedBox(height: 12),
+                  FormFieldRow(
+                    label: '区域',
+                    child: ShadInput(
+                      controller: regionController,
+                      placeholder: const Text('auto / us-east-1'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  const SectionLabel('认证信息'),
+                  const SizedBox(height: 8),
+                  FormFieldRow(
+                    label: '访问密钥 ID',
+                    child: ShadInput(
+                      controller: accessKeyController,
+                      placeholder: const Text('AKIA...'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FormFieldRow(
+                    label: '访问密钥',
+                    child: ShadInput(
+                      controller: secretKeyController,
+                      placeholder: const Text('请输入密钥'),
+                      obscureText: true,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  ShadSwitch(
+                    value: usePathStyle,
+                    onChanged: isSaving ? null : onPathStyleChanged,
+                    label: Text(
+                      '使用路径风格访问',
+                      style: theme.textTheme.small.copyWith(
+                        color: theme.colorScheme.foreground,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    sublabel: Text(
+                      '推荐用于大多数 S3 兼容及私有对象存储。',
                       style: TextStyle(
-                        color: theme.colorScheme.destructive,
-                        fontSize: 13,
+                        color: theme.colorScheme.mutedForeground,
+                        fontSize: 12,
                       ),
                     ),
                   ),
+
+                  if (errorText != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.destructive.withValues(
+                          alpha: 0.06,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: theme.colorScheme.destructive.withValues(
+                            alpha: 0.2,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 16,
+                            color: theme.colorScheme.destructive,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              errorText!,
+                              style: TextStyle(
+                                color: theme.colorScheme.destructive,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-          ],
+          ),
 
-          const Spacer(),
-
-          // Bottom action.
+          // Fixed bottom button.
           SizedBox(
             width: double.infinity,
             child: ShadButton(
