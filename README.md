@@ -45,5 +45,6 @@ The initial setup page persists these S3-compatible settings:
 - Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, an active-task badge, and a hover task list.
 - WhiteSur SVG resources are also vendored as an optional backup icon library.
 - Internal folder grids stay borderless and use larger document-style icons.
+- New folder creation uses a MinIO-compatible placeholder upload path so S3-compatible endpoints can create directories reliably.
 - Full Chinese interface.
 - Built with `shadcn_ui`.
