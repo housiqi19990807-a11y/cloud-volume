@@ -49,84 +49,58 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     final hiddenCrumbs = _hiddenCrumbs();
     return Align(
       alignment: Alignment.centerLeft,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          height: 32,
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: onOpenBucketList,
-                child: Icon(
-                  LucideIcons.house,
-                  size: 16,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              _crumbChevron(theme),
-              _crumbLabel(
-                activeBucket!,
-                onTap: onOpenBucketRoot,
+      child: SizedBox(
+        height: 32,
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: onOpenBucketList,
+              child: Icon(
+                LucideIcons.house,
+                size: 16,
                 color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-                maxWidth: 170,
               ),
-              if (hiddenCrumbs.isNotEmpty) ...[
-                _crumbChevron(theme),
-                PopupMenuButton<int>(
-                  tooltip: '展开中间层级',
-                  padding: EdgeInsets.zero,
-                  offset: const Offset(0, 28),
-                  itemBuilder: (context) => [
-                    for (final crumb in hiddenCrumbs)
-                      PopupMenuItem<int>(
-                        value: crumb.index,
-                        child: Text(
-                          crumb.label,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onSelected: onOpenCrumb,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 2,
-                      vertical: 2,
-                    ),
-                    child: Text(
-                      '...',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.mutedForeground,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              for (final crumb in visibleCrumbs) ...[
-                _crumbChevron(theme),
-                _crumbLabel(
-                  crumb.label,
-                  onTap: () => onOpenCrumb(crumb.index),
-                  color: crumb.index == breadcrumbs.length - 1
-                      ? theme.colorScheme.foreground
-                      : theme.colorScheme.mutedForeground,
-                  fontWeight: crumb.index == breadcrumbs.length - 1
-                      ? FontWeight.w600
-                      : FontWeight.w400,
-                  maxWidth: crumb.index == breadcrumbs.length - 1 ? 200 : 140,
-                ),
-              ],
+            ),
+            _crumbChevron(theme),
+            _crumbLabel(
+              activeBucket!,
+              onTap: onOpenBucketRoot,
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w600,
+              maxWidth: 140,
+            ),
+            if (hiddenCrumbs.isNotEmpty) ...[
+              _crumbChevron(theme),
+              _hiddenCrumbMenu(hiddenCrumbs),
             ],
-          ),
+            for (int i = 0; i < visibleCrumbs.length; i++) ...[
+              _crumbChevron(theme),
+              if (i == visibleCrumbs.length - 1)
+                Expanded(
+                  child: _crumbLabel(
+                    visibleCrumbs[i].label,
+                    onTap: () => onOpenCrumb(visibleCrumbs[i].index),
+                    color: theme.colorScheme.foreground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              else
+                _crumbLabel(
+                  visibleCrumbs[i].label,
+                  onTap: () => onOpenCrumb(visibleCrumbs[i].index),
+                  color: theme.colorScheme.mutedForeground,
+                  fontWeight: FontWeight.w400,
+                  maxWidth: 96,
+                ),
+            ],
+          ],
         ),
       ),
     );
   }
 
   List<_CrumbEntry> _visibleCrumbs() {
-    if (breadcrumbs.length <= 3) {
+    if (breadcrumbs.length <= 2) {
       return [
         for (int i = 0; i < breadcrumbs.length; i++)
           _CrumbEntry(index: i, label: breadcrumbs[i]),
@@ -139,11 +113,38 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
   }
 
   List<_CrumbEntry> _hiddenCrumbs() {
-    if (breadcrumbs.length <= 3) return const [];
+    if (breadcrumbs.length <= 2) return const [];
     return [
       for (int i = 1; i < breadcrumbs.length - 1; i++)
         _CrumbEntry(index: i, label: breadcrumbs[i]),
     ];
+  }
+
+  Widget _hiddenCrumbMenu(List<_CrumbEntry> hiddenCrumbs) {
+    return PopupMenuButton<int>(
+      tooltip: '展开中间层级',
+      padding: EdgeInsets.zero,
+      offset: const Offset(0, 28),
+      itemBuilder: (context) => [
+        for (final crumb in hiddenCrumbs)
+          PopupMenuItem<int>(
+            value: crumb.index,
+            child: Text(crumb.label, overflow: TextOverflow.ellipsis),
+          ),
+      ],
+      onSelected: onOpenCrumb,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        child: Text(
+          '...',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _crumbLabel(
@@ -151,19 +152,23 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     required VoidCallback onTap,
     required Color color,
     required FontWeight fontWeight,
-    required double maxWidth,
+    double? maxWidth,
   }) {
-    return GestureDetector(
+    final text = GestureDetector(
       onTap: onTap,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 14, fontWeight: fontWeight, color: color),
-        ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 14, fontWeight: fontWeight, color: color),
       ),
+    );
+    if (maxWidth == null) {
+      return text;
+    }
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: text,
     );
   }
 
