@@ -191,9 +191,13 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   ac,
                   muted,
                 ),
-                _navItem(
-                  LocalCloudPanSidebarGlyph.settings,
-                  '设置',
+                _navItemWidget(
+                  Icon(
+                    Icons.settings_outlined,
+                    size: 18,
+                    color: _selected == SidebarItem.settings ? ac : muted,
+                  ),
+                  '系统设置',
                   SidebarItem.settings,
                   ac,
                   muted,
@@ -250,6 +254,51 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           child: Row(
             children: [
               LocalCloudPanSidebarIcon(glyph: icon, size: 17, color: fg),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  color: fg,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItemWidget(
+    Widget leading,
+    String label,
+    SidebarItem item,
+    Color ac,
+    Color muted,
+  ) {
+    final selected = _selected == item;
+    final bg = selected ? ac.withValues(alpha: 0.1) : Colors.transparent;
+    final fg = selected ? ac : muted;
+    final border = selected
+        ? Border.all(color: ac.withValues(alpha: 0.2))
+        : Border.all(color: Colors.transparent);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      child: GestureDetector(
+        onTap: () => setState(() => _selected = item),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(8),
+            border: border,
+          ),
+          child: Row(
+            children: [
+              leading,
               const SizedBox(width: 10),
               Text(
                 label,
