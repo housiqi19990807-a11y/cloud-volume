@@ -9,6 +9,7 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
@@ -217,8 +218,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
     final p = theme.colorScheme.primary;
     return Row(
       children: [
-        Expanded(child: _buildBreadcrumbBar(theme)),
-        // 列表/网格切换。
+        Expanded(
+          child: FileManagerBreadcrumbBar(
+            theme: theme,
+            activeBucket: _activeBucket,
+            breadcrumbs: _breadcrumbs,
+            onOpenBucketList: () => _navCrumb(-1),
+            onOpenBucketRoot: () => _navToBucket(_activeBucket!),
+            onOpenCrumb: _navCrumb,
+          ),
+        ),
         ShadButton.outline(
           size: ShadButtonSize.sm,
           onPressed: () => setState(() => _isGrid = !_isGrid),
@@ -253,70 +262,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
                 const SizedBox(width: 5),
                 const Text('返回'),
               ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildBreadcrumbBar(ShadThemeData theme) {
-    if (_activeBucket == null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '文件管理',
-            style: theme.textTheme.h3.copyWith(
-              fontWeight: FontWeight.w700,
-              fontSize: 22,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '浏览和管理远程存储中的文件。',
-            style: TextStyle(
-              color: theme.colorScheme.mutedForeground,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      );
-    }
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () => _navToBucket(_activeBucket!),
-          child: Text(
-            _activeBucket!,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-        ),
-        for (int i = 0; i < _breadcrumbs.length; i++) ...[
-          const SizedBox(width: 4),
-          Icon(
-            LucideIcons.chevronRight,
-            size: 14,
-            color: theme.colorScheme.mutedForeground,
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => _navCrumb(i),
-            child: Text(
-              _breadcrumbs[i],
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: i == _breadcrumbs.length - 1
-                    ? FontWeight.w600
-                    : FontWeight.w400,
-                color: i == _breadcrumbs.length - 1
-                    ? theme.colorScheme.foreground
-                    : theme.colorScheme.mutedForeground,
-              ),
             ),
           ),
         ],
@@ -363,8 +308,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
     return _buildObjectView(theme);
   }
 
-  // --- 桶 ---
-
   Widget _buildBucketView(ShadThemeData theme) {
     if (_buckets == null) return const SizedBox();
     if (_buckets!.isEmpty) {
@@ -407,8 +350,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
       ),
     );
   }
-
-  // --- 对象 ---
 
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
