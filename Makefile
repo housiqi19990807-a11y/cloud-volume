@@ -1,11 +1,17 @@
 # One-command workflows for remote-storage macOS app.
 
-.PHONY: run build test clean
+BRIDGE_OUT := bin/bridge/libremote_storage_bridge.dylib
 
-run:
+.PHONY: bridge run build test clean
+
+bridge:
+	@mkdir -p bin/bridge
+	go build -buildmode=c-shared -o $(BRIDGE_OUT) ./bridge
+
+run: bridge
 	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter run -d macos
 
-build:
+build: bridge
 	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter build macos
 
 test:
@@ -13,3 +19,4 @@ test:
 
 clean:
 	flutter clean
+	rm -rf bin/bridge

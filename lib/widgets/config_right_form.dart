@@ -1,4 +1,4 @@
-// 右侧表单面板：端点、区域、认证、保存。
+// 右侧表单面板：认证字段为主，高级设置可折叠。
 // 标题固定顶部，按钮固定底部，中间字段区可滚动以防溢出。
 
 import 'package:flutter/material.dart';
@@ -107,33 +107,14 @@ class ConfigRightFormPanel extends StatelessWidget {
             ),
           ),
 
-          // Scrollable middle area for fields + error.
+          // Scrollable fields.
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SectionLabel('连接配置'),
-                  const SizedBox(height: 8),
-                  FormFieldRow(
-                    label: '端点地址',
-                    child: ShadInput(
-                      controller: endpointController,
-                      placeholder: const Text('https://s3.example.com'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  FormFieldRow(
-                    label: '区域',
-                    child: ShadInput(
-                      controller: regionController,
-                      placeholder: const Text('auto / us-east-1'),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
+                  // Main: auth fields.
                   const SectionLabel('认证信息'),
                   const SizedBox(height: 8),
                   FormFieldRow(
@@ -155,23 +136,12 @@ class ConfigRightFormPanel extends StatelessWidget {
 
                   const SizedBox(height: 20),
 
-                  ShadSwitch(
-                    value: usePathStyle,
-                    onChanged: isSaving ? null : onPathStyleChanged,
-                    label: Text(
-                      '使用路径风格访问',
-                      style: theme.textTheme.small.copyWith(
-                        color: theme.colorScheme.foreground,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    sublabel: Text(
-                      '推荐用于大多数 S3 兼容及私有对象存储。',
-                      style: TextStyle(
-                        color: theme.colorScheme.mutedForeground,
-                        fontSize: 12,
-                      ),
-                    ),
+                  // Collapsible advanced settings.
+                  _AdvancedSettings(
+                    endpointController: endpointController,
+                    regionController: regionController,
+                    usePathStyle: usePathStyle,
+                    onPathStyleChanged: onPathStyleChanged,
                   ),
 
                   if (errorText != null) ...[
@@ -241,6 +211,98 @@ class ConfigRightFormPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Collapsible section for endpoint, region, and path-style toggle.
+class _AdvancedSettings extends StatefulWidget {
+  const _AdvancedSettings({
+    required this.endpointController,
+    required this.regionController,
+    required this.usePathStyle,
+    required this.onPathStyleChanged,
+  });
+
+  final TextEditingController endpointController;
+  final TextEditingController regionController;
+  final bool usePathStyle;
+  final ValueChanged<bool> onPathStyleChanged;
+
+  @override
+  State<_AdvancedSettings> createState() => _AdvancedSettingsState();
+}
+
+class _AdvancedSettingsState extends State<_AdvancedSettings> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Row(
+            children: [
+              Icon(
+                _expanded ? Icons.expand_more : Icons.chevron_right_rounded,
+                size: 18,
+                color: theme.colorScheme.mutedForeground,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '高级设置',
+                style: TextStyle(
+                  color: theme.colorScheme.mutedForeground,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 12),
+          FormFieldRow(
+            label: '端点地址',
+            child: ShadInput(
+              controller: widget.endpointController,
+              placeholder: const Text('https://s3.example.com'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FormFieldRow(
+            label: '区域',
+            child: ShadInput(
+              controller: widget.regionController,
+              placeholder: const Text('auto / us-east-1'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ShadSwitch(
+            value: widget.usePathStyle,
+            onChanged: widget.onPathStyleChanged,
+            label: Text(
+              '使用路径风格访问',
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.foreground,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            sublabel: Text(
+              '推荐用于大多数 S3 兼容及私有对象存储。',
+              style: TextStyle(
+                color: theme.colorScheme.mutedForeground,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

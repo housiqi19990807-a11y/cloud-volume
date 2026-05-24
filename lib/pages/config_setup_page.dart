@@ -8,6 +8,10 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 
+// Preset defaults for first-run.
+const _kDefaultEndpoint = 'https://fgws3-ocloud.ihep.ac.cn';
+const _kDefaultRegion = 'auto';
+
 class ConfigSetupPage extends StatefulWidget {
   const ConfigSetupPage({
     super.key,
@@ -38,8 +42,15 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   void initState() {
     super.initState();
     final config = widget.initialState.config;
-    _endpointController = TextEditingController(text: config.endpoint);
-    _regionController = TextEditingController(text: config.region);
+    // Use defaults when fields are empty (first-run).
+    _endpointController = TextEditingController(
+      text: config.endpoint.trim().isNotEmpty
+          ? config.endpoint
+          : _kDefaultEndpoint,
+    );
+    _regionController = TextEditingController(
+      text: config.region.trim().isNotEmpty ? config.region : _kDefaultRegion,
+    );
     _accessKeyController = TextEditingController(text: config.accessKeyId);
     _secretKeyController = TextEditingController(text: config.secretAccessKey);
     _usePathStyle = config.usePathStyle;
@@ -67,7 +78,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
 
     if (!config.isConfigured) {
       setState(() {
-        _errorText = '端点地址、访问密钥 ID 和访问密钥为必填项。';
+        _errorText = '访问密钥 ID 和访问密钥为必填项。';
       });
       return;
     }
