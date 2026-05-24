@@ -48,9 +48,9 @@ class RemoteStorageConfig {
   final String rootPrefix;
   final bool usePathStyle;
 
+  // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
     return endpoint.trim().isNotEmpty &&
-        bucket.trim().isNotEmpty &&
         accessKeyId.trim().isNotEmpty &&
         secretAccessKey.trim().isNotEmpty;
   }
@@ -88,9 +88,7 @@ class RemoteStorageConfig {
   }
 
   static bool? _boolFromDynamic(Object? value) {
-    if (value is bool) {
-      return value;
-    }
+    if (value is bool) return value;
     if (value is String) {
       final normalized = value.trim().toLowerCase();
       if (normalized == 'true') return true;

@@ -1,10 +1,10 @@
-// 右侧表单面板：包含 S3 连接字段、认证信息和保存操作。
-// 背景延伸至标题栏区域，内容在红绿灯安全区下方开始。
+// 右侧表单面板：端点、区域、认证、保存。
+// 使用 Column 布局，确保 100vh 内无需滚动即可完整显示。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// 表单区块标题，用于分组字段。
+/// 表单区块标题。
 class SectionLabel extends StatelessWidget {
   const SectionLabel(this.text, {super.key});
 
@@ -39,7 +39,7 @@ class FormFieldRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 5),
+          padding: const EdgeInsets.only(bottom: 4),
           child: Text(
             label,
             style: theme.textTheme.small.copyWith(
@@ -61,10 +61,8 @@ class ConfigRightFormPanel extends StatelessWidget {
     super.key,
     required this.endpointController,
     required this.regionController,
-    required this.bucketController,
     required this.accessKeyController,
     required this.secretKeyController,
-    required this.prefixController,
     required this.usePathStyle,
     required this.onPathStyleChanged,
     required this.isSaving,
@@ -74,10 +72,8 @@ class ConfigRightFormPanel extends StatelessWidget {
 
   final TextEditingController endpointController;
   final TextEditingController regionController;
-  final TextEditingController bucketController;
   final TextEditingController accessKeyController;
   final TextEditingController secretKeyController;
-  final TextEditingController prefixController;
   final bool usePathStyle;
   final ValueChanged<bool> onPathStyleChanged;
   final bool isSaving;
@@ -90,150 +86,131 @@ class ConfigRightFormPanel extends StatelessWidget {
 
     return Container(
       color: theme.colorScheme.background,
-      child: SingleChildScrollView(
-        // top: 40 matches left panel traffic-light safe zone
-        padding: const EdgeInsets.only(
-          left: 40,
-          right: 40,
-          top: 40,
-          bottom: 32,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '初始化配置',
-              style: theme.textTheme.h3.copyWith(
-                fontWeight: FontWeight.w600,
+      // Column layout for 100vh fit, no scroll.
+      padding: const EdgeInsets.only(left: 40, right: 40, top: 48, bottom: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '初始化配置',
+            style: theme.textTheme.h3.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.foreground,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '配置远程存储的连接信息。',
+            style: theme.textTheme.muted.copyWith(
+              color: theme.colorScheme.mutedForeground,
+              fontSize: 13,
+            ),
+          ),
+
+          const Spacer(),
+
+          // 连接配置
+          const SectionLabel('连接配置'),
+          const SizedBox(height: 8),
+          FormFieldRow(
+            label: '端点地址',
+            child: ShadInput(
+              controller: endpointController,
+              placeholder: const Text('https://s3.example.com'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FormFieldRow(
+            label: '区域',
+            child: ShadInput(
+              controller: regionController,
+              placeholder: const Text('auto / us-east-1'),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // 认证信息
+          const SectionLabel('认证信息'),
+          const SizedBox(height: 8),
+          FormFieldRow(
+            label: '访问密钥 ID',
+            child: ShadInput(
+              controller: accessKeyController,
+              placeholder: const Text('AKIA...'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FormFieldRow(
+            label: '访问密钥',
+            child: ShadInput(
+              controller: secretKeyController,
+              placeholder: const Text('请输入密钥'),
+              obscureText: true,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // 选项
+          ShadSwitch(
+            value: usePathStyle,
+            onChanged: isSaving ? null : onPathStyleChanged,
+            label: Text(
+              '使用路径风格访问',
+              style: theme.textTheme.small.copyWith(
                 color: theme.colorScheme.foreground,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '配置 S3 兼容存储的连接信息。',
-              style: theme.textTheme.muted.copyWith(
+            sublabel: Text(
+              '推荐用于大多数 S3 兼容及私有对象存储。',
+              style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
-                fontSize: 13,
+                fontSize: 12,
               ),
             ),
-            const SizedBox(height: 32),
+          ),
 
-            // 连接配置
-            const SectionLabel('连接配置'),
-            const SizedBox(height: 10),
-            FormFieldRow(
-              label: '端点地址',
-              child: ShadInput(
-                controller: endpointController,
-                placeholder: const Text('https://s3.example.com'),
-              ),
-            ),
-            const SizedBox(height: 14),
-            FormFieldRow(
-              label: '区域',
-              child: ShadInput(
-                controller: regionController,
-                placeholder: const Text('auto / us-east-1'),
-              ),
-            ),
-            const SizedBox(height: 14),
-            FormFieldRow(
-              label: '存储桶',
-              child: ShadInput(
-                controller: bucketController,
-                placeholder: const Text('media-assets'),
-              ),
-            ),
-            const SizedBox(height: 14),
-            FormFieldRow(
-              label: '根前缀',
-              child: ShadInput(
-                controller: prefixController,
-                placeholder: const Text('library/music'),
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // 认证信息
-            const SectionLabel('认证信息'),
-            const SizedBox(height: 10),
-            FormFieldRow(
-              label: '访问密钥 ID',
-              child: ShadInput(
-                controller: accessKeyController,
-                placeholder: const Text('AKIA...'),
-              ),
-            ),
-            const SizedBox(height: 14),
-            FormFieldRow(
-              label: '访问密钥',
-              child: ShadInput(
-                controller: secretKeyController,
-                placeholder: const Text('请输入密钥'),
-                obscureText: true,
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // 选项
-            const SectionLabel('选项'),
-            const SizedBox(height: 10),
-            ShadSwitch(
-              value: usePathStyle,
-              onChanged: isSaving ? null : onPathStyleChanged,
-              label: Text(
-                '使用路径风格访问',
-                style: theme.textTheme.small.copyWith(
-                  color: theme.colorScheme.foreground,
-                  fontWeight: FontWeight.w500,
+          if (errorText != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.destructive.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.colorScheme.destructive.withValues(alpha: 0.2),
                 ),
               ),
-              sublabel: Text(
-                '推荐用于大多数 S3 兼容及私有对象存储。',
-                style: TextStyle(
-                  color: theme.colorScheme.mutedForeground,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-
-            if (errorText != null) ...[
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.destructive.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: theme.colorScheme.destructive.withValues(alpha: 0.2),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 16,
+                    color: theme.colorScheme.destructive,
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 16,
-                      color: theme.colorScheme.destructive,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        errorText!,
-                        style: TextStyle(
-                          color: theme.colorScheme.destructive,
-                          fontSize: 13,
-                        ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      errorText!,
+                      style: TextStyle(
+                        color: theme.colorScheme.destructive,
+                        fontSize: 13,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
+          ],
 
-            const SizedBox(height: 32),
-            ShadButton(
+          const Spacer(),
+
+          // Bottom action.
+          SizedBox(
+            width: double.infinity,
+            child: ShadButton(
               onPressed: isSaving ? null : onSave,
               child: isSaving
                   ? Row(
@@ -253,9 +230,8 @@ class ConfigRightFormPanel extends StatelessWidget {
                     )
                   : const Text('保存并继续'),
             ),
-            const SizedBox(height: 20),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

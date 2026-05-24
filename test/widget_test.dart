@@ -22,7 +22,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('初始化配置'), findsOneWidget);
-    expect(find.text('配置 S3 兼容存储的连接信息。'), findsOneWidget);
+    expect(find.text('配置远程存储的连接信息。'), findsOneWidget);
   });
 
   testWidgets('App shows Chinese home page when config exists', (tester) async {
