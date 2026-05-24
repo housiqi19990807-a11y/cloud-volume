@@ -34,4 +34,5 @@
 - Closing the main macOS window now asks whether to minimize to tray or quit, while the tray menu's `退出云卷` action still exits immediately.
 - In double-click open mode, multi-selection now uses explicit checkmarks: a left-side checkbox in list view and a top-right checkbox in grid view.
 - List view now adds a header checkbox that can select or clear all visible items in the current directory, with partial-selection feedback.
+- The desktop project now includes macOS, Linux, and Windows host shells, and the local build scripts support native bridge/build flows on all three platforms.
 - Full Chinese interface.

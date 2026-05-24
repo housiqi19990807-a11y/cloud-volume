@@ -1,6 +1,6 @@
 # remote-storage
 
-`remote-storage` is a Flutter macOS desktop app for managing S3-compatible remote storage.
+`remote-storage` is a Flutter desktop app for managing S3-compatible remote storage across macOS, Linux, and Windows.
 The end-user product branding is `云卷`.
 
 ## Bootstrap flow
@@ -18,9 +18,19 @@ go mod tidy
 make run
 ```
 
-`make run` is the canonical startup flow. It rebuilds the Go bridge into
-`bin/bridge/` and then launches the macOS Flutter app with the required
-`DEVELOPER_DIR` binding.
+`make run` is the canonical startup flow on the current host desktop platform.
+On macOS it preserves the required bridge-first startup and launches Flutter
+with the required `DEVELOPER_DIR` binding.
+
+Platform-specific targets:
+
+- macOS: `make bridge-macos`, `make run-macos`, `make build-macos`
+- Linux: `make bridge-linux`, `make run-linux`, `make build-linux`
+- Windows: `make bridge-windows`, `make build-windows`
+
+Linux and Windows desktop shells are now checked into the repository alongside
+the existing macOS host app so the project can be built natively on all three
+desktop platforms.
 
 ## Configuration fields
 
