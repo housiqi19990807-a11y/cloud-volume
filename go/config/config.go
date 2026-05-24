@@ -11,6 +11,7 @@ type RemoteStorageConfig struct {
 	SecretAccessKey          string `json:"secretAccessKey" toml:"secret_access_key"`
 	RootPrefix               string `json:"rootPrefix" toml:"root_prefix"`
 	DefaultDownloadDirectory string `json:"defaultDownloadDirectory" toml:"default_download_directory"`
+	HideDotFiles             bool   `json:"hideDotFiles" toml:"hide_dot_files"`
 	UsePathStyle             bool   `json:"usePathStyle" toml:"use_path_style"`
 }
 
@@ -25,6 +26,7 @@ type BootstrapState struct {
 // DefaultConfig seeds new users with path-style access enabled for broader compatibility.
 func DefaultConfig() RemoteStorageConfig {
 	return RemoteStorageConfig{
+		HideDotFiles: true,
 		UsePathStyle: true,
 	}
 }
@@ -39,6 +41,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		SecretAccessKey:          strings.TrimSpace(c.SecretAccessKey),
 		RootPrefix:               strings.Trim(strings.TrimSpace(c.RootPrefix), "/"),
 		DefaultDownloadDirectory: strings.TrimSpace(c.DefaultDownloadDirectory),
+		HideDotFiles:             c.HideDotFiles,
 		UsePathStyle:             c.UsePathStyle,
 	}
 }

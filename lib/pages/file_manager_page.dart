@@ -9,6 +9,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
+import 'package:remote_storage/utils/object_visibility.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
@@ -441,7 +442,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
     return FileManagerObjectBrowser(
-      objects: _objects!,
+      objects: filterVisibleObjects(
+        _objects!,
+        hideDotFiles: widget.config.hideDotFiles,
+      ),
       prefix: _prefix,
       isGrid: _isGrid,
       gridIconSize: _gridIconSize,

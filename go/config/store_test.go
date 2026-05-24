@@ -20,6 +20,9 @@ func TestLoadBootstrapStateForMissingFile(t *testing.T) {
 	if !state.Config.UsePathStyle {
 		t.Fatalf("expected default config to enable path-style access")
 	}
+	if !state.Config.HideDotFiles {
+		t.Fatalf("expected default config to hide dot files")
+	}
 }
 
 func TestSaveAndLoadRoundTrip(t *testing.T) {
@@ -32,6 +35,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		SecretAccessKey:          " SECRET ",
 		RootPrefix:               " /music/archive/ ",
 		DefaultDownloadDirectory: " /Users/demo/Downloads/remote-storage ",
+		HideDotFiles:             true,
 		UsePathStyle:             true,
 	}
 
@@ -52,6 +56,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 	if loaded.DefaultDownloadDirectory != "/Users/demo/Downloads/remote-storage" {
 		t.Fatalf("unexpected default download directory %q", loaded.DefaultDownloadDirectory)
+	}
+	if !loaded.HideDotFiles {
+		t.Fatalf("expected hide dot files to stay enabled")
 	}
 	if !loaded.IsConfigured() {
 		t.Fatalf("expected saved config to be configured")

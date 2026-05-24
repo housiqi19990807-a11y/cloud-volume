@@ -9,6 +9,7 @@ class RemoteStorageConfig {
     required this.secretAccessKey,
     required this.rootPrefix,
     required this.defaultDownloadDirectory,
+    required this.hideDotFiles,
     required this.usePathStyle,
   });
 
@@ -21,6 +22,7 @@ class RemoteStorageConfig {
       secretAccessKey: '',
       rootPrefix: '',
       defaultDownloadDirectory: '',
+      hideDotFiles: true,
       usePathStyle: true,
     );
   }
@@ -41,6 +43,9 @@ class RemoteStorageConfig {
                   json['default_download_directory'] ??
                   '')
               .toString(),
+      hideDotFiles:
+          _boolFromDynamic(json['hideDotFiles'] ?? json['hide_dot_files']) ??
+          true,
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
@@ -54,6 +59,7 @@ class RemoteStorageConfig {
   final String secretAccessKey;
   final String rootPrefix;
   final String defaultDownloadDirectory;
+  final bool hideDotFiles;
   final bool usePathStyle;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
@@ -72,6 +78,7 @@ class RemoteStorageConfig {
       'secretAccessKey': secretAccessKey.trim(),
       'rootPrefix': rootPrefix.trim(),
       'defaultDownloadDirectory': defaultDownloadDirectory.trim(),
+      'hideDotFiles': hideDotFiles,
       'usePathStyle': usePathStyle,
     };
   }
@@ -84,6 +91,7 @@ class RemoteStorageConfig {
     String? secretAccessKey,
     String? rootPrefix,
     String? defaultDownloadDirectory,
+    bool? hideDotFiles,
     bool? usePathStyle,
   }) {
     return RemoteStorageConfig(
@@ -95,6 +103,7 @@ class RemoteStorageConfig {
       rootPrefix: rootPrefix ?? this.rootPrefix,
       defaultDownloadDirectory:
           defaultDownloadDirectory ?? this.defaultDownloadDirectory,
+      hideDotFiles: hideDotFiles ?? this.hideDotFiles,
       usePathStyle: usePathStyle ?? this.usePathStyle,
     );
   }

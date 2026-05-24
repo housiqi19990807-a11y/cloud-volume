@@ -31,6 +31,8 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   bool _savingDownloadDirectory = false;
   String? _downloadDirectoryError;
+  bool _savingVisibility = false;
+  String? _visibilityError;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +91,25 @@ class _SettingsPageState extends State<SettingsPage> {
                 errorText: _downloadDirectoryError,
                 onPickDirectory: () => _pickDownloadDirectory(config),
                 onResetDirectory: () => _resetDownloadDirectory(config),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ShadCard(
+              padding: const EdgeInsets.all(20),
+              title: Text(
+                '显示设置',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: theme.colorScheme.foreground,
+                ),
+              ),
+              child: _VisibilitySection(
+                theme: theme,
+                hideDotFiles: config.hideDotFiles,
+                saving: _savingVisibility,
+                errorText: _visibilityError,
+                onChanged: (value) => _saveHideDotFiles(config, value),
               ),
             ),
             const SizedBox(height: 20),
@@ -185,6 +206,36 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         setState(() {
           _savingDownloadDirectory = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveHideDotFiles(
+    RemoteStorageConfig config,
+    bool hideDotFiles,
+  ) async {
+    setState(() {
+      _savingVisibility = true;
+      _visibilityError = null;
+    });
+    try {
+      await widget.api.saveConfig(config.copyWith(hideDotFiles: hideDotFiles));
+      if (!mounted) {
+        return;
+      }
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _visibilityError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingVisibility = false;
         });
       }
     }
@@ -300,6 +351,89 @@ class _DownloadDirectorySection extends StatelessWidget {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _VisibilitySection extends StatelessWidget {
+  const _VisibilitySection({
+    required this.theme,
+    required this.hideDotFiles,
+    required this.saving,
+    required this.errorText,
+    required this.onChanged,
+  });
+
+  final ShadThemeData theme;
+  final bool hideDotFiles;
+  final bool saving;
+  final String? errorText;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '默认隐藏以 . 开头的目录和文件，便于像 macOS Finder 一样保持文件视图整洁。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.6,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '隐藏点文件与点目录',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.foreground,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hideDotFiles ? '当前为默认隐藏' : '当前显示全部文件',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ShadSwitch(
+                value: hideDotFiles,
+                onChanged: saving ? null : onChanged,
+              ),
+            ],
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
       ],
     );
   }

@@ -56,5 +56,6 @@ The initial setup page persists these S3-compatible settings:
 - File and folder items now expose a desktop-style right-click menu for rename and delete actions in both list and grid views.
 - Upload now supports multi-file selection, and in-flight upload/download tasks can be canceled from both the transfers page and the sidebar hover list.
 - Breadcrumbs now stay fully expanded when space allows, and only collapse the oldest left-side path segments into `...` when the header becomes tight.
+- Settings now default to hiding files and directories whose names start with `.`, with a switch to reveal them when needed.
 - Full Chinese interface.
 - Built with `shadcn_ui`.
