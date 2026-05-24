@@ -40,7 +40,7 @@ The initial setup page persists these S3-compatible settings:
 - User-switchable accent color (5 presets: tech-blue, violet, green, orange, rose).
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
 - Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
-- File browsing now uses a Finder-style top bar with back/forward navigation, a clickable folder title that expands breadcrumbs, and in-place folder creation plus `..` entries in non-root directories.
+- Breadcrumbs and the file action bar now share a single header row, with long paths collapsed in the middle to `...` while still supporting direct breadcrumb jumps, in-place folder creation, and `..` entries in non-root directories.
 - Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
 - Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, an active-task badge, and a hover task list.
 - WhiteSur SVG resources are also vendored as an optional backup icon library.

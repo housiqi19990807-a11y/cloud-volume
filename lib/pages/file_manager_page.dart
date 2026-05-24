@@ -1,16 +1,16 @@
-// 文件管理页：负责 Finder 风格顶部导航、桶/对象浏览，以及上传下载交互。
+// 文件管理页：负责面包屑导航、桶/对象浏览，以及上传下载交互。
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:remote_storage/models/file_manager_location.dart';
+import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
-import 'package:remote_storage/widgets/file_manager_finder_header.dart';
+import 'package:remote_storage/widgets/file_manager_action_bar.dart';
+import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
@@ -40,9 +40,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _loading = false;
   String? _error;
   bool _isGrid = false;
-  bool _showBreadcrumbs = false;
-  final List<FileManagerLocation> _backHistory = [];
-  final List<FileManagerLocation> _forwardHistory = [];
 
   @override
   void initState() {
@@ -50,7 +47,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
     _loadBuckets();
   }
 
-  Future<bool> _loadBuckets({bool activateView = true}) async {
+  Future<bool> _loadBuckets() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -60,13 +57,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (!mounted) return false;
       setState(() {
         _buckets = buckets;
-        if (activateView) {
-          _activeBucket = null;
-          _objects = null;
-          _prefix = '';
-          _breadcrumbs = [];
-          _showBreadcrumbs = false;
-        }
+        _activeBucket = null;
+        _objects = null;
+        _prefix = '';
+        _breadcrumbs = [];
         _loading = false;
       });
       return true;
@@ -97,7 +91,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _objects = objects;
         _prefix = prefix;
         _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
-        _showBreadcrumbs = false;
         _loading = false;
       });
       return true;
@@ -111,96 +104,29 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  FileManagerLocation get _currentLocation =>
-      FileManagerLocation(bucket: _activeBucket, prefix: _prefix);
-  String get _currentTitle => _activeBucket == null
-      ? '所有存储桶'
-      : (_breadcrumbs.isEmpty ? _activeBucket! : _breadcrumbs.last);
-  bool get _canGoBack => _backHistory.isNotEmpty;
-  bool get _canGoForward => _forwardHistory.isNotEmpty;
-
-  Future<void> _navigateTo(
-    FileManagerLocation target, {
-    bool recordHistory = true,
-  }) async {
-    final current = _currentLocation;
-    if (target == current) {
-      if (!mounted) return;
-      setState(() => _showBreadcrumbs = false);
-      return;
-    }
-    final navigated = target.isBucketList
-        ? (_buckets == null
-              ? await _loadBuckets()
-              : () {
-                  if (!mounted) return false;
-                  setState(() {
-                    _activeBucket = null;
-                    _objects = null;
-                    _prefix = '';
-                    _breadcrumbs = [];
-                    _error = null;
-                    _showBreadcrumbs = false;
-                  });
-                  return true;
-                }())
-        : await _loadObjects(target.bucket!, target.prefix);
-    if (!navigated || !recordHistory || target == current) return;
-    _backHistory.add(current);
-    _forwardHistory.clear();
-  }
-
-  Future<void> _goBack() async {
-    if (!_canGoBack) return;
-    final target = _backHistory.removeLast();
-    _forwardHistory.add(_currentLocation);
-    await _navigateTo(target, recordHistory: false);
-  }
-
-  Future<void> _goForward() async {
-    if (!_canGoForward) return;
-    final target = _forwardHistory.removeLast();
-    _backHistory.add(_currentLocation);
-    await _navigateTo(target, recordHistory: false);
-  }
-
   Future<void> _navToBucket(String bucket) {
-    return _navigateTo(FileManagerLocation(bucket: bucket));
+    return _loadObjects(bucket, '');
   }
 
   Future<void> _navToPrefix(String prefix) {
     if (_activeBucket == null) return Future.value();
-    return _navigateTo(
-      FileManagerLocation(bucket: _activeBucket, prefix: prefix),
-    );
+    return _loadObjects(_activeBucket!, prefix);
   }
 
   Future<void> _navUp() {
     if (_activeBucket == null) return Future.value();
     final parts = _prefix.split('/').where((s) => s.isNotEmpty).toList();
-    if (parts.isEmpty) {
-      return _navigateTo(const FileManagerLocation(bucket: null));
-    }
+    if (parts.isEmpty) return _loadBuckets();
     parts.removeLast();
-    return _navigateTo(
-      FileManagerLocation(
-        bucket: _activeBucket,
-        prefix: parts.map((part) => '$part/').join(),
-      ),
-    );
+    return _loadObjects(_activeBucket!, parts.map((part) => '$part/').join());
   }
 
   Future<void> _navCrumb(int index) {
     if (_activeBucket == null) return Future.value();
-    if (index < 0) return _navigateTo(const FileManagerLocation(bucket: null));
-    return _navigateTo(
-      FileManagerLocation(
-        bucket: _activeBucket,
-        prefix: _breadcrumbs
-            .sublist(0, index + 1)
-            .map((segment) => '$segment/')
-            .join(),
-      ),
+    if (index < 0) return _loadBuckets();
+    return _loadObjects(
+      _activeBucket!,
+      _breadcrumbs.sublist(0, index + 1).map((segment) => '$segment/').join(),
     );
   }
 
@@ -337,27 +263,35 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Widget _buildHeader(ShadThemeData theme) {
-    return FileManagerFinderHeader(
-      theme: theme,
-      title: _currentTitle,
-      activeBucket: _activeBucket,
-      breadcrumbs: _breadcrumbs,
-      isGrid: _isGrid,
-      canGoBack: _canGoBack,
-      canGoForward: _canGoForward,
-      showBreadcrumbs: _showBreadcrumbs,
-      onToggleBreadcrumbs: () =>
-          setState(() => _showBreadcrumbs = !_showBreadcrumbs),
-      onGoBack: () => unawaited(_goBack()),
-      onGoForward: () => unawaited(_goForward()),
-      onOpenBucketList: () => unawaited(_navCrumb(-1)),
-      onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucket!)),
-      onOpenCrumb: (index) => unawaited(_navCrumb(index)),
-      onToggleView: () => setState(() => _isGrid = !_isGrid),
-      onCreateDirectory: _activeBucket == null || _loading
-          ? null
-          : _createDirectory,
-      onUpload: _activeBucket == null || _loading ? null : _upload,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: FileManagerBreadcrumbBar(
+            theme: theme,
+            activeBucket: _activeBucket,
+            breadcrumbs: _breadcrumbs,
+            onOpenBucketList: () => unawaited(_loadBuckets()),
+            onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucket!)),
+            onOpenCrumb: (index) => unawaited(_navCrumb(index)),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Flexible(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: FileManagerActionBar(
+              theme: theme,
+              isGrid: _isGrid,
+              onToggleView: () => setState(() => _isGrid = !_isGrid),
+              onCreateDirectory: _activeBucket == null || _loading
+                  ? null
+                  : _createDirectory,
+              onUpload: _activeBucket == null || _loading ? null : _upload,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

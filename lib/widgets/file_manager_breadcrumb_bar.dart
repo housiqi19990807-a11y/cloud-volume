@@ -45,47 +45,113 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
         ],
       );
     }
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: onOpenBucketList,
-          child: Icon(
-            LucideIcons.house,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
-        ),
-        _crumbChevron(theme),
-        GestureDetector(
-          onTap: onOpenBucketRoot,
-          child: Text(
-            activeBucket!,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+    final visibleCrumbs = _visibleCrumbs();
+    final hiddenCrumbs = _hiddenCrumbs();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onOpenBucketList,
+            child: Icon(
+              LucideIcons.house,
+              size: 16,
               color: theme.colorScheme.primary,
             ),
           ),
-        ),
-        for (int i = 0; i < breadcrumbs.length; i++) ...[
           _crumbChevron(theme),
-          GestureDetector(
-            onTap: () => onOpenCrumb(i),
-            child: Text(
-              breadcrumbs[i],
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: i == breadcrumbs.length - 1
-                    ? FontWeight.w600
-                    : FontWeight.w400,
-                color: i == breadcrumbs.length - 1
-                    ? theme.colorScheme.foreground
-                    : theme.colorScheme.mutedForeground,
+          _crumbLabel(
+            activeBucket!,
+            onTap: onOpenBucketRoot,
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w600,
+            maxWidth: 170,
+          ),
+          if (hiddenCrumbs.isNotEmpty) ...[
+            _crumbChevron(theme),
+            PopupMenuButton<int>(
+              tooltip: '展开中间层级',
+              padding: EdgeInsets.zero,
+              offset: const Offset(0, 28),
+              itemBuilder: (context) => [
+                for (final crumb in hiddenCrumbs)
+                  PopupMenuItem<int>(
+                    value: crumb.index,
+                    child: Text(crumb.label, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onSelected: onOpenCrumb,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                child: Text(
+                  '...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
+          for (final crumb in visibleCrumbs) ...[
+            _crumbChevron(theme),
+            _crumbLabel(
+              crumb.label,
+              onTap: () => onOpenCrumb(crumb.index),
+              color: crumb.index == breadcrumbs.length - 1
+                  ? theme.colorScheme.foreground
+                  : theme.colorScheme.mutedForeground,
+              fontWeight: crumb.index == breadcrumbs.length - 1
+                  ? FontWeight.w600
+                  : FontWeight.w400,
+              maxWidth: crumb.index == breadcrumbs.length - 1 ? 200 : 140,
+            ),
+          ],
         ],
-      ],
+      ),
+    );
+  }
+
+  List<_CrumbEntry> _visibleCrumbs() {
+    if (breadcrumbs.length <= 3) {
+      return [
+        for (int i = 0; i < breadcrumbs.length; i++)
+          _CrumbEntry(index: i, label: breadcrumbs[i]),
+      ];
+    }
+    return [
+      _CrumbEntry(index: 0, label: breadcrumbs.first),
+      _CrumbEntry(index: breadcrumbs.length - 1, label: breadcrumbs.last),
+    ];
+  }
+
+  List<_CrumbEntry> _hiddenCrumbs() {
+    if (breadcrumbs.length <= 3) return const [];
+    return [
+      for (int i = 1; i < breadcrumbs.length - 1; i++)
+        _CrumbEntry(index: i, label: breadcrumbs[i]),
+    ];
+  }
+
+  Widget _crumbLabel(
+    String label, {
+    required VoidCallback onTap,
+    required Color color,
+    required FontWeight fontWeight,
+    required double maxWidth,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 14, fontWeight: fontWeight, color: color),
+        ),
+      ),
     );
   }
 
@@ -99,4 +165,11 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CrumbEntry {
+  const _CrumbEntry({required this.index, required this.label});
+
+  final int index;
+  final String label;
 }
