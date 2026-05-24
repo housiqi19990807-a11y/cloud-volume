@@ -47,68 +47,80 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     }
     final visibleCrumbs = _visibleCrumbs();
     final hiddenCrumbs = _hiddenCrumbs();
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: onOpenBucketList,
-            child: Icon(
-              LucideIcons.house,
-              size: 16,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          _crumbChevron(theme),
-          _crumbLabel(
-            activeBucket!,
-            onTap: onOpenBucketRoot,
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.w600,
-            maxWidth: 170,
-          ),
-          if (hiddenCrumbs.isNotEmpty) ...[
-            _crumbChevron(theme),
-            PopupMenuButton<int>(
-              tooltip: '展开中间层级',
-              padding: EdgeInsets.zero,
-              offset: const Offset(0, 28),
-              itemBuilder: (context) => [
-                for (final crumb in hiddenCrumbs)
-                  PopupMenuItem<int>(
-                    value: crumb.index,
-                    child: Text(crumb.label, overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-              onSelected: onOpenCrumb,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-                child: Text(
-                  '...',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          height: 32,
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: onOpenBucketList,
+                child: Icon(
+                  LucideIcons.house,
+                  size: 16,
+                  color: theme.colorScheme.primary,
                 ),
               ),
-            ),
-          ],
-          for (final crumb in visibleCrumbs) ...[
-            _crumbChevron(theme),
-            _crumbLabel(
-              crumb.label,
-              onTap: () => onOpenCrumb(crumb.index),
-              color: crumb.index == breadcrumbs.length - 1
-                  ? theme.colorScheme.foreground
-                  : theme.colorScheme.mutedForeground,
-              fontWeight: crumb.index == breadcrumbs.length - 1
-                  ? FontWeight.w600
-                  : FontWeight.w400,
-              maxWidth: crumb.index == breadcrumbs.length - 1 ? 200 : 140,
-            ),
-          ],
-        ],
+              _crumbChevron(theme),
+              _crumbLabel(
+                activeBucket!,
+                onTap: onOpenBucketRoot,
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+                maxWidth: 170,
+              ),
+              if (hiddenCrumbs.isNotEmpty) ...[
+                _crumbChevron(theme),
+                PopupMenuButton<int>(
+                  tooltip: '展开中间层级',
+                  padding: EdgeInsets.zero,
+                  offset: const Offset(0, 28),
+                  itemBuilder: (context) => [
+                    for (final crumb in hiddenCrumbs)
+                      PopupMenuItem<int>(
+                        value: crumb.index,
+                        child: Text(
+                          crumb.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onSelected: onOpenCrumb,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 2,
+                    ),
+                    child: Text(
+                      '...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              for (final crumb in visibleCrumbs) ...[
+                _crumbChevron(theme),
+                _crumbLabel(
+                  crumb.label,
+                  onTap: () => onOpenCrumb(crumb.index),
+                  color: crumb.index == breadcrumbs.length - 1
+                      ? theme.colorScheme.foreground
+                      : theme.colorScheme.mutedForeground,
+                  fontWeight: crumb.index == breadcrumbs.length - 1
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                  maxWidth: crumb.index == breadcrumbs.length - 1 ? 200 : 140,
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

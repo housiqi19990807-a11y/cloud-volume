@@ -264,7 +264,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Widget _buildHeader(ShadThemeData theme) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: FileManagerBreadcrumbBar(
@@ -279,7 +279,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         const SizedBox(width: 16),
         Flexible(
           child: Align(
-            alignment: Alignment.topRight,
+            alignment: Alignment.centerRight,
             child: FileManagerActionBar(
               theme: theme,
               isGrid: _isGrid,
