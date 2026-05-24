@@ -1,10 +1,11 @@
-// The root app owns the macOS design system and bootstrap wiring.
+// Root widget: wires ShadApp + ThemeInitializer (with persistence) + transparent chrome.
 
 import 'package:flutter/material.dart';
-import 'package:macos_ui/macos_ui.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/pages/app_bootstrap_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/app_theme.dart';
+import 'package:remote_storage/theme/theme_controller.dart';
 
 class RemoteStorageApp extends StatelessWidget {
   const RemoteStorageApp({
@@ -16,11 +17,24 @@ class RemoteStorageApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MacosApp(
+    return ThemeInitializer(child: _ThemeAwareShell(apiFactory: apiFactory));
+  }
+}
+
+/// Inner shell that reads the current accent from ThemeController.
+class _ThemeAwareShell extends StatelessWidget {
+  const _ThemeAwareShell({required this.apiFactory});
+
+  final RemoteStorageApiFactory apiFactory;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = ThemeController.of(context).accent;
+    return ShadApp(
       title: 'Remote Storage',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
-      theme: buildAppTheme(),
+      theme: buildAppTheme(accent),
       home: AppBootstrapPage(apiFactory: apiFactory),
     );
   }

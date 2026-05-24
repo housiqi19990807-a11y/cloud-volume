@@ -1,12 +1,13 @@
 # remote-storage
 
-`remote-storage` is a Flutter desktop app backed by a Go bridge for managing S3-compatible remote storage.
+`remote-storage` is a Flutter macOS desktop app for managing S3-compatible remote storage.
 
-## Current bootstrap flow
+## Bootstrap flow
 
 - On startup, the app loads `~/.remote-storage/config.toml` through the Go FFI bridge.
-- If the configuration is missing or incomplete, the app opens the initialization page.
+- If the configuration is missing or incomplete, the app opens the initialization page (left-right split layout).
 - Saving the form writes the config file and switches the app to a placeholder connected state.
+- Theme accent color is persisted via `shared_preferences` and defaults to tech-blue.
 
 ## Local development
 
@@ -22,24 +23,18 @@ The Go bridge is built on demand to `bin/bridge/` the first time Flutter connect
 
 The initial setup page persists these S3-compatible settings:
 
-- `endpoint`
-- `region`
-- `bucket`
-- `access_key_id`
-- `secret_access_key`
-- `root_prefix`
-- `use_path_style`
+- `endpoint` — S3-compatible endpoint URL
+- `region` — storage region
+- `bucket` — target bucket name
+- `access_key_id` — access key
+- `secret_access_key` — secret key
+- `root_prefix` — optional key prefix
+- `use_path_style` — use path-style URLs (recommended for most compatible stores)
 
-## Getting Started
+## UI design
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- macOS transparent titlebar with Flutter content extending behind traffic lights.
+- Left-right split config page: dark brand panel on the left, form on the right.
+- User-switchable accent color (5 presets: tech-blue, violet, green, orange, rose).
+- Full Chinese interface.
+- Built with `shadcn_ui`.

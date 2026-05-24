@@ -1,12 +1,11 @@
-// Bootstrap page decides whether the app should open setup flow or the ready state.
+// 启动引导页：判断是否已有配置，决定跳转配置页还是主页。
 
-import 'package:flutter/cupertino.dart';
-import 'package:macos_ui/macos_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/config_setup_page.dart';
 import 'package:remote_storage/pages/home_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
-import 'package:remote_storage/widgets/app_shell.dart';
 
 class AppBootstrapPage extends StatefulWidget {
   const AppBootstrapPage({super.key, required this.apiFactory});
@@ -47,7 +46,7 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const _BootstrapMessageView(
-            title: '检查配置中',
+            title: '正在检查配置',
             description: '正在读取 ~/.remote-storage/config.toml 并准备远程存储环境。',
             loading: true,
           );
@@ -110,36 +109,38 @@ class _BootstrapMessageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typography = MacosTheme.of(context).typography;
-    return AppWindowFrame(
-      title: 'Remote Storage',
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 540),
-          child: PanelCard(
-            padding: const EdgeInsets.all(28),
+    final theme = ShadTheme.of(context);
+    // Full-bleed background extending behind traffic lights.
+    return Scaffold(
+      backgroundColor: theme.colorScheme.background,
+      body: Padding(
+        // Safe zone for macOS traffic lights.
+        padding: const EdgeInsets.only(top: 40),
+        child: Center(
+          child: ShadCard(
+            width: 480,
+            padding: const EdgeInsets.all(32),
+            title: Text(title),
+            description: Text(
+              description,
+              style: TextStyle(
+                color: theme.colorScheme.mutedForeground,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                if (loading) ...<Widget>[
-                  const ProgressCircle(),
-                  const SizedBox(height: 18),
-                ],
-                Text(title, style: typography.title1),
-                const SizedBox(height: 10),
-                Text(
-                  description,
-                  style: typography.body.copyWith(
-                    color: CupertinoColors.secondaryLabel,
+              children: [
+                if (loading)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 16),
+                    child: CircularProgressIndicator(),
                   ),
-                ),
-                if (actionLabel != null && onAction != null) ...<Widget>[
-                  const SizedBox(height: 22),
+                if (actionLabel != null && onAction != null) ...[
+                  const SizedBox(height: 20),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: PushButton(
-                      controlSize: ControlSize.large,
+                    child: ShadButton(
                       onPressed: onAction,
                       child: Text(actionLabel!),
                     ),

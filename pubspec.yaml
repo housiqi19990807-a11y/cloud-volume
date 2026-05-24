@@ -10,9 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
   ffi: ^2.1.4
-  macos_ui: ^2.2.2
   path: ^1.9.1
-
+  shadcn_ui: ^0.54.0
+  shared_preferences: ^2.5.5
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,10 +1,8 @@
-// Home page is intentionally a placeholder until storage browsing features arrive.
+// 主页：存储连接成功后的占位页，等待后续桶浏览和文件管理功能。
 
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show SelectableText;
-import 'package:macos_ui/macos_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
-import 'package:remote_storage/widgets/app_shell.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({
@@ -20,65 +18,86 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typography = MacosTheme.of(context).typography;
+    final theme = ShadTheme.of(context);
     final config = state.config;
 
-    return AppWindowFrame(
-      title: 'Remote Storage',
-      child: PanelCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('远程存储已连接', style: typography.title1),
-            const SizedBox(height: 10),
-            Text(
-              '初始化流程已经完成。当前仓库已经能根据本地配置状态在启动时切换页面，后续可以继续接入桶浏览、文件上传和同步逻辑。',
-              style: typography.body.copyWith(
-                color: CupertinoColors.secondaryLabel,
+    // Full-bleed background extending behind transparent titlebar.
+    return Scaffold(
+      backgroundColor: theme.colorScheme.background,
+      body: Padding(
+        // Safe zone for macOS traffic lights.
+        padding: const EdgeInsets.only(top: 40),
+        child: SingleChildScrollView(
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 600),
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '远程存储已连接',
+                    style: theme.textTheme.h3.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '初始化完成。应用已根据本地配置状态完成页面切换。'
+                    '下一步：集成存储桶浏览、文件上传及同步逻辑。',
+                    style: TextStyle(
+                      color: theme.colorScheme.mutedForeground,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _SummaryTile(label: '端点', value: config.endpoint),
+                      _SummaryTile(label: '存储桶', value: config.bucket),
+                      _SummaryTile(
+                        label: '区域',
+                        value: config.region.isEmpty
+                            ? 'auto / 未设置'
+                            : config.region,
+                      ),
+                      _SummaryTile(
+                        label: '根前缀',
+                        value: config.rootPrefix.isEmpty
+                            ? '/'
+                            : config.rootPrefix,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SelectableText(
+                    '配置文件：${state.configPath}',
+                    style: TextStyle(
+                      color: theme.colorScheme.mutedForeground,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      ShadButton(
+                        onPressed: onEditConfig,
+                        child: const Text('编辑配置'),
+                      ),
+                      const SizedBox(width: 10),
+                      ShadButton.outline(
+                        onPressed: onRefresh,
+                        child: const Text('重新检测配置'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 26),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: <Widget>[
-                _SummaryTile(label: 'Endpoint', value: config.endpoint),
-                _SummaryTile(label: 'Bucket', value: config.bucket),
-                _SummaryTile(
-                  label: 'Region',
-                  value: config.region.isEmpty ? 'auto / 未设置' : config.region,
-                ),
-                _SummaryTile(
-                  label: 'Root Prefix',
-                  value: config.rootPrefix.isEmpty ? '/' : config.rootPrefix,
-                ),
-              ],
-            ),
-            const SizedBox(height: 26),
-            SelectableText(
-              '配置文件: ${state.configPath}',
-              style: typography.subheadline.copyWith(
-                color: CupertinoColors.secondaryLabel,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: <Widget>[
-                PushButton(
-                  controlSize: ControlSize.large,
-                  onPressed: onEditConfig,
-                  child: const Text('编辑配置'),
-                ),
-                const SizedBox(width: 12),
-                PushButton(
-                  controlSize: ControlSize.large,
-                  secondary: true,
-                  onPressed: onRefresh,
-                  child: const Text('重新检测配置'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -93,32 +112,36 @@ class _SummaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = MacosTheme.of(context);
-    final typography = theme.typography;
-    return SizedBox(
-      width: 220,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: CupertinoColors.white.withValues(alpha: 0.78),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: theme.dividerColor),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                label,
-                style: typography.subheadline.copyWith(
-                  color: CupertinoColors.secondaryLabel,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(value, style: typography.title3),
-            ],
+    final theme = ShadTheme.of(context);
+    return Container(
+      width: 260,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondary,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: theme.colorScheme.mutedForeground,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: theme.colorScheme.foreground,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

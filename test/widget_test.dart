@@ -1,79 +1,74 @@
+// Smoke test: verify the app boots and shows the Chinese bootstrap UI.
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:remote_storage/app/remote_storage_app.dart';
+import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
-import 'package:remote_storage/services/remote_storage_api.dart';
 
-// Widget tests verify first-launch routing without loading the real Go bridge.
 void main() {
-  testWidgets('shows setup page when config is missing', (
-    WidgetTester tester,
+  testWidgets('App shows Chinese setup page when config is missing', (
+    tester,
   ) async {
-    final gateway = _FakeGateway(
-      const BootstrapState(
-        configPath: '/Users/test/.remote-storage/config.toml',
-        configured: false,
-        config: RemoteStorageConfig(
-          endpoint: '',
-          region: '',
-          bucket: '',
-          accessKeyId: '',
-          secretAccessKey: '',
-          rootPrefix: '',
-          usePathStyle: true,
-        ),
-      ),
+    // Provide in-memory prefs so ThemeInitializer can resolve.
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      RemoteStorageApp(apiFactory: () async => _FakeApi(configured: false)),
     );
 
-    await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => gateway));
+    // Allow ThemeInitializer + FutureBuilder to resolve.
     await tester.pumpAndSettle();
 
-    expect(find.text('保存并继续'), findsOneWidget);
-    expect(find.textContaining('.remote-storage/config.toml'), findsOneWidget);
+    expect(find.text('初始化配置'), findsOneWidget);
+    expect(find.text('配置 S3 兼容存储的连接信息。'), findsOneWidget);
   });
 
-  testWidgets('shows ready page when config exists', (
-    WidgetTester tester,
-  ) async {
-    final gateway = _FakeGateway(
-      const BootstrapState(
-        configPath: '/Users/test/.remote-storage/config.toml',
-        configured: true,
-        config: RemoteStorageConfig(
-          endpoint: 'https://s3.example.com',
-          region: 'auto',
-          bucket: 'media',
-          accessKeyId: 'key',
-          secretAccessKey: 'secret',
-          rootPrefix: 'library',
-          usePathStyle: true,
-        ),
-      ),
+  testWidgets('App shows Chinese home page when config exists', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(
+      RemoteStorageApp(apiFactory: () async => _FakeApi(configured: true)),
     );
 
-    await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => gateway));
     await tester.pumpAndSettle();
 
     expect(find.text('远程存储已连接'), findsOneWidget);
-    expect(find.text('编辑配置'), findsOneWidget);
   });
 }
 
-class _FakeGateway implements RemoteStorageGateway {
-  _FakeGateway(this._state);
+/// A minimal fake API that does not need the Go bridge.
+class _FakeApi implements RemoteStorageGateway {
+  _FakeApi({required this.configured});
 
-  BootstrapState _state;
+  final bool configured;
 
   @override
-  Future<BootstrapState> loadBootstrapState() async => _state;
+  Future<BootstrapState> loadBootstrapState() async {
+    return BootstrapState(
+      configPath: '/tmp/.remote-storage/config.toml',
+      configured: configured,
+      config: configured
+          ? const RemoteStorageConfig(
+              endpoint: 'https://s3.example.com',
+              region: 'us-east-1',
+              bucket: 'test-bucket',
+              accessKeyId: 'AKIA_TEST',
+              secretAccessKey: 'secret_test',
+              rootPrefix: '',
+              usePathStyle: true,
+            )
+          : RemoteStorageConfig.empty(),
+    );
+  }
 
   @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async {
-    _state = BootstrapState(
-      configPath: _state.configPath,
+    return BootstrapState(
+      configPath: '/tmp/.remote-storage/config.toml',
       configured: true,
       config: config,
     );
-    return _state;
   }
 }
