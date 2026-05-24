@@ -7,6 +7,7 @@ import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
+import 'package:remote_storage/widgets/file_manager_object_header.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 ShadContextMenuController? _activeObjectContextMenuController;
@@ -26,6 +27,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.onDownloadFile,
     required this.onNavigateUp,
     required this.onToggleSelection,
+    required this.onToggleSelectAll,
     required this.onObjectAction,
   });
 
@@ -48,6 +50,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final ValueChanged<ObjectInfo> onDownloadFile;
   final VoidCallback onNavigateUp;
   final ValueChanged<ObjectInfo> onToggleSelection;
+  final VoidCallback onToggleSelectAll;
   final void Function(ObjectInfo object, FileObjectAction action)
   onObjectAction;
 
@@ -119,11 +122,25 @@ class FileManagerObjectBrowser extends StatelessWidget {
   }
 
   Widget _buildList(List<ObjectInfo> objects, ShadThemeData theme) {
+    final selectableObjects = objects.where(
+      (object) => !_isParentDirectory(object),
+    );
+    final selectedCount = selectableObjects
+        .where((object) => selectedKeys.contains(object.key))
+        .length;
+    final totalCount = selectableObjects.length;
+
     return ShadCard(
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
-          _ListHeader(theme: theme),
+          FileManagerObjectHeader(
+            theme: theme,
+            showSelectionControl: fileOpenMode == FileOpenMode.doubleClick,
+            allSelected: totalCount > 0 && selectedCount == totalCount,
+            partiallySelected: selectedCount > 0 && selectedCount < totalCount,
+            onToggleSelectAll: onToggleSelectAll,
+          ),
           Expanded(
             child: ListView.builder(
               itemCount: objects.length,
@@ -326,47 +343,6 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   bool _isParentDirectory(ObjectInfo object) {
     return object.key == _parentDirectoryEntry.key;
-  }
-}
-
-class _ListHeader extends StatelessWidget {
-  const _ListHeader({required this.theme});
-
-  final ShadThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final dividerColor = theme.colorScheme.border.withValues(alpha: 0.7);
-    final labelStyle = TextStyle(
-      fontSize: 10.5,
-      fontWeight: FontWeight.w600,
-      color: theme.colorScheme.mutedForeground,
-      letterSpacing: 0.2,
-    );
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: dividerColor, width: 0.6)),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 32),
-          const SizedBox(width: 12),
-          Expanded(child: Text('名称', style: labelStyle)),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: FileListTile.sizeColumnWidth,
-            child: Text('大小', textAlign: TextAlign.right, style: labelStyle),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: FileListTile.modifiedColumnWidth,
-            child: Text('修改时间', textAlign: TextAlign.right, style: labelStyle),
-          ),
-        ],
-      ),
-    );
   }
 }
 

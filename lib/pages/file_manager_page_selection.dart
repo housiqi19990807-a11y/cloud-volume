@@ -5,6 +5,13 @@ part of 'file_manager_page.dart';
 // 文件管理页多选逻辑：维护选中集合，并处理批量下载与批量删除。
 
 extension _FileManagerPageSelection on _FileManagerPageState {
+  List<ObjectInfo> get _visibleSelectableObjects {
+    return filterVisibleObjects(
+      _objects ?? const <ObjectInfo>[],
+      hideDotFiles: widget.config.hideDotFiles,
+    );
+  }
+
   List<ObjectInfo> get _selectedObjects {
     return (_objects ?? const <ObjectInfo>[])
         .where((object) => _selectedObjectKeys.contains(object.key))
@@ -24,6 +31,27 @@ extension _FileManagerPageSelection on _FileManagerPageState {
       return;
     }
     setState(_selectedObjectKeys.clear);
+  }
+
+  void _toggleSelectAllObjects() {
+    final selectableKeys = _visibleSelectableObjects
+        .map((object) => object.key)
+        .toSet();
+    if (selectableKeys.isEmpty) {
+      return;
+    }
+
+    final hasUnselected = selectableKeys.any(
+      (key) => !_selectedObjectKeys.contains(key),
+    );
+
+    setState(() {
+      if (hasUnselected) {
+        _selectedObjectKeys.addAll(selectableKeys);
+      } else {
+        _selectedObjectKeys.removeAll(selectableKeys);
+      }
+    });
   }
 
   Future<void> _downloadSelectedObjects() async {

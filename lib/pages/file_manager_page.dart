@@ -434,11 +434,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
+    final visibleObjects = _visibleSelectableObjects;
     return FileManagerObjectBrowser(
-      objects: filterVisibleObjects(
-        _objects!,
-        hideDotFiles: widget.config.hideDotFiles,
-      ),
+      objects: visibleObjects,
       prefix: _prefix,
       isGrid: _isGrid,
       fileOpenMode: widget.config.fileOpenMode,
@@ -450,6 +448,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onDownloadFile: (object) => unawaited(_downloadObject(object)),
       onNavigateUp: () => unawaited(_navUp()),
       onToggleSelection: _toggleObjectSelection,
+      onToggleSelectAll: _toggleSelectAllObjects,
       onObjectAction: (object, action) =>
           unawaited(_handleObjectAction(object, action)),
     );
