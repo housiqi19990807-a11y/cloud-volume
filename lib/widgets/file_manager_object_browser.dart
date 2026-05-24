@@ -8,6 +8,8 @@ import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+ShadContextMenuController? _activeObjectContextMenuController;
+
 class FileManagerObjectBrowser extends StatelessWidget {
   const FileManagerObjectBrowser({
     super.key,
@@ -177,27 +179,58 @@ class FileManagerObjectBrowser extends StatelessWidget {
   }
 
   VoidCallback _tapHandler(ObjectInfo object) {
-    if (_isParentDirectory(object)) return onNavigateUp;
-    if (object.isDir) return () => onOpenDirectory(object.key);
-    return () => onOpenFile(object);
+    return () {
+      if (_dismissActiveContextMenu()) {
+        return;
+      }
+      if (_isParentDirectory(object)) {
+        onNavigateUp();
+        return;
+      }
+      if (object.isDir) {
+        onOpenDirectory(object.key);
+        return;
+      }
+      onOpenFile(object);
+    };
   }
 
   Widget _wrapWithContextMenu(ObjectInfo object, Widget child) {
     if (_isParentDirectory(object)) {
       return child;
     }
-    return ShadContextMenuRegion(
-      tapEnabled: false,
-      longPressEnabled: false,
+    return _ObjectContextMenuWrapper(
       items: buildObjectActionMenuItems(
         object: object,
-        onOpen: () => _tapHandler(object)(),
-        onDownload: object.isDir ? null : () => onDownloadFile(object),
-        onRename: () => onObjectAction(object, FileObjectAction.rename),
-        onDelete: () => onObjectAction(object, FileObjectAction.delete),
+        onOpen: () => _runMenuAction(() => _tapHandler(object)()),
+        onDownload: object.isDir
+            ? null
+            : () => _runMenuAction(() => onDownloadFile(object)),
+        onRename: () => _runMenuAction(
+          () => onObjectAction(object, FileObjectAction.rename),
+        ),
+        onDelete: () => _runMenuAction(
+          () => onObjectAction(object, FileObjectAction.delete),
+        ),
       ),
       child: child,
     );
+  }
+
+  bool _dismissActiveContextMenu() {
+    final controller = _activeObjectContextMenuController;
+    if (controller == null || !controller.isOpen) {
+      return false;
+    }
+    controller.hide();
+    _activeObjectContextMenuController = null;
+    return true;
+  }
+
+  void _runMenuAction(VoidCallback action) {
+    _activeObjectContextMenuController?.hide();
+    _activeObjectContextMenuController = null;
+    action();
   }
 
   bool _isParentDirectory(ObjectInfo object) {
@@ -242,6 +275,67 @@ class _ListHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ObjectContextMenuWrapper extends StatefulWidget {
+  const _ObjectContextMenuWrapper({
+    required this.items,
+    required this.child,
+  });
+
+  final List<Widget> items;
+  final Widget child;
+
+  @override
+  State<_ObjectContextMenuWrapper> createState() =>
+      _ObjectContextMenuWrapperState();
+}
+
+class _ObjectContextMenuWrapperState extends State<_ObjectContextMenuWrapper> {
+  late final ShadContextMenuController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ShadContextMenuController();
+    _controller.addListener(_syncActiveController);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_syncActiveController);
+    if (identical(_activeObjectContextMenuController, _controller)) {
+      _activeObjectContextMenuController = null;
+    }
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncActiveController() {
+    if (_controller.isOpen) {
+      if (!identical(_activeObjectContextMenuController, _controller)) {
+        _activeObjectContextMenuController?.hide();
+        _activeObjectContextMenuController = _controller;
+      }
+      return;
+    }
+    if (identical(_activeObjectContextMenuController, _controller)) {
+      _activeObjectContextMenuController = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ShadContextMenuRegion(
+      controller: _controller,
+      tapEnabled: false,
+      longPressEnabled: false,
+      effects: const [],
+      popoverReverseDuration: Duration.zero,
+      items: widget.items,
+      child: widget.child,
     );
   }
 }
