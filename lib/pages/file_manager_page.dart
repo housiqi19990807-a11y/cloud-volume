@@ -286,7 +286,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
     return Row(
       children: [
         GestureDetector(
-          onTap: () => _navCrumb(-1),
+          onTap: () => _navToBucket(_activeBucket!),
           child: Text(
             _activeBucket!,
             style: TextStyle(
