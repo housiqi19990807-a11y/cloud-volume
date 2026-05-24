@@ -49,6 +49,7 @@ class _FakeApi implements RemoteStorageGateway {
             rootPrefix: '',
             defaultDownloadDirectory: '',
             hideDotFiles: true,
+            fileOpenMode: FileOpenMode.doubleClick,
             usePathStyle: true,
           )
         : RemoteStorageConfig.empty(),

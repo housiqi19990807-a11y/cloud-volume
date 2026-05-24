@@ -1,5 +1,22 @@
 // Remote storage config models keep backend JSON shape away from page widgets.
 
+enum FileOpenMode {
+  singleClick('single_click'),
+  doubleClick('double_click');
+
+  const FileOpenMode(this.storageValue);
+
+  final String storageValue;
+
+  static FileOpenMode fromStorage(Object? value) {
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    return switch (normalized) {
+      'single_click' => FileOpenMode.singleClick,
+      _ => FileOpenMode.doubleClick,
+    };
+  }
+}
+
 class RemoteStorageConfig {
   const RemoteStorageConfig({
     required this.endpoint,
@@ -10,6 +27,7 @@ class RemoteStorageConfig {
     required this.rootPrefix,
     required this.defaultDownloadDirectory,
     required this.hideDotFiles,
+    required this.fileOpenMode,
     required this.usePathStyle,
   });
 
@@ -23,6 +41,7 @@ class RemoteStorageConfig {
       rootPrefix: '',
       defaultDownloadDirectory: '',
       hideDotFiles: true,
+      fileOpenMode: FileOpenMode.doubleClick,
       usePathStyle: true,
     );
   }
@@ -46,6 +65,9 @@ class RemoteStorageConfig {
       hideDotFiles:
           _boolFromDynamic(json['hideDotFiles'] ?? json['hide_dot_files']) ??
           true,
+      fileOpenMode: FileOpenMode.fromStorage(
+        json['fileOpenMode'] ?? json['file_open_mode'],
+      ),
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
@@ -60,6 +82,7 @@ class RemoteStorageConfig {
   final String rootPrefix;
   final String defaultDownloadDirectory;
   final bool hideDotFiles;
+  final FileOpenMode fileOpenMode;
   final bool usePathStyle;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
@@ -79,6 +102,7 @@ class RemoteStorageConfig {
       'rootPrefix': rootPrefix.trim(),
       'defaultDownloadDirectory': defaultDownloadDirectory.trim(),
       'hideDotFiles': hideDotFiles,
+      'fileOpenMode': fileOpenMode.storageValue,
       'usePathStyle': usePathStyle,
     };
   }
@@ -92,6 +116,7 @@ class RemoteStorageConfig {
     String? rootPrefix,
     String? defaultDownloadDirectory,
     bool? hideDotFiles,
+    FileOpenMode? fileOpenMode,
     bool? usePathStyle,
   }) {
     return RemoteStorageConfig(
@@ -104,6 +129,7 @@ class RemoteStorageConfig {
       defaultDownloadDirectory:
           defaultDownloadDirectory ?? this.defaultDownloadDirectory,
       hideDotFiles: hideDotFiles ?? this.hideDotFiles,
+      fileOpenMode: fileOpenMode ?? this.fileOpenMode,
       usePathStyle: usePathStyle ?? this.usePathStyle,
     );
   }

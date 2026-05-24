@@ -76,6 +76,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       defaultDownloadDirectory:
           widget.initialState.config.defaultDownloadDirectory,
       hideDotFiles: widget.initialState.config.hideDotFiles,
+      fileOpenMode: widget.initialState.config.fileOpenMode,
       usePathStyle: _usePathStyle,
     );
 

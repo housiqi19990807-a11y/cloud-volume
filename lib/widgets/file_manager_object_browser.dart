@@ -1,6 +1,7 @@
 // 文件对象区：负责列表/网格渲染、非根目录的 ".." 返回项，以及对象交互分发。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
@@ -16,12 +17,15 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.objects,
     required this.prefix,
     required this.isGrid,
+    required this.fileOpenMode,
+    required this.selectedKeys,
     required this.gridIconSize,
     required this.listIconSize,
     required this.onOpenDirectory,
     required this.onOpenFile,
     required this.onDownloadFile,
     required this.onNavigateUp,
+    required this.onToggleSelection,
     required this.onObjectAction,
   });
 
@@ -35,12 +39,15 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final List<ObjectInfo> objects;
   final String prefix;
   final bool isGrid;
+  final FileOpenMode fileOpenMode;
+  final Set<String> selectedKeys;
   final double gridIconSize;
   final double listIconSize;
   final ValueChanged<String> onOpenDirectory;
   final ValueChanged<ObjectInfo> onOpenFile;
   final ValueChanged<ObjectInfo> onDownloadFile;
   final VoidCallback onNavigateUp;
+  final ValueChanged<ObjectInfo> onToggleSelection;
   final void Function(ObjectInfo object, FileObjectAction action)
   onObjectAction;
 
@@ -97,6 +104,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     title: _title(object),
                     subtitle: _subtitle(object, forGrid: true),
                     onTap: _tapHandler(object),
+                    onDoubleTap: _doubleTapHandler(object),
+                    onTitleTap: _titleTapHandler(object),
+                    isSelected: _isSelected(object),
                   ),
                 ),
               )
@@ -125,6 +135,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     sizeLabel: _sizeLabel(object),
                     modifiedLabel: _modifiedLabel(object),
                     onTap: _tapHandler(object),
+                    onDoubleTap: _doubleTapHandler(object),
+                    onTitleTap: _titleTapHandler(object),
+                    isSelected: _isSelected(object),
                     showDivider: index != objects.length - 1,
                   ),
                 );
@@ -183,15 +196,34 @@ class FileManagerObjectBrowser extends StatelessWidget {
       if (_dismissActiveContextMenu()) {
         return;
       }
-      if (_isParentDirectory(object)) {
-        onNavigateUp();
+      if (_isParentDirectory(object) ||
+          fileOpenMode == FileOpenMode.singleClick) {
+        _openObject(object);
         return;
       }
-      if (object.isDir) {
-        onOpenDirectory(object.key);
+      onToggleSelection(object);
+    };
+  }
+
+  VoidCallback? _doubleTapHandler(ObjectInfo object) {
+    if (_isParentDirectory(object) ||
+        fileOpenMode == FileOpenMode.singleClick) {
+      return null;
+    }
+    return () {
+      if (_dismissActiveContextMenu()) {
         return;
       }
-      onOpenFile(object);
+      _openObject(object);
+    };
+  }
+
+  VoidCallback _titleTapHandler(ObjectInfo object) {
+    return () {
+      if (_dismissActiveContextMenu()) {
+        return;
+      }
+      _openObject(object);
     };
   }
 
@@ -231,6 +263,25 @@ class FileManagerObjectBrowser extends StatelessWidget {
     _activeObjectContextMenuController?.hide();
     _activeObjectContextMenuController = null;
     action();
+  }
+
+  void _openObject(ObjectInfo object) {
+    if (_isParentDirectory(object)) {
+      onNavigateUp();
+      return;
+    }
+    if (object.isDir) {
+      onOpenDirectory(object.key);
+      return;
+    }
+    onOpenFile(object);
+  }
+
+  bool _isSelected(ObjectInfo object) {
+    if (_isParentDirectory(object)) {
+      return false;
+    }
+    return selectedKeys.contains(object.key);
   }
 
   bool _isParentDirectory(ObjectInfo object) {
@@ -280,10 +331,7 @@ class _ListHeader extends StatelessWidget {
 }
 
 class _ObjectContextMenuWrapper extends StatefulWidget {
-  const _ObjectContextMenuWrapper({
-    required this.items,
-    required this.child,
-  });
+  const _ObjectContextMenuWrapper({required this.items, required this.child});
 
   final List<Widget> items;
   final Widget child;

@@ -12,6 +12,7 @@ type RemoteStorageConfig struct {
 	RootPrefix               string `json:"rootPrefix" toml:"root_prefix"`
 	DefaultDownloadDirectory string `json:"defaultDownloadDirectory" toml:"default_download_directory"`
 	HideDotFiles             bool   `json:"hideDotFiles" toml:"hide_dot_files"`
+	FileOpenMode             string `json:"fileOpenMode" toml:"file_open_mode"`
 	UsePathStyle             bool   `json:"usePathStyle" toml:"use_path_style"`
 }
 
@@ -27,6 +28,7 @@ type BootstrapState struct {
 func DefaultConfig() RemoteStorageConfig {
 	return RemoteStorageConfig{
 		HideDotFiles: true,
+		FileOpenMode: "double_click",
 		UsePathStyle: true,
 	}
 }
@@ -42,6 +44,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		RootPrefix:               strings.Trim(strings.TrimSpace(c.RootPrefix), "/"),
 		DefaultDownloadDirectory: strings.TrimSpace(c.DefaultDownloadDirectory),
 		HideDotFiles:             c.HideDotFiles,
+		FileOpenMode:             normalizeFileOpenMode(c.FileOpenMode),
 		UsePathStyle:             c.UsePathStyle,
 	}
 }
@@ -53,4 +56,11 @@ func (c RemoteStorageConfig) IsConfigured() bool {
 	return normalized.Endpoint != "" &&
 		normalized.AccessKeyID != "" &&
 		normalized.SecretAccessKey != ""
+}
+
+func normalizeFileOpenMode(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "single_click") {
+		return "single_click"
+	}
+	return "double_click"
 }

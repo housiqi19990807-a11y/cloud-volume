@@ -11,6 +11,9 @@ class FileGridItem extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.onDoubleTap,
+    this.onTitleTap,
+    this.isSelected = false,
     this.onSecondaryTapDown,
   });
 
@@ -18,6 +21,9 @@ class FileGridItem extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final VoidCallback? onDoubleTap;
+  final VoidCallback? onTitleTap;
+  final bool isSelected;
   final GestureTapDownCallback? onSecondaryTapDown;
 
   @override
@@ -27,12 +33,15 @@ class FileGridItem extends StatelessWidget {
       builder: (hovered) {
         return GestureDetector(
           onTap: onTap,
+          onDoubleTap: onDoubleTap,
           onSecondaryTapDown: onSecondaryTapDown,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             curve: Curves.easeOut,
             decoration: BoxDecoration(
-              color: hovered
+              color: isSelected
+                  ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                  : hovered
                   ? theme.colorScheme.primary.withValues(alpha: 0.08)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
@@ -45,17 +54,21 @@ class FileGridItem extends StatelessWidget {
                 const SizedBox(height: 4),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.foreground,
-                      height: 1.25,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onTitleTap,
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.foreground,
+                        height: 1.25,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (subtitle.isNotEmpty) ...[

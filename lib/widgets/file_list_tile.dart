@@ -12,6 +12,9 @@ class FileListTile extends StatelessWidget {
     this.sizeLabel = '',
     this.modifiedLabel = '',
     required this.onTap,
+    this.onDoubleTap,
+    this.onTitleTap,
+    this.isSelected = false,
     this.showDivider = true,
   });
 
@@ -23,6 +26,9 @@ class FileListTile extends StatelessWidget {
   final String sizeLabel;
   final String modifiedLabel;
   final VoidCallback onTap;
+  final VoidCallback? onDoubleTap;
+  final VoidCallback? onTitleTap;
+  final bool isSelected;
   final bool showDivider;
 
   @override
@@ -34,9 +40,14 @@ class FileListTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        onDoubleTap: onDoubleTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
+            color: isSelected
+                ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
             border: showDivider
                 ? Border(bottom: BorderSide(color: dividerColor, width: 0.6))
                 : null,
@@ -46,15 +57,19 @@ class FileListTile extends StatelessWidget {
               leading,
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: theme.colorScheme.foreground,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTitleTap,
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.foreground,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 12),

@@ -111,3 +111,38 @@ Future<bool> showDeleteObjectDialog(
       ) ??
       false;
 }
+
+Future<bool> showDeleteObjectsDialog(BuildContext context, int count) async {
+  return await showShadDialog<bool>(
+        context: context,
+        builder: (dialogContext) => ShadDialog(
+          title: const Text('批量删除'),
+          description: Text('将删除选中的 $count 个项目。此操作不可撤销。'),
+          child: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ShadButton.outline(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 10),
+                    ShadButton.destructive(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('删除'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ) ??
+      false;
+}

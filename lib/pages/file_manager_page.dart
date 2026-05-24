@@ -9,6 +9,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/file_access_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/utils/object_visibility.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
@@ -16,7 +17,10 @@ import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_manager_bucket_browser.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
+import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+part 'file_manager_page_selection.dart';
 
 class FileManagerPage extends StatefulWidget {
   const FileManagerPage({super.key, required this.api, required this.config});
@@ -41,11 +45,20 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _loading = false;
   String? _error;
   bool _isGrid = false;
+  final Set<String> _selectedObjectKeys = <String>{};
 
   @override
   void initState() {
     super.initState();
     _loadBuckets();
+  }
+
+  @override
+  void didUpdateWidget(covariant FileManagerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.config.fileOpenMode != widget.config.fileOpenMode) {
+      _clearSelection();
+    }
   }
 
   Future<bool> _loadBuckets() async {
@@ -62,6 +75,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _objects = null;
         _prefix = '';
         _breadcrumbs = [];
+        _selectedObjectKeys.clear();
         _loading = false;
       });
       return true;
@@ -92,6 +106,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _objects = objects;
         _prefix = prefix;
         _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
+        _selectedObjectKeys.clear();
         _loading = false;
       });
       return true;
@@ -346,11 +361,18 @@ class _FileManagerPageState extends State<FileManagerPage> {
           child: FileManagerActionBar(
             theme: theme,
             isGrid: _isGrid,
+            selectedCount: _selectedObjectKeys.length,
+            batchDownloadEnabled: _selectedObjects.any(
+              (object) => !object.isDir,
+            ),
             onToggleView: () => setState(() => _isGrid = !_isGrid),
             onCreateDirectory: _activeBucket == null || _loading
                 ? null
                 : _createDirectory,
             onUpload: _activeBucket == null || _loading ? null : _upload,
+            onBatchDownload: _loading ? null : _downloadSelectedObjects,
+            onBatchDelete: _loading ? null : _deleteSelectedObjects,
+            onClearSelection: _clearSelection,
           ),
         ),
       ],
@@ -419,12 +441,15 @@ class _FileManagerPageState extends State<FileManagerPage> {
       ),
       prefix: _prefix,
       isGrid: _isGrid,
+      fileOpenMode: widget.config.fileOpenMode,
+      selectedKeys: _selectedObjectKeys,
       gridIconSize: _gridIconSize,
       listIconSize: _listIconSize,
       onOpenDirectory: (prefix) => unawaited(_navToPrefix(prefix)),
       onOpenFile: (object) => unawaited(_openObject(object)),
       onDownloadFile: (object) => unawaited(_downloadObject(object)),
       onNavigateUp: () => unawaited(_navUp()),
+      onToggleSelection: _toggleObjectSelection,
       onObjectAction: (object, action) =>
           unawaited(_handleObjectAction(object, action)),
     );

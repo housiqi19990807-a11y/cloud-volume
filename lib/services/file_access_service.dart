@@ -92,6 +92,26 @@ class FileAccessService {
       return;
     }
 
+    await downloadObjectToPath(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+      savePath: savePath,
+    );
+  }
+
+  Future<void> downloadObjectToPath({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+    required String savePath,
+  }) async {
+    if (savePath.trim().isEmpty) {
+      return;
+    }
+
     final task = TransferQueue.instance.startTask(
       isUpload: false,
       bucket: bucket,

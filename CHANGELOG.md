@@ -30,4 +30,6 @@
 - Clicking a file now first sends a `HEAD` request to validate the SQLite-tracked local cache against the remote file size and last-modified time; stale cache entries are discarded and re-downloaded before opening, while the context menu keeps an explicit download-to-path action.
 - List mode now adds a fixed header and aligned Name, Size, and Modified columns so file metadata occupies the right side cleanly.
 - File item context menus now open faster, ensure only one menu stays visible, and close first when the user clicks another file or folder.
+- Settings now support single-click vs double-click open behavior; the default is Finder-style double-click open, where clicking a row selects it for multi-select while clicking the item name still opens it directly, and selected files can be batch-downloaded or batch-deleted from the action bar.
+- Closing the main macOS window now asks whether to minimize to tray or quit, while the tray menu's `退出云卷` action still exits immediately.
 - Full Chinese interface.

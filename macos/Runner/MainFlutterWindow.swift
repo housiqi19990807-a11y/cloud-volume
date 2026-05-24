@@ -91,6 +91,10 @@ final class MenuBarController: NSObject {
   }
 
   @objc private func handleTerminate() {
+    if let window = yunjuanMainWindow() as? MainFlutterWindow {
+      window.terminateWithoutConfirmation()
+      return
+    }
     NSApp.terminate(nil)
   }
 }
@@ -99,6 +103,7 @@ final class MenuBarController: NSObject {
 // controller so tray behavior stays alive across window show/hide cycles.
 class MainFlutterWindow: NSWindow {
   private var menuBarController: MenuBarController?
+  private var allowsDirectClose = false
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -112,6 +117,7 @@ class MainFlutterWindow: NSWindow {
     self.toolbar = nil
     self.isReleasedWhenClosed = false
     self.minSize = yunjuanMinimumWindowSize
+    self.delegate = self
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     menuBarController = MenuBarController()
@@ -136,5 +142,37 @@ class MainFlutterWindow: NSWindow {
     let originX = visibleFrame.origin.x + ((visibleFrame.width - size.width) / 2)
     let originY = visibleFrame.origin.y + ((visibleFrame.height - size.height) / 2)
     return NSRect(origin: NSPoint(x: originX, y: originY), size: size)
+  }
+
+  fileprivate func terminateWithoutConfirmation() {
+    allowsDirectClose = true
+    NSApp.terminate(nil)
+  }
+}
+
+extension MainFlutterWindow: NSWindowDelegate {
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    if allowsDirectClose {
+      return true
+    }
+
+    let alert = NSAlert()
+    alert.alertStyle = .informational
+    alert.messageText = "退出云卷？"
+    alert.informativeText = "你可以直接退出应用，也可以最小化到托盘后继续在后台保留。"
+    alert.addButton(withTitle: "最小化到托盘")
+    alert.addButton(withTitle: "退出云卷")
+    alert.addButton(withTitle: "取消")
+
+    let response = alert.runModal()
+    if response == .alertFirstButtonReturn {
+      sender.miniaturize(nil)
+      return false
+    }
+    if response == .alertSecondButtonReturn {
+      terminateWithoutConfirmation()
+      return false
+    }
+    return false
   }
 }
