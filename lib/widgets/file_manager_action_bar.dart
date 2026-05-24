@@ -32,99 +32,111 @@ class FileManagerActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = theme.colorScheme.primary;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        if (selectedCount > 0) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: p.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              '已选 $selectedCount 项',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: p,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (selectedCount > 0) ...[
+            Container(
+              height: 32,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: p.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '已选 $selectedCount 项',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: p,
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: batchDownloadEnabled ? onBatchDownload : null,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.download, size: 14, color: p),
+                  const SizedBox(width: 5),
+                  const Text('批量下载'),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: onBatchDelete,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.trash2, size: 14, color: p),
+                  const SizedBox(width: 5),
+                  const Text('批量删除'),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: onClearSelection,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.x, size: 14, color: p),
+                  const SizedBox(width: 5),
+                  const Text('取消选择'),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           ShadButton.ghost(
             size: ShadButtonSize.sm,
-            onPressed: batchDownloadEnabled ? onBatchDownload : null,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.download, size: 14, color: p),
-                const SizedBox(width: 5),
-                const Text('批量下载'),
-              ],
+            onPressed: onToggleView,
+            child: Icon(
+              isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
+              size: 14,
+              color: p,
             ),
           ),
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onBatchDelete,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.trash2, size: 14, color: p),
-                const SizedBox(width: 5),
-                const Text('批量删除'),
-              ],
+          if (onCreateDirectory != null) ...[
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: onCreateDirectory,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.create_new_folder_rounded, size: 15, color: p),
+                  const SizedBox(width: 5),
+                  const Text('新建目录'),
+                ],
+              ),
             ),
-          ),
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onClearSelection,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.x, size: 14, color: p),
-                const SizedBox(width: 5),
-                const Text('取消选择'),
-              ],
+          ],
+          if (onUpload != null) ...[
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: onUpload,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.upload, size: 14, color: p),
+                  const SizedBox(width: 5),
+                  const Text('上传'),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
-        ShadButton.ghost(
-          size: ShadButtonSize.sm,
-          onPressed: onToggleView,
-          child: Icon(
-            isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
-            size: 14,
-            color: p,
-          ),
-        ),
-        if (onCreateDirectory != null)
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onCreateDirectory,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.create_new_folder_rounded, size: 15, color: p),
-                const SizedBox(width: 5),
-                const Text('新建目录'),
-              ],
-            ),
-          ),
-        if (onUpload != null)
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onUpload,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.upload, size: 14, color: p),
-                const SizedBox(width: 5),
-                const Text('上传'),
-              ],
-            ),
-          ),
-      ],
+      ),
     );
   }
 }

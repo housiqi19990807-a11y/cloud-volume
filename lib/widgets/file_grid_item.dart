@@ -39,71 +39,76 @@ class FileGridItem extends StatelessWidget {
           onTap: onTap,
           onDoubleTap: onDoubleTap,
           onSecondaryTapDown: onSecondaryTapDown,
-          child: Stack(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                curve: Curves.easeOut,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                      : hovered
-                      ? theme.colorScheme.primary.withValues(alpha: 0.08)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    leading,
-                    const SizedBox(height: 4),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: onTitleTap,
-                        child: Text(
-                          title,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                  : hovered
+                  ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 6,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      leading,
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onTitleTap,
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: theme.colorScheme.foreground,
+                              height: 1.25,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
                           style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: theme.colorScheme.foreground,
-                            height: 1.25,
+                            fontSize: 10,
+                            color: theme.colorScheme.mutedForeground,
                           ),
                           textAlign: TextAlign.center,
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ),
-                    if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: theme.colorScheme.mutedForeground,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-              if (showSelectionControl)
-                Positioned(
-                  top: 2,
-                  right: 2,
-                  child: _SelectionIndicator(
-                    isSelected: isSelected,
-                    hovered: hovered || isSelected,
-                    onTap: onSelectionTap,
                   ),
                 ),
-            ],
+                if (showSelectionControl)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: _SelectionIndicator(
+                      isSelected: isSelected,
+                      hovered: hovered || isSelected,
+                      onTap: onSelectionTap,
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },
