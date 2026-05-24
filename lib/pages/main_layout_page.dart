@@ -314,6 +314,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
         TransfersPage(api: widget.api, config: widget.state.config),
         SettingsPage(
           state: widget.state,
+          api: widget.api,
           onEditConfig: widget.onEditConfig,
           onRefresh: widget.onRefresh,
         ),

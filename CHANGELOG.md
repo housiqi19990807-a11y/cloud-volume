@@ -18,4 +18,5 @@
 - Sidebar, bucket, and transfer entry icons now use Fluent System Icons for a more native app-style navigation set.
 - Added a custom SVG app mark and Chinese product name `云卷`, applied to the sidebar brand area and macOS app icon/name.
 - New folder creation now uses a MinIO-compatible zero-byte directory placeholder flow for better S3-compatible endpoint support.
+- Added a configurable default download directory in settings, with fallback to the system Downloads folder.
 - Full Chinese interface.

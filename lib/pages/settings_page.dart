@@ -1,27 +1,41 @@
-// 设置页：展示连接信息、主题色选择，支持重新配置和刷新状态。
+// 设置页：展示连接信息、主题色选择，并允许配置默认下载目录。
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
+import 'package:remote_storage/utils/default_download_directory.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({
     super.key,
     required this.state,
+    required this.api,
     required this.onEditConfig,
     required this.onRefresh,
   });
 
   final BootstrapState state;
+  final RemoteStorageGateway api;
   final VoidCallback onEditConfig;
   final VoidCallback onRefresh;
 
   @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool _savingDownloadDirectory = false;
+  String? _downloadDirectoryError;
+
+  @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final config = state.config;
+    final config = widget.state.config;
 
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36),
@@ -29,7 +43,6 @@ class SettingsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 页面标题。
             Text(
               '设置',
               style: theme.textTheme.h3.copyWith(
@@ -39,15 +52,13 @@ class SettingsPage extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '管理远程存储的连接配置和外观。',
+              '管理远程存储的连接配置、下载位置和外观。',
               style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
                 fontSize: 13,
               ),
             ),
             const SizedBox(height: 28),
-
-            // 外观设置卡片。
             ShadCard(
               padding: const EdgeInsets.all(20),
               title: Text(
@@ -61,8 +72,26 @@ class SettingsPage extends StatelessWidget {
               child: const _ThemePicker(),
             ),
             const SizedBox(height: 20),
-
-            // 连接信息卡片。
+            ShadCard(
+              padding: const EdgeInsets.all(20),
+              title: Text(
+                '下载设置',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: theme.colorScheme.foreground,
+                ),
+              ),
+              child: _DownloadDirectorySection(
+                theme: theme,
+                configuredPath: config.defaultDownloadDirectory,
+                saving: _savingDownloadDirectory,
+                errorText: _downloadDirectoryError,
+                onPickDirectory: () => _pickDownloadDirectory(config),
+                onResetDirectory: () => _resetDownloadDirectory(config),
+              ),
+            ),
+            const SizedBox(height: 20),
             ShadCard(
               padding: const EdgeInsets.all(20),
               title: Text(
@@ -85,21 +114,22 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   _infoRow(theme, '路径风格', config.usePathStyle ? '启用' : '禁用'),
                   const SizedBox(height: 8),
-                  _infoRow(theme, '配置路径', state.configPath),
+                  _infoRow(theme, '配置路径', widget.state.configPath),
                   const SizedBox(height: 8),
                   _infoRow(theme, '访问密钥 ID', _maskedKey(config.accessKeyId)),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-
-            // 操作按钮。
             Row(
               children: [
-                ShadButton(onPressed: onEditConfig, child: const Text('重新配置')),
+                ShadButton(
+                  onPressed: widget.onEditConfig,
+                  child: const Text('重新配置'),
+                ),
                 const SizedBox(width: 10),
                 ShadButton.outline(
-                  onPressed: onRefresh,
+                  onPressed: widget.onRefresh,
                   child: const Text('刷新状态'),
                 ),
               ],
@@ -108,6 +138,56 @@ class SettingsPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _pickDownloadDirectory(RemoteStorageConfig config) async {
+    final initialDirectory = await resolveDefaultDownloadDirectory(
+      config.defaultDownloadDirectory,
+    );
+    final path = await FilePicker.getDirectoryPath(
+      dialogTitle: '选择默认下载目录',
+      initialDirectory: initialDirectory,
+    );
+    if (path == null || path.trim().isEmpty) {
+      return;
+    }
+    await _saveDownloadDirectory(config, path.trim());
+  }
+
+  Future<void> _resetDownloadDirectory(RemoteStorageConfig config) async {
+    await _saveDownloadDirectory(config, '');
+  }
+
+  Future<void> _saveDownloadDirectory(
+    RemoteStorageConfig config,
+    String path,
+  ) async {
+    setState(() {
+      _savingDownloadDirectory = true;
+      _downloadDirectoryError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(defaultDownloadDirectory: path),
+      );
+      if (!mounted) {
+        return;
+      }
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _downloadDirectoryError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingDownloadDirectory = false;
+        });
+      }
+    }
   }
 
   Widget _infoRow(ShadThemeData theme, String label, String value) {
@@ -139,12 +219,92 @@ class SettingsPage extends StatelessWidget {
   }
 
   String _maskedKey(String key) {
-    if (key.length <= 6) return key;
+    if (key.length <= 6) {
+      return key;
+    }
     return '${key.substring(0, 4)}${'•' * (key.length - 6)}${key.substring(key.length - 2)}';
   }
 }
 
-/// 主题色选择器。
+class _DownloadDirectorySection extends StatelessWidget {
+  const _DownloadDirectorySection({
+    required this.theme,
+    required this.configuredPath,
+    required this.saving,
+    required this.errorText,
+    required this.onPickDirectory,
+    required this.onResetDirectory,
+  });
+
+  final ShadThemeData theme;
+  final String configuredPath;
+  final bool saving;
+  final String? errorText;
+  final VoidCallback onPickDirectory;
+  final VoidCallback onResetDirectory;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasConfiguredPath = configuredPath.trim().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '下载文件时，保存对话框会优先打开到这个目录；未配置时自动退回系统下载目录。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.6,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: SelectableText(
+            hasConfiguredPath ? configuredPath : '系统默认下载目录',
+            style: TextStyle(
+              fontSize: 12,
+              color: hasConfiguredPath
+                  ? theme.colorScheme.foreground
+                  : theme.colorScheme.mutedForeground,
+            ),
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            ShadButton(
+              onPressed: saving ? null : onPickDirectory,
+              child: Text(saving ? '保存中...' : '选择目录'),
+            ),
+            const SizedBox(width: 10),
+            ShadButton.outline(
+              onPressed: saving || !hasConfiguredPath ? null : onResetDirectory,
+              child: const Text('恢复默认'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _ThemePicker extends StatelessWidget {
   const _ThemePicker();
 
@@ -219,25 +379,17 @@ class _ThemeOption extends StatelessWidget {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: preset.color.withValues(alpha: 0.4),
-                          blurRadius: 6,
+                          color: preset.color.withValues(alpha: 0.25),
+                          blurRadius: 8,
                         ),
                       ]
                     : null,
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Text(
               preset.label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected
-                    ? preset.color
-                    : Theme.of(context).brightness == Brightness.light
-                    ? const Color(0xff64748b)
-                    : const Color(0xff94a3b8),
-              ),
+              style: TextStyle(fontSize: 12, color: preset.color),
             ),
           ],
         ),

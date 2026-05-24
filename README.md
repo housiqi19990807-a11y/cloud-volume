@@ -48,5 +48,6 @@ The initial setup page persists these S3-compatible settings:
 - WhiteSur SVG resources are also vendored as an optional backup icon library.
 - Internal folder grids stay borderless and use larger document-style icons.
 - New folder creation uses a MinIO-compatible placeholder upload path so S3-compatible endpoints can create directories reliably.
+- Settings now allow configuring a default download directory; the save dialog falls back to the system Downloads folder when none is set.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

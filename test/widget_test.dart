@@ -47,6 +47,7 @@ class _FakeApi implements RemoteStorageGateway {
             accessKeyId: 'AKIA_TEST',
             secretAccessKey: 'secret_test',
             rootPrefix: '',
+            defaultDownloadDirectory: '',
             usePathStyle: true,
           )
         : RemoteStorageConfig.empty(),

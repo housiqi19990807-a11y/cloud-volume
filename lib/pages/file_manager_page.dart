@@ -8,6 +8,7 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
@@ -149,9 +150,13 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Future<void> _download(ObjectInfo obj) async {
     if (_activeBucket == null) return;
+    final initialDirectory = await resolveDefaultDownloadDirectory(
+      widget.config.defaultDownloadDirectory,
+    );
     final savePath = await FilePicker.saveFile(
       dialogTitle: '下载到',
       fileName: obj.displayName,
+      initialDirectory: initialDirectory,
     );
     if (savePath == null) return;
     final task = TransferQueue.instance.startTask(

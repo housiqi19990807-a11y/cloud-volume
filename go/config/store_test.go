@@ -25,13 +25,14 @@ func TestLoadBootstrapStateForMissingFile(t *testing.T) {
 func TestSaveAndLoadRoundTrip(t *testing.T) {
 	store := NewStore(filepath.Join(t.TempDir(), "config.toml"))
 	input := RemoteStorageConfig{
-		Endpoint:        " https://s3.example.com ",
-		Region:          " us-east-1 ",
-		Bucket:          " media-bucket ",
-		AccessKeyID:     " ACCESS ",
-		SecretAccessKey: " SECRET ",
-		RootPrefix:      " /music/archive/ ",
-		UsePathStyle:    true,
+		Endpoint:                 " https://s3.example.com ",
+		Region:                   " us-east-1 ",
+		Bucket:                   " media-bucket ",
+		AccessKeyID:              " ACCESS ",
+		SecretAccessKey:          " SECRET ",
+		RootPrefix:               " /music/archive/ ",
+		DefaultDownloadDirectory: " /Users/demo/Downloads/remote-storage ",
+		UsePathStyle:             true,
 	}
 
 	if err := store.Save(input); err != nil {
@@ -48,6 +49,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 	if loaded.RootPrefix != "music/archive" {
 		t.Fatalf("unexpected root prefix %q", loaded.RootPrefix)
+	}
+	if loaded.DefaultDownloadDirectory != "/Users/demo/Downloads/remote-storage" {
+		t.Fatalf("unexpected default download directory %q", loaded.DefaultDownloadDirectory)
 	}
 	if !loaded.IsConfigured() {
 		t.Fatalf("expected saved config to be configured")

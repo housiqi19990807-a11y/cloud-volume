@@ -8,6 +8,7 @@ class RemoteStorageConfig {
     required this.accessKeyId,
     required this.secretAccessKey,
     required this.rootPrefix,
+    required this.defaultDownloadDirectory,
     required this.usePathStyle,
   });
 
@@ -19,6 +20,7 @@ class RemoteStorageConfig {
       accessKeyId: '',
       secretAccessKey: '',
       rootPrefix: '',
+      defaultDownloadDirectory: '',
       usePathStyle: true,
     );
   }
@@ -34,6 +36,11 @@ class RemoteStorageConfig {
           (json['secretAccessKey'] ?? json['secret_access_key'] ?? '')
               .toString(),
       rootPrefix: (json['rootPrefix'] ?? json['root_prefix'] ?? '').toString(),
+      defaultDownloadDirectory:
+          (json['defaultDownloadDirectory'] ??
+                  json['default_download_directory'] ??
+                  '')
+              .toString(),
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
@@ -46,6 +53,7 @@ class RemoteStorageConfig {
   final String accessKeyId;
   final String secretAccessKey;
   final String rootPrefix;
+  final String defaultDownloadDirectory;
   final bool usePathStyle;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
@@ -63,6 +71,7 @@ class RemoteStorageConfig {
       'accessKeyId': accessKeyId.trim(),
       'secretAccessKey': secretAccessKey.trim(),
       'rootPrefix': rootPrefix.trim(),
+      'defaultDownloadDirectory': defaultDownloadDirectory.trim(),
       'usePathStyle': usePathStyle,
     };
   }
@@ -74,6 +83,7 @@ class RemoteStorageConfig {
     String? accessKeyId,
     String? secretAccessKey,
     String? rootPrefix,
+    String? defaultDownloadDirectory,
     bool? usePathStyle,
   }) {
     return RemoteStorageConfig(
@@ -83,6 +93,8 @@ class RemoteStorageConfig {
       accessKeyId: accessKeyId ?? this.accessKeyId,
       secretAccessKey: secretAccessKey ?? this.secretAccessKey,
       rootPrefix: rootPrefix ?? this.rootPrefix,
+      defaultDownloadDirectory:
+          defaultDownloadDirectory ?? this.defaultDownloadDirectory,
       usePathStyle: usePathStyle ?? this.usePathStyle,
     );
   }

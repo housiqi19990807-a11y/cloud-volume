@@ -73,6 +73,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       accessKeyId: _accessKeyController.text,
       secretAccessKey: _secretKeyController.text,
       rootPrefix: widget.initialState.config.rootPrefix,
+      defaultDownloadDirectory:
+          widget.initialState.config.defaultDownloadDirectory,
       usePathStyle: _usePathStyle,
     );
 
