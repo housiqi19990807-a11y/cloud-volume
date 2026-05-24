@@ -6,69 +6,82 @@ import 'package:remote_storage/app/remote_storage_app.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/pages/file_manager_page.dart';
 
 void main() {
-  testWidgets('App shows Chinese setup page when config is missing', (
-    tester,
-  ) async {
-    // Provide in-memory prefs so ThemeInitializer can resolve.
+  testWidgets('App shows setup page when config is missing', (tester) async {
     SharedPreferences.setMockInitialValues({});
-
     await tester.pumpWidget(
       RemoteStorageApp(apiFactory: () async => _FakeApi(configured: false)),
     );
-
-    // Allow ThemeInitializer + FutureBuilder to resolve.
     await tester.pumpAndSettle();
-
-    expect(find.text('初始化配置'), findsOneWidget);
-    expect(find.text('配置远程存储的连接信息。'), findsOneWidget);
+    expect(find.text('登录远程存储'), findsOneWidget);
   });
 
-  testWidgets('App shows Chinese home page when config exists', (tester) async {
+  testWidgets('App shows main layout when config exists', (tester) async {
     SharedPreferences.setMockInitialValues({});
-
     await tester.pumpWidget(
       RemoteStorageApp(apiFactory: () async => _FakeApi(configured: true)),
     );
-
     await tester.pumpAndSettle();
-
-    expect(find.text('远程存储已连接'), findsOneWidget);
+    expect(find.byType(FileManagerPage), findsOneWidget);
   });
 }
 
-/// A minimal fake API that does not need the Go bridge.
+/// Minimal fake API that does not need the Go bridge.
 class _FakeApi implements RemoteStorageGateway {
   _FakeApi({required this.configured});
-
   final bool configured;
 
   @override
-  Future<BootstrapState> loadBootstrapState() async {
-    return BootstrapState(
-      configPath: '/tmp/.remote-storage/config.toml',
-      configured: configured,
-      config: configured
-          ? const RemoteStorageConfig(
-              endpoint: 'https://s3.example.com',
-              region: 'us-east-1',
-              bucket: 'test-bucket',
-              accessKeyId: 'AKIA_TEST',
-              secretAccessKey: 'secret_test',
-              rootPrefix: '',
-              usePathStyle: true,
-            )
-          : RemoteStorageConfig.empty(),
-    );
-  }
+  Future<BootstrapState> loadBootstrapState() async => BootstrapState(
+    configPath: '/tmp/.remote-storage/config.toml',
+    configured: configured,
+    config: configured
+        ? const RemoteStorageConfig(
+            endpoint: 'https://s3.example.com',
+            region: 'us-east-1',
+            bucket: 'test-bucket',
+            accessKeyId: 'AKIA_TEST',
+            secretAccessKey: 'secret_test',
+            rootPrefix: '',
+            usePathStyle: true,
+          )
+        : RemoteStorageConfig.empty(),
+  );
 
   @override
-  Future<BootstrapState> saveConfig(RemoteStorageConfig config) async {
-    return BootstrapState(
-      configPath: '/tmp/.remote-storage/config.toml',
-      configured: true,
-      config: config,
-    );
-  }
+  Future<BootstrapState> saveConfig(RemoteStorageConfig config) async =>
+      BootstrapState(
+        configPath: '/tmp/.remote-storage/config.toml',
+        configured: true,
+        config: config,
+      );
+
+  @override
+  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async => [];
+
+  @override
+  Future<List<ObjectInfo>> listObjects(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  ) async => [];
+
+  @override
+  Future<void> uploadFile(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String localPath,
+  ) async {}
+
+  @override
+  Future<void> downloadFile(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String localPath,
+  ) async {}
 }

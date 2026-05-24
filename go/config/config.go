@@ -41,10 +41,10 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 }
 
 // IsConfigured defines the minimum first-run fields required to leave setup mode.
+// Bucket and root prefix are optional — only endpoint + auth keys are required.
 func (c RemoteStorageConfig) IsConfigured() bool {
 	normalized := c.Normalized()
 	return normalized.Endpoint != "" &&
-		normalized.Bucket != "" &&
 		normalized.AccessKeyID != "" &&
 		normalized.SecretAccessKey != ""
 }

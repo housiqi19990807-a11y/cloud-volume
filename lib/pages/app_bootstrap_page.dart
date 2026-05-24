@@ -1,10 +1,10 @@
-// 启动引导页：判断是否已有配置，决定跳转配置页还是主页。
+// 启动引导页：判断是否已有配置，决定跳转配置页还是主界面。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/config_setup_page.dart';
-import 'package:remote_storage/pages/home_page.dart';
+import 'package:remote_storage/pages/main_layout_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 
 class AppBootstrapPage extends StatefulWidget {
@@ -71,14 +71,11 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
           );
         }
 
-        return HomePage(
+        return MainLayoutPage(
           state: session.state,
+          api: session.api,
+          onEditConfig: () => setState(() => _showSetupAnyway = true),
           onRefresh: _reload,
-          onEditConfig: () {
-            setState(() {
-              _showSetupAnyway = true;
-            });
-          },
         );
       },
     );
@@ -110,11 +107,9 @@ class _BootstrapMessageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    // Full-bleed background extending behind traffic lights.
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
       body: Padding(
-        // Safe zone for macOS traffic lights.
         padding: const EdgeInsets.only(top: 40),
         child: Center(
           child: ShadCard(

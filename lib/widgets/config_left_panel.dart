@@ -1,9 +1,7 @@
-// Left brand panel for the config setup page.
-// Bright accent-tinted panel with slogan and theme color picker.
-// All decorative colors derive from the current accent preset.
+// 左侧品牌面板：明亮渐变背景，展示品牌标识、标语和主题色选择器。
+// 所有装饰颜色基于当前主题色动态生成。
 
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 
@@ -14,110 +12,158 @@ class ConfigLeftPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
     final accent = ThemeController.of(context).accent;
     final ac = accent.color;
 
-    // Bright background: white base tinted with accent.
-    final bg = Color.lerp(const Color(0xfff8faff), ac, 0.04)!;
-    final bgTop = Color.lerp(const Color(0xffeef2ff), ac, 0.08)!;
+    // 明亮渐变背景。
+    final bgTop = Color.lerp(const Color(0xffeef3ff), ac, 0.08)!;
+    final bgBottom = Color.lerp(const Color(0xfff8faff), ac, 0.03)!;
 
-    // Text colors.
-    final heading = Color.lerp(const Color(0xff1e293b), ac, 0.25)!;
-    final muted = Color.lerp(const Color(0xff64748b), ac, 0.12)!;
+    // 装饰元素。
+    final circleLight = ac.withValues(alpha: 0.06);
+
+    // 文字颜色。
+    final heading = Color.lerp(const Color(0xff1e293b), ac, 0.15)!;
+    final muted = Color.lerp(const Color(0xff64748b), ac, 0.06)!;
 
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [bgTop, bg],
-          stops: const [0.0, 0.4],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [bgTop, bgBottom],
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.only(
-          left: 32,
-          right: 32,
-          top: 40,
-          bottom: 32,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Brand mark.
-            Row(
+      child: Stack(
+        children: [
+          // 装饰性圆形，增加层次感。
+          Positioned(
+            top: -80,
+            right: -60,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: circleLight,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 20,
+            left: -50,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: circleLight,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 160,
+            left: 80,
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: ac.withValues(alpha: 0.04),
+              ),
+            ),
+          ),
+          // 主内容区。
+          Padding(
+            padding: const EdgeInsets.only(
+              left: 40,
+              right: 40,
+              top: 56,
+              bottom: 40,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: ac.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ac.withValues(alpha: 0.3)),
-                  ),
-                  child: Icon(Icons.cloud_outlined, size: 22, color: ac),
-                ),
-                const SizedBox(width: 12),
-                Flexible(
-                  child: Text(
-                    'Remote Storage',
-                    style: theme.textTheme.large.copyWith(
-                      color: heading,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
+                // 品牌标识。
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: ac.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.cloud_outlined, size: 20, color: ac),
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'Remote Storage',
+                        style: TextStyle(
+                          color: heading,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(flex: 3),
+                // 标语。
+                Text(
+                  '你的远程\n存储管理器',
+                  style: TextStyle(
+                    color: heading,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                    fontSize: 30,
                   ),
+                ),
+                const SizedBox(height: 16),
+                // 装饰横线。
+                Container(
+                  width: 36,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: ac.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '安全、高效地管理你的远程存储。\n凭证仅保存在本地，无需担心隐私。',
+                  style: TextStyle(color: muted, fontSize: 13, height: 1.7),
+                ),
+                const Spacer(flex: 4),
+                // 主题色选择器。
+                _AccentPicker(muted: muted),
+                const SizedBox(height: 24),
+                // 底部安全提示。
+                Row(
+                  children: [
+                    Icon(Icons.lock_outline, size: 12, color: muted),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        '凭证仅保存在本地',
+                        style: TextStyle(color: muted, fontSize: 11),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const Spacer(flex: 2),
-            // Slogan.
-            Text(
-              '你的云端\n存储管理器',
-              style: theme.textTheme.h3.copyWith(
-                color: heading,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
-                fontSize: 28,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '安全、高效地管理你的远程存储。',
-              style: theme.textTheme.muted.copyWith(
-                color: muted,
-                fontSize: 14,
-                height: 1.6,
-              ),
-            ),
-            const Spacer(flex: 3),
-            // Accent color picker.
-            _AccentPicker(muted: muted),
-            const SizedBox(height: 16),
-            // Security note.
-            Row(
-              children: [
-                Icon(Icons.lock_outline, size: 13, color: muted),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    '凭证仅保存在本地',
-                    style: TextStyle(color: muted, fontSize: 11),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Compact accent-color selector shown in the left panel.
+/// 主题色选择器。
 class _AccentPicker extends StatelessWidget {
   const _AccentPicker({required this.muted});
 
@@ -173,26 +219,34 @@ class _AccentDot extends StatelessWidget {
       child: Tooltip(
         message: preset.label,
         child: Container(
-          width: 24,
-          height: 24,
+          width: 22,
+          height: 22,
           decoration: BoxDecoration(
             color: preset.color,
             shape: BoxShape.circle,
             border: isSelected
                 ? Border.all(
-                    color: Color.lerp(preset.color, Colors.black, 0.3)!,
+                    color: Color.lerp(preset.color, Colors.white, 0.3)!,
                     width: 2.5,
                   )
-                : null,
+                : Border.all(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: preset.color.withValues(alpha: 0.4),
-                      blurRadius: 6,
+                      color: preset.color.withValues(alpha: 0.35),
+                      blurRadius: 8,
                       spreadRadius: 1,
                     ),
                   ]
-                : null,
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 4,
+                    ),
+                  ],
           ),
         ),
       ),

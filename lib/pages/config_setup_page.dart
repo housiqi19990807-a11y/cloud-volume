@@ -1,4 +1,4 @@
-// 首次启动配置页：左右分栏布局，内容延伸至标题栏下方。
+// 首次启动配置页：左右等分布局，内容延伸至标题栏下方。
 // 左侧：品牌面板。右侧：表单。组件拆分至 widgets/ 目录。
 
 import 'package:flutter/material.dart';
@@ -8,7 +8,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 
-// Preset defaults for first-run.
+// 首次运行预设默认值。
 const _kDefaultEndpoint = 'https://fgws3-ocloud.ihep.ac.cn';
 const _kDefaultRegion = 'auto';
 
@@ -42,7 +42,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   void initState() {
     super.initState();
     final config = widget.initialState.config;
-    // Use defaults when fields are empty (first-run).
+    // 首次运行时使用默认值。
     _endpointController = TextEditingController(
       text: config.endpoint.trim().isNotEmpty
           ? config.endpoint
@@ -111,12 +111,11 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     return Scaffold(
       body: Row(
         children: [
+          // 左右等分，视觉更平衡。
           Expanded(
-            flex: 5,
             child: ConfigLeftPanel(configPath: widget.initialState.configPath),
           ),
           Expanded(
-            flex: 7,
             child: ConfigRightFormPanel(
               endpointController: _endpointController,
               regionController: _regionController,

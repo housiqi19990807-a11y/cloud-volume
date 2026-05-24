@@ -3,11 +3,34 @@
 import 'package:remote_storage/bridge/remote_storage_bridge.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/models/s3_objects.dart';
 
 abstract class RemoteStorageGateway {
   Future<BootstrapState> loadBootstrapState();
 
   Future<BootstrapState> saveConfig(RemoteStorageConfig config);
+
+  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config);
+
+  Future<List<ObjectInfo>> listObjects(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  );
+
+  Future<void> uploadFile(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String localPath,
+  );
+
+  Future<void> downloadFile(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String localPath,
+  );
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
@@ -43,5 +66,68 @@ class RemoteStorageApi implements RemoteStorageGateway {
             as Map<String, dynamic>? ??
         const <String, dynamic>{};
     return BootstrapState.fromJson(payload);
+  }
+
+  @override
+  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
+    final result = _bridge.call('list_buckets', <String, dynamic>{
+      'config': config.toJson(),
+    });
+    return _parseList<BucketInfo>(result, (m) => BucketInfo.fromJson(m));
+  }
+
+  @override
+  Future<List<ObjectInfo>> listObjects(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  ) async {
+    final result = _bridge.call('list_objects', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'prefix': prefix,
+    });
+    return _parseList<ObjectInfo>(result, (m) => ObjectInfo.fromJson(m));
+  }
+
+  @override
+  Future<void> uploadFile(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String localPath,
+  ) async {
+    _bridge.call('upload_file', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': key,
+      'localPath': localPath,
+    });
+  }
+
+  @override
+  Future<void> downloadFile(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String localPath,
+  ) async {
+    _bridge.call('download_file', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': key,
+      'localPath': localPath,
+    });
+  }
+
+  /// Parses a JSON list from bridge response into typed Dart objects.
+  List<T> _parseList<T>(
+    dynamic result,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    if (result is List) {
+      return result.map((e) => fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return [];
   }
 }

@@ -13,6 +13,7 @@ dependencies:
   path: ^1.9.1
   shadcn_ui: ^0.54.0
   shared_preferences: ^2.5.5
+  file_picker: ^11.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

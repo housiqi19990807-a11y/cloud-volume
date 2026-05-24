@@ -73,7 +73,7 @@ func (s Store) Save(config RemoteStorageConfig) error {
 
 	normalized := config.Normalized()
 	if !normalized.IsConfigured() {
-		return errors.New("endpoint, bucket, access key ID, and secret access key are required")
+		return errors.New("端点地址、访问密钥 ID 和访问密钥为必填项")
 	}
 	if err := os.MkdirAll(filepath.Dir(s.configPath), 0o700); err != nil {
 		return fmt.Errorf("create config directory: %w", err)
