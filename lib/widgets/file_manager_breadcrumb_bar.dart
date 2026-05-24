@@ -47,6 +47,7 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     }
     final currentCrumb = _currentCrumb();
     final hiddenCrumbs = _hiddenCrumbs();
+    final showBucketAsVisibleCrumb = currentCrumb == null;
     return Align(
       alignment: Alignment.centerLeft,
       child: SizedBox(
@@ -61,16 +62,18 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
                 color: theme.colorScheme.primary,
               ),
             ),
-            _crumbChevron(theme),
-            Flexible(
-              fit: FlexFit.loose,
-              child: _crumbLabel(
-                activeBucket!,
-                onTap: onOpenBucketRoot,
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
+            if (showBucketAsVisibleCrumb) ...[
+              _crumbChevron(theme),
+              Flexible(
+                fit: FlexFit.loose,
+                child: _crumbLabel(
+                  activeBucket!,
+                  onTap: onOpenBucketRoot,
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
+            ],
             if (hiddenCrumbs.isNotEmpty) ...[
               _crumbChevron(theme),
               _hiddenCrumbMenu(hiddenCrumbs),
@@ -100,8 +103,10 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
   }
 
   List<_CrumbEntry> _hiddenCrumbs() {
-    if (breadcrumbs.length <= 1) return const [];
+    if (activeBucket == null || breadcrumbs.isEmpty) return const [];
+
     return [
+      _CrumbEntry(index: -1, label: activeBucket!),
       for (int i = 0; i < breadcrumbs.length - 1; i++)
         _CrumbEntry(index: i, label: breadcrumbs[i]),
     ];
@@ -119,7 +124,13 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
             child: Text(crumb.label, overflow: TextOverflow.ellipsis),
           ),
       ],
-      onSelected: onOpenCrumb,
+      onSelected: (index) {
+        if (index == -1) {
+          onOpenBucketRoot();
+          return;
+        }
+        onOpenCrumb(index);
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
         child: Text(
