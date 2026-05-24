@@ -4,6 +4,7 @@ import FlutterMacOS
 @main
 class AppDelegate: FlutterAppDelegate {
   private var statusItem: NSStatusItem?
+  private var statusMenu: NSMenu?
   private weak var mainWindow: NSWindow?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
@@ -34,17 +35,35 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   private func installStatusItem() {
-    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     guard let button = item.button else {
       return
     }
 
     button.image = makeStatusBarImage()
     button.imagePosition = .imageOnly
-    button.target = self
-    button.action = #selector(openMainWindow(_:))
     button.toolTip = "打开云卷"
+    button.imageScaling = .scaleProportionallyDown
+    item.menu = buildStatusMenu()
     statusItem = item
+  }
+
+  private func buildStatusMenu() -> NSMenu {
+    let menu = NSMenu()
+    menu.addItem(
+      withTitle: "打开云卷",
+      action: #selector(openMainWindow(_:)),
+      keyEquivalent: ""
+    )
+    menu.addItem(.separator())
+    menu.addItem(
+      withTitle: "退出云卷",
+      action: #selector(terminateApp(_:)),
+      keyEquivalent: "q"
+    )
+    menu.items.forEach { $0.target = self }
+    statusMenu = menu
+    return menu
   }
 
   private func makeStatusBarImage() -> NSImage {
@@ -73,6 +92,10 @@ class AppDelegate: FlutterAppDelegate {
     image.unlockFocus()
     image.isTemplate = true
     return image
+  }
+
+  @objc private func terminateApp(_ sender: Any?) {
+    NSApp.terminate(sender)
   }
 
   private func reusableMainWindow() -> NSWindow? {
