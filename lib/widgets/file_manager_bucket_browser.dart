@@ -75,7 +75,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
               size: listIconSize,
             ),
             title: bucket.name,
-            subtitle: '存储桶',
+            modifiedLabel: '存储桶',
             onTap: () => onOpenBucket(bucket.name),
             showDivider: index != buckets.length - 1,
           );

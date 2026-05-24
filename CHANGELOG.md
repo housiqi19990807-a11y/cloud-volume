@@ -28,4 +28,5 @@
 - Breadcrumbs now stay fully expanded when there is enough room, and collapse the oldest left-side path segments into `...` only when the header becomes narrow.
 - Added a default-on setting to hide files and directories whose names start with `.`, while still allowing users to reveal them from Settings.
 - Clicking a file now first sends a `HEAD` request to validate the SQLite-tracked local cache against the remote file size and last-modified time; stale cache entries are discarded and re-downloaded before opening, while the context menu keeps an explicit download-to-path action.
+- List mode now adds a fixed header and aligned Name, Size, and Modified columns so file metadata occupies the right side cleanly.
 - Full Chinese interface.

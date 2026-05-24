@@ -107,21 +107,29 @@ class FileManagerObjectBrowser extends StatelessWidget {
   Widget _buildList(List<ObjectInfo> objects, ShadThemeData theme) {
     return ShadCard(
       padding: const EdgeInsets.all(4),
-      child: ListView.builder(
-        itemCount: objects.length,
-        itemBuilder: (context, index) {
-          final object = objects[index];
-          return _wrapWithContextMenu(
-            object,
-            FileListTile(
-              leading: _leading(object, theme, listIconSize),
-              title: _title(object),
-              subtitle: _subtitle(object),
-              onTap: _tapHandler(object),
-              showDivider: index != objects.length - 1,
+      child: Column(
+        children: [
+          _ListHeader(theme: theme),
+          Expanded(
+            child: ListView.builder(
+              itemCount: objects.length,
+              itemBuilder: (context, index) {
+                final object = objects[index];
+                return _wrapWithContextMenu(
+                  object,
+                  FileListTile(
+                    leading: _leading(object, theme, listIconSize),
+                    title: _title(object),
+                    sizeLabel: _sizeLabel(object),
+                    modifiedLabel: _modifiedLabel(object),
+                    onTap: _tapHandler(object),
+                    showDivider: index != objects.length - 1,
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -158,6 +166,16 @@ class FileManagerObjectBrowser extends StatelessWidget {
         : '${object.sizeText}  ${object.lastModified}';
   }
 
+  String _sizeLabel(ObjectInfo object) {
+    if (_isParentDirectory(object) || object.isDir) return '';
+    return object.sizeText;
+  }
+
+  String _modifiedLabel(ObjectInfo object) {
+    if (_isParentDirectory(object) || object.lastModified.isEmpty) return '';
+    return object.lastModified;
+  }
+
   VoidCallback _tapHandler(ObjectInfo object) {
     if (_isParentDirectory(object)) return onNavigateUp;
     if (object.isDir) return () => onOpenDirectory(object.key);
@@ -184,5 +202,46 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   bool _isParentDirectory(ObjectInfo object) {
     return object.key == _parentDirectoryEntry.key;
+  }
+}
+
+class _ListHeader extends StatelessWidget {
+  const _ListHeader({required this.theme});
+
+  final ShadThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final dividerColor = theme.colorScheme.border.withValues(alpha: 0.7);
+    final labelStyle = TextStyle(
+      fontSize: 10.5,
+      fontWeight: FontWeight.w600,
+      color: theme.colorScheme.mutedForeground,
+      letterSpacing: 0.2,
+    );
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: dividerColor, width: 0.6)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 32),
+          const SizedBox(width: 12),
+          Expanded(child: Text('名称', style: labelStyle)),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: FileListTile.sizeColumnWidth,
+            child: Text('大小', textAlign: TextAlign.right, style: labelStyle),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: FileListTile.modifiedColumnWidth,
+            child: Text('修改时间', textAlign: TextAlign.right, style: labelStyle),
+          ),
+        ],
+      ),
+    );
   }
 }

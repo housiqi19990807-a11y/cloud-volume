@@ -58,5 +58,6 @@ The initial setup page persists these S3-compatible settings:
 - Breadcrumbs now stay fully expanded when space allows, and only collapse the oldest left-side path segments into `...` when the header becomes tight.
 - Settings now default to hiding files and directories whose names start with `.`, with a switch to reveal them when needed.
 - Clicking a file now opens it directly: before opening, the app first sends a `HEAD` request to compare the remote file size and last-modified time with the local SQLite-tracked cache record; mismatches invalidate the cache and trigger a fresh download before opening, while the right-click menu still exposes an explicit download action for choosing a save path.
+- List mode now uses a fixed table header with aligned Name, Size, and Modified columns so metadata sits on the right instead of leaving a large empty area.
 - Full Chinese interface.
 - Built with `shadcn_ui`.
