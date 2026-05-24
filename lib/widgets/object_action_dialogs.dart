@@ -4,38 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-enum FileObjectAction { download, rename, delete }
+enum FileObjectAction { open, download, rename, delete }
 
-Future<FileObjectAction?> showObjectActionMenu(
-  BuildContext context,
-  Offset position,
-  ObjectInfo object,
-) {
-  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-  return showMenu<FileObjectAction>(
-    context: context,
-    position: RelativeRect.fromLTRB(
-      position.dx,
-      position.dy,
-      overlay.size.width - position.dx,
-      overlay.size.height - position.dy,
-    ),
-    items: <PopupMenuEntry<FileObjectAction>>[
-      if (!object.isDir)
-        const PopupMenuItem<FileObjectAction>(
-          value: FileObjectAction.download,
-          child: Text('下载'),
-        ),
-      const PopupMenuItem<FileObjectAction>(
-        value: FileObjectAction.rename,
-        child: Text('重命名'),
-      ),
-      const PopupMenuItem<FileObjectAction>(
-        value: FileObjectAction.delete,
-        child: Text('删除'),
-      ),
-    ],
-  );
+List<Widget> buildObjectActionMenuItems({
+  required ObjectInfo object,
+  required VoidCallback onOpen,
+  required VoidCallback onRename,
+  required VoidCallback onDelete,
+  VoidCallback? onDownload,
+}) {
+  return <Widget>[
+    ShadContextMenuItem(onPressed: onOpen, child: const Text('打开')),
+    if (!object.isDir && onDownload != null)
+      ShadContextMenuItem(onPressed: onDownload, child: const Text('下载')),
+    ShadContextMenuItem(onPressed: onRename, child: const Text('重命名')),
+    ShadContextMenuItem(onPressed: onDelete, child: const Text('删除')),
+  ];
 }
 
 Future<String?> showRenameObjectDialog(

@@ -5,6 +5,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
+import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class FileManagerObjectBrowser extends StatelessWidget {
@@ -17,8 +18,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.listIconSize,
     required this.onOpenDirectory,
     required this.onOpenFile,
+    required this.onDownloadFile,
     required this.onNavigateUp,
-    required this.onShowObjectActions,
+    required this.onObjectAction,
   });
 
   static const ObjectInfo _parentDirectoryEntry = ObjectInfo(
@@ -35,8 +37,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final double listIconSize;
   final ValueChanged<String> onOpenDirectory;
   final ValueChanged<ObjectInfo> onOpenFile;
+  final ValueChanged<ObjectInfo> onDownloadFile;
   final VoidCallback onNavigateUp;
-  final void Function(ObjectInfo object, Offset position) onShowObjectActions;
+  final void Function(ObjectInfo object, FileObjectAction action)
+  onObjectAction;
 
   @override
   Widget build(BuildContext context) {
@@ -84,15 +88,14 @@ class FileManagerObjectBrowser extends StatelessWidget {
           childAspectRatio: 0.92,
           children: objects
               .map(
-                (object) => FileGridItem(
-                  leading: _leading(object, theme, gridIconSize),
-                  title: _title(object),
-                  subtitle: _subtitle(object, forGrid: true),
-                  onTap: _tapHandler(object),
-                  onSecondaryTapDown: _isParentDirectory(object)
-                      ? null
-                      : (details) =>
-                            onShowObjectActions(object, details.globalPosition),
+                (object) => _wrapWithContextMenu(
+                  object,
+                  FileGridItem(
+                    leading: _leading(object, theme, gridIconSize),
+                    title: _title(object),
+                    subtitle: _subtitle(object, forGrid: true),
+                    onTap: _tapHandler(object),
+                  ),
                 ),
               )
               .toList(),
@@ -108,16 +111,15 @@ class FileManagerObjectBrowser extends StatelessWidget {
         itemCount: objects.length,
         itemBuilder: (context, index) {
           final object = objects[index];
-          return FileListTile(
-            leading: _leading(object, theme, listIconSize),
-            title: _title(object),
-            subtitle: _subtitle(object),
-            onTap: _tapHandler(object),
-            onSecondaryTapDown: _isParentDirectory(object)
-                ? null
-                : (details) =>
-                      onShowObjectActions(object, details.globalPosition),
-            showDivider: index != objects.length - 1,
+          return _wrapWithContextMenu(
+            object,
+            FileListTile(
+              leading: _leading(object, theme, listIconSize),
+              title: _title(object),
+              subtitle: _subtitle(object),
+              onTap: _tapHandler(object),
+              showDivider: index != objects.length - 1,
+            ),
           );
         },
       ),
@@ -160,6 +162,24 @@ class FileManagerObjectBrowser extends StatelessWidget {
     if (_isParentDirectory(object)) return onNavigateUp;
     if (object.isDir) return () => onOpenDirectory(object.key);
     return () => onOpenFile(object);
+  }
+
+  Widget _wrapWithContextMenu(ObjectInfo object, Widget child) {
+    if (_isParentDirectory(object)) {
+      return child;
+    }
+    return ShadContextMenuRegion(
+      tapEnabled: false,
+      longPressEnabled: false,
+      items: buildObjectActionMenuItems(
+        object: object,
+        onOpen: () => _tapHandler(object)(),
+        onDownload: object.isDir ? null : () => onDownloadFile(object),
+        onRename: () => onObjectAction(object, FileObjectAction.rename),
+        onDelete: () => onObjectAction(object, FileObjectAction.delete),
+      ),
+      child: child,
+    );
   }
 
   bool _isParentDirectory(ObjectInfo object) {

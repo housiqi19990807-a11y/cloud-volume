@@ -254,15 +254,21 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  Future<void> _showObjectActions(ObjectInfo object, Offset position) async {
-    final selected = await showObjectActionMenu(context, position, object);
-    if (!mounted || selected == null || _activeBucket == null) return;
+  Future<void> _handleObjectAction(
+    ObjectInfo object,
+    FileObjectAction action,
+  ) async {
+    if (!mounted || _activeBucket == null) return;
     try {
-      if (selected == FileObjectAction.download) {
+      if (action == FileObjectAction.open) {
+        await _openObject(object);
+        return;
+      }
+      if (action == FileObjectAction.download) {
         await _downloadObject(object);
         return;
       }
-      if (selected == FileObjectAction.rename) {
+      if (action == FileObjectAction.rename) {
         final newName = await showRenameObjectDialog(context, object);
         if (newName == null ||
             newName.isEmpty ||
@@ -280,7 +286,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           bucket: _activeBucket!,
           object: object,
         );
-      } else if (selected == FileObjectAction.delete) {
+      } else if (action == FileObjectAction.delete) {
         final confirmed = await showDeleteObjectDialog(context, object);
         if (!confirmed) return;
         await widget.api.deleteObject(
@@ -417,9 +423,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
       listIconSize: _listIconSize,
       onOpenDirectory: (prefix) => unawaited(_navToPrefix(prefix)),
       onOpenFile: (object) => unawaited(_openObject(object)),
+      onDownloadFile: (object) => unawaited(_downloadObject(object)),
       onNavigateUp: () => unawaited(_navUp()),
-      onShowObjectActions: (object, position) =>
-          unawaited(_showObjectActions(object, position)),
+      onObjectAction: (object, action) =>
+          unawaited(_handleObjectAction(object, action)),
     );
   }
 
