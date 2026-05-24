@@ -10,5 +10,7 @@
 - Buckets and sidebar navigation now use matching custom SVGs instead of reusing folder icons.
 - macOS file picking now includes the required `file_picker` user-selected file entitlements.
 - Grid mode is denser, with tighter spacing and more compact Finder-style tiles.
+- Sidebar page switches now preserve in-memory page state through an `IndexedStack`.
+- Sidebar footer now shows live transfer activity, aggregate speeds, and a hover task list for recent uploads/downloads.
 - WhiteSur SVG assets are vendored in-repo as an optional secondary icon library.
 - Full Chinese interface.

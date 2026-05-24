@@ -36,6 +36,10 @@ class RemoteStorageBridge {
 
   String get libraryPath => _libraryPath;
 
+  static RemoteStorageBridge openAtPath(String libraryPath) {
+    return RemoteStorageBridge._(DynamicLibrary.open(libraryPath), libraryPath);
+  }
+
   static Future<RemoteStorageBridge> connect() async {
     final repoRoot = _locateRepoRoot();
     final outputPath = path.join(

@@ -1,9 +1,12 @@
 // Typed API helpers keep the Flutter pages focused on behavior instead of JSON plumbing.
 
+import 'dart:isolate';
+
 import 'package:remote_storage/bridge/remote_storage_bridge.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/transfer_job.dart';
 
 abstract class RemoteStorageGateway {
   Future<BootstrapState> loadBootstrapState();
@@ -21,13 +24,16 @@ abstract class RemoteStorageGateway {
     String bucket,
     String key,
     String localPath,
+    String taskId,
   );
   Future<void> downloadFile(
     RemoteStorageConfig config,
     String bucket,
     String key,
     String localPath,
+    String taskId,
   );
+  Future<List<TransferSnapshot>> listTransferJobs();
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
@@ -112,12 +118,17 @@ class RemoteStorageApi implements RemoteStorageGateway {
     String bucket,
     String key,
     String localPath,
+    String taskId,
   ) async {
-    _bridge.call('upload_file', <String, dynamic>{
-      'config': config.toJson(),
-      'bucket': bucket,
-      'key': key,
-      'localPath': localPath,
+    await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      bridge.call('upload_file', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+        'key': key,
+        'localPath': localPath,
+        'taskId': taskId,
+      });
     });
   }
 
@@ -127,13 +138,24 @@ class RemoteStorageApi implements RemoteStorageGateway {
     String bucket,
     String key,
     String localPath,
+    String taskId,
   ) async {
-    _bridge.call('download_file', <String, dynamic>{
-      'config': config.toJson(),
-      'bucket': bucket,
-      'key': key,
-      'localPath': localPath,
+    await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      bridge.call('download_file', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+        'key': key,
+        'localPath': localPath,
+        'taskId': taskId,
+      });
     });
+  }
+
+  @override
+  Future<List<TransferSnapshot>> listTransferJobs() async {
+    final result = _bridge.call('list_transfer_jobs');
+    return _parseList(result, (m) => TransferSnapshot.fromJson(m));
   }
 
   List<T> _parseList<T>(

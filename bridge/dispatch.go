@@ -13,7 +13,7 @@ type saveConfigArgs struct {
 }
 
 type profileArgs struct {
-	Name   string                           `json:"name"`
+	Name   string                            `json:"name"`
 	Config storageconfig.RemoteStorageConfig `json:"config"`
 }
 
@@ -48,6 +48,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return uploadFile(args)
 	case "download_file":
 		return downloadFile(args)
+	case "list_transfer_jobs":
+		return listTransferJobs()
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}
@@ -142,22 +144,24 @@ type bucketArgs struct {
 
 type objectListArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`
-	Bucket string                           `json:"bucket"`
-	Prefix string                           `json:"prefix"`
+	Bucket string                            `json:"bucket"`
+	Prefix string                            `json:"prefix"`
 }
 
 type uploadArgs struct {
 	Config    storageconfig.RemoteStorageConfig `json:"config"`
-	Bucket    string                           `json:"bucket"`
-	Key       string                           `json:"key"`
-	LocalPath string                           `json:"localPath"`
+	Bucket    string                            `json:"bucket"`
+	Key       string                            `json:"key"`
+	LocalPath string                            `json:"localPath"`
+	TaskID    string                            `json:"taskId"`
 }
 
 type downloadArgs struct {
 	Config    storageconfig.RemoteStorageConfig `json:"config"`
-	Bucket    string                           `json:"bucket"`
-	Key       string                           `json:"key"`
-	LocalPath string                           `json:"localPath"`
+	Bucket    string                            `json:"bucket"`
+	Key       string                            `json:"key"`
+	LocalPath string                            `json:"localPath"`
+	TaskID    string                            `json:"taskId"`
 }
 
 func listBuckets(args json.RawMessage) (any, error) {
@@ -181,7 +185,13 @@ func uploadFile(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.UploadFile(input.Config, input.Bucket, input.Key, input.LocalPath); err != nil {
+	if err := s3ops.UploadFile(
+		input.Config,
+		input.Bucket,
+		input.Key,
+		input.LocalPath,
+		input.TaskID,
+	); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
@@ -192,8 +202,18 @@ func downloadFile(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.DownloadFile(input.Config, input.Bucket, input.Key, input.LocalPath); err != nil {
+	if err := s3ops.DownloadFile(
+		input.Config,
+		input.Bucket,
+		input.Key,
+		input.LocalPath,
+		input.TaskID,
+	); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+func listTransferJobs() (any, error) {
+	return s3ops.ListTransferSnapshots(), nil
 }

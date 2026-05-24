@@ -1,11 +1,14 @@
 // 文件管理页：列表/网格视图切换 + 桶/对象浏览。
 // 网格视图模拟 macOS Finder：无边框、大彩色图标、hover 高亮。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
@@ -134,24 +137,15 @@ class _FileManagerPageState extends State<FileManagerPage> {
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     if (file.path == null) return;
+    final bucket = _activeBucket!;
     final key = _prefix + file.name;
-    setState(() => _loading = true);
-    try {
-      await widget.api.uploadFile(
-        widget.config,
-        _activeBucket!,
-        key,
-        file.path!,
-      );
-      if (!mounted) return;
-      await _loadObjects(_activeBucket!, _prefix);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
+    final task = TransferQueue.instance.startTask(
+      isUpload: true,
+      bucket: bucket,
+      key: key,
+      localPath: file.path!,
+    );
+    unawaited(_runUploadTask(task, bucket));
   }
 
   Future<void> _download(ObjectInfo obj) async {
@@ -161,22 +155,44 @@ class _FileManagerPageState extends State<FileManagerPage> {
       fileName: obj.displayName,
     );
     if (savePath == null) return;
-    setState(() => _loading = true);
+    final task = TransferQueue.instance.startTask(
+      isUpload: false,
+      bucket: _activeBucket!,
+      key: obj.key,
+      localPath: savePath,
+    );
+    unawaited(_runDownloadTask(task));
+  }
+
+  Future<void> _runUploadTask(TransferTask task, String bucket) async {
+    try {
+      await widget.api.uploadFile(
+        widget.config,
+        task.bucket,
+        task.key,
+        task.localPath,
+        task.id,
+      );
+      TransferQueue.instance.markTaskDone(task.id);
+      if (!mounted || _activeBucket != bucket) return;
+      await _loadObjects(bucket, _prefix);
+    } catch (e) {
+      TransferQueue.instance.markTaskFailed(task.id, e);
+    }
+  }
+
+  Future<void> _runDownloadTask(TransferTask task) async {
     try {
       await widget.api.downloadFile(
         widget.config,
-        _activeBucket!,
-        obj.key,
-        savePath,
+        task.bucket,
+        task.key,
+        task.localPath,
+        task.id,
       );
-      if (!mounted) return;
-      setState(() => _loading = false);
+      TransferQueue.instance.markTaskDone(task.id);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      TransferQueue.instance.markTaskFailed(task.id, e);
     }
   }
 

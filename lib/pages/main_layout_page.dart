@@ -7,8 +7,10 @@ import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/pages/settings_page.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:remote_storage/widgets/local_cloudpan_sidebar_icon.dart';
+import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
 
 /// 侧边栏菜单项。
 enum SidebarItem { fileManager, transfers, settings }
@@ -33,6 +35,20 @@ class MainLayoutPage extends StatefulWidget {
 
 class _MainLayoutPageState extends State<MainLayoutPage> {
   SidebarItem _selected = SidebarItem.fileManager;
+
+  @override
+  void initState() {
+    super.initState();
+    TransferQueue.instance.bindApi(widget.api);
+  }
+
+  @override
+  void didUpdateWidget(covariant MainLayoutPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api) {
+      TransferQueue.instance.bindApi(widget.api);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,6 +199,12 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   muted,
                 ),
                 const Spacer(),
+                SidebarTransferStatus(
+                  accent: ac,
+                  muted: muted,
+                  onTap: () =>
+                      setState(() => _selected = SidebarItem.transfers),
+                ),
               ],
             ),
           ),
@@ -245,17 +267,23 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   }
 
   Widget _buildContent() {
-    switch (_selected) {
-      case SidebarItem.fileManager:
-        return FileManagerPage(api: widget.api, config: widget.state.config);
-      case SidebarItem.transfers:
-        return TransfersPage(api: widget.api, config: widget.state.config);
-      case SidebarItem.settings:
-        return SettingsPage(
+    final index = switch (_selected) {
+      SidebarItem.fileManager => 0,
+      SidebarItem.transfers => 1,
+      SidebarItem.settings => 2,
+    };
+
+    return IndexedStack(
+      index: index,
+      children: [
+        FileManagerPage(api: widget.api, config: widget.state.config),
+        TransfersPage(api: widget.api, config: widget.state.config),
+        SettingsPage(
           state: widget.state,
           onEditConfig: widget.onEditConfig,
           onRefresh: widget.onRefresh,
-        );
-    }
+        ),
+      ],
+    );
   }
 }

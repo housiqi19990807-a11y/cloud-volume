@@ -62,21 +62,34 @@ func ListObjects(cfg storageconfig.RemoteStorageConfig, bucket, prefix string) (
 }
 
 // UploadFile uploads a local file to the given bucket + key.
-func UploadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath string) error {
+func UploadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath, taskID string) error {
 	client := NewClient(cfg)
 	f, err := os.Open(localPath)
 	if err != nil {
 		return fmt.Errorf("open local file: %w", err)
 	}
 	defer f.Close()
+	info, statErr := f.Stat()
+	if statErr == nil && taskID != "" {
+		startTransfer(taskID, "upload", bucket, key, localPath, info.Size())
+		defer func() { finishTransfer(taskID, err) }()
+	}
+
+	body := io.Reader(f)
+	if taskID != "" {
+		body = &countingReader{
+			reader: f,
+			onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
+		}
+	}
 	_, err = client.PutObject(Ctx(), &s3.PutObjectInput{
-		Bucket: &bucket, Key: &key, Body: f,
+		Bucket: &bucket, Key: &key, Body: body,
 	})
 	return err
 }
 
 // DownloadFile downloads an object to a local path.
-func DownloadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath string) error {
+func DownloadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath, taskID string) error {
 	client := NewClient(cfg)
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		return err
@@ -89,6 +102,17 @@ func DownloadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath 
 		return err
 	}
 	defer out.Body.Close()
+	if taskID != "" {
+		startTransfer(
+			taskID,
+			"download",
+			bucket,
+			key,
+			localPath,
+			aws.ToInt64(out.ContentLength),
+		)
+		defer func() { finishTransfer(taskID, err) }()
+	}
 
 	f, err := os.Create(localPath)
 	if err != nil {
@@ -96,7 +120,15 @@ func DownloadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath 
 	}
 	defer f.Close()
 
-	_, err = io.Copy(f, out.Body)
+	body := io.Reader(out.Body)
+	if taskID != "" {
+		body = &countingReader{
+			reader: out.Body,
+			onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
+		}
+	}
+
+	_, err = io.Copy(f, body)
 	return err
 }
 

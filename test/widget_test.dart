@@ -7,6 +7,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 
 void main() {
@@ -75,15 +76,16 @@ class _FakeApi implements RemoteStorageGateway {
     String bucket,
     String key,
     String localPath,
+    String taskId,
   ) async {}
 
-  @override
   @override
   Future<void> downloadFile(
     RemoteStorageConfig config,
     String bucket,
     String key,
     String localPath,
+    String taskId,
   ) async {}
 
   @override
@@ -92,4 +94,7 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<List<ProfileInfo>> listProfiles() async => [];
+
+  @override
+  Future<List<TransferSnapshot>> listTransferJobs() async => [];
 }
