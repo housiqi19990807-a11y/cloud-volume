@@ -14,6 +14,7 @@ dependencies:
   shadcn_ui: ^0.54.0
   shared_preferences: ^2.5.5
   file_picker: ^11.0.2
+  flutter_svg: ^2.2.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -21,3 +22,14 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icons/local_cloudpan/fileType/
+    - assets/icons/local_cloudpan/fileType/audio/
+    - assets/icons/local_cloudpan/fileType/compression/
+    - assets/icons/local_cloudpan/fileType/document/
+    - assets/icons/local_cloudpan/fileType/picture/
+    - assets/icons/local_cloudpan/fileType/video/
+    - assets/icons/local_cloudpan/sidebar/
+    - assets/icons/whitesur/places/
+    - assets/icons/whitesur/mimes/
+    - assets/icons/whitesur/source/

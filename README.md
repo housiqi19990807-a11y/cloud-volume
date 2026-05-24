@@ -14,10 +14,12 @@
 ```bash
 flutter pub get
 go mod tidy
-flutter run -d macos
+make run
 ```
 
-The Go bridge is built on demand to `bin/bridge/` the first time Flutter connects to it.
+`make run` is the canonical startup flow. It rebuilds the Go bridge into
+`bin/bridge/` and then launches the macOS Flutter app with the required
+`DEVELOPER_DIR` binding.
 
 ## Configuration fields
 
@@ -36,5 +38,9 @@ The initial setup page persists these S3-compatible settings:
 - macOS transparent titlebar with Flutter content extending behind traffic lights.
 - Left-right split config page: dark brand panel on the left, form on the right.
 - User-switchable accent color (5 presets: tech-blue, violet, green, orange, rose).
+- Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
+- Sidebar navigation and bucket entries also use matching custom SVGs in the same visual family.
+- WhiteSur SVG resources are also vendored as an optional backup icon library.
+- Internal folder grids stay borderless and use larger document-style icons.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

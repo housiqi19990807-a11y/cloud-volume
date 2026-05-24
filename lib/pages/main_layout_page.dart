@@ -8,6 +8,7 @@ import 'package:remote_storage/pages/settings_page.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
+import 'package:remote_storage/widgets/local_cloudpan_sidebar_icon.dart';
 
 /// 侧边栏菜单项。
 enum SidebarItem { fileManager, transfers, settings }
@@ -110,7 +111,11 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: ac.withValues(alpha: 0.2)),
                         ),
-                        child: Icon(Icons.cloud_outlined, size: 18, color: ac),
+                        child: LocalCloudPanSidebarIcon(
+                          glyph: LocalCloudPanSidebarGlyph.fileManager,
+                          size: 18,
+                          color: ac,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Flexible(
@@ -157,21 +162,21 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                 ),
                 // 菜单项。
                 _navItem(
-                  Icons.folder_outlined,
+                  LocalCloudPanSidebarGlyph.fileManager,
                   '文件管理',
                   SidebarItem.fileManager,
                   ac,
                   muted,
                 ),
                 _navItem(
-                  Icons.swap_vert,
+                  LocalCloudPanSidebarGlyph.transfers,
                   '传输管理',
                   SidebarItem.transfers,
                   ac,
                   muted,
                 ),
                 _navItem(
-                  Icons.settings_outlined,
+                  LocalCloudPanSidebarGlyph.settings,
                   '设置',
                   SidebarItem.settings,
                   ac,
@@ -195,7 +200,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   }
 
   Widget _navItem(
-    IconData icon,
+    LocalCloudPanSidebarGlyph icon,
     String label,
     SidebarItem item,
     Color ac,
@@ -222,7 +227,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           ),
           child: Row(
             children: [
-              Icon(icon, size: 17, color: fg),
+              LocalCloudPanSidebarIcon(glyph: icon, size: 17, color: fg),
               const SizedBox(width: 10),
               Text(
                 label,

@@ -1,43 +1,44 @@
-// 文件管理中通用的列表行组件，桶和对象列表共用。
+// Finder 风格文件列表行：以 SVG 图标为主，保留轻量 hover 和分隔线。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// 文件列表行，用于桶列表和对象列表的每一行。
+/// 文件管理页的列表项。
 class FileListTile extends StatelessWidget {
   const FileListTile({
     super.key,
-    required this.icon,
-    this.iconColor,
+    required this.leading,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.showDivider = true,
   });
 
-  final IconData icon;
-  final Color? iconColor;
+  final Widget leading;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
+
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            border: showDivider
+                ? Border(bottom: BorderSide(color: dividerColor, width: 0.6))
+                : null,
+          ),
           child: Row(
             children: [
-              Icon(
-                icon,
-                size: 20,
-                color: iconColor ?? theme.colorScheme.mutedForeground,
-              ),
+              leading,
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -50,22 +51,21 @@ class FileListTile extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                         color: theme.colorScheme.foreground,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: TextStyle(
                         fontSize: 11,
                         color: theme.colorScheme.mutedForeground,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: theme.colorScheme.mutedForeground,
               ),
             ],
           ),

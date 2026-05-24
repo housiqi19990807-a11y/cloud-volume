@@ -1,12 +1,14 @@
-// 文件管理页：桶列表 -> 对象列表，支持上传和下载。
-// 使用 shadcn 色系与 Card 组件，风格与登录页统一。
+// 文件管理页：列表/网格视图切换 + 桶/对象浏览。
+// 网格视图模拟 macOS Finder：无边框、大彩色图标、hover 高亮。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
+import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:file_picker/file_picker.dart';
 
 class FileManagerPage extends StatefulWidget {
@@ -20,6 +22,10 @@ class FileManagerPage extends StatefulWidget {
 }
 
 class _FileManagerPageState extends State<FileManagerPage> {
+  static const double _gridIconSize = 76;
+  static const double _listIconSize = 20;
+  static const double _bucketGridIconSize = 80;
+
   List<BucketInfo>? _buckets;
   String? _activeBucket;
   List<ObjectInfo>? _objects;
@@ -27,14 +33,13 @@ class _FileManagerPageState extends State<FileManagerPage> {
   List<String> _breadcrumbs = [];
   bool _loading = false;
   String? _error;
+  bool _isGrid = false;
 
   @override
   void initState() {
     super.initState();
     _loadBuckets();
   }
-
-  // --- 数据加载 ---
 
   Future<void> _loadBuckets() async {
     setState(() {
@@ -85,15 +90,12 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  // --- 导航 ---
-
-  void _navigateToBucket(String b) => _loadObjects(b, '');
-
-  void _navigateToPrefix(String p) {
+  void _navToBucket(String b) => _loadObjects(b, '');
+  void _navToPrefix(String p) {
     if (_activeBucket != null) _loadObjects(_activeBucket!, p);
   }
 
-  void _navigateUp() {
+  void _navUp() {
     if (_activeBucket == null) return;
     final parts = _prefix.split('/').where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty) {
@@ -109,9 +111,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
     _loadObjects(_activeBucket!, parts.map((p) => '$p/').join());
   }
 
-  void _navigateBreadcrumb(int index) {
+  void _navCrumb(int i) {
     if (_activeBucket == null) return;
-    if (index < 0) {
+    if (i < 0) {
       setState(() {
         _activeBucket = null;
         _objects = null;
@@ -120,11 +122,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
       });
       return;
     }
-    final segs = _breadcrumbs.sublist(0, index + 1);
-    _loadObjects(_activeBucket!, segs.map((s) => '$s/').join());
+    _loadObjects(
+      _activeBucket!,
+      _breadcrumbs.sublist(0, i + 1).map((s) => '$s/').join(),
+    );
   }
-
-  // --- 上传 & 下载 ---
 
   Future<void> _upload() async {
     if (_activeBucket == null) return;
@@ -132,7 +134,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     if (file.path == null) return;
-
     final key = _prefix + file.name;
     setState(() => _loading = true);
     try {
@@ -160,7 +161,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
       fileName: obj.displayName,
     );
     if (savePath == null) return;
-
     setState(() => _loading = true);
     try {
       await widget.api.downloadFile(
@@ -180,8 +180,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  // --- UI ---
-
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -199,21 +197,29 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Widget _buildHeader(ShadThemeData theme) {
+    final p = theme.colorScheme.primary;
     return Row(
       children: [
         Expanded(child: _buildBreadcrumbBar(theme)),
+        // 列表/网格切换。
+        ShadButton.outline(
+          size: ShadButtonSize.sm,
+          onPressed: () => setState(() => _isGrid = !_isGrid),
+          child: Icon(
+            _isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
+            size: 14,
+            color: p,
+          ),
+        ),
         if (_activeBucket != null) ...[
+          const SizedBox(width: 6),
           ShadButton.outline(
-            onPressed: _loading ? null : _upload,
             size: ShadButtonSize.sm,
+            onPressed: _loading ? null : _upload,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.upload_file,
-                  size: 15,
-                  color: theme.colorScheme.primary,
-                ),
+                Icon(LucideIcons.upload, size: 14, color: p),
                 const SizedBox(width: 5),
                 const Text('上传'),
               ],
@@ -221,16 +227,12 @@ class _FileManagerPageState extends State<FileManagerPage> {
           ),
           const SizedBox(width: 6),
           ShadButton.outline(
-            onPressed: _loading ? null : _navigateUp,
             size: ShadButtonSize.sm,
+            onPressed: _loading ? null : _navUp,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.arrow_back,
-                  size: 15,
-                  color: theme.colorScheme.primary,
-                ),
+                Icon(LucideIcons.arrowLeft, size: 14, color: p),
                 const SizedBox(width: 5),
                 const Text('返回'),
               ],
@@ -264,11 +266,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
         ],
       );
     }
-
     return Row(
       children: [
         GestureDetector(
-          onTap: () => _navigateBreadcrumb(-1),
+          onTap: () => _navCrumb(-1),
           child: Text(
             _activeBucket!,
             style: TextStyle(
@@ -281,13 +282,13 @@ class _FileManagerPageState extends State<FileManagerPage> {
         for (int i = 0; i < _breadcrumbs.length; i++) ...[
           const SizedBox(width: 4),
           Icon(
-            Icons.chevron_right,
-            size: 16,
+            LucideIcons.chevronRight,
+            size: 14,
             color: theme.colorScheme.mutedForeground,
           ),
           const SizedBox(width: 4),
           GestureDetector(
-            onTap: () => _navigateBreadcrumb(i),
+            onTap: () => _navCrumb(i),
             child: Text(
               _breadcrumbs[i],
               style: TextStyle(
@@ -314,7 +315,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.error_outline,
+              LucideIcons.circleAlert,
               size: 40,
               color: theme.colorScheme.destructive,
             ),
@@ -341,60 +342,115 @@ class _FileManagerPageState extends State<FileManagerPage> {
         ),
       );
     }
-    if (_activeBucket == null) return _buildBucketList(theme);
-    return _buildObjectList(theme);
+    if (_activeBucket == null) return _buildBucketView(theme);
+    return _buildObjectView(theme);
   }
 
-  Widget _buildBucketList(ShadThemeData theme) {
+  // --- 桶 ---
+
+  Widget _buildBucketView(ShadThemeData theme) {
     if (_buckets == null) return const SizedBox();
     if (_buckets!.isEmpty) {
-      return _empty(theme, Icons.inventory_2_outlined, '没有可用的存储桶');
+      return _empty(theme, LucideIcons.database, '没有可用的存储桶');
     }
-    return _card(
-      theme,
-      ListView.builder(
+    if (_isGrid) {
+      return _gridWrap(
+        _buckets!
+            .map(
+              (b) => FileGridItem(
+                leading: const LocalCloudPanFileIcon(
+                  name: 'bucket',
+                  isBucket: true,
+                  size: _bucketGridIconSize,
+                ),
+                title: b.name,
+                subtitle: '存储桶',
+                onTap: () => _navToBucket(b.name),
+              ),
+            )
+            .toList(),
+      );
+    }
+    return ShadCard(
+      padding: const EdgeInsets.all(4),
+      child: ListView.builder(
         itemCount: _buckets!.length,
-        itemBuilder: (ctx, i) => FileListTile(
-          icon: Icons.inventory_2_outlined,
-          title: _buckets![i].name,
-          subtitle: '存储桶',
-          onTap: () => _navigateToBucket(_buckets![i].name),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildObjectList(ShadThemeData theme) {
-    if (_objects == null) return const SizedBox();
-    if (_objects!.isEmpty) {
-      return _empty(theme, Icons.folder_open, '此目录为空');
-    }
-    return _card(
-      theme,
-      ListView.builder(
-        itemCount: _objects!.length,
         itemBuilder: (ctx, i) {
-          final obj = _objects![i];
+          final bucket = _buckets![i];
           return FileListTile(
-            icon: obj.isDir
-                ? Icons.folder_outlined
-                : _fileIcon(obj.displayName),
-            iconColor: obj.isDir ? theme.colorScheme.primary : null,
-            title: obj.displayName,
-            subtitle: obj.isDir
-                ? '文件夹'
-                : '${obj.sizeText}  ${obj.lastModified}',
-            onTap: obj.isDir
-                ? () => _navigateToPrefix(obj.key)
-                : () => _download(obj),
+            leading: const LocalCloudPanFileIcon(
+              name: 'bucket',
+              isBucket: true,
+              size: _listIconSize,
+            ),
+            title: bucket.name,
+            subtitle: '存储桶',
+            onTap: () => _navToBucket(bucket.name),
+            showDivider: i != _buckets!.length - 1,
           );
         },
       ),
     );
   }
 
-  Widget _card(ShadThemeData theme, Widget child) {
-    return ShadCard(padding: const EdgeInsets.all(4), child: child);
+  // --- 对象 ---
+
+  Widget _buildObjectView(ShadThemeData theme) {
+    if (_objects == null) return const SizedBox();
+    if (_objects!.isEmpty) {
+      return _empty(theme, LucideIcons.folderOpen, '此目录为空');
+    }
+    if (_isGrid) {
+      return _gridWrap(
+        _objects!.map((o) {
+          return FileGridItem(
+            leading: LocalCloudPanFileIcon(
+              name: o.displayName,
+              isDirectory: o.isDir,
+              size: _gridIconSize,
+            ),
+            title: o.displayName,
+            subtitle: o.isDir ? '' : o.sizeText,
+            onTap: o.isDir ? () => _navToPrefix(o.key) : () => _download(o),
+          );
+        }).toList(),
+      );
+    }
+    return ShadCard(
+      padding: const EdgeInsets.all(4),
+      child: ListView.builder(
+        itemCount: _objects!.length,
+        itemBuilder: (ctx, i) {
+          final o = _objects![i];
+          return FileListTile(
+            leading: LocalCloudPanFileIcon(
+              name: o.displayName,
+              isDirectory: o.isDir,
+              size: _listIconSize,
+            ),
+            title: o.displayName,
+            subtitle: o.isDir ? '文件夹' : '${o.sizeText}  ${o.lastModified}',
+            onTap: o.isDir ? () => _navToPrefix(o.key) : () => _download(o),
+            showDivider: i != _objects!.length - 1,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _gridWrap(List<Widget> children) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = (constraints.maxWidth / 144).floor().clamp(3, 8);
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 0.72,
+          children: children,
+        );
+      },
+    );
   }
 
   Widget _empty(ShadThemeData theme, IconData icon, String text) {
@@ -418,36 +474,5 @@ class _FileManagerPageState extends State<FileManagerPage> {
         ],
       ),
     );
-  }
-
-  IconData _fileIcon(String name) {
-    final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
-    switch (ext) {
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'webp':
-        return Icons.image_outlined;
-      case 'mp4':
-      case 'mov':
-      case 'avi':
-      case 'mkv':
-        return Icons.movie_outlined;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-      case 'aac':
-        return Icons.audio_file_outlined;
-      case 'pdf':
-        return Icons.picture_as_pdf_outlined;
-      case 'zip':
-      case 'tar':
-      case 'gz':
-      case 'rar':
-        return Icons.archive_outlined;
-      default:
-        return Icons.description_outlined;
-    }
   }
 }
