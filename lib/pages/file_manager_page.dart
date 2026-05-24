@@ -11,6 +11,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
+import 'package:remote_storage/widgets/fluent_system_icon.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -374,9 +375,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _buckets!
             .map(
               (b) => FileGridItem(
-                leading: const LocalCloudPanFileIcon(
-                  name: 'bucket',
-                  isBucket: true,
+                leading: const FluentSystemIcon(
+                  glyph: FluentSystemGlyph.bucket,
                   size: _bucketGridIconSize,
                 ),
                 title: b.name,
@@ -394,9 +394,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
         itemBuilder: (ctx, i) {
           final bucket = _buckets![i];
           return FileListTile(
-            leading: const LocalCloudPanFileIcon(
-              name: 'bucket',
-              isBucket: true,
+            leading: const FluentSystemIcon(
+              glyph: FluentSystemGlyph.bucket,
               size: _listIconSize,
             ),
             title: bucket.name,

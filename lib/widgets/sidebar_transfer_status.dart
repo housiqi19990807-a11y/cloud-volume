@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/widgets/fluent_system_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SidebarTransferStatus extends StatefulWidget {
@@ -102,10 +103,13 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
                             curve: Curves.easeInOut,
                           ),
                         ),
-                        child: Icon(
-                          LucideIcons.arrowUpDown,
-                          size: 16,
-                          color: foreground,
+                        child: Opacity(
+                          opacity: queue.hasRunning ? 1 : 0.9,
+                          child: FluentSystemIcon(
+                            glyph: FluentSystemGlyph.transfers,
+                            size: 16,
+                            color: foreground,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),

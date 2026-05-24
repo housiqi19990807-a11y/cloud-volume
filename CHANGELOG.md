@@ -13,4 +13,5 @@
 - Sidebar page switches now preserve in-memory page state through an `IndexedStack`.
 - Sidebar footer now shows live transfer activity, aggregate speeds, and a hover task list for recent uploads/downloads.
 - WhiteSur SVG assets are vendored in-repo as an optional secondary icon library.
+- Sidebar, bucket, and transfer entry icons now use Fluent System Icons for a more native app-style navigation set.
 - Full Chinese interface.

@@ -30,6 +30,7 @@ flutter:
     - assets/icons/local_cloudpan/fileType/picture/
     - assets/icons/local_cloudpan/fileType/video/
     - assets/icons/local_cloudpan/sidebar/
+    - assets/icons/fluent/
     - assets/icons/whitesur/places/
     - assets/icons/whitesur/mimes/
     - assets/icons/whitesur/source/

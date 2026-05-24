@@ -39,7 +39,7 @@ The initial setup page persists these S3-compatible settings:
 - Left-right split config page: dark brand panel on the left, form on the right.
 - User-switchable accent color (5 presets: tech-blue, violet, green, orange, rose).
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
-- Sidebar navigation and bucket entries also use matching custom SVGs in the same visual family.
+- Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
 - Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
 - Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, and a hover task list.
 - WhiteSur SVG resources are also vendored as an optional backup icon library.

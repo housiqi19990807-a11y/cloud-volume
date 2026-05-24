@@ -9,7 +9,7 @@ import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
-import 'package:remote_storage/widgets/local_cloudpan_sidebar_icon.dart';
+import 'package:remote_storage/widgets/fluent_system_icon.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
 
 /// 侧边栏菜单项。
@@ -127,8 +127,8 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: ac.withValues(alpha: 0.2)),
                         ),
-                        child: LocalCloudPanSidebarIcon(
-                          glyph: LocalCloudPanSidebarGlyph.fileManager,
+                        child: FluentSystemIcon(
+                          glyph: FluentSystemGlyph.brand,
                           size: 18,
                           color: ac,
                         ),
@@ -178,22 +178,22 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                 ),
                 // 菜单项。
                 _navItem(
-                  LocalCloudPanSidebarGlyph.fileManager,
+                  FluentSystemGlyph.fileManager,
                   '文件管理',
                   SidebarItem.fileManager,
                   ac,
                   muted,
                 ),
                 _navItem(
-                  LocalCloudPanSidebarGlyph.transfers,
+                  FluentSystemGlyph.transfers,
                   '传输管理',
                   SidebarItem.transfers,
                   ac,
                   muted,
                 ),
                 _navItemWidget(
-                  Icon(
-                    Icons.settings_outlined,
+                  FluentSystemIcon(
+                    glyph: FluentSystemGlyph.settings,
                     size: 18,
                     color: _selected == SidebarItem.settings ? ac : muted,
                   ),
@@ -226,7 +226,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   }
 
   Widget _navItem(
-    LocalCloudPanSidebarGlyph icon,
+    FluentSystemGlyph glyph,
     String label,
     SidebarItem item,
     Color ac,
@@ -253,7 +253,10 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           ),
           child: Row(
             children: [
-              LocalCloudPanSidebarIcon(glyph: icon, size: 17, color: fg),
+              Opacity(
+                opacity: selected ? 1 : 0.9,
+                child: FluentSystemIcon(glyph: glyph, size: 17, color: fg),
+              ),
               const SizedBox(width: 10),
               Text(
                 label,
@@ -298,7 +301,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           ),
           child: Row(
             children: [
-              leading,
+              Opacity(opacity: selected ? 1 : 0.9, child: leading),
               const SizedBox(width: 10),
               Text(
                 label,
