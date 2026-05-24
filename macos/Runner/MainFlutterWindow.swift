@@ -45,7 +45,11 @@ final class MenuBarController: NSObject {
     button.target = self
     button.action = #selector(handleStatusItemPressed(_:))
 
-    if let image = NSApp.applicationIconImage.copy() as? NSImage {
+    if let image = NSImage(named: "TrayIcon")?.copy() as? NSImage {
+      image.isTemplate = true
+      image.size = NSSize(width: 18, height: 18)
+      button.image = image
+    } else if let image = NSApp.applicationIconImage.copy() as? NSImage {
       image.isTemplate = true
       image.size = NSSize(width: 18, height: 18)
       button.image = image
@@ -122,6 +126,8 @@ class MainFlutterWindow: NSWindow {
     self.styleMask.insert(.fullSizeContentView)
     self.toolbar = nil
     self.isReleasedWhenClosed = false
+    self.setContentSize(NSSize(width: 1160, height: 740))
+    self.minSize = NSSize(width: 920, height: 620)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     menuBarController = MenuBarController()
