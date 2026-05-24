@@ -1,38 +1,46 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="176" y1="140" x2="848" y2="896" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#7BC0FF"/>
-      <stop offset="0.52" stop-color="#5C8CFF"/>
-      <stop offset="1" stop-color="#425CF0"/>
+    <linearGradient id="bg" x1="164" y1="132" x2="852" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#87C7FF"/>
+      <stop offset="0.48" stop-color="#5E8EFF"/>
+      <stop offset="1" stop-color="#3F5AE8"/>
     </linearGradient>
-    <linearGradient id="disk" x1="278" y1="324" x2="742" y2="764" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FDFEFF"/>
-      <stop offset="0.5" stop-color="#E7EEF8"/>
-      <stop offset="1" stop-color="#CDD9E9"/>
+    <linearGradient id="glass" x1="252" y1="166" x2="760" y2="356" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="white" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="diskEdge" x1="312" y1="642" x2="708" y2="754" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#C7D6EA"/>
-      <stop offset="1" stop-color="#AABDD5"/>
-    </linearGradient>
-    <linearGradient id="cloud" x1="392" y1="382" x2="646" y2="610" gradientUnits="userSpaceOnUse">
-      <stop stop-color="white"/>
+    <linearGradient id="cloud" x1="320" y1="314" x2="700" y2="598" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#EAF6FF"/>
     </linearGradient>
-    <linearGradient id="slot" x1="418" y1="594" x2="606" y2="594" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#8EE9FF"/>
-      <stop offset="1" stop-color="#68C6FF"/>
+    <linearGradient id="driveTop" x1="248" y1="528" x2="778" y2="770" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDFEFF"/>
+      <stop offset="0.56" stop-color="#E7EEF8"/>
+      <stop offset="1" stop-color="#CED9E8"/>
+    </linearGradient>
+    <linearGradient id="driveFace" x1="260" y1="664" x2="760" y2="794" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C5D4E7"/>
+      <stop offset="1" stop-color="#A6BBD3"/>
+    </linearGradient>
+    <linearGradient id="slot" x1="404" y1="632" x2="620" y2="632" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7EEBFF"/>
+      <stop offset="1" stop-color="#57BFFF"/>
     </linearGradient>
   </defs>
-  <rect x="170" y="148" width="684" height="684" rx="168" fill="#2042A0" opacity="0.08"/>
-  <rect x="158" y="128" width="708" height="708" rx="174" fill="url(#bg)"/>
-  <path d="M276 184C276 157.49 297.49 136 324 136H706C769.513 136 821 187.487 821 251V278C821 304.51 799.51 326 773 326H324C297.49 326 276 304.51 276 278V184Z" fill="white" fill-opacity="0.22"/>
-  <circle cx="708" cy="280" r="34" fill="#C3FBFF" fill-opacity="0.88"/>
-  <path d="M286 392C286 336.772 330.772 292 386 292H638C693.228 292 738 336.772 738 392V642C738 697.228 693.228 742 638 742H386C330.772 742 286 697.228 286 642V392Z" fill="url(#disk)"/>
-  <path d="M286 610H738V650C738 701.915 695.915 744 644 744H380C328.085 744 286 701.915 286 650V610Z" fill="url(#diskEdge)"/>
-  <path d="M342 436C342 402.863 368.863 376 402 376C414.478 376 426.067 379.811 435.666 386.332C450.316 361.099 477.644 344 509 344C551.302 344 586.608 375.148 594.209 415.333C600.126 413.822 606.328 413 612.722 413C653.752 413 687 446.248 687 487.278C687 528.308 653.752 561.556 612.722 561.556H408C371.549 561.556 342 532.007 342 495.556C342 475.369 351.069 457.301 365.342 445.195C350.964 448.433 342 441.345 342 436Z" fill="url(#cloud)"/>
-  <rect x="408" y="572" width="208" height="54" rx="27" fill="url(#slot)"/>
-  <rect x="438" y="590" width="148" height="18" rx="9" fill="#F7FEFF"/>
-  <rect x="350" y="664" width="324" height="24" rx="12" fill="#B8CAE0"/>
-  <circle cx="672" cy="676" r="12" fill="#7BFFB5"/>
-  <circle cx="632" cy="676" r="12" fill="#B9C8DA"/>
+  <rect x="174" y="150" width="676" height="676" rx="168" fill="#203D96" opacity="0.08"/>
+  <rect x="160" y="128" width="704" height="704" rx="176" fill="url(#bg)"/>
+  <path d="M252 184C252 155.281 275.281 132 304 132H720C777.438 132 824 178.562 824 236V276C824 304.719 800.719 328 772 328H304C275.281 328 252 304.719 252 276V184Z" fill="url(#glass)"/>
+  <circle cx="714" cy="270" r="36" fill="#BFF5FF" fill-opacity="0.92"/>
+
+  <path d="M332 430C332 390.235 364.235 358 404 358C419.34 358 433.559 362.803 445.227 370.984C465.235 333.097 505.019 307 550.9 307C615.446 307 668.616 358.514 674.376 421.609C679.162 420.551 684.137 420 689.24 420C728.883 420 761.02 452.137 761.02 491.78C761.02 531.423 728.883 563.56 689.24 563.56H400.48C362.661 563.56 332 532.899 332 495.08C332 471.056 344.374 449.923 363.113 437.691C352.698 436.029 332 445.605 332 430Z" fill="url(#cloud)"/>
+  <ellipse cx="543" cy="582" rx="184" ry="28" fill="#3257D8" fill-opacity="0.16"/>
+
+  <path d="M248 552C248 510.026 282.026 476 324 476H700C741.974 476 776 510.026 776 552V654H248V552Z" fill="url(#driveTop)"/>
+  <path d="M248 654H776V694C776 741.496 737.496 780 690 780H334C286.504 780 248 741.496 248 694V654Z" fill="url(#driveFace)"/>
+  <path d="M302 548C302 530.327 316.327 516 334 516H690C707.673 516 722 530.327 722 548V560C722 577.673 707.673 592 690 592H334C316.327 592 302 577.673 302 560V548Z" fill="#F7FBFF" fill-opacity="0.78"/>
+  <rect x="392" y="606" width="240" height="52" rx="26" fill="url(#slot)"/>
+  <rect x="432" y="624" width="160" height="16" rx="8" fill="#F8FEFF"/>
+  <rect x="326" y="700" width="328" height="22" rx="11" fill="#B6C8DE"/>
+  <circle cx="696" cy="712" r="12" fill="#84FFB9"/>
+  <circle cx="662" cy="712" r="12" fill="#DCE6F3"/>
 </svg>
