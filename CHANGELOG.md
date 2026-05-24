@@ -8,5 +8,7 @@
 - User-switchable accent color with 5 presets, persisted across restarts.
 - File manager now uses the Local-cloudPan SVG icon set for list and grid views.
 - Buckets and sidebar navigation now use matching custom SVGs instead of reusing folder icons.
+- macOS file picking now includes the required `file_picker` user-selected file entitlements.
+- Grid mode is denser, with tighter spacing and more compact Finder-style tiles.
 - WhiteSur SVG assets are vendored in-repo as an optional secondary icon library.
 - Full Chinese interface.

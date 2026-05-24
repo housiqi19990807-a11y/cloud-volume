@@ -22,9 +22,9 @@ class FileManagerPage extends StatefulWidget {
 }
 
 class _FileManagerPageState extends State<FileManagerPage> {
-  static const double _gridIconSize = 76;
+  static const double _gridIconSize = 68;
   static const double _listIconSize = 20;
-  static const double _bucketGridIconSize = 80;
+  static const double _bucketGridIconSize = 72;
 
   List<BucketInfo>? _buckets;
   String? _activeBucket;
@@ -441,12 +441,15 @@ class _FileManagerPageState extends State<FileManagerPage> {
   Widget _gridWrap(List<Widget> children) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = (constraints.maxWidth / 144).floor().clamp(3, 8);
+        final crossAxisCount = (constraints.maxWidth / 118).floor().clamp(
+          4,
+          10,
+        );
         return GridView.count(
           crossAxisCount: crossAxisCount,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 0.72,
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
+          childAspectRatio: 0.92,
           children: children,
         );
       },

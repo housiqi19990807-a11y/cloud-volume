@@ -34,18 +34,18 @@ class FileGridItem extends StatelessWidget {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 leading,
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w500,
                       color: theme.colorScheme.foreground,
                       height: 1.25,
@@ -56,11 +56,11 @@ class FileGridItem extends StatelessWidget {
                   ),
                 ),
                 if (subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 10,
                       color: theme.colorScheme.mutedForeground,
                     ),
                     textAlign: TextAlign.center,
