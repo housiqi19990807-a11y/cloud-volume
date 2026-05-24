@@ -99,6 +99,7 @@ class FileGridItem extends StatelessWidget {
                   right: 2,
                   child: _SelectionIndicator(
                     isSelected: isSelected,
+                    hovered: hovered || isSelected,
                     onTap: onSelectionTap,
                   ),
                 ),
@@ -111,9 +112,14 @@ class FileGridItem extends StatelessWidget {
 }
 
 class _SelectionIndicator extends StatelessWidget {
-  const _SelectionIndicator({required this.isSelected, required this.onTap});
+  const _SelectionIndicator({
+    required this.isSelected,
+    required this.hovered,
+    required this.onTap,
+  });
 
   final bool isSelected;
+  final bool hovered;
   final VoidCallback? onTap;
 
   @override
@@ -128,7 +134,11 @@ class _SelectionIndicator extends StatelessWidget {
         width: 18,
         height: 18,
         decoration: BoxDecoration(
-          color: isSelected ? accent : theme.colorScheme.background,
+          color: isSelected
+              ? accent
+              : hovered
+              ? theme.colorScheme.primary.withValues(alpha: 0.08)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: isSelected
@@ -136,13 +146,6 @@ class _SelectionIndicator extends StatelessWidget {
                 : theme.colorScheme.border.withValues(alpha: 0.9),
             width: 1.2,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: isSelected
             ? const Icon(Icons.check, size: 12, color: Colors.white)

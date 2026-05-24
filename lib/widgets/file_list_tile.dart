@@ -51,7 +51,6 @@ class FileListTile extends StatelessWidget {
             color: isSelected
                 ? theme.colorScheme.primary.withValues(alpha: 0.12)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
             border: showDivider
                 ? Border(bottom: BorderSide(color: dividerColor, width: 0.6))
                 : null,
