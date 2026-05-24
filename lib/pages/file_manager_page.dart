@@ -376,7 +376,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
             .map(
               (b) => FileGridItem(
                 leading: const WhiteSurFileIcon(
-                  assetPath: 'assets/icons/whitesur/mimes/virtualbox-hdd.svg',
+                  assetPath: 'assets/icons/whitesur/places/network-server.svg',
                   size: _bucketGridIconSize,
                 ),
                 title: b.name,
@@ -395,7 +395,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           final bucket = _buckets![i];
           return FileListTile(
             leading: const WhiteSurFileIcon(
-              assetPath: 'assets/icons/whitesur/mimes/virtualbox-hdd.svg',
+              assetPath: 'assets/icons/whitesur/places/network-server.svg',
               size: _listIconSize,
             ),
             title: bucket.name,
