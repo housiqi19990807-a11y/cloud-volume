@@ -11,7 +11,6 @@ class FileManagerActionBar extends StatelessWidget {
     required this.onToggleView,
     this.onCreateDirectory,
     this.onUpload,
-    this.onGoBack,
   });
 
   final ShadThemeData theme;
@@ -19,67 +18,49 @@ class FileManagerActionBar extends StatelessWidget {
   final VoidCallback onToggleView;
   final VoidCallback? onCreateDirectory;
   final VoidCallback? onUpload;
-  final VoidCallback? onGoBack;
 
   @override
   Widget build(BuildContext context) {
     final p = theme.colorScheme.primary;
-    return Row(
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
       children: [
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            ShadButton.ghost(
-              size: ShadButtonSize.sm,
-              onPressed: onToggleView,
-              child: Icon(
-                isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
-                size: 14,
-                color: p,
-              ),
-            ),
-            if (onCreateDirectory != null)
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: onCreateDirectory,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.create_new_folder_rounded, size: 15, color: p),
-                    const SizedBox(width: 5),
-                    const Text('新建目录'),
-                  ],
-                ),
-              ),
-            if (onUpload != null)
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: onUpload,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.upload, size: 14, color: p),
-                    const SizedBox(width: 5),
-                    const Text('上传'),
-                  ],
-                ),
-              ),
-            if (onGoBack != null)
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: onGoBack,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.arrowLeft, size: 14, color: p),
-                    const SizedBox(width: 5),
-                    const Text('返回'),
-                  ],
-                ),
-              ),
-          ],
+        ShadButton.ghost(
+          size: ShadButtonSize.sm,
+          onPressed: onToggleView,
+          child: Icon(
+            isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
+            size: 14,
+            color: p,
+          ),
         ),
+        if (onCreateDirectory != null)
+          ShadButton.ghost(
+            size: ShadButtonSize.sm,
+            onPressed: onCreateDirectory,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.create_new_folder_rounded, size: 15, color: p),
+                const SizedBox(width: 5),
+                const Text('新建目录'),
+              ],
+            ),
+          ),
+        if (onUpload != null)
+          ShadButton.ghost(
+            size: ShadButtonSize.sm,
+            onPressed: onUpload,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.upload, size: 14, color: p),
+                const SizedBox(width: 5),
+                const Text('上传'),
+              ],
+            ),
+          ),
       ],
     );
   }

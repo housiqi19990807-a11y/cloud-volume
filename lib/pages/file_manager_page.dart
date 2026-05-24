@@ -1,22 +1,21 @@
-// 文件管理页：列表/网格视图切换 + 桶/对象浏览。
-// 网格视图模拟 macOS Finder：无边框、大彩色图标、hover 高亮。
+// 文件管理页：负责 Finder 风格顶部导航、桶/对象浏览，以及上传下载交互。
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:remote_storage/models/file_manager_location.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
-import 'package:remote_storage/widgets/file_manager_action_bar.dart';
-import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
+import 'package:remote_storage/widgets/file_manager_finder_header.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class FileManagerPage extends StatefulWidget {
   const FileManagerPage({super.key, required this.api, required this.config});
@@ -41,6 +40,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _loading = false;
   String? _error;
   bool _isGrid = false;
+  bool _showBreadcrumbs = false;
+  final List<FileManagerLocation> _backHistory = [];
+  final List<FileManagerLocation> _forwardHistory = [];
 
   @override
   void initState() {
@@ -48,28 +50,37 @@ class _FileManagerPageState extends State<FileManagerPage> {
     _loadBuckets();
   }
 
-  Future<void> _loadBuckets() async {
+  Future<bool> _loadBuckets({bool activateView = true}) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final buckets = await widget.api.listBuckets(widget.config);
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _buckets = buckets;
+        if (activateView) {
+          _activeBucket = null;
+          _objects = null;
+          _prefix = '';
+          _breadcrumbs = [];
+          _showBreadcrumbs = false;
+        }
         _loading = false;
       });
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _error = e.toString();
         _loading = false;
       });
+      return false;
     }
   }
 
-  Future<void> _loadObjects(String bucket, String prefix) async {
+  Future<bool> _loadObjects(String bucket, String prefix) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -80,58 +91,116 @@ class _FileManagerPageState extends State<FileManagerPage> {
         bucket,
         prefix,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _activeBucket = bucket;
         _objects = objects;
         _prefix = prefix;
         _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
+        _showBreadcrumbs = false;
         _loading = false;
       });
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _error = e.toString();
         _loading = false;
       });
+      return false;
     }
   }
 
-  void _navToBucket(String b) => _loadObjects(b, '');
-  void _navToPrefix(String p) {
-    if (_activeBucket != null) _loadObjects(_activeBucket!, p);
+  FileManagerLocation get _currentLocation =>
+      FileManagerLocation(bucket: _activeBucket, prefix: _prefix);
+  String get _currentTitle => _activeBucket == null
+      ? '所有存储桶'
+      : (_breadcrumbs.isEmpty ? _activeBucket! : _breadcrumbs.last);
+  bool get _canGoBack => _backHistory.isNotEmpty;
+  bool get _canGoForward => _forwardHistory.isNotEmpty;
+
+  Future<void> _navigateTo(
+    FileManagerLocation target, {
+    bool recordHistory = true,
+  }) async {
+    final current = _currentLocation;
+    if (target == current) {
+      if (!mounted) return;
+      setState(() => _showBreadcrumbs = false);
+      return;
+    }
+    final navigated = target.isBucketList
+        ? (_buckets == null
+              ? await _loadBuckets()
+              : () {
+                  if (!mounted) return false;
+                  setState(() {
+                    _activeBucket = null;
+                    _objects = null;
+                    _prefix = '';
+                    _breadcrumbs = [];
+                    _error = null;
+                    _showBreadcrumbs = false;
+                  });
+                  return true;
+                }())
+        : await _loadObjects(target.bucket!, target.prefix);
+    if (!navigated || !recordHistory || target == current) return;
+    _backHistory.add(current);
+    _forwardHistory.clear();
   }
 
-  void _navUp() {
-    if (_activeBucket == null) return;
+  Future<void> _goBack() async {
+    if (!_canGoBack) return;
+    final target = _backHistory.removeLast();
+    _forwardHistory.add(_currentLocation);
+    await _navigateTo(target, recordHistory: false);
+  }
+
+  Future<void> _goForward() async {
+    if (!_canGoForward) return;
+    final target = _forwardHistory.removeLast();
+    _backHistory.add(_currentLocation);
+    await _navigateTo(target, recordHistory: false);
+  }
+
+  Future<void> _navToBucket(String bucket) {
+    return _navigateTo(FileManagerLocation(bucket: bucket));
+  }
+
+  Future<void> _navToPrefix(String prefix) {
+    if (_activeBucket == null) return Future.value();
+    return _navigateTo(
+      FileManagerLocation(bucket: _activeBucket, prefix: prefix),
+    );
+  }
+
+  Future<void> _navUp() {
+    if (_activeBucket == null) return Future.value();
     final parts = _prefix.split('/').where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty) {
-      setState(() {
-        _activeBucket = null;
-        _objects = null;
-        _prefix = '';
-        _breadcrumbs = [];
-      });
-      return;
+      return _navigateTo(const FileManagerLocation(bucket: null));
     }
     parts.removeLast();
-    _loadObjects(_activeBucket!, parts.map((p) => '$p/').join());
+    return _navigateTo(
+      FileManagerLocation(
+        bucket: _activeBucket,
+        prefix: parts.map((part) => '$part/').join(),
+      ),
+    );
   }
 
-  void _navCrumb(int i) {
-    if (_activeBucket == null) return;
-    if (i < 0) {
-      setState(() {
-        _activeBucket = null;
-        _objects = null;
-        _prefix = '';
-        _breadcrumbs = [];
-      });
-      return;
-    }
-    _loadObjects(
-      _activeBucket!,
-      _breadcrumbs.sublist(0, i + 1).map((s) => '$s/').join(),
+  Future<void> _navCrumb(int index) {
+    if (_activeBucket == null) return Future.value();
+    if (index < 0) return _navigateTo(const FileManagerLocation(bucket: null));
+    return _navigateTo(
+      FileManagerLocation(
+        bucket: _activeBucket,
+        prefix: _breadcrumbs
+            .sublist(0, index + 1)
+            .map((segment) => '$segment/')
+            .join(),
+      ),
     );
   }
 
@@ -268,34 +337,27 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Widget _buildHeader(ShadThemeData theme) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: FileManagerBreadcrumbBar(
-                theme: theme,
-                activeBucket: _activeBucket,
-                breadcrumbs: _breadcrumbs,
-                onOpenBucketList: () => _navCrumb(-1),
-                onOpenBucketRoot: () => _navToBucket(_activeBucket!),
-                onOpenCrumb: _navCrumb,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        FileManagerActionBar(
-          theme: theme,
-          isGrid: _isGrid,
-          onToggleView: () => setState(() => _isGrid = !_isGrid),
-          onCreateDirectory: _activeBucket == null || _loading
-              ? null
-              : _createDirectory,
-          onUpload: _activeBucket == null || _loading ? null : _upload,
-          onGoBack: _activeBucket == null || _loading ? null : _navUp,
-        ),
-      ],
+    return FileManagerFinderHeader(
+      theme: theme,
+      title: _currentTitle,
+      activeBucket: _activeBucket,
+      breadcrumbs: _breadcrumbs,
+      isGrid: _isGrid,
+      canGoBack: _canGoBack,
+      canGoForward: _canGoForward,
+      showBreadcrumbs: _showBreadcrumbs,
+      onToggleBreadcrumbs: () =>
+          setState(() => _showBreadcrumbs = !_showBreadcrumbs),
+      onGoBack: () => unawaited(_goBack()),
+      onGoForward: () => unawaited(_goForward()),
+      onOpenBucketList: () => unawaited(_navCrumb(-1)),
+      onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucket!)),
+      onOpenCrumb: (index) => unawaited(_navCrumb(index)),
+      onToggleView: () => setState(() => _isGrid = !_isGrid),
+      onCreateDirectory: _activeBucket == null || _loading
+          ? null
+          : _createDirectory,
+      onUpload: _activeBucket == null || _loading ? null : _upload,
     );
   }
 
@@ -326,8 +388,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
             const SizedBox(height: 16),
             ShadButton(
               onPressed: _activeBucket == null
-                  ? _loadBuckets
-                  : () => _loadObjects(_activeBucket!, _prefix),
+                  ? () => unawaited(_loadBuckets())
+                  : () => unawaited(_loadObjects(_activeBucket!, _prefix)),
               child: const Text('重试'),
             ),
           ],
@@ -354,7 +416,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
                 ),
                 title: b.name,
                 subtitle: '存储桶',
-                onTap: () => _navToBucket(b.name),
+                onTap: () => unawaited(_navToBucket(b.name)),
               ),
             )
             .toList(),
@@ -373,7 +435,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
             ),
             title: bucket.name,
             subtitle: '存储桶',
-            onTap: () => _navToBucket(bucket.name),
+            onTap: () => unawaited(_navToBucket(bucket.name)),
             showDivider: i != _buckets!.length - 1,
           );
         },
@@ -389,9 +451,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
       isGrid: _isGrid,
       gridIconSize: _gridIconSize,
       listIconSize: _listIconSize,
-      onOpenDirectory: _navToPrefix,
-      onDownload: _download,
-      onNavigateUp: _navUp,
+      onOpenDirectory: (prefix) => unawaited(_navToPrefix(prefix)),
+      onDownload: (object) => unawaited(_download(object)),
+      onNavigateUp: () => unawaited(_navUp()),
     );
   }
 
