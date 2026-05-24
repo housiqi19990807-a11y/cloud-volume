@@ -32,4 +32,5 @@
 - File item context menus now open faster, ensure only one menu stays visible, and close first when the user clicks another file or folder.
 - Settings now support single-click vs double-click open behavior; the default is Finder-style double-click open, where clicking a row selects it for multi-select while clicking the item name still opens it directly, and selected files can be batch-downloaded or batch-deleted from the action bar.
 - Closing the main macOS window now asks whether to minimize to tray or quit, while the tray menu's `退出云卷` action still exits immediately.
+- In double-click open mode, multi-selection now uses explicit checkmarks: a left-side checkbox in list view and a top-right checkbox in grid view.
 - Full Chinese interface.

@@ -106,7 +106,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     onTap: _tapHandler(object),
                     onDoubleTap: _doubleTapHandler(object),
                     onTitleTap: _titleTapHandler(object),
+                    onSelectionTap: _selectionTapHandler(object),
                     isSelected: _isSelected(object),
+                    showSelectionControl: _showsSelectionControl(object),
                   ),
                 ),
               )
@@ -137,7 +139,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     onTap: _tapHandler(object),
                     onDoubleTap: _doubleTapHandler(object),
                     onTitleTap: _titleTapHandler(object),
+                    onSelectionTap: _selectionTapHandler(object),
                     isSelected: _isSelected(object),
+                    showSelectionControl: _showsSelectionControl(object),
                     showDivider: index != objects.length - 1,
                   ),
                 );
@@ -227,6 +231,18 @@ class FileManagerObjectBrowser extends StatelessWidget {
     };
   }
 
+  VoidCallback? _selectionTapHandler(ObjectInfo object) {
+    if (!_showsSelectionControl(object)) {
+      return null;
+    }
+    return () {
+      if (_dismissActiveContextMenu()) {
+        return;
+      }
+      onToggleSelection(object);
+    };
+  }
+
   Widget _wrapWithContextMenu(ObjectInfo object, Widget child) {
     if (_isParentDirectory(object)) {
       return child;
@@ -282,6 +298,11 @@ class FileManagerObjectBrowser extends StatelessWidget {
       return false;
     }
     return selectedKeys.contains(object.key);
+  }
+
+  bool _showsSelectionControl(ObjectInfo object) {
+    return !_isParentDirectory(object) &&
+        fileOpenMode == FileOpenMode.doubleClick;
   }
 
   bool _isParentDirectory(ObjectInfo object) {

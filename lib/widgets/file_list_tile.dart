@@ -14,7 +14,9 @@ class FileListTile extends StatelessWidget {
     required this.onTap,
     this.onDoubleTap,
     this.onTitleTap,
+    this.onSelectionTap,
     this.isSelected = false,
+    this.showSelectionControl = false,
     this.showDivider = true,
   });
 
@@ -28,7 +30,9 @@ class FileListTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
   final VoidCallback? onTitleTap;
+  final VoidCallback? onSelectionTap;
   final bool isSelected;
+  final bool showSelectionControl;
   final bool showDivider;
 
   @override
@@ -54,21 +58,30 @@ class FileListTile extends StatelessWidget {
           ),
           child: Row(
             children: [
+              if (showSelectionControl) ...[
+                _SelectionIndicator(
+                  isSelected: isSelected,
+                  onTap: onSelectionTap,
+                ),
+                const SizedBox(width: 10),
+              ],
               leading,
               const SizedBox(width: 12),
               Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onTitleTap,
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.foreground,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: onTitleTap,
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.foreground,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -103,6 +116,41 @@ class FileListTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SelectionIndicator extends StatelessWidget {
+  const _SelectionIndicator({required this.isSelected, required this.onTap});
+
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final accent = theme.colorScheme.primary;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          color: isSelected ? accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isSelected
+                ? accent
+                : theme.colorScheme.border.withValues(alpha: 0.9),
+            width: 1.2,
+          ),
+        ),
+        child: isSelected
+            ? const Icon(Icons.check, size: 12, color: Colors.white)
+            : null,
       ),
     );
   }

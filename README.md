@@ -56,6 +56,7 @@ The initial setup page persists these S3-compatible settings:
 - Settings now also allow switching between single-click open and Finder-style double-click open; in double-click mode, clicking a row selects it for multi-select while clicking the file or folder name still opens it directly.
 - File and folder items now expose a desktop-style right-click menu for rename and delete actions in both list and grid views.
 - In double-click mode, selected items can be batch-downloaded or batch-deleted directly from the file action bar.
+- In double-click mode, multi-selection uses explicit checkmarks: a checkbox on the left in list view and a checkbox at the top-right in grid view.
 - Upload now supports multi-file selection, and in-flight upload/download tasks can be canceled from both the transfers page and the sidebar hover list.
 - Breadcrumbs now stay fully expanded when space allows, and only collapse the oldest left-side path segments into `...` when the header becomes tight.
 - Settings now default to hiding files and directories whose names start with `.`, with a switch to reveal them when needed.
