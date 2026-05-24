@@ -1,6 +1,7 @@
 # remote-storage
 
 `remote-storage` is a Flutter macOS desktop app for managing S3-compatible remote storage.
+The end-user product branding is `云屉`.
 
 ## Bootstrap flow
 
@@ -38,6 +39,7 @@ The initial setup page persists these S3-compatible settings:
 - macOS transparent titlebar with Flutter content extending behind traffic lights.
 - Left-right split config page: dark brand panel on the left, form on the right.
 - User-switchable accent color (5 presets: tech-blue, violet, green, orange, rose).
+- Custom SVG app branding now ships as `云屉` and is reused across the sidebar and macOS Dock icon.
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
 - Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
 - Breadcrumbs and the file action bar now share a single header row, with long paths collapsed in the middle to `...` while still supporting direct breadcrumb jumps, in-place folder creation, and `..` entries in non-root directories.

@@ -23,6 +23,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/brand/
     - assets/icons/local_cloudpan/fileType/
     - assets/icons/local_cloudpan/fileType/audio/
     - assets/icons/local_cloudpan/fileType/compression/

@@ -2,6 +2,7 @@
 // 侧边栏使用渐变背景 + 装饰圆形，风格与登录页左侧品牌面板统一。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/app/app_brand.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/pages/settings_page.dart';
@@ -9,6 +10,7 @@ import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
+import 'package:remote_storage/widgets/app_brand_mark.dart';
 import 'package:remote_storage/widgets/fluent_system_icon.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
 
@@ -112,44 +114,24 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                   child: Row(
                     children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              ac.withValues(alpha: 0.15),
-                              ac.withValues(alpha: 0.08),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: ac.withValues(alpha: 0.2)),
-                        ),
-                        child: FluentSystemIcon(
-                          glyph: FluentSystemGlyph.brand,
-                          size: 18,
-                          color: ac,
-                        ),
-                      ),
+                      const AppBrandMark(size: 34),
                       const SizedBox(width: 10),
                       Flexible(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Remote Storage',
+                              appBrandName,
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 14,
+                                fontSize: 15,
                                 color: heading,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 1),
                             Text(
-                              '远程存储管理',
+                              appBrandSubtitle,
                               style: TextStyle(fontSize: 10, color: muted),
                             ),
                           ],

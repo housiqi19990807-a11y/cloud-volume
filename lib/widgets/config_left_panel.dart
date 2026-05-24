@@ -2,8 +2,10 @@
 // 所有装饰颜色基于当前主题色动态生成。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/app/app_brand.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
+import 'package:remote_storage/widgets/app_brand_mark.dart';
 
 class ConfigLeftPanel extends StatelessWidget {
   const ConfigLeftPanel({super.key, required this.configPath});
@@ -87,19 +89,11 @@ class ConfigLeftPanel extends StatelessWidget {
                 // 品牌标识。
                 Row(
                   children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: ac.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(Icons.cloud_outlined, size: 20, color: ac),
-                    ),
+                    const AppBrandMark(size: 36),
                     const SizedBox(width: 10),
                     Flexible(
                       child: Text(
-                        'Remote Storage',
+                        appBrandName,
                         style: TextStyle(
                           color: heading,
                           fontWeight: FontWeight.w700,
@@ -113,7 +107,7 @@ class ConfigLeftPanel extends StatelessWidget {
                 const Spacer(flex: 3),
                 // 标语。
                 Text(
-                  '你的远程\n存储管理器',
+                  '$appBrandName\n$appBrandTagline',
                   style: TextStyle(
                     color: heading,
                     fontWeight: FontWeight.w800,
@@ -133,7 +127,7 @@ class ConfigLeftPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '安全、高效地管理你的远程存储。\n凭证仅保存在本地，无需担心隐私。',
+                  '$appBrandSubtitle\n$appBrandDescription',
                   style: TextStyle(color: muted, fontSize: 13, height: 1.7),
                 ),
                 const Spacer(flex: 4),

@@ -1,6 +1,7 @@
 // Root widget: wires ShadApp + ThemeInitializer (with persistence) + transparent chrome.
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/app/app_brand.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/pages/app_bootstrap_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -31,7 +32,7 @@ class _ThemeAwareShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = ThemeController.of(context).accent;
     return ShadApp(
-      title: 'Remote Storage',
+      title: appBrandName,
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(accent),
