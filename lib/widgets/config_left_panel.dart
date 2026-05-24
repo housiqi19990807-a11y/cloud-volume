@@ -1,6 +1,6 @@
 // Left brand panel for the config setup page.
 // Deep dark panel with hero text, accent color picker, and config path display.
-// Background extends to top:0 to sit behind macOS traffic lights seamlessly.
+// All decorative colors derive from the current accent preset.
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -16,23 +16,25 @@ class ConfigLeftPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final accent = ThemeController.of(context).accent;
-    const bg = Color(0xff0a0f1e);
+    final ac = accent.color;
+
+    // Base dark background, tinted slightly by the accent.
+    final bg = Color.lerp(const Color(0xff0a0f1e), ac, 0.08)!;
+    final bgTop = Color.lerp(const Color(0xff060a16), ac, 0.06)!;
+
+    // Foreground colors stay bright for readability.
     const fg = Color(0xfff0f4ff);
-    const muted = Color(0xff8b9dc3);
+    final muted = Color.lerp(const Color(0xff8b9dc3), ac, 0.15)!;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: bg,
-        // Subtle gradient from slightly darker at top (traffic light zone)
-        // to the base color below, creating a seamless blend.
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xff060a16), Color(0xff0a0f1e)],
-          stops: [0.0, 0.15],
+          colors: [bgTop, bg],
+          stops: const [0.0, 0.15],
         ),
       ),
-      // top: 40 leaves room for traffic lights on macOS
       child: Padding(
         padding: const EdgeInsets.only(
           left: 32,
@@ -43,24 +45,18 @@ class ConfigLeftPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Brand mark
+            // Brand mark with accent-tinted container.
             Row(
               children: [
                 Container(
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: accent.color.withValues(alpha: 0.15),
+                    color: ac.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: accent.color.withValues(alpha: 0.4),
-                    ),
+                    border: Border.all(color: ac.withValues(alpha: 0.4)),
                   ),
-                  child: Icon(
-                    Icons.cloud_outlined,
-                    size: 20,
-                    color: accent.color,
-                  ),
+                  child: Icon(Icons.cloud_outlined, size: 20, color: ac),
                 ),
                 const SizedBox(width: 12),
                 Flexible(
@@ -99,18 +95,19 @@ class ConfigLeftPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+            // Config path box with accent-tinted border.
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xff111827),
+                color: Color.lerp(const Color(0xff111827), ac, 0.06),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xff1e293b)),
+                border: Border.all(color: ac.withValues(alpha: 0.15)),
               ),
               child: SelectableText(
                 configPath,
-                style: const TextStyle(
-                  color: Color(0xff8b9dc3),
+                style: TextStyle(
+                  color: muted,
                   fontSize: 11,
                   fontFamily: 'monospace',
                 ),
@@ -153,13 +150,16 @@ class _AccentPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = ThemeController.of(context);
+    final accent = controller.accent.color;
+    final muted = Color.lerp(const Color(0xff8b9dc3), accent, 0.15);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           '主题色',
           style: TextStyle(
-            color: const Color(0xff8b9dc3),
+            color: muted,
             fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
