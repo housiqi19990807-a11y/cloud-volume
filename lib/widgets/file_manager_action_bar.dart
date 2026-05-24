@@ -26,12 +26,11 @@ class FileManagerActionBar extends StatelessWidget {
     final p = theme.colorScheme.primary;
     return Row(
       children: [
-        const Spacer(),
         Wrap(
           spacing: 6,
           runSpacing: 6,
           children: [
-            ShadButton.outline(
+            ShadButton.ghost(
               size: ShadButtonSize.sm,
               onPressed: onToggleView,
               child: Icon(
@@ -41,7 +40,7 @@ class FileManagerActionBar extends StatelessWidget {
               ),
             ),
             if (onCreateDirectory != null)
-              ShadButton.outline(
+              ShadButton.ghost(
                 size: ShadButtonSize.sm,
                 onPressed: onCreateDirectory,
                 child: Row(
@@ -54,7 +53,7 @@ class FileManagerActionBar extends StatelessWidget {
                 ),
               ),
             if (onUpload != null)
-              ShadButton.outline(
+              ShadButton.ghost(
                 size: ShadButtonSize.sm,
                 onPressed: onUpload,
                 child: Row(
@@ -67,7 +66,7 @@ class FileManagerActionBar extends StatelessWidget {
                 ),
               ),
             if (onGoBack != null)
-              ShadButton.outline(
+              ShadButton.ghost(
                 size: ShadButtonSize.sm,
                 onPressed: onGoBack,
                 child: Row(
