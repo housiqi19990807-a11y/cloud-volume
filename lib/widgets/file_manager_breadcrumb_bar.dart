@@ -45,7 +45,7 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
         ],
       );
     }
-    final visibleCrumbs = _visibleCrumbs();
+    final currentCrumb = _currentCrumb();
     final hiddenCrumbs = _hiddenCrumbs();
     return Align(
       alignment: Alignment.centerLeft,
@@ -62,36 +62,29 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
               ),
             ),
             _crumbChevron(theme),
-            _crumbLabel(
-              activeBucket!,
-              onTap: onOpenBucketRoot,
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
-              maxWidth: 140,
+            Flexible(
+              fit: FlexFit.loose,
+              child: _crumbLabel(
+                activeBucket!,
+                onTap: onOpenBucketRoot,
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             if (hiddenCrumbs.isNotEmpty) ...[
               _crumbChevron(theme),
               _hiddenCrumbMenu(hiddenCrumbs),
             ],
-            for (int i = 0; i < visibleCrumbs.length; i++) ...[
+            if (currentCrumb != null) ...[
               _crumbChevron(theme),
-              if (i == visibleCrumbs.length - 1)
-                Expanded(
-                  child: _crumbLabel(
-                    visibleCrumbs[i].label,
-                    onTap: () => onOpenCrumb(visibleCrumbs[i].index),
-                    color: theme.colorScheme.foreground,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              else
-                _crumbLabel(
-                  visibleCrumbs[i].label,
-                  onTap: () => onOpenCrumb(visibleCrumbs[i].index),
-                  color: theme.colorScheme.mutedForeground,
-                  fontWeight: FontWeight.w400,
-                  maxWidth: 96,
+              Expanded(
+                child: _crumbLabel(
+                  currentCrumb.label,
+                  onTap: () => onOpenCrumb(currentCrumb.index),
+                  color: theme.colorScheme.foreground,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
             ],
           ],
         ),
@@ -99,23 +92,17 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     );
   }
 
-  List<_CrumbEntry> _visibleCrumbs() {
-    if (breadcrumbs.length <= 2) {
-      return [
-        for (int i = 0; i < breadcrumbs.length; i++)
-          _CrumbEntry(index: i, label: breadcrumbs[i]),
-      ];
+  _CrumbEntry? _currentCrumb() {
+    if (breadcrumbs.isEmpty) {
+      return null;
     }
-    return [
-      _CrumbEntry(index: 0, label: breadcrumbs.first),
-      _CrumbEntry(index: breadcrumbs.length - 1, label: breadcrumbs.last),
-    ];
+    return _CrumbEntry(index: breadcrumbs.length - 1, label: breadcrumbs.last);
   }
 
   List<_CrumbEntry> _hiddenCrumbs() {
-    if (breadcrumbs.length <= 2) return const [];
+    if (breadcrumbs.length <= 1) return const [];
     return [
-      for (int i = 1; i < breadcrumbs.length - 1; i++)
+      for (int i = 0; i < breadcrumbs.length - 1; i++)
         _CrumbEntry(index: i, label: breadcrumbs[i]),
     ];
   }
@@ -152,9 +139,8 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     required VoidCallback onTap,
     required Color color,
     required FontWeight fontWeight,
-    double? maxWidth,
   }) {
-    final text = GestureDetector(
+    return GestureDetector(
       onTap: onTap,
       child: Text(
         label,
@@ -162,13 +148,6 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 14, fontWeight: fontWeight, color: color),
       ),
-    );
-    if (maxWidth == null) {
-      return text;
-    }
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: maxWidth),
-      child: text,
     );
   }
 
