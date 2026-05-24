@@ -41,6 +41,12 @@ class RemoteStorageBridge {
   }
 
   static Future<RemoteStorageBridge> connect() async {
+    final bundledLibraryPath = _findBundledLibraryPath();
+    if (bundledLibraryPath != null) {
+      final library = DynamicLibrary.open(bundledLibraryPath);
+      return RemoteStorageBridge._(library, bundledLibraryPath);
+    }
+
     final repoRoot = _locateRepoRoot();
     final outputPath = path.join(
       repoRoot.path,
@@ -105,6 +111,25 @@ class RemoteStorageBridge {
     throw const RemoteStorageBridgeException(
       'Could not locate the Remote Storage repository root.',
     );
+  }
+
+  static String? _findBundledLibraryPath() {
+    final libraryName = _libraryFileName();
+    final executableDir = File(Platform.resolvedExecutable).absolute.parent;
+    final candidates = <String>[
+      path.join(executableDir.path, libraryName),
+      if (Platform.isMacOS)
+        path.normalize(
+          path.join(executableDir.path, '..', 'Frameworks', libraryName),
+        ),
+    ];
+
+    for (final candidate in candidates) {
+      if (File(candidate).existsSync()) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   static Directory? _searchRepoRoot(Directory start) {

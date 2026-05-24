@@ -32,6 +32,19 @@ Linux and Windows desktop shells are now checked into the repository alongside
 the existing macOS host app so the project can be built natively on all three
 desktop platforms.
 
+## Tagged releases
+
+Pushing a tag such as `v0.0.1` now triggers a GitHub Actions release workflow
+that:
+
+- builds 7 native desktop release lanes:
+  macOS `amd64`, macOS `arm64`, macOS `universal`, Windows `amd64`,
+  Windows `arm64`, Linux `amd64`, and Linux `arm64`
+- builds the Go FFI bridge in the native library format for each platform
+- bundles that bridge into the packaged desktop output
+- publishes these assets to the matching GitHub Release:
+  macOS `zip + dmg`, Windows `zip + installer.exe`, and Linux `AppImage`
+
 ## Configuration fields
 
 The initial setup page persists these S3-compatible settings:
