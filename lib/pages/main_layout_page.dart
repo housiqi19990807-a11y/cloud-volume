@@ -2,7 +2,6 @@
 // 侧边栏使用渐变背景 + 装饰圆形，风格与登录页左侧品牌面板统一。
 
 import 'package:flutter/material.dart';
-import 'package:remote_storage/app/app_brand.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/pages/settings_page.dart';
@@ -68,7 +67,6 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     final ac = ThemeController.of(context).accent.color;
     final bgTop = Color.lerp(const Color(0xffeef3ff), ac, 0.08)!;
     final bgBottom = Color.lerp(const Color(0xfff8faff), ac, 0.03)!;
-    final heading = Color.lerp(const Color(0xff1e293b), ac, 0.15)!;
     final muted = Color.lerp(const Color(0xff64748b), ac, 0.06)!;
 
     return Container(
@@ -111,31 +109,15 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
               children: [
                 // 品牌标识：图标 + 应用名。
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-                  child: Row(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const AppBrandMark(size: 34),
-                      const SizedBox(width: 10),
-                      Flexible(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              appBrandName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: heading,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              appBrandSubtitle,
-                              style: TextStyle(fontSize: 10, color: muted),
-                            ),
-                          ],
-                        ),
+                      const AppBrandMark(height: 42, width: 172),
+                      const SizedBox(height: 6),
+                      Text(
+                        '面向远程卷的本地管理器',
+                        style: TextStyle(fontSize: 11, color: muted),
                       ),
                     ],
                   ),
