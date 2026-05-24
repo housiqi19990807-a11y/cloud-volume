@@ -1,6 +1,9 @@
 import Cocoa
 import FlutterMacOS
 
+private let yunjuanDefaultWindowSize = NSSize(width: 1160, height: 740)
+private let yunjuanMinimumWindowSize = NSSize(width: 920, height: 620)
+
 func yunjuanMainWindow() -> NSWindow? {
   NSApp.windows.first { $0 is MainFlutterWindow } ?? NSApp.mainWindow ?? NSApp.windows.first
 }
@@ -110,12 +113,30 @@ class MainFlutterWindow: NSWindow {
     self.styleMask.insert(.fullSizeContentView)
     self.toolbar = nil
     self.isReleasedWhenClosed = false
-    self.setContentSize(NSSize(width: 1160, height: 740))
-    self.minSize = NSSize(width: 920, height: 620)
+    self.minSize = yunjuanMinimumWindowSize
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     menuBarController = MenuBarController()
 
     super.awakeFromNib()
+
+    // Always reopen at the product default size instead of reusing the last
+    // window dimensions from a previous app launch.
+    DispatchQueue.main.async { [weak self] in
+      self?.applyDefaultWindowLayout()
+    }
+  }
+
+  private func applyDefaultWindowLayout() {
+    let targetFrame = centeredWindowFrame(for: yunjuanDefaultWindowSize)
+    self.setFrame(targetFrame, display: true)
+  }
+
+  private func centeredWindowFrame(for size: NSSize) -> NSRect {
+    let referenceScreen = self.screen ?? NSScreen.main
+    let visibleFrame = referenceScreen?.visibleFrame ?? self.frame
+    let originX = visibleFrame.origin.x + ((visibleFrame.width - size.width) / 2)
+    let originY = visibleFrame.origin.y + ((visibleFrame.height - size.height) / 2)
+    return NSRect(origin: NSPoint(x: originX, y: originY), size: size)
   }
 }
