@@ -85,7 +85,7 @@ class ConfigLeftPanel extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              '安全、高效地管理你的 S3 兼容对象存储。',
+              '安全、高效地管理你的远程存储。',
               style: theme.textTheme.muted.copyWith(
                 color: muted,
                 fontSize: 14,
