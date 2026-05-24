@@ -41,6 +41,7 @@ The initial setup page persists these S3-compatible settings:
 - User-switchable accent color (5 presets: tech-blue, violet, green, orange, rose).
 - Custom SVG app branding now ships as `云卷` and is reused across the sidebar and macOS Dock icon.
 - macOS now exposes a menu bar status icon that can reopen the main `云卷` window after it is closed.
+- Choosing `退出云卷` from the macOS tray now asks whether to fully quit or just minimize to the tray.
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
 - Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
 - Breadcrumbs and the file action bar now share a single header row, with long paths collapsed in the middle to `...` while still supporting direct breadcrumb jumps, in-place folder creation, and `..` entries in non-root directories.
