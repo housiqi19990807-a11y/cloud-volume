@@ -200,6 +200,13 @@ class FileManagerObjectBrowser extends StatelessWidget {
       if (_dismissActiveContextMenu()) {
         return;
       }
+      if (_isSelectionMode) {
+        if (_isParentDirectory(object)) {
+          return;
+        }
+        onToggleSelection(object);
+        return;
+      }
       if (_isParentDirectory(object) ||
           fileOpenMode == FileOpenMode.singleClick) {
         _openObject(object);
@@ -210,7 +217,8 @@ class FileManagerObjectBrowser extends StatelessWidget {
   }
 
   VoidCallback? _doubleTapHandler(ObjectInfo object) {
-    if (_isParentDirectory(object) ||
+    if (_isSelectionMode ||
+        _isParentDirectory(object) ||
         fileOpenMode == FileOpenMode.singleClick) {
       return null;
     }
@@ -225,6 +233,13 @@ class FileManagerObjectBrowser extends StatelessWidget {
   VoidCallback _titleTapHandler(ObjectInfo object) {
     return () {
       if (_dismissActiveContextMenu()) {
+        return;
+      }
+      if (_isSelectionMode) {
+        if (_isParentDirectory(object)) {
+          return;
+        }
+        onToggleSelection(object);
         return;
       }
       _openObject(object);
@@ -250,7 +265,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     return _ObjectContextMenuWrapper(
       items: buildObjectActionMenuItems(
         object: object,
-        onOpen: () => _runMenuAction(() => _tapHandler(object)()),
+        onOpen: () => _runMenuAction(() => _openObject(object)),
         onDownload: object.isDir
             ? null
             : () => _runMenuAction(() => onDownloadFile(object)),
@@ -303,6 +318,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
   bool _showsSelectionControl(ObjectInfo object) {
     return !_isParentDirectory(object) &&
         fileOpenMode == FileOpenMode.doubleClick;
+  }
+
+  bool get _isSelectionMode {
+    return fileOpenMode == FileOpenMode.doubleClick && selectedKeys.isNotEmpty;
   }
 
   bool _isParentDirectory(ObjectInfo object) {
