@@ -115,6 +115,9 @@ class _FakeApi implements RemoteStorageGateway {
   ) async {}
 
   @override
+  Future<void> cancelTransfer(String taskId) async {}
+
+  @override
   Future<RemoteStorageConfig> loadProfile(String name) async =>
       RemoteStorageConfig.empty();
 

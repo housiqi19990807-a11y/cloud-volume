@@ -3,6 +3,9 @@
 package s3
 
 import (
+	"context"
+	"errors"
+	"io"
 	"sort"
 	"sync"
 	"time"
@@ -26,18 +29,29 @@ type transferState struct {
 	snapshot  TransferSnapshot
 	startedAt time.Time
 	updatedAt time.Time
+	cancel    context.CancelFunc
 }
 
 type transferMonitor struct {
-	mu    sync.Mutex
-	tasks map[string]*transferState
+	mu             sync.Mutex
+	tasks          map[string]*transferState
+	pendingCancels map[string]time.Time
 }
 
 var globalTransferMonitor = &transferMonitor{
-	tasks: map[string]*transferState{},
+	tasks:          map[string]*transferState{},
+	pendingCancels: map[string]time.Time{},
 }
 
-func startTransfer(id, kind, bucket, key, localPath string, totalBytes int64) {
+func startTransfer(
+	id,
+	kind,
+	bucket,
+	key,
+	localPath string,
+	totalBytes int64,
+	cancel context.CancelFunc,
+) {
 	now := time.Now()
 	globalTransferMonitor.mu.Lock()
 	defer globalTransferMonitor.mu.Unlock()
@@ -54,7 +68,28 @@ func startTransfer(id, kind, bucket, key, localPath string, totalBytes int64) {
 		},
 		startedAt: now,
 		updatedAt: now,
+		cancel:    cancel,
 	}
+	if _, ok := globalTransferMonitor.pendingCancels[id]; ok {
+		delete(globalTransferMonitor.pendingCancels, id)
+		globalTransferMonitor.tasks[id].snapshot.Status = "canceled"
+		globalTransferMonitor.tasks[id].updatedAt = now
+		if cancel != nil {
+			cancel()
+		}
+	}
+}
+
+func setTransferTotal(id string, totalBytes int64) {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.snapshot.TotalBytes = totalBytes
+	task.updatedAt = time.Now()
 }
 
 func advanceTransfer(id string, delta int64) {
@@ -83,7 +118,13 @@ func finishTransfer(id string, err error) {
 		return
 	}
 	task.updatedAt = time.Now()
+	task.cancel = nil
 	task.snapshot.SpeedBytes = 0
+	if errors.Is(err, context.Canceled) {
+		task.snapshot.Status = "canceled"
+		task.snapshot.Error = ""
+		return
+	}
 	if err != nil {
 		task.snapshot.Status = "failed"
 		task.snapshot.Error = err.Error()
@@ -93,6 +134,33 @@ func finishTransfer(id string, err error) {
 	if task.snapshot.TotalBytes > 0 {
 		task.snapshot.BytesCompleted = task.snapshot.TotalBytes
 	}
+}
+
+// CancelTransfer stops an in-flight transfer when the task is still registered.
+func CancelTransfer(id string) bool {
+	globalTransferMonitor.mu.Lock()
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		globalTransferMonitor.pendingCancels[id] = time.Now()
+		globalTransferMonitor.mu.Unlock()
+		return true
+	}
+	if task.snapshot.Status == "done" || task.snapshot.Status == "failed" {
+		globalTransferMonitor.mu.Unlock()
+		return false
+	}
+	cancel := task.cancel
+	task.cancel = nil
+	task.snapshot.Status = "canceled"
+	task.snapshot.SpeedBytes = 0
+	task.snapshot.Error = ""
+	task.updatedAt = time.Now()
+	globalTransferMonitor.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	return true
 }
 
 // ListTransferSnapshots returns a recent-first list so the newest task stays visible.
@@ -106,6 +174,11 @@ func ListTransferSnapshots() []TransferSnapshot {
 	}
 
 	now := time.Now()
+	for id, requestedAt := range globalTransferMonitor.pendingCancels {
+		if now.Sub(requestedAt) > 10*time.Minute {
+			delete(globalTransferMonitor.pendingCancels, id)
+		}
+	}
 	result := make([]item, 0, len(globalTransferMonitor.tasks))
 	for id, task := range globalTransferMonitor.tasks {
 		if task.snapshot.Status != "running" && now.Sub(task.updatedAt) > 10*time.Minute {
@@ -130,7 +203,7 @@ func ListTransferSnapshots() []TransferSnapshot {
 }
 
 type countingReader struct {
-	reader interface{ Read([]byte) (int, error) }
+	reader io.Reader
 	onRead func(int)
 }
 
@@ -140,4 +213,33 @@ func (r *countingReader) Read(p []byte) (int, error) {
 		r.onRead(n)
 	}
 	return n, err
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+	onRead func(int)
+}
+
+func (r *contextReader) Read(p []byte) (int, error) {
+	select {
+	case <-r.ctx.Done():
+		return 0, r.ctx.Err()
+	default:
+	}
+
+	n, err := r.reader.Read(p)
+	if n > 0 && r.onRead != nil {
+		r.onRead(n)
+	}
+	if err != nil {
+		return n, err
+	}
+
+	select {
+	case <-r.ctx.Done():
+		return n, r.ctx.Err()
+	default:
+		return n, nil
+	}
 }

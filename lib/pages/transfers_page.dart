@@ -1,5 +1,7 @@
 // 传输管理页：读取共享传输队列，展示上传和下载任务的实时状态。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -120,7 +122,24 @@ class TransfersPage extends StatelessWidget {
                 color: theme.colorScheme.mutedForeground,
               ),
             ),
-            trailing: _StatusBadge(task: task),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (task.isCancelable)
+                  IconButton(
+                    tooltip: '取消任务',
+                    iconSize: 16,
+                    splashRadius: 16,
+                    onPressed: () =>
+                        unawaited(TransferQueue.instance.cancelTask(task.id)),
+                    icon: Icon(
+                      LucideIcons.circleX,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+                  ),
+                _StatusBadge(task: task),
+              ],
+            ),
           );
         },
       ),
@@ -130,6 +149,9 @@ class TransfersPage extends StatelessWidget {
   String _subtitleFor(TransferTask task) {
     if (task.status == TransferStatus.failed) {
       return task.error ?? '${task.typeLabel}失败';
+    }
+    if (task.status == TransferStatus.canceled) {
+      return '${task.typeLabel}已取消';
     }
     if (task.totalBytes > 0) {
       return '${task.typeLabel}  ${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}';
@@ -154,12 +176,14 @@ class _StatusBadge extends StatelessWidget {
       TransferStatus.running => formatBytesPerSecond(task.speedBytes),
       TransferStatus.done => '已完成',
       TransferStatus.failed => '失败',
+      TransferStatus.canceled => '已取消',
     };
     final color = switch (task.status) {
       TransferStatus.pending => theme.colorScheme.mutedForeground,
       TransferStatus.running => theme.colorScheme.primary,
       TransferStatus.done => const Color(0xff15803d),
       TransferStatus.failed => theme.colorScheme.destructive,
+      TransferStatus.canceled => theme.colorScheme.mutedForeground,
     };
 
     return Container(

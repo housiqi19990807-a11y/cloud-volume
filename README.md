@@ -54,5 +54,7 @@ The initial setup page persists these S3-compatible settings:
 - New folder creation uses a MinIO-compatible placeholder upload path so S3-compatible endpoints can create directories reliably.
 - Settings now allow configuring a default download directory; the save dialog falls back to the system Downloads folder when none is set.
 - File and folder items now expose a desktop-style right-click menu for rename and delete actions in both list and grid views.
+- Upload now supports multi-file selection, and in-flight upload/download tasks can be canceled from both the transfers page and the sidebar hover list.
+- Breadcrumbs now stay fully expanded when space allows, and only collapse the oldest left-side path segments into `...` when the header becomes tight.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

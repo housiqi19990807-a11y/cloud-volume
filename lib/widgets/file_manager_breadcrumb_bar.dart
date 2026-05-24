@@ -45,71 +45,115 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
         ],
       );
     }
-    final currentCrumb = _currentCrumb();
-    final hiddenCrumbs = _hiddenCrumbs();
-    final showBucketAsVisibleCrumb = currentCrumb == null;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        height: 32,
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: onOpenBucketList,
-              child: Icon(
-                LucideIcons.house,
-                size: 16,
-                color: theme.colorScheme.primary,
-              ),
+    final entries = _entries();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final layout = _resolveLayout(constraints.maxWidth, entries);
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            height: 32,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: onOpenBucketList,
+                  child: Icon(
+                    LucideIcons.house,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                if (layout.hiddenCrumbs.isNotEmpty) ...[
+                  _crumbChevron(theme),
+                  _hiddenCrumbMenu(layout.hiddenCrumbs),
+                ],
+                for (int i = 0; i < layout.visibleCrumbs.length; i++) ...[
+                  _crumbChevron(theme),
+                  if (i == layout.visibleCrumbs.length - 1)
+                    Expanded(child: _buildCrumb(layout.visibleCrumbs[i], true))
+                  else
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: _buildCrumb(layout.visibleCrumbs[i], false),
+                    ),
+                ],
+              ],
             ),
-            if (showBucketAsVisibleCrumb) ...[
-              _crumbChevron(theme),
-              Flexible(
-                fit: FlexFit.loose,
-                child: _crumbLabel(
-                  activeBucket!,
-                  onTap: onOpenBucketRoot,
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-            if (hiddenCrumbs.isNotEmpty) ...[
-              _crumbChevron(theme),
-              _hiddenCrumbMenu(hiddenCrumbs),
-            ],
-            if (currentCrumb != null) ...[
-              _crumbChevron(theme),
-              Expanded(
-                child: _crumbLabel(
-                  currentCrumb.label,
-                  onTap: () => onOpenCrumb(currentCrumb.index),
-                  color: theme.colorScheme.foreground,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  _CrumbEntry? _currentCrumb() {
-    if (breadcrumbs.isEmpty) {
-      return null;
-    }
-    return _CrumbEntry(index: breadcrumbs.length - 1, label: breadcrumbs.last);
-  }
-
-  List<_CrumbEntry> _hiddenCrumbs() {
-    if (activeBucket == null || breadcrumbs.isEmpty) return const [];
-
+  List<_CrumbEntry> _entries() {
+    if (activeBucket == null) return const [];
     return [
       _CrumbEntry(index: -1, label: activeBucket!),
-      for (int i = 0; i < breadcrumbs.length - 1; i++)
+      for (int i = 0; i < breadcrumbs.length; i++)
         _CrumbEntry(index: i, label: breadcrumbs[i]),
     ];
+  }
+
+  _BreadcrumbLayout _resolveLayout(double maxWidth, List<_CrumbEntry> entries) {
+    if (entries.isEmpty || !maxWidth.isFinite) {
+      return _BreadcrumbLayout(hiddenCrumbs: const [], visibleCrumbs: entries);
+    }
+    for (int hiddenCount = 0; hiddenCount < entries.length; hiddenCount++) {
+      final visible = entries.sublist(hiddenCount);
+      if (_estimatedWidth(visible, hiddenCount > 0) <= maxWidth) {
+        return _BreadcrumbLayout(
+          hiddenCrumbs: entries.sublist(0, hiddenCount),
+          visibleCrumbs: visible,
+        );
+      }
+    }
+    return _BreadcrumbLayout(
+      hiddenCrumbs: entries.sublist(0, entries.length - 1),
+      visibleCrumbs: entries.sublist(entries.length - 1),
+    );
+  }
+
+  double _estimatedWidth(List<_CrumbEntry> visible, bool hasHiddenCrumbs) {
+    const homeWidth = 18.0;
+    const chevronWidth = 22.0;
+    const hiddenWidth = 26.0;
+    var total = homeWidth;
+    if (hasHiddenCrumbs) {
+      total += chevronWidth + hiddenWidth;
+    }
+    for (final crumb in visible) {
+      total += chevronWidth + _labelWidth(crumb.label);
+    }
+    return total;
+  }
+
+  double _labelWidth(String label) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.width.clamp(28.0, 160.0);
+  }
+
+  Widget _buildCrumb(_CrumbEntry crumb, bool isCurrent) {
+    return _crumbLabel(
+      crumb.label,
+      onTap: () {
+        if (crumb.index < 0) {
+          onOpenBucketRoot();
+          return;
+        }
+        onOpenCrumb(crumb.index);
+      },
+      color: isCurrent
+          ? theme.colorScheme.foreground
+          : theme.colorScheme.primary,
+      fontWeight: FontWeight.w600,
+    );
   }
 
   Widget _hiddenCrumbMenu(List<_CrumbEntry> hiddenCrumbs) {
@@ -179,4 +223,14 @@ class _CrumbEntry {
 
   final int index;
   final String label;
+}
+
+class _BreadcrumbLayout {
+  const _BreadcrumbLayout({
+    required this.hiddenCrumbs,
+    required this.visibleCrumbs,
+  });
+
+  final List<_CrumbEntry> hiddenCrumbs;
+  final List<_CrumbEntry> visibleCrumbs;
 }

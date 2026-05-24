@@ -24,4 +24,6 @@
 - New folder creation now uses a MinIO-compatible zero-byte directory placeholder flow for better S3-compatible endpoint support.
 - Added a configurable default download directory in settings, with fallback to the system Downloads folder.
 - File and folder items now support right-click rename and delete actions in both list and grid views.
+- Upload now supports selecting multiple files at once, and active upload/download tasks can be canceled from the transfers page and sidebar hover card.
+- Breadcrumbs now stay fully expanded when there is enough room, and collapse the oldest left-side path segments into `...` only when the header becomes narrow.
 - Full Chinese interface.

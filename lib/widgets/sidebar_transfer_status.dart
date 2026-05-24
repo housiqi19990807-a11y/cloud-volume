@@ -1,5 +1,7 @@
 // 侧边栏传输状态入口：显示实时速度、运行动画和 hover 悬浮任务列表。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/fluent_system_icon.dart';
@@ -274,6 +276,8 @@ class _TransferHoverRow extends StatelessWidget {
         : const Color(0xff0f766e);
     final detail = task.status == TransferStatus.failed
         ? (task.error ?? '${task.typeLabel}失败')
+        : task.status == TransferStatus.canceled
+        ? '${task.typeLabel}已取消'
         : task.totalBytes > 0
         ? '${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}'
         : task.typeLabel;
@@ -316,22 +320,48 @@ class _TransferHoverRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            switch (task.status) {
-              TransferStatus.pending => '等待',
-              TransferStatus.running => formatBytesPerSecond(task.speedBytes),
-              TransferStatus.done => '完成',
-              TransferStatus.failed => '失败',
-            },
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: task.status == TransferStatus.failed
-                  ? theme.colorScheme.destructive
-                  : task.status == TransferStatus.done
-                  ? const Color(0xff15803d)
-                  : theme.colorScheme.primary,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                switch (task.status) {
+                  TransferStatus.pending => '等待',
+                  TransferStatus.running => formatBytesPerSecond(
+                    task.speedBytes,
+                  ),
+                  TransferStatus.done => '完成',
+                  TransferStatus.failed => '失败',
+                  TransferStatus.canceled => '已取消',
+                },
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: task.status == TransferStatus.failed
+                      ? theme.colorScheme.destructive
+                      : task.status == TransferStatus.done
+                      ? const Color(0xff15803d)
+                      : task.status == TransferStatus.canceled
+                      ? theme.colorScheme.mutedForeground
+                      : theme.colorScheme.primary,
+                ),
+              ),
+              if (task.isCancelable) ...[
+                const SizedBox(width: 6),
+                InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () =>
+                      unawaited(TransferQueue.instance.cancelTask(task.id)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Icon(
+                      LucideIcons.circleX,
+                      size: 13,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

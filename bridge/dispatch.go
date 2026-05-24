@@ -56,6 +56,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return downloadFile(args)
 	case "list_transfer_jobs":
 		return listTransferJobs()
+	case "cancel_transfer":
+		return cancelTransfer(args)
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}
@@ -192,6 +194,10 @@ type downloadArgs struct {
 	TaskID    string                            `json:"taskId"`
 }
 
+type transferTaskArgs struct {
+	TaskID string `json:"taskId"`
+}
+
 func listBuckets(args json.RawMessage) (any, error) {
 	var input bucketArgs
 	if err := decodeArgs(args, &input); err != nil {
@@ -293,4 +299,15 @@ func downloadFile(args json.RawMessage) (any, error) {
 
 func listTransferJobs() (any, error) {
 	return s3ops.ListTransferSnapshots(), nil
+}
+
+func cancelTransfer(args json.RawMessage) (any, error) {
+	var input transferTaskArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if input.TaskID == "" {
+		return nil, fmt.Errorf("missing transfer task id")
+	}
+	return map[string]any{"ok": s3ops.CancelTransfer(input.TaskID)}, nil
 }

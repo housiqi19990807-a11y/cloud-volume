@@ -7,7 +7,7 @@ import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 
 /// 传输任务状态。
-enum TransferStatus { pending, running, done, failed }
+enum TransferStatus { pending, running, done, failed, canceled }
 
 /// 单个传输任务。
 class TransferTask {
@@ -39,8 +39,12 @@ class TransferTask {
   String get typeLabel => isUpload ? '上传' : '下载';
   bool get isRunning => status == TransferStatus.running;
   bool get isPending => status == TransferStatus.pending;
+  bool get isCancelable =>
+      status == TransferStatus.pending || status == TransferStatus.running;
   bool get isFinished =>
-      status == TransferStatus.done || status == TransferStatus.failed;
+      status == TransferStatus.done ||
+      status == TransferStatus.failed ||
+      status == TransferStatus.canceled;
   double get progress =>
       totalBytes <= 0 ? 0 : (bytesCompleted / totalBytes).clamp(0, 1);
 }
@@ -56,6 +60,7 @@ class TransferQueue extends ChangeNotifier {
   Timer? _pollTimer;
   bool _polling = false;
   int _seed = 0;
+  final Set<String> _cancelRequestedIds = <String>{};
 
   List<TransferTask> get tasks => List.unmodifiable(_tasks);
   bool get hasRunning => _tasks.any((task) => task.isRunning || task.isPending);
@@ -89,6 +94,11 @@ class TransferQueue extends ChangeNotifier {
   void markTaskFailed(String id, Object error) {
     final task = _taskById(id);
     if (task == null) return;
+    if (task.status == TransferStatus.canceled ||
+        _cancelRequestedIds.remove(id)) {
+      markTaskCanceled(id);
+      return;
+    }
     task.status = TransferStatus.failed;
     task.error = error.toString();
     task.speedBytes = 0;
@@ -99,6 +109,7 @@ class TransferQueue extends ChangeNotifier {
   void markTaskDone(String id) {
     final task = _taskById(id);
     if (task == null) return;
+    _cancelRequestedIds.remove(id);
     task.status = TransferStatus.done;
     task.speedBytes = 0;
     task.bytesCompleted = task.totalBytes > 0
@@ -108,10 +119,50 @@ class TransferQueue extends ChangeNotifier {
     _ensurePolling();
   }
 
+  void markTaskCanceled(String id) {
+    final task = _taskById(id);
+    if (task == null) return;
+    _cancelRequestedIds.remove(id);
+    task.status = TransferStatus.canceled;
+    task.speedBytes = 0;
+    task.error = null;
+    notifyListeners();
+    _ensurePolling();
+  }
+
+  Future<void> cancelTask(String id) async {
+    final task = _taskById(id);
+    if (task == null || !task.isCancelable) return;
+    _cancelRequestedIds.add(id);
+    task.status = TransferStatus.canceled;
+    task.speedBytes = 0;
+    task.error = null;
+    notifyListeners();
+    if (_api != null) {
+      await _api!.cancelTransfer(id);
+    }
+    _ensurePolling();
+  }
+
+  bool isCancelRequested(String id) => _cancelRequestedIds.contains(id);
+
   void refreshFromSnapshots(List<TransferSnapshot> snapshots) {
     for (final snapshot in snapshots) {
       final task = _taskById(snapshot.id) ?? _addRemoteTask(snapshot);
-      task.status = _statusFromWire(snapshot.status);
+      final nextStatus = _statusFromWire(snapshot.status);
+      if (_cancelRequestedIds.contains(snapshot.id) &&
+          nextStatus != TransferStatus.canceled &&
+          nextStatus != TransferStatus.done &&
+          nextStatus != TransferStatus.failed) {
+        task.status = TransferStatus.canceled;
+      } else {
+        if (nextStatus == TransferStatus.canceled ||
+            nextStatus == TransferStatus.done ||
+            nextStatus == TransferStatus.failed) {
+          _cancelRequestedIds.remove(snapshot.id);
+        }
+        task.status = nextStatus;
+      }
       task.bytesCompleted = snapshot.bytesCompleted;
       task.totalBytes = snapshot.totalBytes;
       task.speedBytes = snapshot.speedBytes;
@@ -185,6 +236,8 @@ class TransferQueue extends ChangeNotifier {
         return TransferStatus.done;
       case 'failed':
         return TransferStatus.failed;
+      case 'canceled':
+        return TransferStatus.canceled;
       default:
         return TransferStatus.pending;
     }

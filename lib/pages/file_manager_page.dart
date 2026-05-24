@@ -134,19 +134,23 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Future<void> _upload() async {
     if (_activeBucket == null) return;
-    final result = await FilePicker.pickFiles(allowMultiple: false);
+    final result = await FilePicker.pickFiles(allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    if (file.path == null) return;
     final bucket = _activeBucket!;
-    final key = _prefix + file.name;
-    final task = TransferQueue.instance.startTask(
-      isUpload: true,
-      bucket: bucket,
-      key: key,
-      localPath: file.path!,
-    );
-    unawaited(_runUploadTask(task, bucket));
+    for (final file in result.files) {
+      final path = file.path;
+      if (path == null) {
+        continue;
+      }
+      final key = _prefix + file.name;
+      final task = TransferQueue.instance.startTask(
+        isUpload: true,
+        bucket: bucket,
+        key: key,
+        localPath: path,
+      );
+      unawaited(_runUploadTask(task, bucket));
+    }
   }
 
   Future<void> _download(ObjectInfo obj) async {

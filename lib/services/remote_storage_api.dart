@@ -52,6 +52,7 @@ abstract class RemoteStorageGateway {
     String localPath,
     String taskId,
   );
+  Future<void> cancelTransfer(String taskId);
   Future<List<TransferSnapshot>> listTransferJobs();
 }
 
@@ -216,6 +217,11 @@ class RemoteStorageApi implements RemoteStorageGateway {
         'taskId': taskId,
       });
     });
+  }
+
+  @override
+  Future<void> cancelTransfer(String taskId) async {
+    _bridge.call('cancel_transfer', <String, dynamic>{'taskId': taskId});
   }
 
   @override

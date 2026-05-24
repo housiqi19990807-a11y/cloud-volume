@@ -3,6 +3,7 @@
 package s3
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -62,40 +63,63 @@ func ListObjects(cfg storageconfig.RemoteStorageConfig, bucket, prefix string) (
 }
 
 // UploadFile uploads a local file to the given bucket + key.
-func UploadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath, taskID string) error {
+func UploadFile(
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key,
+	localPath,
+	taskID string,
+) (err error) {
 	client := NewClient(cfg)
 	f, err := os.Open(localPath)
 	if err != nil {
 		return fmt.Errorf("open local file: %w", err)
 	}
 	defer f.Close()
+	ctx := Ctx()
 	info, statErr := f.Stat()
 	if statErr == nil && taskID != "" {
-		startTransfer(taskID, "upload", bucket, key, localPath, info.Size())
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		startTransfer(taskID, "upload", bucket, key, localPath, info.Size(), cancel)
 		defer func() { finishTransfer(taskID, err) }()
 	}
 
 	body := io.Reader(f)
 	if taskID != "" {
-		body = &countingReader{
+		body = &contextReader{
+			ctx:    ctx,
 			reader: f,
 			onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
 		}
 	}
-	_, err = client.PutObject(Ctx(), &s3.PutObjectInput{
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &bucket, Key: &key, Body: body,
 	})
 	return err
 }
 
 // DownloadFile downloads an object to a local path.
-func DownloadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath, taskID string) error {
+func DownloadFile(
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key,
+	localPath,
+	taskID string,
+) (err error) {
 	client := NewClient(cfg)
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		return err
 	}
+	ctx := Ctx()
+	if taskID != "" {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		startTransfer(taskID, "download", bucket, key, localPath, 0, cancel)
+		defer func() { finishTransfer(taskID, err) }()
+	}
 
-	out, err := client.GetObject(Ctx(), &s3.GetObjectInput{
+	out, err := client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: &bucket, Key: &key,
 	})
 	if err != nil {
@@ -103,15 +127,7 @@ func DownloadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath,
 	}
 	defer out.Body.Close()
 	if taskID != "" {
-		startTransfer(
-			taskID,
-			"download",
-			bucket,
-			key,
-			localPath,
-			aws.ToInt64(out.ContentLength),
-		)
-		defer func() { finishTransfer(taskID, err) }()
+		setTransferTotal(taskID, aws.ToInt64(out.ContentLength))
 	}
 
 	f, err := os.Create(localPath)
@@ -122,7 +138,8 @@ func DownloadFile(cfg storageconfig.RemoteStorageConfig, bucket, key, localPath,
 
 	body := io.Reader(out.Body)
 	if taskID != "" {
-		body = &countingReader{
+		body = &contextReader{
+			ctx:    ctx,
 			reader: out.Body,
 			onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
 		}
