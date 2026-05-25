@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/file_access_service.dart';
@@ -20,6 +21,8 @@ import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+part 'file_manager_page_actions.dart';
+part 'file_manager_page_mount.dart';
 part 'file_manager_page_selection.dart';
 
 class FileManagerPage extends StatefulWidget {
@@ -45,6 +48,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _loading = false;
   String? _error;
   bool _isGrid = false;
+  BucketMountStatus? _mountStatus;
+  bool _mountBusy = false;
   final Set<String> _selectedObjectKeys = <String>{};
 
   @override
@@ -58,6 +63,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.config.fileOpenMode != widget.config.fileOpenMode) {
       _clearSelection();
+    }
+    if (oldWidget.config != widget.config && _activeBucket != null) {
+      unawaited(_refreshMountStatus(_activeBucket!));
     }
   }
 
@@ -75,6 +83,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _objects = null;
         _prefix = '';
         _breadcrumbs = [];
+        _mountStatus = null;
+        _mountBusy = false;
         _selectedObjectKeys.clear();
         _loading = false;
       });
@@ -109,6 +119,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _selectedObjectKeys.clear();
         _loading = false;
       });
+      unawaited(_refreshMountStatus(bucket));
       return true;
     } catch (e) {
       if (!mounted) return false;
@@ -144,185 +155,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
       _activeBucket!,
       _breadcrumbs.sublist(0, index + 1).map((segment) => '$segment/').join(),
     );
-  }
-
-  Future<void> _upload() async {
-    if (_activeBucket == null) return;
-    final result = await FilePicker.pickFiles(allowMultiple: true);
-    if (result == null || result.files.isEmpty) return;
-    final bucket = _activeBucket!;
-    for (final file in result.files) {
-      final path = file.path;
-      if (path == null) {
-        continue;
-      }
-      final key = _prefix + file.name;
-      final task = TransferQueue.instance.startTask(
-        isUpload: true,
-        bucket: bucket,
-        key: key,
-        localPath: path,
-      );
-      unawaited(_runUploadTask(task, bucket));
-    }
-  }
-
-  Future<void> _createDirectory() async {
-    if (_activeBucket == null) return;
-    final controller = TextEditingController();
-    String? errorText;
-    bool creating = false;
-
-    await showShadDialog(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return CreateDirectoryDialog(
-              controller: controller,
-              errorText: errorText,
-              creating: creating,
-              onCancel: () => Navigator.of(dialogContext).pop(),
-              onCreate: () async {
-                final name = controller.text.trim();
-                if (name.isEmpty) {
-                  setDialogState(() => errorText = '目录名称不能为空');
-                  return;
-                }
-                setDialogState(() {
-                  creating = true;
-                  errorText = null;
-                });
-                try {
-                  await widget.api.createDirectory(
-                    widget.config,
-                    _activeBucket!,
-                    _prefix,
-                    name,
-                  );
-                  if (!mounted || !dialogContext.mounted) return;
-                  Navigator.of(dialogContext).pop();
-                  await _loadObjects(_activeBucket!, _prefix);
-                } catch (e) {
-                  setDialogState(() {
-                    creating = false;
-                    errorText = e.toString();
-                  });
-                }
-              },
-            );
-          },
-        );
-      },
-    );
-    controller.dispose();
-  }
-
-  Future<void> _runUploadTask(TransferTask task, String bucket) async {
-    try {
-      await widget.api.uploadFile(
-        widget.config,
-        task.bucket,
-        task.key,
-        task.localPath,
-        task.id,
-      );
-      TransferQueue.instance.markTaskDone(task.id);
-      if (!mounted || _activeBucket != bucket) return;
-      await _loadObjects(bucket, _prefix);
-    } catch (e) {
-      TransferQueue.instance.markTaskFailed(task.id, e);
-    }
-  }
-
-  Future<void> _openObject(ObjectInfo object) async {
-    if (_activeBucket == null) return;
-    try {
-      await FileAccessService.instance.openObject(
-        api: widget.api,
-        config: widget.config,
-        bucket: _activeBucket!,
-        object: object,
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
-  }
-
-  Future<void> _downloadObject(ObjectInfo object) async {
-    if (_activeBucket == null) return;
-    try {
-      await FileAccessService.instance.downloadObjectWithPicker(
-        api: widget.api,
-        config: widget.config,
-        bucket: _activeBucket!,
-        object: object,
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
-  }
-
-  Future<void> _handleObjectAction(
-    ObjectInfo object,
-    FileObjectAction action,
-  ) async {
-    if (!mounted || _activeBucket == null) return;
-    try {
-      if (action == FileObjectAction.open) {
-        await _openObject(object);
-        return;
-      }
-      if (action == FileObjectAction.download) {
-        await _downloadObject(object);
-        return;
-      }
-      if (action == FileObjectAction.rename) {
-        final newName = await showRenameObjectDialog(context, object);
-        if (newName == null ||
-            newName.isEmpty ||
-            newName == object.displayName) {
-          return;
-        }
-        await widget.api.renameObject(
-          widget.config,
-          _activeBucket!,
-          object.key,
-          object.isDir,
-          newName,
-        );
-        await FileAccessService.instance.evictCacheForObject(
-          bucket: _activeBucket!,
-          object: object,
-        );
-      } else if (action == FileObjectAction.delete) {
-        final confirmed = await showDeleteObjectDialog(context, object);
-        if (!confirmed) return;
-        await widget.api.deleteObject(
-          widget.config,
-          _activeBucket!,
-          object.key,
-          object.isDir,
-        );
-        await FileAccessService.instance.evictCacheForObject(
-          bucket: _activeBucket!,
-          object: object,
-        );
-      }
-      if (!mounted) return;
-      await _loadObjects(_activeBucket!, _prefix);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
   }
 
   @override
@@ -365,7 +197,30 @@ class _FileManagerPageState extends State<FileManagerPage> {
             batchDownloadEnabled: _selectedObjects.any(
               (object) => !object.isDir,
             ),
+            mounted: _mountStatus?.mounted ?? false,
+            mountBusy: _mountBusy,
             onToggleView: () => setState(() => _isGrid = !_isGrid),
+            onMount:
+                _activeBucket == null ||
+                    _loading ||
+                    _mountBusy ||
+                    (_mountStatus?.mounted ?? false)
+                ? null
+                : _mountBucket,
+            onUnmount:
+                _activeBucket == null ||
+                    _loading ||
+                    _mountBusy ||
+                    !(_mountStatus?.mounted ?? false)
+                ? null
+                : _unmountBucket,
+            onOpenMount:
+                _activeBucket == null ||
+                    _loading ||
+                    _mountBusy ||
+                    !(_mountStatus?.mounted ?? false)
+                ? null
+                : _openMountedBucket,
             onCreateDirectory: _activeBucket == null || _loading
                 ? null
                 : _createDirectory,

@@ -3,6 +3,7 @@
 package s3
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -14,8 +15,19 @@ import (
 
 // DeleteObject removes either a single object or all objects under a prefix.
 func DeleteObject(cfg storageconfig.RemoteStorageConfig, bucket, key string, isDirectory bool) error {
+	return DeleteObjectContext(Ctx(), cfg, bucket, key, isDirectory)
+}
+
+// DeleteObjectContext removes either a single object or all objects under a prefix.
+func DeleteObjectContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+	isDirectory bool,
+) error {
 	client := NewClient(cfg)
-	keys, err := mutationKeys(client, bucket, key, isDirectory)
+	keys, err := mutationKeys(ctx, client, bucket, key, isDirectory)
 	if err != nil {
 		return err
 	}
@@ -23,7 +35,7 @@ func DeleteObject(cfg storageconfig.RemoteStorageConfig, bucket, key string, isD
 		return nil
 	}
 	for _, objectKey := range keys {
-		_, err = client.DeleteObject(Ctx(), &s3.DeleteObjectInput{
+		_, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{
 			Bucket: &bucket,
 			Key:    aws.String(objectKey),
 		})
@@ -42,13 +54,25 @@ func RenameObject(
 	isDirectory bool,
 	newName string,
 ) error {
+	return RenameObjectContext(Ctx(), cfg, bucket, key, isDirectory, newName)
+}
+
+// RenameObjectContext emulates rename with a caller-supplied context.
+func RenameObjectContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+	isDirectory bool,
+	newName string,
+) error {
 	client := NewClient(cfg)
 	trimmedName := strings.Trim(strings.TrimSpace(newName), "/")
 	if trimmedName == "" {
 		return fmt.Errorf("new name is required")
 	}
 
-	keys, err := mutationKeys(client, bucket, key, isDirectory)
+	keys, err := mutationKeys(ctx, client, bucket, key, isDirectory)
 	if err != nil {
 		return err
 	}
@@ -71,7 +95,7 @@ func RenameObject(
 			targetKey += strings.TrimPrefix(sourceKey, sourcePrefix)
 		}
 		copySource := bucket + "/" + sourceKey
-		_, err = client.CopyObject(Ctx(), &s3.CopyObjectInput{
+		_, err = client.CopyObject(ctx, &s3.CopyObjectInput{
 			Bucket:     &bucket,
 			Key:        aws.String(targetKey),
 			CopySource: aws.String(copySource),
@@ -81,10 +105,16 @@ func RenameObject(
 		}
 	}
 
-	return DeleteObject(cfg, bucket, key, isDirectory)
+	return DeleteObjectContext(ctx, cfg, bucket, key, isDirectory)
 }
 
-func mutationKeys(client *s3.Client, bucket, key string, isDirectory bool) ([]string, error) {
+func mutationKeys(
+	ctx context.Context,
+	client *s3.Client,
+	bucket,
+	key string,
+	isDirectory bool,
+) ([]string, error) {
 	if !isDirectory {
 		return []string{key}, nil
 	}
@@ -100,7 +130,7 @@ func mutationKeys(client *s3.Client, bucket, key string, isDirectory bool) ([]st
 
 	keys := make([]string, 0)
 	for pager.HasMorePages() {
-		page, err := pager.NextPage(Ctx())
+		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, err
 		}

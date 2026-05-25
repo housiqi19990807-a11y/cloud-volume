@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:remote_storage/app/remote_storage_app.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/transfer_job.dart';
@@ -135,4 +136,46 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<List<TransferSnapshot>> listTransferJobs() async => [];
+
+  @override
+  Future<BucketMountStatus> mountBucket(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async => const BucketMountStatus(
+    mounted: false,
+    bucket: '',
+    mountPath: '',
+    serverUrl: '',
+    port: 0,
+  );
+
+  @override
+  Future<BucketMountStatus> unmountBucket(String bucket) async =>
+      const BucketMountStatus(
+        mounted: false,
+        bucket: '',
+        mountPath: '',
+        serverUrl: '',
+        port: 0,
+      );
+
+  @override
+  Future<BucketMountStatus> getBucketMountStatus(String bucket) async =>
+      const BucketMountStatus(
+        mounted: false,
+        bucket: '',
+        mountPath: '',
+        serverUrl: '',
+        port: 0,
+      );
+
+  @override
+  Future<BucketMountStatus> openBucketMount(String bucket) async =>
+      const BucketMountStatus(
+        mounted: false,
+        bucket: '',
+        mountPath: '',
+        serverUrl: '',
+        port: 0,
+      );
 }

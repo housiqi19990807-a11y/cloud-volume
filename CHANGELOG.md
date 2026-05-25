@@ -36,4 +36,7 @@
 - List view now adds a header checkbox that can select or clear all visible items in the current directory, with partial-selection feedback.
 - The desktop project now includes macOS, Linux, and Windows host shells, and the local build scripts support native bridge/build flows on all three platforms.
 - Added a tag-triggered GitHub Actions desktop release workflow that now publishes 7 release lanes on tags such as `v0.0.1`: macOS `amd64`, macOS `arm64`, macOS `universal`, Windows `amd64`, Windows `arm64`, Linux `amd64`, and Linux `arm64`, with macOS `zip + dmg`, Windows `zip + installer.exe`, and Linux `AppImage` outputs.
+- Added the first macOS bucket-mount flow: the active bucket can now be mounted to the Desktop via a local WebDAV server plus `mount_webdav`, and the file manager action bar now exposes mount, unmount, and open-mount actions.
+- Mounted-volume reads now populate the existing transfer queue through tracked background downloads with reusable local cache files, while writes first land in a local staging area and then upload asynchronously as cancelable transfer tasks.
+- The new mount layer also adds short-lived metadata caching, next-level directory prefetch, per-request timeouts, and duplicate-request coalescing to keep Finder/WebDAV directory probing responsive on slower object stores.
 - Full Chinese interface.

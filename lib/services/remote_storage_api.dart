@@ -4,6 +4,7 @@ import 'dart:isolate';
 
 import 'package:remote_storage/bridge/remote_storage_bridge.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/transfer_job.dart';
@@ -59,6 +60,13 @@ abstract class RemoteStorageGateway {
   );
   Future<void> cancelTransfer(String taskId);
   Future<List<TransferSnapshot>> listTransferJobs();
+  Future<BucketMountStatus> mountBucket(
+    RemoteStorageConfig config,
+    String bucket,
+  );
+  Future<BucketMountStatus> unmountBucket(String bucket);
+  Future<BucketMountStatus> getBucketMountStatus(String bucket);
+  Future<BucketMountStatus> openBucketMount(String bucket);
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
@@ -247,6 +255,42 @@ class RemoteStorageApi implements RemoteStorageGateway {
   Future<List<TransferSnapshot>> listTransferJobs() async {
     final result = _bridge.call('list_transfer_jobs');
     return _parseList(result, (m) => TransferSnapshot.fromJson(m));
+  }
+
+  @override
+  Future<BucketMountStatus> mountBucket(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async {
+    final result = _bridge.call('mount_bucket', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+    });
+    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<BucketMountStatus> unmountBucket(String bucket) async {
+    final result = _bridge.call('unmount_bucket', <String, dynamic>{
+      'bucket': bucket,
+    });
+    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<BucketMountStatus> getBucketMountStatus(String bucket) async {
+    final result = _bridge.call('get_bucket_mount_status', <String, dynamic>{
+      'bucket': bucket,
+    });
+    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<BucketMountStatus> openBucketMount(String bucket) async {
+    final result = _bridge.call('open_bucket_mount', <String, dynamic>{
+      'bucket': bucket,
+    });
+    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }
 
   List<T> _parseList<T>(

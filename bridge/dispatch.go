@@ -60,6 +60,15 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listTransferJobs()
 	case "cancel_transfer":
 		return cancelTransfer(args)
+	// Bucket mounts.
+	case "mount_bucket":
+		return mountBucket(args)
+	case "unmount_bucket":
+		return unmountBucket(args)
+	case "get_bucket_mount_status":
+		return getBucketMountStatus(args)
+	case "open_bucket_mount":
+		return openBucketMount(args)
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}

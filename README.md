@@ -86,5 +86,8 @@ The initial setup page persists these S3-compatible settings:
 - Settings now default to hiding files and directories whose names start with `.`, with a switch to reveal them when needed.
 - Clicking a file now opens it directly: before opening, the app first sends a `HEAD` request to compare the remote file size and last-modified time with the local SQLite-tracked cache record; mismatches invalidate the cache and trigger a fresh download before opening, while the right-click menu still exposes an explicit download action for choosing a save path.
 - List mode now uses a fixed table header with aligned Name, Size, and Modified columns so metadata sits on the right instead of leaving a large empty area.
+- The current bucket can now be mounted on macOS as a desktop-visible virtual volume through a local WebDAV server plus the system `mount_webdav` command, with quick actions for mount, unmount, and opening the mounted directory directly from the file manager action bar.
+- Mounted-volume reads and writes are now bridged into the existing transfer queue: first reads trigger tracked background downloads into a reusable local cache, while writes land in a local staging area first and then upload asynchronously as cancelable transfer jobs.
+- The macOS mount layer now adds short-lived metadata caching, next-level directory prefetch, request timeouts, and duplicate-request coalescing to keep Finder/WebDAV probing from exploding remote round-trips on slower storage backends.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

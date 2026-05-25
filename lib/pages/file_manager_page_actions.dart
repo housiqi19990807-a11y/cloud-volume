@@ -1,0 +1,184 @@
+part of 'file_manager_page.dart';
+
+// 文件管理页操作逻辑：上传、目录创建、对象打开/下载以及右键动作。
+
+extension _FileManagerPageActions on _FileManagerPageState {
+  Future<void> _upload() async {
+    if (_activeBucket == null) return;
+    final result = await FilePicker.pickFiles(allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    final bucket = _activeBucket!;
+    for (final file in result.files) {
+      final path = file.path;
+      if (path == null) {
+        continue;
+      }
+      final key = _prefix + file.name;
+      final task = TransferQueue.instance.startTask(
+        isUpload: true,
+        bucket: bucket,
+        key: key,
+        localPath: path,
+      );
+      unawaited(_runUploadTask(task, bucket));
+    }
+  }
+
+  Future<void> _createDirectory() async {
+    if (_activeBucket == null) return;
+    final controller = TextEditingController();
+    String? errorText;
+    bool creating = false;
+
+    await showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return CreateDirectoryDialog(
+              controller: controller,
+              errorText: errorText,
+              creating: creating,
+              onCancel: () => Navigator.of(dialogContext).pop(),
+              onCreate: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) {
+                  setDialogState(() => errorText = '目录名称不能为空');
+                  return;
+                }
+                setDialogState(() {
+                  creating = true;
+                  errorText = null;
+                });
+                try {
+                  await widget.api.createDirectory(
+                    widget.config,
+                    _activeBucket!,
+                    _prefix,
+                    name,
+                  );
+                  if (!mounted || !dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                  await _loadObjects(_activeBucket!, _prefix);
+                } catch (error) {
+                  setDialogState(() {
+                    creating = false;
+                    errorText = error.toString();
+                  });
+                }
+              },
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+  }
+
+  Future<void> _runUploadTask(TransferTask task, String bucket) async {
+    try {
+      await widget.api.uploadFile(
+        widget.config,
+        task.bucket,
+        task.key,
+        task.localPath,
+        task.id,
+      );
+      TransferQueue.instance.markTaskDone(task.id);
+      if (!mounted || _activeBucket != bucket) return;
+      await _loadObjects(bucket, _prefix);
+    } catch (error) {
+      TransferQueue.instance.markTaskFailed(task.id, error);
+    }
+  }
+
+  Future<void> _openObject(ObjectInfo object) async {
+    if (_activeBucket == null) return;
+    try {
+      await FileAccessService.instance.openObject(
+        api: widget.api,
+        config: widget.config,
+        bucket: _activeBucket!,
+        object: object,
+      );
+    } catch (error) {
+      _showPageError(error);
+    }
+  }
+
+  Future<void> _downloadObject(ObjectInfo object) async {
+    if (_activeBucket == null) return;
+    try {
+      await FileAccessService.instance.downloadObjectWithPicker(
+        api: widget.api,
+        config: widget.config,
+        bucket: _activeBucket!,
+        object: object,
+      );
+    } catch (error) {
+      _showPageError(error);
+    }
+  }
+
+  Future<void> _handleObjectAction(
+    ObjectInfo object,
+    FileObjectAction action,
+  ) async {
+    if (!mounted || _activeBucket == null) return;
+    try {
+      if (action == FileObjectAction.open) {
+        await _openObject(object);
+        return;
+      }
+      if (action == FileObjectAction.download) {
+        await _downloadObject(object);
+        return;
+      }
+      if (action == FileObjectAction.rename) {
+        final newName = await showRenameObjectDialog(context, object);
+        if (newName == null ||
+            newName.isEmpty ||
+            newName == object.displayName) {
+          return;
+        }
+        await widget.api.renameObject(
+          widget.config,
+          _activeBucket!,
+          object.key,
+          object.isDir,
+          newName,
+        );
+        await FileAccessService.instance.evictCacheForObject(
+          bucket: _activeBucket!,
+          object: object,
+        );
+      } else if (action == FileObjectAction.delete) {
+        final confirmed = await showDeleteObjectDialog(context, object);
+        if (!confirmed) return;
+        await widget.api.deleteObject(
+          widget.config,
+          _activeBucket!,
+          object.key,
+          object.isDir,
+        );
+        await FileAccessService.instance.evictCacheForObject(
+          bucket: _activeBucket!,
+          object: object,
+        );
+      }
+      if (!mounted) return;
+      await _loadObjects(_activeBucket!, _prefix);
+    } catch (error) {
+      _showPageError(error);
+    }
+  }
+
+  void _showPageError(Object error) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(error.toString())));
+  }
+}

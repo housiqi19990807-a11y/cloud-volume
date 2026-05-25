@@ -4,6 +4,7 @@ package s3
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -16,6 +17,17 @@ import (
 
 // CreateDirectory creates an empty prefix placeholder ending in "/".
 func CreateDirectory(cfg storageconfig.RemoteStorageConfig, bucket, prefix, name string) error {
+	return CreateDirectoryContext(Ctx(), cfg, bucket, prefix, name)
+}
+
+// CreateDirectoryContext creates an empty prefix placeholder with a caller context.
+func CreateDirectoryContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	prefix,
+	name string,
+) error {
 	client, err := NewMinioClient(cfg)
 	if err != nil {
 		return err
@@ -27,7 +39,7 @@ func CreateDirectory(cfg storageconfig.RemoteStorageConfig, bucket, prefix, name
 	}
 
 	_, err = client.PutObject(
-		Ctx(),
+		ctx,
 		bucket,
 		key,
 		bytes.NewReader(nil),

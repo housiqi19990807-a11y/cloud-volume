@@ -16,6 +16,11 @@ class FileManagerActionBar extends StatelessWidget {
     this.onBatchDownload,
     this.onBatchDelete,
     this.onClearSelection,
+    this.mounted = false,
+    this.mountBusy = false,
+    this.onMount,
+    this.onUnmount,
+    this.onOpenMount,
   });
 
   final ShadThemeData theme;
@@ -28,6 +33,11 @@ class FileManagerActionBar extends StatelessWidget {
   final VoidCallback? onBatchDownload;
   final VoidCallback? onBatchDelete;
   final VoidCallback? onClearSelection;
+  final bool mounted;
+  final bool mountBusy;
+  final VoidCallback? onMount;
+  final VoidCallback? onUnmount;
+  final VoidCallback? onOpenMount;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +115,99 @@ class FileManagerActionBar extends StatelessWidget {
               color: p,
             ),
           ),
+          if (onMount != null || mounted || mountBusy) ...[
+            const SizedBox(width: 6),
+            Container(
+              height: 32,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: p.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (mountBusy) ...[
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        color: p,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ] else
+                    Icon(
+                      mounted
+                          ? LucideIcons.hardDriveDownload
+                          : LucideIcons.link,
+                      size: 14,
+                      color: p,
+                    ),
+                  const SizedBox(width: 6),
+                  Text(
+                    mountBusy
+                        ? '正在处理挂载'
+                        : mounted
+                        ? '桌面已挂载'
+                        : '未挂载',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: p,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (onMount != null) ...[
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: onMount,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.hardDriveDownload, size: 14, color: p),
+                  const SizedBox(width: 5),
+                  const Text('挂载'),
+                ],
+              ),
+            ),
+          ],
+          if (mounted && onUnmount != null) ...[
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: onUnmount,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.x, size: 14, color: p),
+                  const SizedBox(width: 5),
+                  const Text('卸载'),
+                ],
+              ),
+            ),
+          ],
+          if (mounted && onOpenMount != null) ...[
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: onOpenMount,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.folderOpen, size: 14, color: p),
+                  const SizedBox(width: 5),
+                  const Text('打开挂载目录'),
+                ],
+              ),
+            ),
+          ],
           if (onCreateDirectory != null) ...[
             const SizedBox(width: 6),
             ShadButton.ghost(

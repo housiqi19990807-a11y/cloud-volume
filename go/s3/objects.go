@@ -27,8 +27,18 @@ type ObjectInfo struct {
 
 // HeadObject returns the current remote file metadata used for cache validation.
 func HeadObject(cfg storageconfig.RemoteStorageConfig, bucket, key string) (ObjectInfo, error) {
+	return HeadObjectContext(Ctx(), cfg, bucket, key)
+}
+
+// HeadObjectContext returns remote file metadata with a caller-supplied context.
+func HeadObjectContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+) (ObjectInfo, error) {
 	client := NewClient(cfg)
-	out, err := client.HeadObject(Ctx(), &s3.HeadObjectInput{
+	out, err := client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: &bucket,
 		Key:    &key,
 	})
@@ -49,13 +59,23 @@ func HeadObject(cfg storageconfig.RemoteStorageConfig, bucket, key string) (Obje
 
 // ListObjects returns objects and common prefixes under a bucket + prefix.
 func ListObjects(cfg storageconfig.RemoteStorageConfig, bucket, prefix string) ([]ObjectInfo, error) {
+	return ListObjectsContext(Ctx(), cfg, bucket, prefix)
+}
+
+// ListObjectsContext returns objects and common prefixes using a caller context.
+func ListObjectsContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	prefix string,
+) ([]ObjectInfo, error) {
 	client := NewClient(cfg)
 
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 
-	out, err := client.ListObjectsV2(Ctx(), &s3.ListObjectsV2Input{
+	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket:    &bucket,
 		Prefix:    &prefix,
 		Delimiter: aws.String("/"),
@@ -92,13 +112,27 @@ func UploadFile(
 	localPath,
 	taskID string,
 ) (err error) {
+	return UploadFileContext(Ctx(), cfg, bucket, key, localPath, taskID)
+}
+
+// UploadFileContext uploads a local file using the provided context.
+func UploadFileContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key,
+	localPath,
+	taskID string,
+) (err error) {
 	client := NewClient(cfg)
 	f, err := os.Open(localPath)
 	if err != nil {
 		return fmt.Errorf("open local file: %w", err)
 	}
 	defer f.Close()
-	ctx := Ctx()
+	if ctx == nil {
+		ctx = Ctx()
+	}
 	info, statErr := f.Stat()
 	if statErr == nil && taskID != "" {
 		var cancel context.CancelFunc
@@ -129,11 +163,25 @@ func DownloadFile(
 	localPath,
 	taskID string,
 ) (err error) {
+	return DownloadFileContext(Ctx(), cfg, bucket, key, localPath, taskID)
+}
+
+// DownloadFileContext downloads an object using the provided context.
+func DownloadFileContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key,
+	localPath,
+	taskID string,
+) (err error) {
 	client := NewClient(cfg)
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		return err
 	}
-	ctx := Ctx()
+	if ctx == nil {
+		ctx = Ctx()
+	}
 	if taskID != "" {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithCancel(ctx)
