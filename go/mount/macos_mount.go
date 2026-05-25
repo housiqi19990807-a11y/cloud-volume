@@ -94,7 +94,10 @@ func prepareMountTarget(mountPath string) error {
 	info, err := os.Lstat(mountPath)
 	switch {
 	case os.IsNotExist(err):
-		return os.MkdirAll(mountPath, 0o755)
+		if err := os.MkdirAll(mountPath, 0o755); err != nil {
+			return err
+		}
+		return markMountPathIgnoredByFileProvider(mountPath)
 	case err != nil:
 		return fmt.Errorf("inspect mount target: %w", err)
 	}
@@ -102,7 +105,10 @@ func prepareMountTarget(mountPath string) error {
 		if err := os.Remove(mountPath); err != nil {
 			return fmt.Errorf("remove legacy mount symlink: %w", err)
 		}
-		return os.MkdirAll(mountPath, 0o755)
+		if err := os.MkdirAll(mountPath, 0o755); err != nil {
+			return err
+		}
+		return markMountPathIgnoredByFileProvider(mountPath)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("mount path %q already exists and is not a directory", mountPath)
@@ -114,5 +120,5 @@ func prepareMountTarget(mountPath string) error {
 	if len(entries) > 0 {
 		return fmt.Errorf("mount path %q already exists and is not empty", mountPath)
 	}
-	return nil
+	return markMountPathIgnoredByFileProvider(mountPath)
 }
