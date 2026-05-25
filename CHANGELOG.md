@@ -45,5 +45,5 @@
 - The mount layer now supports cross-directory file and directory moves, which fixes macOS Archive Utility flows that create temporary writable folders and then move extracted content into place.
 - The macOS host now unmounts any active bucket mount during app termination, which prevents stale desktop mount entries from hanging on later access after the app exits.
 - The bucket browser list view now includes a fixed header row so bucket names, types, and mount actions no longer render as an unstructured plain list.
-- The bucket browser now keeps grid tiles visually clean by showing only the icon and bucket name there, while moving bucket mount actions to the right-click menu instead of rendering them directly on each grid card.
+- The bucket browser now supports right-click actions in both list and grid modes; list mode still shows explicit mount controls beside the new fixed header row, while grid tiles stay visually clean with only the bucket icon and name.
 - Full Chinese interface.

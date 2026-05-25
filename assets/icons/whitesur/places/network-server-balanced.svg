@@ -1,0 +1,40 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shell" x1="32" y1="9" x2="32" y2="39" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f1f4f8"/>
+      <stop offset="1" stop-color="#b8c0cb"/>
+    </linearGradient>
+    <linearGradient id="base" x1="32" y1="43" x2="32" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#373a3f"/>
+      <stop offset="1" stop-color="#151618"/>
+    </linearGradient>
+    <linearGradient id="slot" x1="22" y1="49.5" x2="42" y2="49.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2aa883"/>
+      <stop offset="1" stop-color="#76f0c0"/>
+    </linearGradient>
+    <linearGradient id="status" x1="45" y1="47" x2="49.5" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f0f10"/>
+      <stop offset="1" stop-color="#2b2e33"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M18.5 9h27c3.2 0 5.4 2.3 6 5.2l5.1 28c.6 3.3-1.9 6-5.3 6H12.7c-3.4 0-5.9-2.7-5.3-6l5.1-28c.6-2.9 2.8-5.2 6-5.2Z"
+    fill="url(#shell)"
+  />
+  <path
+    d="M19.8 15.2h24.4c1.8 0 3.3 1.2 3.7 3l2.2 11.8c.4 2.2-1.4 4.2-3.7 4.2H17.6c-2.4 0-4.1-2-3.7-4.2l2.2-11.8c.4-1.8 1.9-3 3.7-3Z"
+    fill="#ffffff"
+    opacity=".28"
+  />
+  <rect x="9" y="43" width="46" height="13" rx="6.5" fill="url(#base)"/>
+  <rect x="22" y="47.5" width="20" height="4" rx="2" fill="url(#slot)"/>
+  <circle cx="47" cy="49.5" r="2.5" fill="url(#status)" opacity=".92"/>
+  <ellipse cx="32" cy="23" rx="11.4" ry="7.6" fill="none" stroke="#000" stroke-opacity=".12" stroke-width=".8"/>
+  <path
+    d="M18.5 9h27c3.2 0 5.4 2.3 6 5.2l5.1 28c.6 3.3-1.9 6-5.3 6H12.7c-3.4 0-5.9-2.7-5.3-6l5.1-28c.6-2.9 2.8-5.2 6-5.2Z"
+    fill="none"
+    stroke="#fff"
+    stroke-opacity=".26"
+    stroke-width="1"
+  />
+</svg>

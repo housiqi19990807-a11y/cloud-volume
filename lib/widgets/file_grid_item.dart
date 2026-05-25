@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class FileGridItem extends StatelessWidget {
   static const double _selectionControlSize = 18;
   static const double _selectionControlInset = 24;
+  static const double _titleSlotHeight = 30;
 
   const FileGridItem({
     super.key,
@@ -22,6 +23,7 @@ class FileGridItem extends StatelessWidget {
     this.onSecondaryTapDown,
     this.footer,
     this.bottomOverlay,
+    this.contentWidth,
   });
 
   final Widget leading;
@@ -36,6 +38,7 @@ class FileGridItem extends StatelessWidget {
   final GestureTapDownCallback? onSecondaryTapDown;
   final Widget? footer;
   final Widget? bottomOverlay;
+  final double? contentWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -66,48 +69,60 @@ class FileGridItem extends StatelessWidget {
                     showSelectionControl ? _selectionControlInset : 4,
                     bottomOverlay == null ? 6 : 30,
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      leading,
-                      const SizedBox(height: 4),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onTitleTap,
-                          child: Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: theme.colorScheme.foreground,
-                              height: 1.25,
+                  child: Center(
+                    child: SizedBox(
+                      width: contentWidth,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          leading,
+                          const SizedBox(height: 4),
+                          SizedBox(
+                            height: _titleSlotHeight,
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: onTitleTap,
+                                  child: Text(
+                                    title,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: theme.colorScheme.foreground,
+                                      height: 1.25,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
+                          if (subtitle.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: theme.colorScheme.mutedForeground,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          if (footer != null) ...[
+                            const SizedBox(height: 6),
+                            footer!,
+                          ],
+                        ],
                       ),
-                      if (subtitle.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: theme.colorScheme.mutedForeground,
-                          ),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      if (footer != null) ...[
-                        const SizedBox(height: 6),
-                        footer!,
-                      ],
-                    ],
+                    ),
                   ),
                 ),
                 if (showSelectionControl)

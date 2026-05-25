@@ -50,7 +50,7 @@ WhiteSurIconSpec whiteSurIconForEntry(
 }) {
   if (isBucket) {
     return const WhiteSurIconSpec(
-      'assets/icons/whitesur/places/network-server.svg',
+      'assets/icons/whitesur/places/network-server-balanced.svg',
     );
   }
   if (isDirectory) {

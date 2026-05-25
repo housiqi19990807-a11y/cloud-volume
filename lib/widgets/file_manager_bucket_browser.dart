@@ -63,12 +63,13 @@ class FileManagerBucketBrowser extends StatelessWidget {
                   FileGridItem(
                     leading: WhiteSurFileIcon(
                       assetPath:
-                          'assets/icons/whitesur/places/network-server.svg',
+                          'assets/icons/whitesur/places/network-server-balanced.svg',
                       size: gridIconSize,
                     ),
                     title: bucket.name,
                     subtitle: '',
-                    onTap: () => onOpenBucket(bucket.name),
+                    contentWidth: gridIconSize + 12,
+                    onTap: () => _handleBucketTap(bucket.name),
                   ),
                 ),
               )
@@ -132,27 +133,30 @@ class FileManagerBucketBrowser extends StatelessWidget {
               itemCount: buckets.length,
               itemBuilder: (context, index) {
                 final bucket = buckets[index];
-                return FileListTile(
-                  leading: WhiteSurFileIcon(
-                    assetPath:
-                        'assets/icons/whitesur/places/network-server.svg',
-                    size: listIconSize,
-                  ),
-                  title: bucket.name,
-                  sizeLabel: '存储桶',
-                  onTap: () => onOpenBucket(bucket.name),
-                  showDivider: index != buckets.length - 1,
-                  trailing: SizedBox(
-                    width: 224,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _BucketMountActions(
-                        bucket: bucket.name,
-                        status: mountStatuses[bucket.name],
-                        busy: busyBuckets.contains(bucket.name),
-                        onMountBucket: onMountBucket,
-                        onUnmountBucket: onUnmountBucket,
-                        onOpenMountedBucket: onOpenMountedBucket,
+                return _wrapBucketWithContextMenu(
+                  bucket.name,
+                  FileListTile(
+                    leading: WhiteSurFileIcon(
+                      assetPath:
+                          'assets/icons/whitesur/places/network-server-balanced.svg',
+                      size: listIconSize,
+                    ),
+                    title: bucket.name,
+                    sizeLabel: '存储桶',
+                    onTap: () => _handleBucketTap(bucket.name),
+                    showDivider: index != buckets.length - 1,
+                    trailing: SizedBox(
+                      width: 224,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _BucketMountActions(
+                          bucket: bucket.name,
+                          status: mountStatuses[bucket.name],
+                          busy: busyBuckets.contains(bucket.name),
+                          onMountBucket: onMountBucket,
+                          onUnmountBucket: onUnmountBucket,
+                          onOpenMountedBucket: onOpenMountedBucket,
+                        ),
                       ),
                     ),
                   ),
@@ -166,37 +170,62 @@ class FileManagerBucketBrowser extends StatelessWidget {
   }
 
   Widget _wrapGridBucketWithContextMenu(String bucket, Widget child) {
+    return _wrapBucketWithContextMenu(bucket, child);
+  }
+
+  Widget _wrapBucketWithContextMenu(String bucket, Widget child) {
+    final items = _buildBucketMenuItems(bucket);
+    if (items.isEmpty) {
+      return child;
+    }
+    return _BucketContextMenuWrapper(items: items, child: child);
+  }
+
+  List<Widget> _buildBucketMenuItems(String bucket) {
     final status = mountStatuses[bucket];
     final busy = busyBuckets.contains(bucket);
     final mounted = status?.mounted ?? false;
 
-    return _BucketContextMenuWrapper(
-      items: <Widget>[
-        ShadContextMenuItem(
-          onPressed: () => _runBucketMenuAction(() => onOpenBucket(bucket)),
-          child: const Text('打开存储桶'),
-        ),
-        if (mounted && !busy) ...[
-          if (onOpenMountedBucket != null)
-            ShadContextMenuItem(
-              onPressed: () =>
-                  _runBucketMenuAction(() => onOpenMountedBucket!(bucket)),
-              child: const Text('打开挂载目录'),
-            ),
-          if (onUnmountBucket != null)
-            ShadContextMenuItem(
-              onPressed: () =>
-                  _runBucketMenuAction(() => onUnmountBucket!(bucket)),
-              child: const Text('卸载'),
-            ),
-        ] else if (!busy && onMountBucket != null)
+    return <Widget>[
+      ShadContextMenuItem(
+        onPressed: () => _runBucketMenuAction(() => onOpenBucket(bucket)),
+        child: const Text('打开存储桶'),
+      ),
+      if (mounted && !busy) ...[
+        if (onOpenMountedBucket != null)
           ShadContextMenuItem(
-            onPressed: () => _runBucketMenuAction(() => onMountBucket!(bucket)),
-            child: const Text('挂载'),
+            onPressed: () =>
+                _runBucketMenuAction(() => onOpenMountedBucket!(bucket)),
+            child: const Text('打开挂载目录'),
           ),
-      ],
-      child: child,
-    );
+        if (onUnmountBucket != null)
+          ShadContextMenuItem(
+            onPressed: () =>
+                _runBucketMenuAction(() => onUnmountBucket!(bucket)),
+            child: const Text('卸载'),
+          ),
+      ] else if (!busy && onMountBucket != null)
+        ShadContextMenuItem(
+          onPressed: () => _runBucketMenuAction(() => onMountBucket!(bucket)),
+          child: const Text('挂载'),
+        ),
+    ];
+  }
+
+  void _handleBucketTap(String bucket) {
+    if (_dismissActiveContextMenu()) {
+      return;
+    }
+    onOpenBucket(bucket);
+  }
+
+  bool _dismissActiveContextMenu() {
+    if (_activeBucketContextMenuController?.isOpen ?? false) {
+      _activeBucketContextMenuController?.hide();
+      _activeBucketContextMenuController = null;
+      return true;
+    }
+    return false;
   }
 
   void _runBucketMenuAction(VoidCallback action) {
@@ -323,7 +352,10 @@ class _BucketContextMenuWrapper extends StatefulWidget {
 }
 
 class _BucketContextMenuWrapperState extends State<_BucketContextMenuWrapper> {
+  static const Offset _menuOffset = Offset(18, 12);
+
   late final ShadContextMenuController _controller;
+  Offset? _menuAnchorOffset;
 
   @override
   void initState() {
@@ -355,16 +387,27 @@ class _BucketContextMenuWrapperState extends State<_BucketContextMenuWrapper> {
     }
   }
 
+  void _showAt(Offset globalPosition) {
+    if (!mounted) return;
+    setState(() => _menuAnchorOffset = globalPosition + _menuOffset);
+    _controller.show();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ShadContextMenuRegion(
+    return ShadContextMenu(
+      anchor: _menuAnchorOffset == null
+          ? null
+          : ShadGlobalAnchor(_menuAnchorOffset!),
       controller: _controller,
-      tapEnabled: false,
-      longPressEnabled: false,
       effects: const [],
       popoverReverseDuration: Duration.zero,
       items: widget.items,
-      child: widget.child,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onSecondaryTapDown: (details) => _showAt(details.globalPosition),
+        child: widget.child,
+      ),
     );
   }
 }
