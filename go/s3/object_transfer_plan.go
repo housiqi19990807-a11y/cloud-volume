@@ -1,0 +1,74 @@
+// Object transfer planning centralizes copy/move traversal and progress accounting.
+package s3
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+)
+
+type objectTransferPlan struct {
+	sourcePrefix string
+	targetPrefix string
+	entries      []types.Object
+	totalBytes   int64
+}
+
+func buildObjectTransferPlan(
+	ctx context.Context,
+	client *s3.Client,
+	bucket,
+	sourceKey,
+	targetKey string,
+	isDirectory bool,
+) (objectTransferPlan, error) {
+	sourceKey = strings.TrimSpace(sourceKey)
+	targetKey = strings.TrimSpace(targetKey)
+	if sourceKey == "" || targetKey == "" {
+		return objectTransferPlan{}, fmt.Errorf("source and target keys are required")
+	}
+	if sourceKey == targetKey {
+		return objectTransferPlan{}, nil
+	}
+
+	entries, err := mutationEntries(ctx, client, bucket, sourceKey, isDirectory)
+	if err != nil {
+		return objectTransferPlan{}, err
+	}
+	if len(entries) == 0 {
+		return objectTransferPlan{}, nil
+	}
+
+	plan := objectTransferPlan{
+		sourcePrefix: sourceKey,
+		targetPrefix: targetKey,
+		entries:      entries,
+		totalBytes:   0,
+	}
+	if isDirectory {
+		plan.sourcePrefix = ensureRemoteDirSuffix(sourceKey)
+		plan.targetPrefix = ensureRemoteDirSuffix(targetKey)
+	}
+	for _, entry := range entries {
+		if entry.Size != nil && *entry.Size > 0 {
+			plan.totalBytes += *entry.Size
+		}
+	}
+	if !isDirectory && plan.totalBytes == 0 {
+		head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: &bucket,
+			Key:    aws.String(sourceKey),
+		})
+		if err == nil && head.ContentLength != nil && *head.ContentLength > 0 {
+			plan.totalBytes = *head.ContentLength
+			if len(plan.entries) == 1 {
+				plan.entries[0].Size = head.ContentLength
+			}
+		}
+	}
+	return plan, nil
+}

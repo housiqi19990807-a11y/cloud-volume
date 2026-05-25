@@ -312,13 +312,15 @@ func (a *bucketAccess) renamePath(
 	}
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()
-	if err := s3ops.MoveObjectContext(
+	taskID := "mount-move-" + uuid.NewString()
+	if err := s3ops.MoveObjectContextWithTask(
 		timeoutCtx,
 		a.config,
 		a.bucket,
 		a.remoteKeyForMutation(oldClean, isDir),
 		a.remoteKeyForMutation(newClean, isDir),
 		isDir,
+		taskID,
 	); err != nil {
 		return err
 	}

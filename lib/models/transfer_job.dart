@@ -1,4 +1,4 @@
-// 传输快照模型：承接 Go bridge 返回的实时上传/下载状态。
+// 传输快照模型：承接 Go bridge 返回的统一对象操作状态。
 
 class TransferSnapshot {
   const TransferSnapshot({
@@ -7,6 +7,7 @@ class TransferSnapshot {
     required this.bucket,
     required this.key,
     required this.localPath,
+    required this.targetPath,
     required this.status,
     required this.bytesCompleted,
     required this.totalBytes,
@@ -21,6 +22,7 @@ class TransferSnapshot {
       bucket: (json['bucket'] ?? '').toString(),
       key: (json['key'] ?? '').toString(),
       localPath: (json['localPath'] ?? '').toString(),
+      targetPath: (json['targetPath'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
       bytesCompleted: (json['bytesCompleted'] ?? 0) as int,
       totalBytes: (json['totalBytes'] ?? 0) as int,
@@ -34,6 +36,7 @@ class TransferSnapshot {
   final String bucket;
   final String key;
   final String localPath;
+  final String targetPath;
   final String status;
   final int bytesCompleted;
   final int totalBytes;

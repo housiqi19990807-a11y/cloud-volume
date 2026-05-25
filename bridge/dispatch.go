@@ -58,6 +58,10 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return deleteTrashItem(args)
 	case "rename_object":
 		return renameObject(args)
+	case "copy_object":
+		return copyObject(args)
+	case "move_object":
+		return moveObject(args)
 	case "upload_file":
 		return uploadFile(args)
 	case "download_file":

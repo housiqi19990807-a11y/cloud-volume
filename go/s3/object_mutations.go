@@ -93,80 +93,32 @@ func RenameObjectContext(
 		return fmt.Errorf("new name is required")
 	}
 
-	keys, err := mutationKeys(ctx, client, bucket, key, isDirectory)
-	if err != nil {
-		return err
-	}
-	if len(keys) == 0 {
-		return nil
-	}
-
 	targetPrefix, err := renamedKeyTarget(key, isDirectory, trimmedName)
 	if err != nil {
 		return err
 	}
-	sourcePrefix := key
-	if isDirectory && !strings.HasSuffix(sourcePrefix, "/") {
-		sourcePrefix += "/"
+	plan, err := buildObjectTransferPlan(
+		ctx,
+		client,
+		bucket,
+		key,
+		targetPrefix,
+		isDirectory,
+	)
+	if err != nil || len(plan.entries) == 0 {
+		return err
 	}
-
-	for _, sourceKey := range keys {
-		targetKey := targetPrefix
-		if isDirectory {
-			targetKey += strings.TrimPrefix(sourceKey, sourcePrefix)
-		}
-		copySource := bucket + "/" + sourceKey
-		_, err = client.CopyObject(ctx, &s3.CopyObjectInput{
-			Bucket:     &bucket,
-			Key:        aws.String(targetKey),
-			CopySource: aws.String(copySource),
-		})
-		if err != nil {
-			return err
-		}
+	if err := executeObjectCopyPlan(
+		ctx,
+		client,
+		bucket,
+		plan,
+		objectTransferTask{},
+		isDirectory,
+	); err != nil {
+		return err
 	}
-
 	return DeleteObjectHardContext(ctx, cfg, bucket, key, isDirectory)
-}
-
-func mutationKeys(
-	ctx context.Context,
-	client *s3.Client,
-	bucket,
-	key string,
-	isDirectory bool,
-) ([]string, error) {
-	if !isDirectory {
-		return []string{key}, nil
-	}
-
-	prefix := key
-	if prefix != "" && !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	pager := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
-		Bucket: &bucket,
-		Prefix: aws.String(prefix),
-	})
-
-	keys := make([]string, 0)
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, object := range page.Contents {
-			if object.Key == nil {
-				continue
-			}
-			keys = append(keys, *object.Key)
-		}
-	}
-
-	if len(keys) == 0 {
-		keys = append(keys, prefix)
-	}
-	return keys, nil
 }
 
 func renamedKeyTarget(key string, isDirectory bool, newName string) (string, error) {

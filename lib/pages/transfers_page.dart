@@ -1,4 +1,4 @@
-// 传输管理页：读取共享传输队列，展示上传和下载任务的实时状态。
+// 传输管理页：读取共享传输队列，展示对象操作任务的实时状态。
 
 import 'dart:async';
 
@@ -33,7 +33,7 @@ class TransfersPage extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '查看上传和下载任务的状态。',
+            '查看上传、下载、复制和移动任务的状态。',
             style: TextStyle(
               color: theme.colorScheme.mutedForeground,
               fontSize: 13,
@@ -72,7 +72,7 @@ class TransfersPage extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '在文件管理页面中选择文件上传、下载，或通过已挂载云卷取读写文件。',
+              '在文件管理页面中发起上传、下载、复制、移动，或通过已挂载云卷取读写文件。',
               style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
                 fontSize: 12,
@@ -97,13 +97,7 @@ class TransfersPage extends StatelessWidget {
               horizontal: 12,
               vertical: 6,
             ),
-            leading: Icon(
-              task.isUpload ? LucideIcons.upload : LucideIcons.download,
-              size: 18,
-              color: task.isUpload
-                  ? const Color(0xff2563eb)
-                  : const Color(0xff0f766e),
-            ),
+            leading: Icon(_iconFor(task), size: 18, color: _colorFor(task)),
             title: Text(
               task.displayName,
               maxLines: 1,
@@ -153,6 +147,12 @@ class TransfersPage extends StatelessWidget {
     if (task.status == TransferStatus.canceled) {
       return '${task.typeLabel}已取消';
     }
+    if ((task.isCopy || task.isMove) && task.targetPath.isNotEmpty) {
+      final suffix = task.totalBytes > 0
+          ? '  ${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}'
+          : '';
+      return '${task.typeLabel}到 ${task.targetPath}$suffix';
+    }
     if (task.totalBytes > 0) {
       return '${task.typeLabel}  ${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}';
     }
@@ -160,6 +160,20 @@ class TransfersPage extends StatelessWidget {
       return '${task.typeLabel}已完成';
     }
     return '${task.typeLabel}中';
+  }
+
+  IconData _iconFor(TransferTask task) {
+    if (task.isUpload) return LucideIcons.upload;
+    if (task.isDownload) return LucideIcons.download;
+    if (task.isCopy) return LucideIcons.copy;
+    return LucideIcons.moveRight;
+  }
+
+  Color _colorFor(TransferTask task) {
+    if (task.isUpload) return const Color(0xff2563eb);
+    if (task.isDownload) return const Color(0xff0f766e);
+    if (task.isCopy) return const Color(0xff7c3aed);
+    return const Color(0xffc2410c);
   }
 }
 

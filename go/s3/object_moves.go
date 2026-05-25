@@ -1,13 +1,9 @@
-// Object move helpers support full-path renames across directories.
+// Object move helpers support tracked full-path moves across directories.
 package s3
 
 import (
 	"context"
-	"fmt"
 	"strings"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	storageconfig "remote-storage/go/config"
 )
@@ -20,7 +16,34 @@ func MoveObject(
 	targetKey string,
 	isDirectory bool,
 ) error {
-	return MoveObjectContext(Ctx(), cfg, bucket, sourceKey, targetKey, isDirectory)
+	return MoveObjectWithTask(
+		cfg,
+		bucket,
+		sourceKey,
+		targetKey,
+		isDirectory,
+		"",
+	)
+}
+
+// MoveObjectWithTask moves an object tree while reporting progress to the transfer monitor.
+func MoveObjectWithTask(
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	sourceKey,
+	targetKey string,
+	isDirectory bool,
+	taskID string,
+) error {
+	return MoveObjectContextWithTask(
+		Ctx(),
+		cfg,
+		bucket,
+		sourceKey,
+		targetKey,
+		isDirectory,
+		taskID,
+	)
 }
 
 // MoveObjectContext copies a file or prefix to a new full target key with caller context.
@@ -32,49 +55,60 @@ func MoveObjectContext(
 	targetKey string,
 	isDirectory bool,
 ) error {
+	return MoveObjectContextWithTask(
+		ctx,
+		cfg,
+		bucket,
+		sourceKey,
+		targetKey,
+		isDirectory,
+		"",
+	)
+}
+
+// MoveObjectContextWithTask copies and deletes through a tracked task-aware path.
+func MoveObjectContextWithTask(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	sourceKey,
+	targetKey string,
+	isDirectory bool,
+	taskID string,
+) (err error) {
 	client := NewClient(cfg)
-
-	sourceKey = strings.TrimSpace(sourceKey)
-	targetKey = strings.TrimSpace(targetKey)
-	if sourceKey == "" || targetKey == "" {
-		return fmt.Errorf("source and target keys are required")
-	}
-	if sourceKey == targetKey {
-		return nil
-	}
-
-	keys, err := mutationKeys(ctx, client, bucket, sourceKey, isDirectory)
-	if err != nil {
+	plan, err := buildObjectTransferPlan(
+		ctx,
+		client,
+		bucket,
+		sourceKey,
+		targetKey,
+		isDirectory,
+	)
+	if err != nil || len(plan.entries) == 0 {
 		return err
 	}
-	if len(keys) == 0 {
-		return nil
+	runCtx, task := beginObjectTransferTask(
+		ctx,
+		taskID,
+		"move",
+		bucket,
+		sourceKey,
+		targetKey,
+		plan.totalBytes,
+	)
+	defer func() { task.finish(err) }()
+	if err = executeObjectCopyPlan(
+		runCtx,
+		client,
+		bucket,
+		plan,
+		task,
+		isDirectory,
+	); err != nil {
+		return err
 	}
-
-	sourcePrefix := sourceKey
-	targetPrefix := targetKey
-	if isDirectory {
-		sourcePrefix = ensureRemoteDirSuffix(sourcePrefix)
-		targetPrefix = ensureRemoteDirSuffix(targetPrefix)
-	}
-
-	for _, currentKey := range keys {
-		nextKey := targetPrefix
-		if isDirectory {
-			nextKey += strings.TrimPrefix(currentKey, sourcePrefix)
-		}
-		copySource := bucket + "/" + currentKey
-		_, err = client.CopyObject(ctx, &s3.CopyObjectInput{
-			Bucket:     &bucket,
-			Key:        aws.String(nextKey),
-			CopySource: aws.String(copySource),
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	return DeleteObjectHardContext(ctx, cfg, bucket, sourceKey, isDirectory)
+	return DeleteObjectHardContext(runCtx, cfg, bucket, sourceKey, isDirectory)
 }
 
 func ensureRemoteDirSuffix(value string) string {

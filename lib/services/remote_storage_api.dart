@@ -45,6 +45,22 @@ abstract class RemoteStorageGateway {
     bool isDirectory,
     String newName,
   );
+  Future<void> copyObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String sourceKey,
+    String targetKey,
+    bool isDirectory,
+    String taskId,
+  );
+  Future<void> moveObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String sourceKey,
+    String targetKey,
+    bool isDirectory,
+    String taskId,
+  );
   Future<List<TrashItem>> listTrash(RemoteStorageConfig config, String bucket);
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
@@ -215,6 +231,50 @@ class RemoteStorageApi implements RemoteStorageGateway {
       'key': key,
       'isDirectory': isDirectory,
       'newName': newName,
+    });
+  }
+
+  @override
+  Future<void> copyObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String sourceKey,
+    String targetKey,
+    bool isDirectory,
+    String taskId,
+  ) async {
+    await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      bridge.call('copy_object', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+        'sourceKey': sourceKey,
+        'targetKey': targetKey,
+        'isDirectory': isDirectory,
+        'taskId': taskId,
+      });
+    });
+  }
+
+  @override
+  Future<void> moveObject(
+    RemoteStorageConfig config,
+    String bucket,
+    String sourceKey,
+    String targetKey,
+    bool isDirectory,
+    String taskId,
+  ) async {
+    await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      bridge.call('move_object', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+        'sourceKey': sourceKey,
+        'targetKey': targetKey,
+        'isDirectory': isDirectory,
+        'taskId': taskId,
+      });
     });
   }
 

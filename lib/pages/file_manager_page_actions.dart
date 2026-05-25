@@ -15,7 +15,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
       }
       final key = _prefix + file.name;
       final task = TransferQueue.instance.startTask(
-        isUpload: true,
+        kind: TransferKind.upload,
         bucket: bucket,
         key: key,
         localPath: path,
@@ -134,6 +134,57 @@ extension _FileManagerPageActions on _FileManagerPageState {
         await _downloadObject(object);
         return;
       }
+      if (action == FileObjectAction.copy || action == FileObjectAction.move) {
+        final targetPath = await showObjectTargetPathDialog(
+          context,
+          object,
+          move: action == FileObjectAction.move,
+        );
+        if (targetPath == null ||
+            targetPath.isEmpty ||
+            targetPath == object.key) {
+          return;
+        }
+        final task = TransferQueue.instance.startTask(
+          kind: action == FileObjectAction.move
+              ? TransferKind.move
+              : TransferKind.copy,
+          bucket: _activeBucket!,
+          key: object.key,
+          localPath: '',
+          targetPath: targetPath,
+        );
+        try {
+          if (action == FileObjectAction.move) {
+            await widget.api.moveObject(
+              widget.config,
+              _activeBucket!,
+              object.key,
+              targetPath,
+              object.isDir,
+              task.id,
+            );
+            await FileAccessService.instance.evictCacheForObject(
+              bucket: _activeBucket!,
+              object: object,
+            );
+          } else {
+            await widget.api.copyObject(
+              widget.config,
+              _activeBucket!,
+              object.key,
+              targetPath,
+              object.isDir,
+              task.id,
+            );
+          }
+          TransferQueue.instance.markTaskDone(task.id);
+        } catch (error) {
+          TransferQueue.instance.markTaskFailed(task.id, error);
+          rethrow;
+        }
+      }
+      if (!mounted) return;
       if (action == FileObjectAction.rename) {
         final newName = await showRenameObjectDialog(context, object);
         if (newName == null ||
@@ -153,6 +204,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
           object: object,
         );
       } else if (action == FileObjectAction.delete) {
+        if (!mounted) return;
         final confirmed = await showDeleteObjectDialog(context, object);
         if (!confirmed) return;
         await widget.api.deleteObject(

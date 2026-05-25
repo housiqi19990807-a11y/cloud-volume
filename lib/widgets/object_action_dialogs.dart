@@ -5,11 +5,13 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-enum FileObjectAction { open, download, rename, delete }
+enum FileObjectAction { open, download, copy, move, rename, delete }
 
 List<Widget> buildObjectActionMenuItems({
   required ObjectInfo object,
   required VoidCallback onOpen,
+  required VoidCallback onCopy,
+  required VoidCallback onMove,
   required VoidCallback onRename,
   required VoidCallback onDelete,
   VoidCallback? onDownload,
@@ -18,6 +20,8 @@ List<Widget> buildObjectActionMenuItems({
     ShadContextMenuItem(onPressed: onOpen, child: const Text('打开')),
     if (!object.isDir && onDownload != null)
       ShadContextMenuItem(onPressed: onDownload, child: const Text('下载')),
+    ShadContextMenuItem(onPressed: onCopy, child: const Text('复制到...')),
+    ShadContextMenuItem(onPressed: onMove, child: const Text('移动到...')),
     ShadContextMenuItem(onPressed: onRename, child: const Text('重命名')),
     ShadContextMenuItem(onPressed: onDelete, child: const Text('删除')),
   ];
@@ -55,6 +59,57 @@ Future<String?> showRenameObjectDialog(
                     onPressed: () =>
                         Navigator.of(dialogContext).pop(controller.text.trim()),
                     child: const Text('保存'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  } finally {
+    controller.dispose();
+  }
+}
+
+Future<String?> showObjectTargetPathDialog(
+  BuildContext context,
+  ObjectInfo object, {
+  required bool move,
+}) async {
+  final controller = TextEditingController(text: object.key);
+  try {
+    return await showShadDialog<String?>(
+      context: context,
+      builder: (dialogContext) => ShadDialog(
+        title: Text(move ? '移动到' : '复制到'),
+        description: const Text('输入相对于当前存储桶根目录的目标路径。'),
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              Text(
+                object.displayName,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 10),
+              ShadInput(controller: controller),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ShadButton.outline(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 10),
+                  ShadButton(
+                    onPressed: () =>
+                        Navigator.of(dialogContext).pop(controller.text.trim()),
+                    child: Text(move ? '移动' : '复制'),
                   ),
                 ],
               ),

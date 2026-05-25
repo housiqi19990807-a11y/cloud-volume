@@ -36,7 +36,7 @@ class FileAccessService {
 
     final cachePath = await _cacheStore.cachePathFor(bucket, object.key);
     final existingTask = TransferQueue.instance.findActiveTask(
-      isUpload: false,
+      kind: TransferKind.download,
       bucket: bucket,
       key: object.key,
       localPath: cachePath,
@@ -46,7 +46,7 @@ class FileAccessService {
     }
 
     final task = TransferQueue.instance.startTask(
-      isUpload: false,
+      kind: TransferKind.download,
       bucket: bucket,
       key: object.key,
       localPath: cachePath,
@@ -113,7 +113,7 @@ class FileAccessService {
     }
 
     final task = TransferQueue.instance.startTask(
-      isUpload: false,
+      kind: TransferKind.download,
       bucket: bucket,
       key: object.key,
       localPath: savePath,

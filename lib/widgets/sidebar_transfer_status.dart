@@ -1,4 +1,4 @@
-// 侧边栏传输状态入口：显示实时速度、运行动画和 hover 悬浮任务列表。
+// 侧边栏传输状态入口：显示对象操作速度、运行动画和 hover 悬浮任务列表。
 
 import 'dart:async';
 
@@ -138,7 +138,7 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  '上传下载',
+                                  '对象传输',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
@@ -246,7 +246,7 @@ class _TransferHoverCard extends StatelessWidget {
         ),
         child: tasks.isEmpty
             ? Text(
-                '暂无上传或下载任务',
+                '暂无对象操作任务',
                 style: TextStyle(
                   fontSize: 12,
                   color: theme.colorScheme.mutedForeground,
@@ -271,13 +271,13 @@ class _TransferHoverRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final color = task.isUpload
-        ? const Color(0xff2563eb)
-        : const Color(0xff0f766e);
+    final color = _colorFor(task);
     final detail = task.status == TransferStatus.failed
         ? (task.error ?? '${task.typeLabel}失败')
         : task.status == TransferStatus.canceled
         ? '${task.typeLabel}已取消'
+        : (task.isCopy || task.isMove) && task.targetPath.isNotEmpty
+        ? '${task.typeLabel}到 ${task.targetPath}'
         : task.totalBytes > 0
         ? '${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}'
         : task.typeLabel;
@@ -286,11 +286,7 @@ class _TransferHoverRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Icon(
-            task.isUpload ? LucideIcons.upload : LucideIcons.download,
-            size: 15,
-            color: color,
-          ),
+          Icon(_iconFor(task), size: 15, color: color),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -366,5 +362,19 @@ class _TransferHoverRow extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  IconData _iconFor(TransferTask task) {
+    if (task.isUpload) return LucideIcons.upload;
+    if (task.isDownload) return LucideIcons.download;
+    if (task.isCopy) return LucideIcons.copy;
+    return LucideIcons.moveRight;
+  }
+
+  Color _colorFor(TransferTask task) {
+    if (task.isUpload) return const Color(0xff2563eb);
+    if (task.isDownload) return const Color(0xff0f766e);
+    if (task.isCopy) return const Color(0xff7c3aed);
+    return const Color(0xffc2410c);
   }
 }

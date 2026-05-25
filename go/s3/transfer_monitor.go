@@ -1,4 +1,4 @@
-// Transfer monitor: keeps short-lived in-memory transfer snapshots for Flutter.
+// Transfer monitor: keeps short-lived object operation snapshots for Flutter.
 
 package s3
 
@@ -18,6 +18,7 @@ type TransferSnapshot struct {
 	Bucket         string  `json:"bucket"`
 	Key            string  `json:"key"`
 	LocalPath      string  `json:"localPath"`
+	TargetPath     string  `json:"targetPath,omitempty"`
 	Status         string  `json:"status"`
 	BytesCompleted int64   `json:"bytesCompleted"`
 	TotalBytes     int64   `json:"totalBytes"`
@@ -89,6 +90,18 @@ func setTransferTotal(id string, totalBytes int64) {
 		return
 	}
 	task.snapshot.TotalBytes = totalBytes
+	task.updatedAt = time.Now()
+}
+
+func setTransferTarget(id string, targetPath string) {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.snapshot.TargetPath = targetPath
 	task.updatedAt = time.Now()
 }
 

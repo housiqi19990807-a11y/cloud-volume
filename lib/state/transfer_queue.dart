@@ -1,4 +1,4 @@
-// 全局传输状态：共享上传/下载任务、轮询 Go 进度快照，并为侧边栏提供聚合速度。
+// 全局传输状态：共享对象操作任务、轮询 Go 进度快照，并为侧边栏提供聚合速度。
 
 import 'dart:async';
 
@@ -9,14 +9,17 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 /// 传输任务状态。
 enum TransferStatus { pending, running, done, failed, canceled }
 
+enum TransferKind { upload, download, copy, move }
+
 /// 单个传输任务。
 class TransferTask {
   TransferTask({
     required this.id,
-    required this.isUpload,
+    required this.kind,
     required this.bucket,
     required this.key,
     required this.localPath,
+    this.targetPath = '',
     this.status = TransferStatus.pending,
     this.bytesCompleted = 0,
     this.totalBytes = 0,
@@ -25,18 +28,36 @@ class TransferTask {
   });
 
   final String id;
-  final bool isUpload;
+  final TransferKind kind;
   final String bucket;
   final String key;
   final String localPath;
+  String targetPath;
   TransferStatus status;
   int bytesCompleted;
   int totalBytes;
   double speedBytes;
   String? error;
 
-  String get displayName => key.split('/').last;
-  String get typeLabel => isUpload ? '上传' : '下载';
+  String get displayName {
+    final raw = targetPath.isNotEmpty && (isCopy || isMove) ? targetPath : key;
+    final segments = raw.split('/').where((segment) => segment.isNotEmpty);
+    if (segments.isEmpty) {
+      return raw;
+    }
+    return segments.last;
+  }
+
+  String get typeLabel => switch (kind) {
+    TransferKind.upload => '上传',
+    TransferKind.download => '下载',
+    TransferKind.copy => '复制',
+    TransferKind.move => '移动',
+  };
+  bool get isUpload => kind == TransferKind.upload;
+  bool get isDownload => kind == TransferKind.download;
+  bool get isCopy => kind == TransferKind.copy;
+  bool get isMove => kind == TransferKind.move;
   bool get isRunning => status == TransferStatus.running;
   bool get isPending => status == TransferStatus.pending;
   bool get isCancelable =>
@@ -77,17 +98,19 @@ class TransferQueue extends ChangeNotifier {
   }
 
   TransferTask startTask({
-    required bool isUpload,
+    required TransferKind kind,
     required String bucket,
     required String key,
     required String localPath,
+    String targetPath = '',
   }) {
     final task = TransferTask(
       id: 'transfer_${DateTime.now().microsecondsSinceEpoch}_${_seed++}',
-      isUpload: isUpload,
+      kind: kind,
       bucket: bucket,
       key: key,
       localPath: localPath,
+      targetPath: targetPath,
     );
     _tasks.insert(0, task);
     notifyListeners();
@@ -153,15 +176,17 @@ class TransferQueue extends ChangeNotifier {
   TransferStatus? statusOf(String id) => _taskById(id)?.status;
 
   TransferTask? findActiveTask({
-    required bool isUpload,
+    required TransferKind kind,
     required String bucket,
     required String key,
     required String localPath,
+    String targetPath = '',
   }) {
     for (final task in _tasks) {
-      if (task.isUpload != isUpload) continue;
+      if (task.kind != kind) continue;
       if (task.bucket != bucket || task.key != key) continue;
       if (task.localPath != localPath) continue;
+      if (task.targetPath != targetPath) continue;
       if (!task.isFinished) {
         return task;
       }
@@ -189,6 +214,7 @@ class TransferQueue extends ChangeNotifier {
       task.bytesCompleted = snapshot.bytesCompleted;
       task.totalBytes = snapshot.totalBytes;
       task.speedBytes = snapshot.speedBytes;
+      task.targetPath = snapshot.targetPath;
       task.error = snapshot.error;
     }
     notifyListeners();
@@ -197,14 +223,21 @@ class TransferQueue extends ChangeNotifier {
 
   String get uploadSpeedText => _speedTextFor(true);
   String get downloadSpeedText => _speedTextFor(false);
+  String get objectOperationSpeedText => _speedTextForObjectOps();
 
   String get speedSummary {
     final up = uploadSpeedText;
     final down = downloadSpeedText;
-    if (up.isEmpty && down.isEmpty) return '暂无任务';
-    if (up.isEmpty) return down;
-    if (down.isEmpty) return up;
-    return '$up  $down';
+    final ops = objectOperationSpeedText;
+    if (up.isEmpty && down.isEmpty && ops.isEmpty) {
+      return hasRunning ? '$runningCount 个任务进行中' : '暂无任务';
+    }
+    final parts = <String>[
+      if (up.isNotEmpty) up,
+      if (down.isNotEmpty) down,
+      if (ops.isNotEmpty) ops,
+    ];
+    return parts.join('  ');
   }
 
   Future<void> pollNow() async {
@@ -239,13 +272,27 @@ class TransferQueue extends ChangeNotifier {
   TransferTask _addRemoteTask(TransferSnapshot snapshot) {
     final task = TransferTask(
       id: snapshot.id,
-      isUpload: snapshot.type == 'upload',
+      kind: _kindFromWire(snapshot.type),
       bucket: snapshot.bucket,
       key: snapshot.key,
       localPath: snapshot.localPath,
+      targetPath: snapshot.targetPath,
     );
     _tasks.insert(0, task);
     return task;
+  }
+
+  TransferKind _kindFromWire(String value) {
+    switch (value) {
+      case 'download':
+        return TransferKind.download;
+      case 'copy':
+        return TransferKind.copy;
+      case 'move':
+        return TransferKind.move;
+      default:
+        return TransferKind.upload;
+    }
   }
 
   TransferStatus _statusFromWire(String value) {
@@ -270,6 +317,14 @@ class TransferQueue extends ChangeNotifier {
     if (total <= 0) return '';
     final prefix = isUpload ? '↑' : '↓';
     return '$prefix ${formatBytesPerSecond(total)}';
+  }
+
+  String _speedTextForObjectOps() {
+    final total = _tasks
+        .where((task) => (task.isCopy || task.isMove) && task.isRunning)
+        .fold<double>(0, (sum, task) => sum + task.speedBytes);
+    if (total <= 0) return '';
+    return '↔ ${formatBytesPerSecond(total)}';
   }
 }
 
