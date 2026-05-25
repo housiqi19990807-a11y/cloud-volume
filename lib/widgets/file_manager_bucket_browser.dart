@@ -352,7 +352,7 @@ class _BucketContextMenuWrapper extends StatefulWidget {
 }
 
 class _BucketContextMenuWrapperState extends State<_BucketContextMenuWrapper> {
-  static const Offset _menuOffset = Offset(18, 12);
+  static const Offset _menuOffset = Offset(96, 12);
 
   late final ShadContextMenuController _controller;
   Offset? _menuAnchorOffset;
@@ -400,6 +400,7 @@ class _BucketContextMenuWrapperState extends State<_BucketContextMenuWrapper> {
           ? null
           : ShadGlobalAnchor(_menuAnchorOffset!),
       controller: _controller,
+      constraints: const BoxConstraints(minWidth: 164),
       effects: const [],
       popoverReverseDuration: Duration.zero,
       items: widget.items,
