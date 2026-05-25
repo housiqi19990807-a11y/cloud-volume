@@ -50,6 +50,12 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return createDirectory(args)
 	case "delete_object":
 		return deleteObject(args)
+	case "list_trash":
+		return listTrash(args)
+	case "restore_trash_item":
+		return restoreTrashItem(args)
+	case "delete_trash_item":
+		return deleteTrashItem(args)
 	case "rename_object":
 		return renameObject(args)
 	case "upload_file":

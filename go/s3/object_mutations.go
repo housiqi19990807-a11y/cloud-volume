@@ -13,13 +13,34 @@ import (
 	storageconfig "remote-storage/go/config"
 )
 
-// DeleteObject removes either a single object or all objects under a prefix.
+// DeleteObject soft-deletes either a single object or all objects under a prefix.
 func DeleteObject(cfg storageconfig.RemoteStorageConfig, bucket, key string, isDirectory bool) error {
-	return DeleteObjectContext(Ctx(), cfg, bucket, key, isDirectory)
+	return MoveObjectToTrashContext(Ctx(), cfg, bucket, key, isDirectory)
 }
 
-// DeleteObjectContext removes either a single object or all objects under a prefix.
+// DeleteObjectContext soft-deletes either a single object or all objects under a prefix.
 func DeleteObjectContext(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+	isDirectory bool,
+) error {
+	return MoveObjectToTrashContext(ctx, cfg, bucket, key, isDirectory)
+}
+
+// DeleteObjectHard permanently removes either a single object or all objects under a prefix.
+func DeleteObjectHard(
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+	isDirectory bool,
+) error {
+	return DeleteObjectHardContext(Ctx(), cfg, bucket, key, isDirectory)
+}
+
+// DeleteObjectHardContext permanently removes either a single object or all objects under a prefix.
+func DeleteObjectHardContext(
 	ctx context.Context,
 	cfg storageconfig.RemoteStorageConfig,
 	bucket,
@@ -105,7 +126,7 @@ func RenameObjectContext(
 		}
 	}
 
-	return DeleteObjectContext(ctx, cfg, bucket, key, isDirectory)
+	return DeleteObjectHardContext(ctx, cfg, bucket, key, isDirectory)
 }
 
 func mutationKeys(

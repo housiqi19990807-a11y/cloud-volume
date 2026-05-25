@@ -73,11 +73,16 @@ func (a *bucketAccess) listDirectory(
 	ctx context.Context,
 	virtualPrefix string,
 ) ([]s3ops.ObjectInfo, error) {
+	if err := a.hiddenTrashError(virtualPrefix); err != nil {
+		return nil, err
+	}
 	if a.overlay.handles(virtualPrefix) {
 		return a.overlay.listDirectory(virtualPrefix)
 	}
 	if items, ok := a.cache.cachedList(cleanVirtualPath(virtualPrefix)); ok {
-		merged := a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items))
+		merged := a.filterTrashItems(
+			a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items)),
+		)
 		a.prefetchChildren(merged)
 		return cloneObjects(merged), nil
 	}
@@ -89,7 +94,9 @@ func (a *bucketAccess) listDirectory(
 			return nil, err
 		}
 		a.cache.storeList(virtualPrefix, items)
-		return a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items)), nil
+		return a.filterTrashItems(
+			a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items)),
+		), nil
 	})
 	if err != nil {
 		return nil, err
@@ -104,6 +111,9 @@ func (a *bucketAccess) statPath(
 	virtualPath string,
 ) (s3ops.ObjectInfo, error) {
 	clean := cleanVirtualPath(virtualPath)
+	if err := a.hiddenTrashError(clean); err != nil {
+		return s3ops.ObjectInfo{}, err
+	}
 	if clean == "" {
 		return s3ops.ObjectInfo{Key: "", IsDir: true}, nil
 	}
@@ -222,6 +232,9 @@ func (a *bucketAccess) createDirectory(
 	virtualPath string,
 ) error {
 	clean := cleanVirtualPath(virtualPath)
+	if err := a.hiddenTrashError(clean); err != nil {
+		return err
+	}
 	if a.overlay.handles(clean) {
 		return a.overlay.mkdir(clean, 0o755)
 	}
@@ -250,6 +263,9 @@ func (a *bucketAccess) deletePath(
 	virtualPath string,
 	isDir bool,
 ) error {
+	if err := a.hiddenTrashError(virtualPath); err != nil {
+		return err
+	}
 	if a.overlay.handles(virtualPath) {
 		return a.overlay.removeAll(virtualPath)
 	}
@@ -277,6 +293,12 @@ func (a *bucketAccess) renamePath(
 ) error {
 	oldClean := cleanVirtualPath(oldVirtualPath)
 	newClean := cleanVirtualPath(newVirtualPath)
+	if err := a.hiddenTrashError(oldClean); err != nil {
+		return err
+	}
+	if err := a.hiddenTrashError(newClean); err != nil {
+		return err
+	}
 	if oldClean == "" || newClean == "" {
 		return fmt.Errorf("source and target paths are required")
 	}

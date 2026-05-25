@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/services/file_access_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
@@ -17,6 +18,7 @@ import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_manager_bucket_browser.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
+import 'package:remote_storage/widgets/file_manager_trash_browser.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -24,6 +26,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 part 'file_manager_page_actions.dart';
 part 'file_manager_page_mount.dart';
 part 'file_manager_page_selection.dart';
+part 'file_manager_page_trash.dart';
 
 class FileManagerPage extends StatefulWidget {
   const FileManagerPage({super.key, required this.api, required this.config});
@@ -43,11 +46,13 @@ class _FileManagerPageState extends State<FileManagerPage> {
   List<BucketInfo>? _buckets;
   String? _activeBucket;
   List<ObjectInfo>? _objects;
+  List<TrashItem>? _trashItems;
   String _prefix = '';
   List<String> _breadcrumbs = [];
   bool _loading = false;
   String? _error;
   bool _isGrid = false;
+  bool _showTrash = false;
   final Map<String, BucketMountStatus> _bucketMountStatuses =
       <String, BucketMountStatus>{};
   final Set<String> _mountBusyBuckets = <String>{};
@@ -88,8 +93,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _buckets = buckets;
         _activeBucket = null;
         _objects = null;
+        _trashItems = null;
         _prefix = '';
         _breadcrumbs = [];
+        _showTrash = false;
         _bucketMountStatuses.clear();
         _mountBusyBuckets.clear();
         _selectedObjectKeys.clear();
@@ -122,8 +129,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
       setState(() {
         _activeBucket = bucket;
         _objects = objects;
+        _trashItems = null;
         _prefix = prefix;
         _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
+        _showTrash = false;
         _selectedObjectKeys.clear();
         _loading = false;
       });
@@ -205,9 +214,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
             batchDownloadEnabled: _selectedObjects.any(
               (object) => !object.isDir,
             ),
+            showingTrash: _showTrash,
             mounted: _activeMountStatus?.mounted ?? false,
             mountBusy: _activeMountBusy,
             onToggleView: () => setState(() => _isGrid = !_isGrid),
+            onOpenTrash: _activeBucket == null || _loading || _showTrash
+                ? null
+                : _openBucketTrash,
+            onCloseTrash: _activeBucket == null || _loading || !_showTrash
+                ? null
+                : _closeBucketTrash,
             onMount:
                 _activeBucket == null ||
                     _loading ||
@@ -278,6 +294,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       );
     }
     if (_activeBucket == null) return _buildBucketView(theme);
+    if (_showTrash) return _buildTrashView(theme);
     return _buildObjectView(theme);
   }
 
@@ -294,6 +311,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onOpenBucket: (bucket) => unawaited(_navToBucket(bucket)),
       mountStatuses: _bucketMountStatuses,
       busyBuckets: _mountBusyBuckets,
+      onOpenTrashBucket: (bucket) => unawaited(_openBucketTrash(bucket)),
       onMountBucket: (bucket) => unawaited(_mountBucket(bucket)),
       onUnmountBucket: (bucket) => unawaited(_unmountBucket(bucket)),
       onOpenMountedBucket: (bucket) => unawaited(_openMountedBucket(bucket)),

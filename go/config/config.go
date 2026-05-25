@@ -13,6 +13,8 @@ type RemoteStorageConfig struct {
 	DefaultDownloadDirectory string `json:"defaultDownloadDirectory" toml:"default_download_directory"`
 	HideDotFiles             bool   `json:"hideDotFiles" toml:"hide_dot_files"`
 	FileOpenMode             string `json:"fileOpenMode" toml:"file_open_mode"`
+	TrashDirectoryName       string `json:"trashDirectoryName" toml:"trash_directory_name"`
+	TrashRetentionDays       int    `json:"trashRetentionDays" toml:"trash_retention_days"`
 	UsePathStyle             bool   `json:"usePathStyle" toml:"use_path_style"`
 }
 
@@ -27,9 +29,11 @@ type BootstrapState struct {
 // DefaultConfig seeds new users with path-style access enabled for broader compatibility.
 func DefaultConfig() RemoteStorageConfig {
 	return RemoteStorageConfig{
-		HideDotFiles: true,
-		FileOpenMode: "double_click",
-		UsePathStyle: true,
+		HideDotFiles:       true,
+		FileOpenMode:       "double_click",
+		TrashDirectoryName: ".trash",
+		TrashRetentionDays: 30,
+		UsePathStyle:       true,
 	}
 }
 
@@ -45,6 +49,8 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		DefaultDownloadDirectory: strings.TrimSpace(c.DefaultDownloadDirectory),
 		HideDotFiles:             c.HideDotFiles,
 		FileOpenMode:             normalizeFileOpenMode(c.FileOpenMode),
+		TrashDirectoryName:       normalizeTrashDirectoryName(c.TrashDirectoryName),
+		TrashRetentionDays:       normalizeTrashRetentionDays(c.TrashRetentionDays),
 		UsePathStyle:             c.UsePathStyle,
 	}
 }
@@ -63,4 +69,27 @@ func normalizeFileOpenMode(value string) string {
 		return "single_click"
 	}
 	return "double_click"
+}
+
+func normalizeTrashRetentionDays(value int) int {
+	switch {
+	case value < 0:
+		return -1
+	case value == 0:
+		return 30
+	default:
+		return value
+	}
+}
+
+func normalizeTrashDirectoryName(value string) string {
+	trimmed := strings.TrimSpace(value)
+	trimmed = strings.Trim(trimmed, "/")
+	if trimmed == "" {
+		return ".trash"
+	}
+	if !strings.HasPrefix(trimmed, ".") {
+		return "." + trimmed
+	}
+	return trimmed
 }

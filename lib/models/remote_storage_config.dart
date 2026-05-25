@@ -28,6 +28,8 @@ class RemoteStorageConfig {
     required this.defaultDownloadDirectory,
     required this.hideDotFiles,
     required this.fileOpenMode,
+    required this.trashDirectoryName,
+    required this.trashRetentionDays,
     required this.usePathStyle,
   });
 
@@ -42,6 +44,8 @@ class RemoteStorageConfig {
       defaultDownloadDirectory: '',
       hideDotFiles: true,
       fileOpenMode: FileOpenMode.doubleClick,
+      trashDirectoryName: '.trash',
+      trashRetentionDays: 30,
       usePathStyle: true,
     );
   }
@@ -68,6 +72,16 @@ class RemoteStorageConfig {
       fileOpenMode: FileOpenMode.fromStorage(
         json['fileOpenMode'] ?? json['file_open_mode'],
       ),
+      trashDirectoryName:
+          (json['trashDirectoryName'] ??
+                  json['trash_directory_name'] ??
+                  '.trash')
+              .toString(),
+      trashRetentionDays:
+          _intFromDynamic(
+            json['trashRetentionDays'] ?? json['trash_retention_days'],
+          ) ??
+          30,
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
@@ -83,6 +97,8 @@ class RemoteStorageConfig {
   final String defaultDownloadDirectory;
   final bool hideDotFiles;
   final FileOpenMode fileOpenMode;
+  final String trashDirectoryName;
+  final int trashRetentionDays;
   final bool usePathStyle;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
@@ -103,6 +119,8 @@ class RemoteStorageConfig {
       'defaultDownloadDirectory': defaultDownloadDirectory.trim(),
       'hideDotFiles': hideDotFiles,
       'fileOpenMode': fileOpenMode.storageValue,
+      'trashDirectoryName': trashDirectoryName.trim(),
+      'trashRetentionDays': trashRetentionDays,
       'usePathStyle': usePathStyle,
     };
   }
@@ -117,6 +135,8 @@ class RemoteStorageConfig {
     String? defaultDownloadDirectory,
     bool? hideDotFiles,
     FileOpenMode? fileOpenMode,
+    String? trashDirectoryName,
+    int? trashRetentionDays,
     bool? usePathStyle,
   }) {
     return RemoteStorageConfig(
@@ -130,6 +150,8 @@ class RemoteStorageConfig {
           defaultDownloadDirectory ?? this.defaultDownloadDirectory,
       hideDotFiles: hideDotFiles ?? this.hideDotFiles,
       fileOpenMode: fileOpenMode ?? this.fileOpenMode,
+      trashDirectoryName: trashDirectoryName ?? this.trashDirectoryName,
+      trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
       usePathStyle: usePathStyle ?? this.usePathStyle,
     );
   }
@@ -140,6 +162,14 @@ class RemoteStorageConfig {
       final normalized = value.trim().toLowerCase();
       if (normalized == 'true') return true;
       if (normalized == 'false') return false;
+    }
+    return null;
+  }
+
+  static int? _intFromDynamic(Object? value) {
+    if (value is int) return value;
+    if (value is String) {
+      return int.tryParse(value.trim());
     }
     return null;
   }

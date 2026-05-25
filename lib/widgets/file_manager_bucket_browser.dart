@@ -21,6 +21,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
     required this.onOpenBucket,
     required this.mountStatuses,
     required this.busyBuckets,
+    this.onOpenTrashBucket,
     this.onMountBucket,
     this.onUnmountBucket,
     this.onOpenMountedBucket,
@@ -33,6 +34,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
   final ValueChanged<String> onOpenBucket;
   final Map<String, BucketMountStatus> mountStatuses;
   final Set<String> busyBuckets;
+  final ValueChanged<String>? onOpenTrashBucket;
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
   final ValueChanged<String>? onOpenMountedBucket;
@@ -119,7 +121,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 SizedBox(
-                  width: 224,
+                  width: 300,
                   child: Text(
                     '挂载操作',
                     textAlign: TextAlign.right,
@@ -147,13 +149,14 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     onTap: () => _handleBucketTap(bucket.name),
                     showDivider: index != buckets.length - 1,
                     trailing: SizedBox(
-                      width: 224,
+                      width: 300,
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: _BucketMountActions(
                           bucket: bucket.name,
                           status: mountStatuses[bucket.name],
                           busy: busyBuckets.contains(bucket.name),
+                          onOpenTrashBucket: onOpenTrashBucket,
                           onMountBucket: onMountBucket,
                           onUnmountBucket: onUnmountBucket,
                           onOpenMountedBucket: onOpenMountedBucket,
@@ -197,6 +200,12 @@ class FileManagerBucketBrowser extends StatelessWidget {
         child: const Text('打开存储桶'),
       ),
       if (mounted && !busy) ...[
+        if (onOpenTrashBucket != null)
+          ShadContextMenuItem(
+            onPressed: () =>
+                _runBucketMenuAction(() => onOpenTrashBucket!(bucket)),
+            child: const Text('打开回收站'),
+          ),
         if (onOpenMountedBucket != null)
           ShadContextMenuItem(
             onPressed: () =>
@@ -209,11 +218,19 @@ class FileManagerBucketBrowser extends StatelessWidget {
                 _runBucketMenuAction(() => onUnmountBucket!(bucket)),
             child: const Text('卸载'),
           ),
-      ] else if (!busy && onMountBucket != null)
-        ShadContextMenuItem(
-          onPressed: () => _runBucketMenuAction(() => onMountBucket!(bucket)),
-          child: const Text('挂载'),
-        ),
+      ] else ...[
+        if (onOpenTrashBucket != null)
+          ShadContextMenuItem(
+            onPressed: () =>
+                _runBucketMenuAction(() => onOpenTrashBucket!(bucket)),
+            child: const Text('打开回收站'),
+          ),
+        if (!busy && onMountBucket != null)
+          ShadContextMenuItem(
+            onPressed: () => _runBucketMenuAction(() => onMountBucket!(bucket)),
+            child: const Text('挂载'),
+          ),
+      ],
     ];
   }
 
@@ -239,6 +256,7 @@ class _BucketMountActions extends StatelessWidget {
     required this.bucket,
     required this.status,
     required this.busy,
+    required this.onOpenTrashBucket,
     required this.onMountBucket,
     required this.onUnmountBucket,
     required this.onOpenMountedBucket,
@@ -247,6 +265,7 @@ class _BucketMountActions extends StatelessWidget {
   final String bucket;
   final BucketMountStatus? status;
   final bool busy;
+  final ValueChanged<String>? onOpenTrashBucket;
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
   final ValueChanged<String>? onOpenMountedBucket;
@@ -288,6 +307,14 @@ class _BucketMountActions extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       alignment: WrapAlignment.center,
       children: [
+        _miniButton(
+          label: '回收站',
+          icon: LucideIcons.trash2,
+          color: foreground,
+          onPressed: onOpenTrashBucket == null
+              ? null
+              : () => onOpenTrashBucket!(bucket),
+        ),
         _miniButton(
           label: mounted ? '已挂载' : '挂载',
           icon: mounted ? LucideIcons.hardDriveDownload : LucideIcons.link,

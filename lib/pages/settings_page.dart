@@ -7,6 +7,7 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/settings_sections.dart';
+import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -34,6 +35,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _visibilityError;
   bool _savingOpenMode = false;
   String? _openModeError;
+  bool _savingTrashSettings = false;
+  String? _trashSettingsError;
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +101,20 @@ class _SettingsPageState extends State<SettingsPage> {
                 saving: _savingVisibility,
                 errorText: _visibilityError,
                 onChanged: (value) => _saveHideDotFiles(config, value),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildCard(
+              theme,
+              '回收站',
+              TrashSettingsSection(
+                theme: theme,
+                directoryName: config.trashDirectoryName,
+                retentionDays: config.trashRetentionDays,
+                saving: _savingTrashSettings,
+                errorText: _trashSettingsError,
+                onSave: (directoryName, retentionDays) =>
+                    _saveTrashSettings(config, directoryName, retentionDays),
               ),
             ),
             const SizedBox(height: 20),
@@ -242,6 +259,34 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _savingOpenMode = false);
+      }
+    }
+  }
+
+  Future<void> _saveTrashSettings(
+    RemoteStorageConfig config,
+    String directoryName,
+    int retentionDays,
+  ) async {
+    setState(() {
+      _savingTrashSettings = true;
+      _trashSettingsError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(
+          trashDirectoryName: directoryName,
+          trashRetentionDays: retentionDays,
+        ),
+      );
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _trashSettingsError = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _savingTrashSettings = false);
       }
     }
   }

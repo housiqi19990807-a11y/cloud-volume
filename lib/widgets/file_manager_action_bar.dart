@@ -11,8 +11,11 @@ class FileManagerActionBar extends StatelessWidget {
     required this.onToggleView,
     this.selectedCount = 0,
     this.batchDownloadEnabled = false,
+    this.showingTrash = false,
     this.onCreateDirectory,
     this.onUpload,
+    this.onOpenTrash,
+    this.onCloseTrash,
     this.onBatchDownload,
     this.onBatchDelete,
     this.onClearSelection,
@@ -28,8 +31,11 @@ class FileManagerActionBar extends StatelessWidget {
   final VoidCallback onToggleView;
   final int selectedCount;
   final bool batchDownloadEnabled;
+  final bool showingTrash;
   final VoidCallback? onCreateDirectory;
   final VoidCallback? onUpload;
+  final VoidCallback? onOpenTrash;
+  final VoidCallback? onCloseTrash;
   final VoidCallback? onBatchDownload;
   final VoidCallback? onBatchDelete;
   final VoidCallback? onClearSelection;
@@ -115,6 +121,25 @@ class FileManagerActionBar extends StatelessWidget {
               color: p,
             ),
           ),
+          if (onOpenTrash != null || onCloseTrash != null) ...[
+            const SizedBox(width: 6),
+            ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: showingTrash ? onCloseTrash : onOpenTrash,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    showingTrash ? LucideIcons.folderOpen : LucideIcons.trash2,
+                    size: 14,
+                    color: p,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(showingTrash ? '返回文件' : '回收站'),
+                ],
+              ),
+            ),
+          ],
           if (onMount != null || mounted || mountBusy) ...[
             const SizedBox(width: 6),
             Container(

@@ -86,10 +86,16 @@ func ListObjectsContext(
 
 	var result []ObjectInfo
 	for _, cp := range out.CommonPrefixes {
+		if cp.Prefix != nil && isRootTrashKey(cfg, *cp.Prefix) {
+			continue
+		}
 		result = append(result, ObjectInfo{Key: *cp.Prefix, IsDir: true})
 	}
 	for _, obj := range out.Contents {
 		if obj.Key != nil && *obj.Key == prefix {
+			continue
+		}
+		if obj.Key != nil && isRootTrashKey(cfg, *obj.Key) {
 			continue
 		}
 		info := ObjectInfo{Key: *obj.Key, Size: *obj.Size}
@@ -102,6 +108,22 @@ func ListObjectsContext(
 		result = []ObjectInfo{}
 	}
 	return result, nil
+}
+
+func isRootTrashKey(cfg storageconfig.RemoteStorageConfig, key string) bool {
+	trimmed := strings.Trim(strings.TrimSpace(key), "/")
+	if trimmed == "" {
+		return false
+	}
+	name := strings.Trim(strings.TrimSpace(cfg.TrashDirectoryName), "/")
+	if name == "" {
+		name = ".trash"
+	}
+	index := strings.Index(trimmed, "/")
+	if index >= 0 {
+		trimmed = trimmed[:index]
+	}
+	return trimmed == name
 }
 
 // UploadFile uploads a local file to the given bucket + key.

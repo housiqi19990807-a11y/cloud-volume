@@ -38,7 +38,7 @@ func (a *bucketAccess) fetchDirectory(
 		rewritten = append(rewritten, item)
 		a.cache.storeObject(strings.TrimSuffix(virtualKey, "/"), item)
 	}
-	return rewritten, nil
+	return a.filterTrashItems(rewritten), nil
 }
 
 func (a *bucketAccess) fetchStat(

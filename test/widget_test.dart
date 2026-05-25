@@ -8,6 +8,7 @@ import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 
@@ -51,6 +52,8 @@ class _FakeApi implements RemoteStorageGateway {
             defaultDownloadDirectory: '',
             hideDotFiles: true,
             fileOpenMode: FileOpenMode.doubleClick,
+            trashDirectoryName: '.trash',
+            trashRetentionDays: 30,
             usePathStyle: true,
           )
         : RemoteStorageConfig.empty(),
@@ -104,6 +107,26 @@ class _FakeApi implements RemoteStorageGateway {
     String key,
     bool isDirectory,
     String newName,
+  ) async {}
+
+  @override
+  Future<List<TrashItem>> listTrash(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async => const [];
+
+  @override
+  Future<void> restoreTrashItem(
+    RemoteStorageConfig config,
+    String bucket,
+    String trashId,
+  ) async {}
+
+  @override
+  Future<void> deleteTrashItem(
+    RemoteStorageConfig config,
+    String bucket,
+    String trashId,
   ) async {}
 
   @override

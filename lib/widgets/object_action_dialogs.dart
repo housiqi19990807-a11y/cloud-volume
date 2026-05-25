@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/trash_item.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 enum FileObjectAction { open, download, rename, delete }
@@ -136,6 +137,49 @@ Future<bool> showDeleteObjectsDialog(BuildContext context, int count) async {
                     ShadButton.destructive(
                       onPressed: () => Navigator.of(dialogContext).pop(true),
                       child: const Text('删除'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ) ??
+      false;
+}
+
+Future<bool> showDeleteTrashItemDialog(
+  BuildContext context,
+  TrashItem item,
+) async {
+  return await showShadDialog<bool>(
+        context: context,
+        builder: (dialogContext) => ShadDialog(
+          title: const Text('彻底删除'),
+          description: const Text('将从回收站彻底删除，之后无法恢复。'),
+          child: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text(
+                  item.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ShadButton.outline(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 10),
+                    ShadButton.destructive(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('彻底删除'),
                     ),
                   ],
                 ),

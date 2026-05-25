@@ -74,7 +74,7 @@ func MoveObjectContext(
 		}
 	}
 
-	return DeleteObjectContext(ctx, cfg, bucket, sourceKey, isDirectory)
+	return DeleteObjectHardContext(ctx, cfg, bucket, sourceKey, isDirectory)
 }
 
 func ensureRemoteDirSuffix(value string) string {

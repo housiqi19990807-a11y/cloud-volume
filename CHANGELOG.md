@@ -51,4 +51,7 @@
 - The macOS host now unmounts any active bucket mount during app termination, which prevents stale desktop mount entries from hanging on later access after the app exits.
 - The bucket browser list view now includes a fixed header row so bucket names, types, and mount actions no longer render as an unstructured plain list.
 - The bucket browser now supports right-click actions in both list and grid modes; list mode still shows explicit mount controls beside the new fixed header row, while grid tiles stay visually clean with only the bucket icon and name.
+- Deletes now use an app-level bucket recycle bin instead of relying on Finder trash support from the mounted WebDAV volume: objects are soft-deleted into a hidden bucket directory such as `.trash`, can be browsed per bucket from the bucket list actions, restored, or permanently deleted from the in-app recycle bin view.
+- Settings now expose the recycle-bin directory name and retention days, so the hidden bucket trash path and automatic cleanup policy can be adjusted without editing the config file manually.
+- The mounted WebDAV view now hides the configured recycle-bin directory from Finder so the special trash area stays app-managed and does not appear as a normal folder on the desktop volume.
 - Full Chinese interface.

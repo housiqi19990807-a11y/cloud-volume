@@ -1,0 +1,184 @@
+// 回收站浏览区：按 bucket 展示软删除项目，并提供恢复与彻底删除操作。
+
+import 'package:flutter/material.dart';
+import 'package:remote_storage/models/trash_item.dart';
+import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
+import 'package:remote_storage/widgets/file_grid_item.dart';
+import 'package:remote_storage/widgets/file_list_tile.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+
+const String _trashContextMenuGroup = 'file_manager_trash_browser';
+
+class FileManagerTrashBrowser extends StatelessWidget {
+  const FileManagerTrashBrowser({
+    super.key,
+    required this.items,
+    required this.isGrid,
+    required this.onRestore,
+    required this.onDeletePermanently,
+  });
+
+  final List<TrashItem> items;
+  final bool isGrid;
+  final ValueChanged<TrashItem> onRestore;
+  final ValueChanged<TrashItem> onDeletePermanently;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isGrid) {
+      return _buildGrid(context);
+    }
+    return _buildList(context);
+  }
+
+  Widget _buildGrid(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = (constraints.maxWidth / 118).floor().clamp(
+          4,
+          10,
+        );
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
+          childAspectRatio: 0.92,
+          children: items
+              .map(
+                (item) => _wrapWithContextMenu(
+                  item,
+                  FileGridItem(
+                    leading: Icon(
+                      item.isDir
+                          ? LucideIcons.folderArchive
+                          : LucideIcons.fileX2,
+                      size: 52,
+                      color: ShadTheme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.82),
+                    ),
+                    title: item.name,
+                    subtitle: item.sizeText,
+                    contentWidth: 88,
+                    onTap: () => onRestore(item),
+                    footer: Text(
+                      item.deletedAt,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: ShadTheme.of(
+                          context,
+                        ).colorScheme.mutedForeground,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildList(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final headerTextStyle = const TextStyle(
+      fontSize: 11.5,
+      fontWeight: FontWeight.w600,
+    );
+
+    return ShadCard(
+      padding: const EdgeInsets.all(4),
+      child: Column(
+        children: [
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: theme.colorScheme.border.withValues(alpha: 0.75),
+                  width: 0.8,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 32),
+                const SizedBox(width: 12),
+                Expanded(child: Text('名称', style: headerTextStyle)),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: FileListTile.sizeColumnWidth,
+                  child: Text(
+                    '原路径',
+                    textAlign: TextAlign.right,
+                    style: headerTextStyle,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: FileListTile.modifiedColumnWidth,
+                  child: Text(
+                    '删除时间',
+                    textAlign: TextAlign.right,
+                    style: headerTextStyle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return _wrapWithContextMenu(
+                  item,
+                  FileListTile(
+                    leading: Icon(
+                      item.isDir
+                          ? LucideIcons.folderArchive
+                          : LucideIcons.fileX2,
+                      size: 20,
+                      color: theme.colorScheme.primary.withValues(alpha: 0.82),
+                    ),
+                    title: item.name,
+                    sizeLabel: item.originalKey,
+                    modifiedLabel: item.deletedAt,
+                    onTap: () => onRestore(item),
+                    showDivider: index != items.length - 1,
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _wrapWithContextMenu(TrashItem item, Widget child) {
+    return DesktopContextMenuRegion(
+      groupId: _trashContextMenuGroup,
+      items: [
+        ShadContextMenuItem(
+          onPressed: () => _runMenuAction(() => onRestore(item)),
+          child: const Text('恢复'),
+        ),
+        ShadContextMenuItem(
+          onPressed: () => _runMenuAction(() => onDeletePermanently(item)),
+          child: const Text('彻底删除'),
+        ),
+      ],
+      child: child,
+    );
+  }
+
+  void _runMenuAction(VoidCallback action) {
+    DesktopContextMenuRegistry.dismiss(_trashContextMenuGroup);
+    action();
+  }
+}

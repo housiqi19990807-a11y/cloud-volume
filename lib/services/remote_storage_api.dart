@@ -7,6 +7,7 @@ import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 
 abstract class RemoteStorageGateway {
@@ -43,6 +44,17 @@ abstract class RemoteStorageGateway {
     String key,
     bool isDirectory,
     String newName,
+  );
+  Future<List<TrashItem>> listTrash(RemoteStorageConfig config, String bucket);
+  Future<void> restoreTrashItem(
+    RemoteStorageConfig config,
+    String bucket,
+    String trashId,
+  );
+  Future<void> deleteTrashItem(
+    RemoteStorageConfig config,
+    String bucket,
+    String trashId,
   );
   Future<void> uploadFile(
     RemoteStorageConfig config,
@@ -203,6 +215,44 @@ class RemoteStorageApi implements RemoteStorageGateway {
       'key': key,
       'isDirectory': isDirectory,
       'newName': newName,
+    });
+  }
+
+  @override
+  Future<List<TrashItem>> listTrash(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async {
+    final result = _bridge.call('list_trash', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+    });
+    return _parseList(result, (m) => TrashItem.fromJson(m));
+  }
+
+  @override
+  Future<void> restoreTrashItem(
+    RemoteStorageConfig config,
+    String bucket,
+    String trashId,
+  ) async {
+    _bridge.call('restore_trash_item', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'trashId': trashId,
+    });
+  }
+
+  @override
+  Future<void> deleteTrashItem(
+    RemoteStorageConfig config,
+    String bucket,
+    String trashId,
+  ) async {
+    _bridge.call('delete_trash_item', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'trashId': trashId,
     });
   }
 
