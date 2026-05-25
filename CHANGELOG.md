@@ -41,4 +41,5 @@
 - Mounted-volume reads now populate the existing transfer queue through tracked background downloads with reusable local cache files, while writes first land in a local staging area and then upload asynchronously as cancelable transfer tasks.
 - The transfer queue now keeps an idle background sync loop so WebDAV-triggered reads, copies, and uploads appear in the transfers page even when Flutter did not create the task locally first.
 - The new mount layer also adds short-lived metadata caching, next-level directory prefetch, per-request timeouts, and duplicate-request coalescing to keep Finder/WebDAV directory probing responsive on slower object stores.
+- The macOS mount flow now places the real WebDAV volume under the app runtime directory and leaves a Desktop entry pointing to it, which avoids Desktop/iCloud sync errors against the mounted volume itself.
 - Full Chinese interface.

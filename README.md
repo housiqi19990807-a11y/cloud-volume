@@ -91,5 +91,6 @@ The initial setup page persists these S3-compatible settings:
 - Mounted-volume reads and writes are now bridged into the existing transfer queue: first reads trigger tracked background downloads into a reusable local cache, while writes land in a local staging area first and then upload asynchronously as cancelable transfer jobs.
 - The transfer queue now keeps a low-frequency background sync even while the UI is otherwise idle, so WebDAV-triggered copy, paste, read, and upload activity shows up in the transfers page without requiring a Flutter-initiated task first.
 - The macOS mount layer now adds short-lived metadata caching, next-level directory prefetch, request timeouts, and duplicate-request coalescing to keep Finder/WebDAV probing from exploding remote round-trips on slower storage backends.
+- To avoid macOS Desktop/iCloud sync conflicts, the real mounted WebDAV volume now lives under the app runtime directory, while the Desktop keeps a same-name entry that points at that mounted volume.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

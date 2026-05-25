@@ -24,17 +24,18 @@ type BucketMountStatus struct {
 }
 
 type mountSession struct {
-	config     storageconfig.RemoteStorageConfig
-	bucket     string
-	rootPrefix string
-	mountName  string
-	mountPath  string
-	serverURL  string
-	port       int
-	mounted    bool
-	server     *webDAVServer
-	access     *bucketAccess
-	lastError  string
+	config      storageconfig.RemoteStorageConfig
+	bucket      string
+	rootPrefix  string
+	mountName   string
+	mountPath   string
+	mountTarget string
+	serverURL   string
+	port        int
+	mounted     bool
+	server      *webDAVServer
+	access      *bucketAccess
+	lastError   string
 }
 
 func (s *mountSession) status() BucketMountStatus {
