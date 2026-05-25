@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,14 @@ func (a *bucketAccess) renameAcrossBoundary(
 ) error {
 	oldOverlay := a.overlay.handles(oldVirtualPath)
 	newOverlay := a.overlay.handles(newVirtualPath)
+	log.Printf(
+		"[mount/trash] renameAcrossBoundary old=%q new=%q isDir=%t oldOverlay=%t newOverlay=%t",
+		oldVirtualPath,
+		newVirtualPath,
+		isDir,
+		oldOverlay,
+		newOverlay,
+	)
 	switch {
 	case oldOverlay && !newOverlay:
 		return a.moveOverlayPathToRemote(ctx, oldVirtualPath, newVirtualPath)
@@ -39,8 +48,20 @@ func (a *bucketAccess) handleRemoteMoveIntoOverlay(
 	isDir bool,
 ) error {
 	if a.overlay.isTrashPath(newVirtualPath) {
+		log.Printf(
+			"[mount/trash] treating move into trash as delete old=%q new=%q isDir=%t",
+			oldVirtualPath,
+			newVirtualPath,
+			isDir,
+		)
 		return a.deletePath(ctx, oldVirtualPath, isDir)
 	}
+	log.Printf(
+		"[mount/trash] unsupported move into overlay old=%q new=%q isDir=%t",
+		oldVirtualPath,
+		newVirtualPath,
+		isDir,
+	)
 	return fmt.Errorf("moving remote objects into system temporary mount folders is not supported")
 }
 

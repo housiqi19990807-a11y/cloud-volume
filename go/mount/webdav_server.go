@@ -28,7 +28,7 @@ func startWebDAVServer(access *bucketAccess) (*webDAVServer, string, int, error)
 		LockSystem: webdav.NewMemLS(),
 	}
 	server := &http.Server{
-		Handler:           handler,
+		Handler:           webDAVLoggingHandler{next: handler},
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	instance := &webDAVServer{
