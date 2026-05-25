@@ -72,7 +72,7 @@ class TransfersPage extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '在文件管理页面中选择文件上传或下载。',
+              '在文件管理页面中选择文件上传、下载，或通过已挂载云卷取读写文件。',
               style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
                 fontSize: 12,

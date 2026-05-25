@@ -18,6 +18,7 @@ class FileListTile extends StatelessWidget {
     this.isSelected = false,
     this.showSelectionControl = false,
     this.showDivider = true,
+    this.trailing,
   });
 
   static const double sizeColumnWidth = 96;
@@ -34,6 +35,7 @@ class FileListTile extends StatelessWidget {
   final bool isSelected;
   final bool showSelectionControl;
   final bool showDivider;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -99,19 +101,22 @@ class FileListTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              SizedBox(
-                width: modifiedColumnWidth,
-                child: Text(
-                  modifiedLabel,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: theme.colorScheme.mutedForeground,
+              if (trailing != null)
+                trailing!
+              else
+                SizedBox(
+                  width: modifiedColumnWidth,
+                  child: Text(
+                    modifiedLabel,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
             ],
           ),
         ),

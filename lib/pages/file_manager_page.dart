@@ -48,9 +48,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _loading = false;
   String? _error;
   bool _isGrid = false;
-  BucketMountStatus? _mountStatus;
-  bool _mountBusy = false;
+  final Map<String, BucketMountStatus> _bucketMountStatuses =
+      <String, BucketMountStatus>{};
+  final Set<String> _mountBusyBuckets = <String>{};
   final Set<String> _selectedObjectKeys = <String>{};
+
+  BucketMountStatus? get _activeMountStatus =>
+      _activeBucket == null ? null : _bucketMountStatuses[_activeBucket!];
+
+  bool get _activeMountBusy =>
+      _activeBucket != null && _mountBusyBuckets.contains(_activeBucket!);
 
   @override
   void initState() {
@@ -64,8 +71,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
     if (oldWidget.config.fileOpenMode != widget.config.fileOpenMode) {
       _clearSelection();
     }
-    if (oldWidget.config != widget.config && _activeBucket != null) {
-      unawaited(_refreshMountStatus(_activeBucket!));
+    if (oldWidget.config != widget.config) {
+      unawaited(_refreshVisibleMountStatuses());
     }
   }
 
@@ -83,11 +90,12 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _objects = null;
         _prefix = '';
         _breadcrumbs = [];
-        _mountStatus = null;
-        _mountBusy = false;
+        _bucketMountStatuses.clear();
+        _mountBusyBuckets.clear();
         _selectedObjectKeys.clear();
         _loading = false;
       });
+      unawaited(_refreshBucketMountStatuses(buckets));
       return true;
     } catch (e) {
       if (!mounted) return false;
@@ -197,28 +205,28 @@ class _FileManagerPageState extends State<FileManagerPage> {
             batchDownloadEnabled: _selectedObjects.any(
               (object) => !object.isDir,
             ),
-            mounted: _mountStatus?.mounted ?? false,
-            mountBusy: _mountBusy,
+            mounted: _activeMountStatus?.mounted ?? false,
+            mountBusy: _activeMountBusy,
             onToggleView: () => setState(() => _isGrid = !_isGrid),
             onMount:
                 _activeBucket == null ||
                     _loading ||
-                    _mountBusy ||
-                    (_mountStatus?.mounted ?? false)
+                    _activeMountBusy ||
+                    (_activeMountStatus?.mounted ?? false)
                 ? null
                 : _mountBucket,
             onUnmount:
                 _activeBucket == null ||
                     _loading ||
-                    _mountBusy ||
-                    !(_mountStatus?.mounted ?? false)
+                    _activeMountBusy ||
+                    !(_activeMountStatus?.mounted ?? false)
                 ? null
                 : _unmountBucket,
             onOpenMount:
                 _activeBucket == null ||
                     _loading ||
-                    _mountBusy ||
-                    !(_mountStatus?.mounted ?? false)
+                    _activeMountBusy ||
+                    !(_activeMountStatus?.mounted ?? false)
                 ? null
                 : _openMountedBucket,
             onCreateDirectory: _activeBucket == null || _loading
@@ -284,6 +292,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
       gridIconSize: _bucketGridIconSize,
       listIconSize: _listIconSize,
       onOpenBucket: (bucket) => unawaited(_navToBucket(bucket)),
+      mountStatuses: _bucketMountStatuses,
+      busyBuckets: _mountBusyBuckets,
+      onMountBucket: (bucket) => unawaited(_mountBucket(bucket)),
+      onUnmountBucket: (bucket) => unawaited(_unmountBucket(bucket)),
+      onOpenMountedBucket: (bucket) => unawaited(_openMountedBucket(bucket)),
     );
   }
 

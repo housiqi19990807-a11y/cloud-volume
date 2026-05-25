@@ -37,6 +37,8 @@
 - The desktop project now includes macOS, Linux, and Windows host shells, and the local build scripts support native bridge/build flows on all three platforms.
 - Added a tag-triggered GitHub Actions desktop release workflow that now publishes 7 release lanes on tags such as `v0.0.1`: macOS `amd64`, macOS `arm64`, macOS `universal`, Windows `amd64`, Windows `arm64`, Linux `amd64`, and Linux `arm64`, with macOS `zip + dmg`, Windows `zip + installer.exe`, and Linux `AppImage` outputs.
 - Added the first macOS bucket-mount flow: the active bucket can now be mounted to the Desktop via a local WebDAV server plus `mount_webdav`, and the file manager action bar now exposes mount, unmount, and open-mount actions.
+- The bucket list now also exposes direct per-bucket mount, open, and unmount actions, so mounting no longer requires entering the bucket first.
 - Mounted-volume reads now populate the existing transfer queue through tracked background downloads with reusable local cache files, while writes first land in a local staging area and then upload asynchronously as cancelable transfer tasks.
+- The transfer queue now keeps an idle background sync loop so WebDAV-triggered reads, copies, and uploads appear in the transfers page even when Flutter did not create the task locally first.
 - The new mount layer also adds short-lived metadata caching, next-level directory prefetch, per-request timeouts, and duplicate-request coalescing to keep Finder/WebDAV directory probing responsive on slower object stores.
 - Full Chinese interface.

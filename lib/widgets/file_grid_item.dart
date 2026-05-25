@@ -20,6 +20,7 @@ class FileGridItem extends StatelessWidget {
     this.isSelected = false,
     this.showSelectionControl = false,
     this.onSecondaryTapDown,
+    this.footer,
   });
 
   final Widget leading;
@@ -32,6 +33,7 @@ class FileGridItem extends StatelessWidget {
   final bool isSelected;
   final bool showSelectionControl;
   final GestureTapDownCallback? onSecondaryTapDown;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +100,10 @@ class FileGridItem extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                      ],
+                      if (footer != null) ...[
+                        const SizedBox(height: 6),
+                        footer!,
                       ],
                     ],
                   ),

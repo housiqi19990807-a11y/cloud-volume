@@ -54,10 +54,13 @@ class TransferQueue extends ChangeNotifier {
   TransferQueue._();
 
   static final TransferQueue instance = TransferQueue._();
+  static const Duration _activePollInterval = Duration(milliseconds: 700);
+  static const Duration _idlePollInterval = Duration(seconds: 2);
 
   final List<TransferTask> _tasks = [];
   RemoteStorageGateway? _api;
   Timer? _pollTimer;
+  Duration? _pollInterval;
   bool _polling = false;
   int _seed = 0;
   final Set<String> _cancelRequestedIds = <String>{};
@@ -69,6 +72,7 @@ class TransferQueue extends ChangeNotifier {
 
   void bindApi(RemoteStorageGateway api) {
     _api = api;
+    unawaited(pollNow());
     _ensurePolling();
   }
 
@@ -216,16 +220,13 @@ class TransferQueue extends ChangeNotifier {
 
   void _ensurePolling() {
     if (_api == null) return;
-    if (hasRunning) {
-      _pollTimer ??= Timer.periodic(
-        const Duration(milliseconds: 700),
-        (_) => unawaited(pollNow()),
-      );
-      unawaited(pollNow());
+    final nextInterval = hasRunning ? _activePollInterval : _idlePollInterval;
+    if (_pollTimer != null && _pollInterval == nextInterval) {
       return;
     }
     _pollTimer?.cancel();
-    _pollTimer = null;
+    _pollInterval = nextInterval;
+    _pollTimer = Timer.periodic(nextInterval, (_) => unawaited(pollNow()));
   }
 
   TransferTask? _taskById(String id) {
