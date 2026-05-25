@@ -150,7 +150,7 @@ func (c *bucketCache) renameLocalFile(
 	oldVirtualPath,
 	newVirtualPath string,
 	isDir bool,
-	newCachePath string,
+	cacheRoot string,
 ) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -162,6 +162,7 @@ func (c *bucketCache) renameLocalFile(
 		if !ok {
 			return
 		}
+		newCachePath := pathForVirtualKey(cacheRoot, newClean)
 		_ = os.MkdirAll(filepath.Dir(newCachePath), 0o755)
 		_ = os.Remove(newCachePath)
 		_ = os.Rename(item.localPath, newCachePath)
@@ -180,7 +181,7 @@ func (c *bucketCache) renameLocalFile(
 		}
 		suffix := strings.TrimPrefix(key, oldPrefix)
 		nextKey := newPrefix + suffix
-		nextPath := strings.Replace(item.localPath, oldClean, newClean, 1)
+		nextPath := pathForVirtualKey(cacheRoot, nextKey)
 		_ = os.MkdirAll(filepath.Dir(nextPath), 0o755)
 		_ = os.Remove(nextPath)
 		_ = os.Rename(item.localPath, nextPath)

@@ -42,6 +42,11 @@ func OpenBucketMount(bucket string) (BucketMountStatus, error) {
 	return globalManager.openBucketMount(bucket)
 }
 
+// CleanupMounts unmounts any active desktop mount during app shutdown.
+func CleanupMounts() error {
+	return globalManager.cleanupMounts()
+}
+
 func (m *manager) mountBucket(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
@@ -139,6 +144,12 @@ func (m *manager) unmountCurrentLocked() error {
 	err := m.session.stop()
 	m.session = nil
 	return err
+}
+
+func (m *manager) cleanupMounts() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.unmountCurrentLocked()
 }
 
 func newMountSession(

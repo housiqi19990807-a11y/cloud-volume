@@ -48,3 +48,10 @@ func openBucketMount(args json.RawMessage) (any, error) {
 	}
 	return bucketmount.OpenBucketMount(input.Bucket)
 }
+
+func cleanupMounts() (any, error) {
+	if err := bucketmount.CleanupMounts(); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}

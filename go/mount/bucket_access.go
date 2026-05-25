@@ -252,24 +252,26 @@ func (a *bucketAccess) renamePath(
 	newVirtualPath string,
 	isDir bool,
 ) error {
-	if parentVirtualPrefix(oldVirtualPath) != parentVirtualPrefix(newVirtualPath) {
-		return fmt.Errorf("cross-directory rename is not supported yet")
+	oldClean := cleanVirtualPath(oldVirtualPath)
+	newClean := cleanVirtualPath(newVirtualPath)
+	if oldClean == "" || newClean == "" {
+		return fmt.Errorf("source and target paths are required")
 	}
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()
-	if err := s3ops.RenameObjectContext(
+	if err := s3ops.MoveObjectContext(
 		timeoutCtx,
 		a.config,
 		a.bucket,
-		a.remoteKeyForMutation(oldVirtualPath, isDir),
+		a.remoteKeyForMutation(oldClean, isDir),
+		a.remoteKeyForMutation(newClean, isDir),
 		isDir,
-		baseName(newVirtualPath),
 	); err != nil {
 		return err
 	}
-	a.cache.renameLocalFile(oldVirtualPath, newVirtualPath, isDir, a.cachePathFor(newVirtualPath))
-	a.cache.invalidatePath(oldVirtualPath)
-	a.cache.invalidatePath(newVirtualPath)
+	a.cache.renameLocalFile(oldClean, newClean, isDir, a.cacheRoot)
+	a.cache.invalidatePath(oldClean)
+	a.cache.invalidatePath(newClean)
 	return nil
 }
 
