@@ -21,6 +21,7 @@ class FileGridItem extends StatelessWidget {
     this.showSelectionControl = false,
     this.onSecondaryTapDown,
     this.footer,
+    this.bottomOverlay,
   });
 
   final Widget leading;
@@ -34,6 +35,7 @@ class FileGridItem extends StatelessWidget {
   final bool showSelectionControl;
   final GestureTapDownCallback? onSecondaryTapDown;
   final Widget? footer;
+  final Widget? bottomOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +64,7 @@ class FileGridItem extends StatelessWidget {
                     showSelectionControl ? _selectionControlInset : 4,
                     6,
                     showSelectionControl ? _selectionControlInset : 4,
-                    6,
+                    bottomOverlay == null ? 6 : 30,
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -118,6 +120,13 @@ class FileGridItem extends StatelessWidget {
                       hovered: hovered || isSelected,
                       onTap: onSelectionTap,
                     ),
+                  ),
+                if (bottomOverlay != null)
+                  Positioned(
+                    left: 6,
+                    right: 6,
+                    bottom: 4,
+                    child: Center(child: bottomOverlay!),
                   ),
               ],
             ),

@@ -65,7 +65,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                   title: bucket.name,
                   subtitle: '存储桶',
                   onTap: () => onOpenBucket(bucket.name),
-                  footer: _BucketMountActions(
+                  bottomOverlay: _BucketMountActions(
                     bucket: bucket.name,
                     status: mountStatuses[bucket.name],
                     busy: busyBuckets.contains(bucket.name),
@@ -196,6 +196,21 @@ class _BucketMountActions extends StatelessWidget {
     final foreground = theme.colorScheme.primary;
 
     if (busy) {
+      if (compact) {
+        return SizedBox(
+          height: 18,
+          child: Center(
+            child: SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                color: foreground,
+              ),
+            ),
+          ),
+        );
+      }
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -217,6 +232,54 @@ class _BucketMountActions extends StatelessWidget {
             ),
           ),
         ],
+      );
+    }
+
+    if (compact) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.background.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: theme.colorScheme.border.withValues(alpha: 0.7),
+            width: 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _compactIconButton(
+              tooltip: mounted ? '已挂载' : '挂载',
+              icon: mounted ? LucideIcons.hardDriveDownload : LucideIcons.link,
+              color: foreground,
+              onPressed: mounted || onMountBucket == null
+                  ? null
+                  : () => onMountBucket!(bucket),
+            ),
+            if (mounted) ...[
+              const SizedBox(width: 2),
+              _compactIconButton(
+                tooltip: '打开挂载目录',
+                icon: LucideIcons.folderOpen,
+                color: foreground,
+                onPressed: onOpenMountedBucket == null
+                    ? null
+                    : () => onOpenMountedBucket!(bucket),
+              ),
+              const SizedBox(width: 2),
+              _compactIconButton(
+                tooltip: '卸载',
+                icon: LucideIcons.x,
+                color: theme.colorScheme.mutedForeground,
+                onPressed: onUnmountBucket == null
+                    ? null
+                    : () => onUnmountBucket!(bucket),
+              ),
+            ],
+          ],
+        ),
       );
     }
 
@@ -272,6 +335,22 @@ class _BucketMountActions extends StatelessWidget {
           const SizedBox(width: 4),
           Text(label, style: TextStyle(fontSize: compact ? 10.5 : 11.5)),
         ],
+      ),
+    );
+  }
+
+  Widget _compactIconButton({
+    required String tooltip,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: ShadButton.ghost(
+        size: ShadButtonSize.sm,
+        onPressed: onPressed,
+        child: Icon(icon, size: 12, color: color),
       ),
     );
   }
