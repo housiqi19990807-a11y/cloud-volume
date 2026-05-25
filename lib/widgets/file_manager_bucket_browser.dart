@@ -8,6 +8,8 @@ import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+ShadContextMenuController? _activeBucketContextMenuController;
+
 class FileManagerBucketBrowser extends StatelessWidget {
   const FileManagerBucketBrowser({
     super.key,
@@ -56,23 +58,17 @@ class FileManagerBucketBrowser extends StatelessWidget {
           childAspectRatio: 0.92,
           children: buckets
               .map(
-                (bucket) => FileGridItem(
-                  leading: WhiteSurFileIcon(
-                    assetPath:
-                        'assets/icons/whitesur/places/network-server.svg',
-                    size: gridIconSize,
-                  ),
-                  title: bucket.name,
-                  subtitle: '存储桶',
-                  onTap: () => onOpenBucket(bucket.name),
-                  bottomOverlay: _BucketMountActions(
-                    bucket: bucket.name,
-                    status: mountStatuses[bucket.name],
-                    busy: busyBuckets.contains(bucket.name),
-                    onMountBucket: onMountBucket,
-                    onUnmountBucket: onUnmountBucket,
-                    onOpenMountedBucket: onOpenMountedBucket,
-                    compact: true,
+                (bucket) => _wrapGridBucketWithContextMenu(
+                  bucket.name,
+                  FileGridItem(
+                    leading: WhiteSurFileIcon(
+                      assetPath:
+                          'assets/icons/whitesur/places/network-server.svg',
+                      size: gridIconSize,
+                    ),
+                    title: bucket.name,
+                    subtitle: '',
+                    onTap: () => onOpenBucket(bucket.name),
                   ),
                 ),
               )
@@ -168,6 +164,46 @@ class FileManagerBucketBrowser extends StatelessWidget {
       ),
     );
   }
+
+  Widget _wrapGridBucketWithContextMenu(String bucket, Widget child) {
+    final status = mountStatuses[bucket];
+    final busy = busyBuckets.contains(bucket);
+    final mounted = status?.mounted ?? false;
+
+    return _BucketContextMenuWrapper(
+      items: <Widget>[
+        ShadContextMenuItem(
+          onPressed: () => _runBucketMenuAction(() => onOpenBucket(bucket)),
+          child: const Text('打开存储桶'),
+        ),
+        if (mounted && !busy) ...[
+          if (onOpenMountedBucket != null)
+            ShadContextMenuItem(
+              onPressed: () =>
+                  _runBucketMenuAction(() => onOpenMountedBucket!(bucket)),
+              child: const Text('打开挂载目录'),
+            ),
+          if (onUnmountBucket != null)
+            ShadContextMenuItem(
+              onPressed: () =>
+                  _runBucketMenuAction(() => onUnmountBucket!(bucket)),
+              child: const Text('卸载'),
+            ),
+        ] else if (!busy && onMountBucket != null)
+          ShadContextMenuItem(
+            onPressed: () => _runBucketMenuAction(() => onMountBucket!(bucket)),
+            child: const Text('挂载'),
+          ),
+      ],
+      child: child,
+    );
+  }
+
+  void _runBucketMenuAction(VoidCallback action) {
+    _activeBucketContextMenuController?.hide();
+    _activeBucketContextMenuController = null;
+    action();
+  }
 }
 
 class _BucketMountActions extends StatelessWidget {
@@ -178,7 +214,6 @@ class _BucketMountActions extends StatelessWidget {
     required this.onMountBucket,
     required this.onUnmountBucket,
     required this.onOpenMountedBucket,
-    this.compact = false,
   });
 
   final String bucket;
@@ -187,7 +222,6 @@ class _BucketMountActions extends StatelessWidget {
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
   final ValueChanged<String>? onOpenMountedBucket;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -196,37 +230,22 @@ class _BucketMountActions extends StatelessWidget {
     final foreground = theme.colorScheme.primary;
 
     if (busy) {
-      if (compact) {
-        return SizedBox(
-          height: 18,
-          child: Center(
-            child: SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.6,
-                color: foreground,
-              ),
-            ),
-          ),
-        );
-      }
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: compact ? 10 : 12,
-            height: compact ? 10 : 12,
+            width: 12,
+            height: 12,
             child: CircularProgressIndicator(
               strokeWidth: 1.5,
               color: foreground,
             ),
           ),
-          SizedBox(width: compact ? 6 : 8),
+          const SizedBox(width: 8),
           Text(
             '处理中',
             style: TextStyle(
-              fontSize: compact ? 10.5 : 11.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: foreground,
             ),
@@ -235,56 +254,8 @@ class _BucketMountActions extends StatelessWidget {
       );
     }
 
-    if (compact) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.background.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: theme.colorScheme.border.withValues(alpha: 0.7),
-            width: 0.8,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _compactIconButton(
-              tooltip: mounted ? '已挂载' : '挂载',
-              icon: mounted ? LucideIcons.hardDriveDownload : LucideIcons.link,
-              color: foreground,
-              onPressed: mounted || onMountBucket == null
-                  ? null
-                  : () => onMountBucket!(bucket),
-            ),
-            if (mounted) ...[
-              const SizedBox(width: 2),
-              _compactIconButton(
-                tooltip: '打开挂载目录',
-                icon: LucideIcons.folderOpen,
-                color: foreground,
-                onPressed: onOpenMountedBucket == null
-                    ? null
-                    : () => onOpenMountedBucket!(bucket),
-              ),
-              const SizedBox(width: 2),
-              _compactIconButton(
-                tooltip: '卸载',
-                icon: LucideIcons.x,
-                color: theme.colorScheme.mutedForeground,
-                onPressed: onUnmountBucket == null
-                    ? null
-                    : () => onUnmountBucket!(bucket),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
     return Wrap(
-      spacing: compact ? 4 : 6,
+      spacing: 6,
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
       alignment: WrapAlignment.center,
@@ -331,27 +302,69 @@ class _BucketMountActions extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: compact ? 12 : 13, color: color),
+          Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: compact ? 10.5 : 11.5)),
+          Text(label, style: const TextStyle(fontSize: 11.5)),
         ],
       ),
     );
   }
+}
 
-  Widget _compactIconButton({
-    required String tooltip,
-    required IconData icon,
-    required Color color,
-    required VoidCallback? onPressed,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: ShadButton.ghost(
-        size: ShadButtonSize.sm,
-        onPressed: onPressed,
-        child: Icon(icon, size: 12, color: color),
-      ),
+class _BucketContextMenuWrapper extends StatefulWidget {
+  const _BucketContextMenuWrapper({required this.items, required this.child});
+
+  final List<Widget> items;
+  final Widget child;
+
+  @override
+  State<_BucketContextMenuWrapper> createState() =>
+      _BucketContextMenuWrapperState();
+}
+
+class _BucketContextMenuWrapperState extends State<_BucketContextMenuWrapper> {
+  late final ShadContextMenuController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ShadContextMenuController();
+    _controller.addListener(_syncActiveController);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_syncActiveController);
+    if (identical(_activeBucketContextMenuController, _controller)) {
+      _activeBucketContextMenuController = null;
+    }
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncActiveController() {
+    if (_controller.isOpen) {
+      if (!identical(_activeBucketContextMenuController, _controller)) {
+        _activeBucketContextMenuController?.hide();
+        _activeBucketContextMenuController = _controller;
+      }
+      return;
+    }
+    if (identical(_activeBucketContextMenuController, _controller)) {
+      _activeBucketContextMenuController = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ShadContextMenuRegion(
+      controller: _controller,
+      tapEnabled: false,
+      longPressEnabled: false,
+      effects: const [],
+      popoverReverseDuration: Duration.zero,
+      items: widget.items,
+      child: widget.child,
     );
   }
 }
