@@ -38,7 +38,7 @@ class DesktopContextMenuRegion extends StatefulWidget {
     required this.groupId,
     required this.items,
     required this.child,
-    this.menuOffset = const Offset(96, 12),
+    this.menuOffset = const Offset(96, 4),
     this.constraints = const BoxConstraints(minWidth: 164),
   });
 
