@@ -94,5 +94,6 @@ The initial setup page persists these S3-compatible settings:
 - To avoid macOS Desktop/iCloud sync conflicts, the real mounted WebDAV volume now lives under the app runtime directory, while the Desktop keeps a same-name entry that points at that mounted volume.
 - The mount layer now supports full-path file and directory moves instead of only same-directory renames, which keeps macOS Archive Utility and similar extract/copy flows working when they create temporary writable folders and then move results into place.
 - On macOS app termination, the host now proactively unmounts any active bucket mount before exit so Finder does not keep a stale desktop mount entry that hangs on later access.
+- In list mode, the bucket browser now also uses a fixed header row so bucket names, types, and mount actions align with the same structured table feel as the object browser.
 - Full Chinese interface.
 - Built with `shadcn_ui`.

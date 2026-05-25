@@ -39,7 +39,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
     if (isGrid) {
       return _buildGrid();
     }
-    return _buildList();
+    return _buildList(context);
   }
 
   Widget _buildGrid() {
@@ -82,38 +82,89 @@ class FileManagerBucketBrowser extends StatelessWidget {
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(BuildContext context) {
+    final headerTextStyle = const TextStyle(
+      fontSize: 11.5,
+      fontWeight: FontWeight.w600,
+    );
+
     return ShadCard(
       padding: const EdgeInsets.all(4),
-      child: ListView.builder(
-        itemCount: buckets.length,
-        itemBuilder: (context, index) {
-          final bucket = buckets[index];
-          return FileListTile(
-            leading: WhiteSurFileIcon(
-              assetPath: 'assets/icons/whitesur/places/network-server.svg',
-              size: listIconSize,
-            ),
-            title: bucket.name,
-            modifiedLabel: '存储桶',
-            onTap: () => onOpenBucket(bucket.name),
-            showDivider: index != buckets.length - 1,
-            trailing: SizedBox(
-              width: 224,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _BucketMountActions(
-                  bucket: bucket.name,
-                  status: mountStatuses[bucket.name],
-                  busy: busyBuckets.contains(bucket.name),
-                  onMountBucket: onMountBucket,
-                  onUnmountBucket: onUnmountBucket,
-                  onOpenMountedBucket: onOpenMountedBucket,
+      child: Column(
+        children: [
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: ShadTheme.of(
+                    context,
+                  ).colorScheme.border.withValues(alpha: 0.75),
+                  width: 0.8,
                 ),
               ),
             ),
-          );
-        },
+            child: Row(
+              children: [
+                SizedBox(width: listIconSize + 12),
+                const SizedBox(width: 12),
+                Expanded(child: Text('名称', style: headerTextStyle)),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: FileListTile.sizeColumnWidth,
+                  child: Text(
+                    '类型',
+                    textAlign: TextAlign.right,
+                    style: headerTextStyle,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 224,
+                  child: Text(
+                    '挂载操作',
+                    textAlign: TextAlign.right,
+                    style: headerTextStyle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: buckets.length,
+              itemBuilder: (context, index) {
+                final bucket = buckets[index];
+                return FileListTile(
+                  leading: WhiteSurFileIcon(
+                    assetPath:
+                        'assets/icons/whitesur/places/network-server.svg',
+                    size: listIconSize,
+                  ),
+                  title: bucket.name,
+                  sizeLabel: '存储桶',
+                  onTap: () => onOpenBucket(bucket.name),
+                  showDivider: index != buckets.length - 1,
+                  trailing: SizedBox(
+                    width: 224,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _BucketMountActions(
+                        bucket: bucket.name,
+                        status: mountStatuses[bucket.name],
+                        busy: busyBuckets.contains(bucket.name),
+                        onMountBucket: onMountBucket,
+                        onUnmountBucket: onUnmountBucket,
+                        onOpenMountedBucket: onOpenMountedBucket,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

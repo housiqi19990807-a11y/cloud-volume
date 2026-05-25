@@ -44,4 +44,5 @@
 - The macOS mount flow now places the real WebDAV volume under the app runtime directory and leaves a Desktop entry pointing to it, which avoids Desktop/iCloud sync errors against the mounted volume itself.
 - The mount layer now supports cross-directory file and directory moves, which fixes macOS Archive Utility flows that create temporary writable folders and then move extracted content into place.
 - The macOS host now unmounts any active bucket mount during app termination, which prevents stale desktop mount entries from hanging on later access after the app exits.
+- The bucket browser list view now includes a fixed header row so bucket names, types, and mount actions no longer render as an unstructured plain list.
 - Full Chinese interface.
