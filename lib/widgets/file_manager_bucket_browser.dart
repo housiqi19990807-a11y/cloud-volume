@@ -3,12 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-ShadContextMenuController? _activeBucketContextMenuController;
+const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
   const FileManagerBucketBrowser({
@@ -178,7 +179,11 @@ class FileManagerBucketBrowser extends StatelessWidget {
     if (items.isEmpty) {
       return child;
     }
-    return _BucketContextMenuWrapper(items: items, child: child);
+    return DesktopContextMenuRegion(
+      groupId: _bucketContextMenuGroup,
+      items: items,
+      child: child,
+    );
   }
 
   List<Widget> _buildBucketMenuItems(String bucket) {
@@ -220,17 +225,11 @@ class FileManagerBucketBrowser extends StatelessWidget {
   }
 
   bool _dismissActiveContextMenu() {
-    if (_activeBucketContextMenuController?.isOpen ?? false) {
-      _activeBucketContextMenuController?.hide();
-      _activeBucketContextMenuController = null;
-      return true;
-    }
-    return false;
+    return DesktopContextMenuRegistry.dismiss(_bucketContextMenuGroup);
   }
 
   void _runBucketMenuAction(VoidCallback action) {
-    _activeBucketContextMenuController?.hide();
-    _activeBucketContextMenuController = null;
+    DesktopContextMenuRegistry.dismiss(_bucketContextMenuGroup);
     action();
   }
 }
@@ -335,79 +334,6 @@ class _BucketMountActions extends StatelessWidget {
           const SizedBox(width: 4),
           Text(label, style: const TextStyle(fontSize: 11.5)),
         ],
-      ),
-    );
-  }
-}
-
-class _BucketContextMenuWrapper extends StatefulWidget {
-  const _BucketContextMenuWrapper({required this.items, required this.child});
-
-  final List<Widget> items;
-  final Widget child;
-
-  @override
-  State<_BucketContextMenuWrapper> createState() =>
-      _BucketContextMenuWrapperState();
-}
-
-class _BucketContextMenuWrapperState extends State<_BucketContextMenuWrapper> {
-  static const Offset _menuOffset = Offset(96, 12);
-
-  late final ShadContextMenuController _controller;
-  Offset? _menuAnchorOffset;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = ShadContextMenuController();
-    _controller.addListener(_syncActiveController);
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_syncActiveController);
-    if (identical(_activeBucketContextMenuController, _controller)) {
-      _activeBucketContextMenuController = null;
-    }
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _syncActiveController() {
-    if (_controller.isOpen) {
-      if (!identical(_activeBucketContextMenuController, _controller)) {
-        _activeBucketContextMenuController?.hide();
-        _activeBucketContextMenuController = _controller;
-      }
-      return;
-    }
-    if (identical(_activeBucketContextMenuController, _controller)) {
-      _activeBucketContextMenuController = null;
-    }
-  }
-
-  void _showAt(Offset globalPosition) {
-    if (!mounted) return;
-    setState(() => _menuAnchorOffset = globalPosition + _menuOffset);
-    _controller.show();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ShadContextMenu(
-      anchor: _menuAnchorOffset == null
-          ? null
-          : ShadGlobalAnchor(_menuAnchorOffset!),
-      controller: _controller,
-      constraints: const BoxConstraints(minWidth: 164),
-      effects: const [],
-      popoverReverseDuration: Duration.zero,
-      items: widget.items,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onSecondaryTapDown: (details) => _showAt(details.globalPosition),
-        child: widget.child,
       ),
     );
   }
