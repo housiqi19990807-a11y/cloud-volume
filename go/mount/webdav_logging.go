@@ -4,6 +4,7 @@ package mount
 import (
 	"log"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -38,6 +39,9 @@ func (r *statusRecorder) WriteHeader(statusCode int) {
 }
 
 func shouldLogWebDAVRequest(r *http.Request, status int) bool {
+	if isExpectedProbeMiss(r, status) {
+		return false
+	}
 	if status >= http.StatusBadRequest {
 		return true
 	}
@@ -46,6 +50,28 @@ func shouldLogWebDAVRequest(r *http.Request, status int) bool {
 	}
 	switch r.Method {
 	case http.MethodDelete, "MOVE":
+		return true
+	default:
+		return false
+	}
+}
+
+func isExpectedProbeMiss(r *http.Request, status int) bool {
+	if r.Method != "PROPFIND" || status != http.StatusNotFound {
+		return false
+	}
+	name := path.Base(strings.TrimSpace(r.URL.Path))
+	if strings.HasPrefix(name, "._") {
+		return true
+	}
+	switch name {
+	case ".hidden",
+		".metadata_direct_scope_only",
+		".metadata_never_index",
+		".metadata_never_index_unless_rootfs",
+		".ql_disablecache",
+		".ql_disablethumbnails",
+		".Spotlight-V100":
 		return true
 	default:
 		return false

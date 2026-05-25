@@ -43,7 +43,7 @@ func HeadObjectContext(
 		Key:    &key,
 	})
 	if err != nil {
-		return ObjectInfo{}, err
+		return ObjectInfo{}, normalizeNotExistError(err)
 	}
 
 	info := ObjectInfo{
@@ -193,7 +193,7 @@ func DownloadFileContext(
 		Bucket: &bucket, Key: &key,
 	})
 	if err != nil {
-		return err
+		return normalizeNotExistError(err)
 	}
 	defer out.Body.Close()
 	if taskID != "" {

@@ -45,6 +45,7 @@
 - Finder trash moves on mounted buckets now treat `.Trashes/...` rename requests as real deletions of the remote object tree, which fixes unexpected `-8062` errors when deleting Archive Utility staging folders such as `AUHelperService正在保存文稿`.
 - WebDAV mount directory polling now downgrades single-entry metadata/listing failures into skippable path errors during `PROPFIND`, which avoids noisy `superfluous response.WriteHeader` warnings from the underlying Go WebDAV handler.
 - The macOS mount layer now logs trash-related WebDAV `MOVE` and `DELETE` requests, including Finder-provided destination paths and overlay-boundary decisions, so trash failures can be diagnosed from the app log instead of guessed.
+- Finder and Quick Look sidecar probes such as `._name`, `.hidden`, and `.Spotlight-V100` now map missing remote objects to proper `404 Not Found` WebDAV responses instead of `405`, which reduces probe noise and keeps macOS metadata discovery on the expected path.
 - The mount layer now supports cross-directory file and directory moves, which fixes macOS Archive Utility flows that create temporary writable folders and then move extracted content into place.
 - The macOS host now unmounts any active bucket mount during app termination, which prevents stale desktop mount entries from hanging on later access after the app exits.
 - The bucket browser list view now includes a fixed header row so bucket names, types, and mount actions no longer render as an unstructured plain list.

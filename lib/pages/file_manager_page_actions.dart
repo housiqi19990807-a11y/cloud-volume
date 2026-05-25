@@ -177,8 +177,35 @@ extension _FileManagerPageActions on _FileManagerPageState {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(error.toString())));
+    _showPageMessage(title: '操作失败', message: error.toString());
+  }
+
+  void _showPageMessage({required String title, required String message}) {
+    if (!mounted) {
+      return;
+    }
+    unawaited(
+      showShadDialog<void>(
+        context: context,
+        builder: (dialogContext) => ShadDialog(
+          title: Text(title),
+          description: Text(message),
+          child: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const SizedBox(height: 12),
+                ShadButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('知道了'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

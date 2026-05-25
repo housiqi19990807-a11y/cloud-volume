@@ -69,9 +69,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('无法确定默认下载目录')));
+      _showPageMessage(title: '下载失败', message: '无法确定默认下载目录');
       return;
     }
 
@@ -92,9 +90,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showPageError(error);
     }
   }
 
@@ -126,9 +122,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showPageError(error);
     }
   }
 }
