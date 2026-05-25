@@ -3,6 +3,7 @@ package mount
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -21,19 +22,28 @@ type localOverlayEntry struct {
 }
 
 type localMountOverlay struct {
-	root    string
-	entries map[string]localOverlayEntry
+	root     string
+	entries  map[string]localOverlayEntry
+	trashUID string
 }
 
 func newLocalMountOverlay(root string) (*localMountOverlay, error) {
+	trashUID := fmt.Sprintf("%d", os.Getuid())
 	overlay := &localMountOverlay{
 		root: root,
 		entries: map[string]localOverlayEntry{
-			".TemporaryItems":       {name: ".TemporaryItems", isDir: true, mode: 0o777 | fs.ModeSticky},
+			".TemporaryItems": {name: ".TemporaryItems", isDir: true, mode: 0o777 | fs.ModeSticky},
+			".Trash":          {name: ".Trash", isDir: true, mode: 0o700},
+			".Trash-" + trashUID: {
+				name:  ".Trash-" + trashUID,
+				isDir: true,
+				mode:  0o700,
+			},
 			".Trashes":              {name: ".Trashes", isDir: true, mode: 0o777 | fs.ModeSticky},
 			".fseventsd":            {name: ".fseventsd", isDir: true, mode: 0o755},
 			".metadata_never_index": {name: ".metadata_never_index", isDir: false, mode: 0o644},
 		},
+		trashUID: trashUID,
 	}
 	if err := overlay.ensureSeed(); err != nil {
 		return nil, err
@@ -75,7 +85,14 @@ func (o *localMountOverlay) ensureSeed() error {
 	if err != nil {
 		return err
 	}
-	return file.Close()
+	if err := file.Close(); err != nil {
+		return err
+	}
+	trashUserPath := filepath.Join(o.root, ".Trashes", o.trashUID)
+	if err := os.MkdirAll(trashUserPath, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(trashUserPath, 0o700)
 }
 
 func (o *localMountOverlay) handles(virtualPath string) bool {
@@ -88,7 +105,8 @@ func (o *localMountOverlay) handles(virtualPath string) bool {
 }
 
 func (o *localMountOverlay) isTrashPath(virtualPath string) bool {
-	return topLevelSegment(virtualPath) == ".Trashes"
+	head := topLevelSegment(virtualPath)
+	return head == ".Trash" || head == ".Trash-"+o.trashUID || head == ".Trashes"
 }
 
 func (o *localMountOverlay) listRootEntries() ([]s3ops.ObjectInfo, error) {

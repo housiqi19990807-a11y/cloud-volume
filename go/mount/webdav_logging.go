@@ -83,5 +83,8 @@ func isTrashLikePath(value string) bool {
 	if trimmed == "" {
 		return false
 	}
-	return strings.Contains(trimmed, "/.Trashes") || strings.HasPrefix(trimmed, ".Trashes")
+	return strings.Contains(trimmed, "/.Trash") ||
+		strings.HasPrefix(trimmed, ".Trash") ||
+		strings.Contains(trimmed, "/.Trashes") ||
+		strings.HasPrefix(trimmed, ".Trashes")
 }
