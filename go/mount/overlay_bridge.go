@@ -18,6 +18,7 @@ func (a *bucketAccess) renameAcrossBoundary(
 	ctx context.Context,
 	oldVirtualPath,
 	newVirtualPath string,
+	isDir bool,
 ) error {
 	oldOverlay := a.overlay.handles(oldVirtualPath)
 	newOverlay := a.overlay.handles(newVirtualPath)
@@ -25,10 +26,22 @@ func (a *bucketAccess) renameAcrossBoundary(
 	case oldOverlay && !newOverlay:
 		return a.moveOverlayPathToRemote(ctx, oldVirtualPath, newVirtualPath)
 	case !oldOverlay && newOverlay:
-		return fmt.Errorf("moving remote objects into system temporary mount folders is not supported")
+		return a.handleRemoteMoveIntoOverlay(ctx, oldVirtualPath, newVirtualPath, isDir)
 	default:
 		return fmt.Errorf("unsupported mount rename between %q and %q", oldVirtualPath, newVirtualPath)
 	}
+}
+
+func (a *bucketAccess) handleRemoteMoveIntoOverlay(
+	ctx context.Context,
+	oldVirtualPath,
+	newVirtualPath string,
+	isDir bool,
+) error {
+	if a.overlay.isTrashPath(newVirtualPath) {
+		return a.deletePath(ctx, oldVirtualPath, isDir)
+	}
+	return fmt.Errorf("moving remote objects into system temporary mount folders is not supported")
 }
 
 func (a *bucketAccess) moveOverlayPathToRemote(

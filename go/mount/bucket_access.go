@@ -286,7 +286,7 @@ func (a *bucketAccess) renamePath(
 		if oldOverlay && newOverlay {
 			return a.overlay.rename(oldClean, newClean)
 		}
-		return a.renameAcrossBoundary(ctx, oldClean, newClean)
+		return a.renameAcrossBoundary(ctx, oldClean, newClean, isDir)
 	}
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()

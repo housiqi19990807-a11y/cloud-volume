@@ -53,7 +53,7 @@ func newReadableWebDAVFile(
 	}
 	info, err := access.statPath(ctx, virtualPath)
 	if err != nil {
-		return nil, err
+		return nil, pathError("open", virtualPath, err)
 	}
 	if info.IsDir {
 		return newDirectoryHandle(access, virtualPath), nil
@@ -61,11 +61,11 @@ func newReadableWebDAVFile(
 
 	localPath, _, err := access.ensureLocalFile(ctx, virtualPath)
 	if err != nil {
-		return nil, err
+		return nil, pathError("open", virtualPath, err)
 	}
 	file, err := os.Open(localPath)
 	if err != nil {
-		return nil, err
+		return nil, pathError("open", virtualPath, err)
 	}
 	return &readableWebDAVFile{
 		ctx:    ctx,
@@ -222,7 +222,7 @@ func (f *readableWebDAVFile) Write([]byte) (int, error) {
 func (f *readableWebDAVFile) listDir() ([]os.FileInfo, error) {
 	items, err := f.access.listDirectory(f.ctx, f.path)
 	if err != nil {
-		return nil, err
+		return nil, pathError("readdir", f.path, err)
 	}
 	infos := make([]os.FileInfo, 0, len(items))
 	for _, item := range items {
@@ -310,3 +310,17 @@ func (i virtualFileInfo) Mode() fs.FileMode  { return i.mode }
 func (i virtualFileInfo) ModTime() time.Time { return i.modTime }
 func (i virtualFileInfo) IsDir() bool        { return i.isDir }
 func (i virtualFileInfo) Sys() any           { return nil }
+
+func pathError(op, virtualPath string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := err.(*os.PathError); ok {
+		return err
+	}
+	pathValue := "/" + cleanVirtualPath(virtualPath)
+	if pathValue == "/" {
+		pathValue = "."
+	}
+	return &os.PathError{Op: op, Path: pathValue, Err: err}
+}

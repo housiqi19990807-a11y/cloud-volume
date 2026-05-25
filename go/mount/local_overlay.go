@@ -87,6 +87,10 @@ func (o *localMountOverlay) handles(virtualPath string) bool {
 	return ok
 }
 
+func (o *localMountOverlay) isTrashPath(virtualPath string) bool {
+	return topLevelSegment(virtualPath) == ".Trashes"
+}
+
 func (o *localMountOverlay) listRootEntries() ([]s3ops.ObjectInfo, error) {
 	if err := o.ensureSeed(); err != nil {
 		return nil, err
