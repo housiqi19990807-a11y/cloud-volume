@@ -28,7 +28,8 @@ type bucketAccess struct {
 
 	group singleflight.Group
 
-	cache *bucketCache
+	cache   *bucketCache
+	overlay *localMountOverlay
 }
 
 func newBucketAccess(
@@ -42,11 +43,16 @@ func newBucketAccess(
 	sessionRoot := filepath.Join(mountRoot, safeSegment(bucket))
 	cacheRoot := filepath.Join(sessionRoot, "cache")
 	stageRoot := filepath.Join(sessionRoot, "staging")
+	overlayRoot := filepath.Join(sessionRoot, "overlay")
 	if err := os.MkdirAll(cacheRoot, 0o755); err != nil {
 		return nil, fmt.Errorf("create mount cache dir: %w", err)
 	}
 	if err := os.MkdirAll(stageRoot, 0o755); err != nil {
 		return nil, fmt.Errorf("create mount staging dir: %w", err)
+	}
+	overlay, err := newLocalMountOverlay(overlayRoot)
+	if err != nil {
+		return nil, fmt.Errorf("create mount overlay dir: %w", err)
 	}
 
 	return &bucketAccess{
@@ -59,6 +65,7 @@ func newBucketAccess(
 		listTTL:        defaultCacheTTL * time.Second,
 		prefetchTTL:    defaultPrefetchTTL * time.Second,
 		cache:          newBucketCache(defaultCacheTTL*time.Second, defaultPrefetchTTL*time.Second),
+		overlay:        overlay,
 	}, nil
 }
 
@@ -66,8 +73,11 @@ func (a *bucketAccess) listDirectory(
 	ctx context.Context,
 	virtualPrefix string,
 ) ([]s3ops.ObjectInfo, error) {
+	if a.overlay.handles(virtualPrefix) {
+		return a.overlay.listDirectory(virtualPrefix)
+	}
 	if items, ok := a.cache.cachedList(cleanVirtualPath(virtualPrefix)); ok {
-		merged := a.cache.mergeLocalFiles(virtualPrefix, items)
+		merged := a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items))
 		a.prefetchChildren(merged)
 		return cloneObjects(merged), nil
 	}
@@ -79,7 +89,7 @@ func (a *bucketAccess) listDirectory(
 			return nil, err
 		}
 		a.cache.storeList(virtualPrefix, items)
-		return a.cache.mergeLocalFiles(virtualPrefix, items), nil
+		return a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items)), nil
 	})
 	if err != nil {
 		return nil, err
@@ -96,6 +106,13 @@ func (a *bucketAccess) statPath(
 	clean := cleanVirtualPath(virtualPath)
 	if clean == "" {
 		return s3ops.ObjectInfo{Key: "", IsDir: true}, nil
+	}
+	if a.overlay.handles(clean) {
+		info, err := a.overlay.statObject(clean)
+		if err != nil {
+			return s3ops.ObjectInfo{}, err
+		}
+		return info, nil
 	}
 	if item, ok := a.cache.localFile(clean); ok {
 		return item.info, nil
@@ -205,6 +222,9 @@ func (a *bucketAccess) createDirectory(
 	virtualPath string,
 ) error {
 	clean := cleanVirtualPath(virtualPath)
+	if a.overlay.handles(clean) {
+		return a.overlay.mkdir(clean, 0o755)
+	}
 	parent := parentVirtualPrefix(clean)
 	name := baseName(clean)
 	if name == "" {
@@ -230,6 +250,9 @@ func (a *bucketAccess) deletePath(
 	virtualPath string,
 	isDir bool,
 ) error {
+	if a.overlay.handles(virtualPath) {
+		return a.overlay.removeAll(virtualPath)
+	}
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()
 	if err := s3ops.DeleteObjectContext(
@@ -257,6 +280,14 @@ func (a *bucketAccess) renamePath(
 	if oldClean == "" || newClean == "" {
 		return fmt.Errorf("source and target paths are required")
 	}
+	oldOverlay := a.overlay.handles(oldClean)
+	newOverlay := a.overlay.handles(newClean)
+	if oldOverlay || newOverlay {
+		if oldOverlay && newOverlay {
+			return a.overlay.rename(oldClean, newClean)
+		}
+		return a.renameAcrossBoundary(ctx, oldClean, newClean)
+	}
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()
 	if err := s3ops.MoveObjectContext(
@@ -281,6 +312,31 @@ func (a *bucketAccess) stagePathFor(virtualPath string) string {
 
 func (a *bucketAccess) cachePathFor(virtualPath string) string {
 	return pathForVirtualKey(a.cacheRoot, virtualPath)
+}
+
+func (a *bucketAccess) mergeOverlayItems(
+	virtualPrefix string,
+	items []s3ops.ObjectInfo,
+) []s3ops.ObjectInfo {
+	if cleanVirtualPath(virtualPrefix) != "" {
+		return items
+	}
+	overlayItems, err := a.overlay.listRootEntries()
+	if err != nil {
+		return items
+	}
+	byKey := make(map[string]s3ops.ObjectInfo, len(items)+len(overlayItems))
+	for _, item := range items {
+		byKey[item.Key] = item
+	}
+	for _, item := range overlayItems {
+		byKey[item.Key] = item
+	}
+	merged := make([]s3ops.ObjectInfo, 0, len(byKey))
+	for _, item := range byKey {
+		merged = append(merged, item)
+	}
+	return merged
 }
 
 func pathForVirtualKey(root, virtualPath string) string {

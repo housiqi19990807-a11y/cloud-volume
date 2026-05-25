@@ -41,7 +41,7 @@
 - Mounted-volume reads now populate the existing transfer queue through tracked background downloads with reusable local cache files, while writes first land in a local staging area and then upload asynchronously as cancelable transfer tasks.
 - The transfer queue now keeps an idle background sync loop so WebDAV-triggered reads, copies, and uploads appear in the transfers page even when Flutter did not create the task locally first.
 - The new mount layer also adds short-lived metadata caching, next-level directory prefetch, per-request timeouts, and duplicate-request coalescing to keep Finder/WebDAV directory probing responsive on slower object stores.
-- The macOS mount flow now places the real WebDAV volume under the app runtime directory and leaves a Desktop entry pointing to it, which avoids Desktop/iCloud sync errors against the mounted volume itself.
+- The macOS mount flow now mounts the WebDAV volume directly onto the Desktop-visible bucket directory again, while seeding local-only system dot paths such as `.TemporaryItems` and `.Trashes` so Finder, Archive Utility, and similar tools can create writable temporary content without syncing those macOS-private files back to S3.
 - The mount layer now supports cross-directory file and directory moves, which fixes macOS Archive Utility flows that create temporary writable folders and then move extracted content into place.
 - The macOS host now unmounts any active bucket mount during app termination, which prevents stale desktop mount entries from hanging on later access after the app exits.
 - The bucket browser list view now includes a fixed header row so bucket names, types, and mount actions no longer render as an unstructured plain list.

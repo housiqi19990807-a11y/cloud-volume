@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
 func (s *mountSession) start() error {
@@ -17,16 +16,11 @@ func (s *mountSession) start() error {
 	s.serverURL = serverURL
 	s.port = port
 
-	if err := os.MkdirAll(s.mountTarget, 0o755); err != nil {
-		return fmt.Errorf("create mount target: %w", err)
+	if err := prepareMountTarget(s.mountTarget); err != nil {
+		return err
 	}
 	if err := mountWebDAV(serverURL, s.mountTarget, s.mountName); err != nil {
 		s.lastError = err.Error()
-		return err
-	}
-	if err := ensureDesktopMountLink(s.mountPath, s.mountTarget); err != nil {
-		s.lastError = err.Error()
-		_ = unmountWebDAV(s.mountTarget)
 		return err
 	}
 	s.mounted = true
@@ -34,7 +28,6 @@ func (s *mountSession) start() error {
 }
 
 func (s *mountSession) stop() error {
-	desktopErr := removeDesktopMountLink(s.mountPath)
 	var mountErr error
 	if s.mounted && s.mountTarget != "" {
 		mountErr = unmountWebDAV(s.mountTarget)
@@ -43,10 +36,6 @@ func (s *mountSession) stop() error {
 	serverErr := error(nil)
 	if s.server != nil {
 		serverErr = s.server.stop()
-	}
-	if desktopErr != nil {
-		s.lastError = desktopErr.Error()
-		return desktopErr
 	}
 	if mountErr != nil {
 		s.lastError = mountErr.Error()
@@ -99,59 +88,31 @@ func openMountPath(mountPath string) error {
 	return nil
 }
 
-// The Desktop entry stays user-visible while the real mounted filesystem lives
-// under the app runtime directory, which avoids iCloud/Desktop sync conflicts.
-func ensureDesktopMountLink(linkPath, targetPath string) error {
-	info, err := os.Lstat(linkPath)
+// The Desktop path itself is the real mount point so Finder and Archive Utility
+// see a normal writable volume instead of a symlinked proxy directory.
+func prepareMountTarget(mountPath string) error {
+	info, err := os.Lstat(mountPath)
 	switch {
-	case err == nil:
-		if info.Mode()&os.ModeSymlink != 0 {
-			resolved, readErr := os.Readlink(linkPath)
-			if readErr == nil && resolved == targetPath {
-				return nil
-			}
-			if removeErr := os.Remove(linkPath); removeErr != nil {
-				return fmt.Errorf("replace desktop mount link: %w", removeErr)
-			}
-			return os.Symlink(targetPath, linkPath)
-		}
-		if info.IsDir() {
-			entries, readErr := os.ReadDir(linkPath)
-			if readErr != nil {
-				return fmt.Errorf("inspect desktop mount path: %w", readErr)
-			}
-			if len(entries) > 0 {
-				return fmt.Errorf("desktop mount path %q already exists and is not empty", linkPath)
-			}
-			if removeErr := os.Remove(linkPath); removeErr != nil {
-				return fmt.Errorf("replace desktop mount directory: %w", removeErr)
-			}
-			return os.Symlink(targetPath, linkPath)
-		}
-		return fmt.Errorf("desktop mount path %q already exists", linkPath)
 	case os.IsNotExist(err):
-		if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
-			return fmt.Errorf("create desktop mount parent: %w", err)
+		return os.MkdirAll(mountPath, 0o755)
+	case err != nil:
+		return fmt.Errorf("inspect mount target: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		if err := os.Remove(mountPath); err != nil {
+			return fmt.Errorf("remove legacy mount symlink: %w", err)
 		}
-		return os.Symlink(targetPath, linkPath)
-	default:
-		return fmt.Errorf("inspect desktop mount path: %w", err)
+		return os.MkdirAll(mountPath, 0o755)
 	}
-}
-
-func removeDesktopMountLink(linkPath string) error {
-	info, err := os.Lstat(linkPath)
-	if os.IsNotExist(err) {
-		return nil
+	if !info.IsDir() {
+		return fmt.Errorf("mount path %q already exists and is not a directory", mountPath)
 	}
+	entries, err := os.ReadDir(mountPath)
 	if err != nil {
-		return fmt.Errorf("stat desktop mount link: %w", err)
+		return fmt.Errorf("inspect mount target entries: %w", err)
 	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		return nil
-	}
-	if err := os.Remove(linkPath); err != nil {
-		return fmt.Errorf("remove desktop mount link: %w", err)
+	if len(entries) > 0 {
+		return fmt.Errorf("mount path %q already exists and is not empty", mountPath)
 	}
 	return nil
 }

@@ -160,13 +160,8 @@ func newMountSession(
 	if err != nil {
 		return nil, fmt.Errorf("resolve user home: %w", err)
 	}
-	runtimeRoot, err := storageconfig.MountRuntimeDir()
-	if err != nil {
-		return nil, err
-	}
 	mountName := "云卷-" + bucket
 	mountPath := filepath.Join(homeDir, "Desktop", mountName)
-	mountTarget := filepath.Join(runtimeRoot, "volumes", safeSegment(bucket))
 	access, err := newBucketAccess(cfg, bucket)
 	if err != nil {
 		return nil, err
@@ -177,7 +172,7 @@ func newMountSession(
 		rootPrefix:  normalizeRootPrefix(cfg.RootPrefix),
 		mountName:   mountName,
 		mountPath:   mountPath,
-		mountTarget: mountTarget,
+		mountTarget: mountPath,
 		access:      access,
 	}, nil
 }

@@ -27,6 +27,13 @@ func (f *webDAVFS) OpenFile(
 	perm os.FileMode,
 ) (webdav.File, error) {
 	clean := normalizeWebDAVName(name)
+	if f.access.overlay.handles(clean) {
+		file, err := f.access.overlay.openFile(ctx, clean, flag, perm)
+		if err != nil {
+			return nil, err
+		}
+		return newLocalWebDAVFile(file), nil
+	}
 	switch {
 	case flag&os.O_CREATE != 0 || flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_TRUNC != 0:
 		return newWritableWebDAVFile(ctx, f.access, clean, perm, flag)
@@ -37,6 +44,9 @@ func (f *webDAVFS) OpenFile(
 
 func (f *webDAVFS) RemoveAll(ctx context.Context, name string) error {
 	clean := normalizeWebDAVName(name)
+	if f.access.overlay.handles(clean) {
+		return f.access.overlay.removeAll(clean)
+	}
 	info, err := f.Stat(ctx, clean)
 	if err != nil {
 		return err
@@ -57,13 +67,14 @@ func (f *webDAVFS) Rename(ctx context.Context, oldName, newName string) error {
 func (f *webDAVFS) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	clean := normalizeWebDAVName(name)
 	if clean == "" {
-		return virtualFileInfo{
-			name:    "/",
-			size:    0,
-			mode:    fs.ModeDir | 0o755,
-			modTime: time.Now(),
-			isDir:   true,
-		}, nil
+		return virtualFileInfo{name: "/", size: 0, mode: fs.ModeDir | 0o755, modTime: time.Now(), isDir: true}, nil
+	}
+	if f.access.overlay.handles(clean) {
+		info, err := f.access.overlay.statPath(clean)
+		if err != nil {
+			return nil, err
+		}
+		return info, nil
 	}
 	info, err := f.access.statPath(ctx, clean)
 	if err != nil {
