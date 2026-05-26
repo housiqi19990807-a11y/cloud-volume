@@ -48,12 +48,13 @@ class FileManagerActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = theme.colorScheme.primary;
+    final inSelectionMode = selectedCount > 0;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (selectedCount > 0) ...[
+          if (inSelectionMode) ...[
             Container(
               height: 32,
               alignment: Alignment.center,
@@ -112,156 +113,160 @@ class FileManagerActionBar extends StatelessWidget {
             ),
             const SizedBox(width: 6),
           ],
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onToggleView,
-            child: Icon(
-              isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
-              size: 14,
-              color: p,
-            ),
-          ),
-          if (onOpenTrash != null || onCloseTrash != null) ...[
-            const SizedBox(width: 6),
+          if (!inSelectionMode) ...[
             ShadButton.ghost(
               size: ShadButtonSize.sm,
-              onPressed: showingTrash ? onCloseTrash : onOpenTrash,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    showingTrash ? LucideIcons.folderOpen : LucideIcons.trash2,
-                    size: 14,
-                    color: p,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(showingTrash ? '返回文件' : '回收站'),
-                ],
+              onPressed: onToggleView,
+              child: Icon(
+                isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
+                size: 14,
+                color: p,
               ),
             ),
-          ],
-          if (onMount != null || mounted || mountBusy) ...[
-            const SizedBox(width: 6),
-            Container(
-              height: 32,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: p.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (mountBusy) ...[
-                    SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.6,
-                        color: p,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ] else
+            if (onOpenTrash != null || onCloseTrash != null) ...[
+              const SizedBox(width: 6),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: showingTrash ? onCloseTrash : onOpenTrash,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Icon(
-                      mounted
-                          ? LucideIcons.hardDriveDownload
-                          : LucideIcons.link,
+                      showingTrash
+                          ? LucideIcons.folderOpen
+                          : LucideIcons.trash2,
                       size: 14,
                       color: p,
                     ),
-                  const SizedBox(width: 6),
-                  Text(
-                    mountBusy
-                        ? '正在处理挂载'
-                        : mounted
-                        ? '桌面已挂载'
-                        : '未挂载',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: p,
+                    const SizedBox(width: 5),
+                    Text(showingTrash ? '返回文件' : '回收站'),
+                  ],
+                ),
+              ),
+            ],
+            if (onMount != null || mounted || mountBusy) ...[
+              const SizedBox(width: 6),
+              Container(
+                height: 32,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: p.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (mountBusy) ...[
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.6,
+                          color: p,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ] else
+                      Icon(
+                        mounted
+                            ? LucideIcons.hardDriveDownload
+                            : LucideIcons.link,
+                        size: 14,
+                        color: p,
+                      ),
+                    const SizedBox(width: 6),
+                    Text(
+                      mountBusy
+                          ? '正在处理挂载'
+                          : mounted
+                          ? '桌面已挂载'
+                          : '未挂载',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: p,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
-          if (onMount != null) ...[
-            const SizedBox(width: 6),
-            ShadButton.ghost(
-              size: ShadButtonSize.sm,
-              onPressed: onMount,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.hardDriveDownload, size: 14, color: p),
-                  const SizedBox(width: 5),
-                  const Text('挂载'),
-                ],
+            ],
+            if (onMount != null) ...[
+              const SizedBox(width: 6),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: onMount,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.hardDriveDownload, size: 14, color: p),
+                    const SizedBox(width: 5),
+                    const Text('挂载'),
+                  ],
+                ),
               ),
-            ),
-          ],
-          if (mounted && onUnmount != null) ...[
-            const SizedBox(width: 6),
-            ShadButton.ghost(
-              size: ShadButtonSize.sm,
-              onPressed: onUnmount,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.x, size: 14, color: p),
-                  const SizedBox(width: 5),
-                  const Text('卸载'),
-                ],
+            ],
+            if (mounted && onUnmount != null) ...[
+              const SizedBox(width: 6),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: onUnmount,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.x, size: 14, color: p),
+                    const SizedBox(width: 5),
+                    const Text('卸载'),
+                  ],
+                ),
               ),
-            ),
-          ],
-          if (mounted && onOpenMount != null) ...[
-            const SizedBox(width: 6),
-            ShadButton.ghost(
-              size: ShadButtonSize.sm,
-              onPressed: onOpenMount,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.folderOpen, size: 14, color: p),
-                  const SizedBox(width: 5),
-                  const Text('打开挂载目录'),
-                ],
+            ],
+            if (mounted && onOpenMount != null) ...[
+              const SizedBox(width: 6),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: onOpenMount,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.folderOpen, size: 14, color: p),
+                    const SizedBox(width: 5),
+                    const Text('打开挂载目录'),
+                  ],
+                ),
               ),
-            ),
-          ],
-          if (onCreateDirectory != null) ...[
-            const SizedBox(width: 6),
-            ShadButton.ghost(
-              size: ShadButtonSize.sm,
-              onPressed: onCreateDirectory,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.create_new_folder_rounded, size: 15, color: p),
-                  const SizedBox(width: 5),
-                  const Text('新建目录'),
-                ],
+            ],
+            if (onCreateDirectory != null) ...[
+              const SizedBox(width: 6),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: onCreateDirectory,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.create_new_folder_rounded, size: 15, color: p),
+                    const SizedBox(width: 5),
+                    const Text('新建目录'),
+                  ],
+                ),
               ),
-            ),
-          ],
-          if (onUpload != null) ...[
-            const SizedBox(width: 6),
-            ShadButton.ghost(
-              size: ShadButtonSize.sm,
-              onPressed: onUpload,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.upload, size: 14, color: p),
-                  const SizedBox(width: 5),
-                  const Text('上传'),
-                ],
+            ],
+            if (onUpload != null) ...[
+              const SizedBox(width: 6),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: onUpload,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.upload, size: 14, color: p),
+                    const SizedBox(width: 5),
+                    const Text('上传'),
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ],
       ),
