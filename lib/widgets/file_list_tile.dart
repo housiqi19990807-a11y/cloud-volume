@@ -19,6 +19,7 @@ class FileListTile extends StatelessWidget {
     this.showSelectionControl = false,
     this.showDivider = true,
     this.trailing,
+    this.sizeColumnWidthOverride = FileListTile.sizeColumnWidth,
   });
 
   static const double sizeColumnWidth = 96;
@@ -36,6 +37,7 @@ class FileListTile extends StatelessWidget {
   final bool showSelectionControl;
   final bool showDivider;
   final Widget? trailing;
+  final double sizeColumnWidthOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +90,7 @@ class FileListTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               SizedBox(
-                width: sizeColumnWidth,
+                width: sizeColumnWidthOverride,
                 child: Text(
                   sizeLabel,
                   textAlign: TextAlign.right,

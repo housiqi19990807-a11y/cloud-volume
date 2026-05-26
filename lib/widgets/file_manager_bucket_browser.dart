@@ -12,7 +12,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
-  static const double _bucketActionColumnWidth = 228;
+  static const double _bucketActionColumnWidth = 244;
+  static const double _bucketTypeColumnWidth = 72;
 
   const FileManagerBucketBrowser({
     super.key,
@@ -114,7 +115,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                 Expanded(child: Text('名称', style: headerTextStyle)),
                 const SizedBox(width: 12),
                 SizedBox(
-                  width: FileListTile.sizeColumnWidth,
+                  width: _bucketTypeColumnWidth,
                   child: Text(
                     '类型',
                     textAlign: TextAlign.right,
@@ -126,7 +127,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                   width: _bucketActionColumnWidth,
                   child: Text(
                     '挂载操作',
-                    textAlign: TextAlign.right,
+                    textAlign: TextAlign.left,
                     style: headerTextStyle,
                   ),
                 ),
@@ -148,6 +149,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     ),
                     title: bucket.name,
                     sizeLabel: '存储桶',
+                    sizeColumnWidthOverride: _bucketTypeColumnWidth,
                     onTap: () => _handleBucketTap(bucket.name),
                     showDivider: index != buckets.length - 1,
                     trailing: ConstrainedBox(
@@ -156,7 +158,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                         maxWidth: _bucketActionColumnWidth,
                       ),
                       child: Align(
-                        alignment: Alignment.centerRight,
+                        alignment: Alignment.centerLeft,
                         child: _BucketMountActions(
                           bucket: bucket.name,
                           status: mountStatuses[bucket.name],
@@ -310,7 +312,7 @@ class _BucketMountActions extends StatelessWidget {
       spacing: 6,
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
-      alignment: WrapAlignment.center,
+      alignment: WrapAlignment.start,
       children: [
         _miniButton(
           label: '回收站',
@@ -321,8 +323,8 @@ class _BucketMountActions extends StatelessWidget {
               : () => onOpenTrashBucket!(bucket),
         ),
         _miniButton(
-          label: mounted ? '已挂载' : '挂载',
-          icon: mounted ? LucideIcons.hardDriveDownload : LucideIcons.link,
+          label: '挂载',
+          icon: LucideIcons.link,
           color: foreground,
           onPressed: mounted || onMountBucket == null
               ? null

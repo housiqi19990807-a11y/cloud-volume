@@ -62,3 +62,4 @@
 - Bucket mount status now reconciles against the real macOS WebDAV mount table, so Finder-side manual unmounts are detected automatically and the file manager no longer stays stuck on a stale "已挂载" state.
 - Full Chinese interface.
 - The file-manager header now keeps breadcrumbs and action buttons on separate rows, and bucket-list mount actions use a tighter adaptive column so mounted actions such as `打开挂载目录` no longer render truncated after mounting.
+- The bucket list now left-aligns its action column and hides the non-clickable `已挂载` badge in list mode, so mounted buckets keep a cleaner single-row action area with just actionable buttons.
