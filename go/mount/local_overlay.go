@@ -118,6 +118,7 @@ func (o *localMountOverlay) listVisibleEntries(virtualPrefix string) ([]s3ops.Ob
 	if err := o.ensureSeed(); err != nil {
 		return nil, err
 	}
+	cleanPrefix := cleanVirtualPath(virtualPrefix)
 	localPath := o.localPath(virtualPrefix)
 	entries, err := os.ReadDir(localPath)
 	if err != nil {
@@ -130,10 +131,10 @@ func (o *localMountOverlay) listVisibleEntries(virtualPrefix string) ([]s3ops.Ob
 			return nil, infoErr
 		}
 		key := entry.Name()
-		if clean := cleanVirtualPath(virtualPrefix); clean != "" {
-			key = clean + "/" + key
+		if cleanPrefix != "" {
+			key = cleanPrefix + "/" + key
 		}
-		if !o.handles(key) && cleanVirtualPath(virtualPrefix) != "" {
+		if !o.handles(key) {
 			continue
 		}
 		items = append(items, objectInfoFromLocalStat(key, info))

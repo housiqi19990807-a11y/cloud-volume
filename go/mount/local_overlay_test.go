@@ -122,3 +122,30 @@ func TestLocalMountOverlayRenameCreatesTargetParent(t *testing.T) {
 		t.Fatalf("expected renamed overlay directory, got %v", err)
 	}
 }
+
+func TestLocalMountOverlayRootListSkipsTransientParentDirectories(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	overlay, err := newLocalMountOverlay(root)
+	if err != nil {
+		t.Fatalf("newLocalMountOverlay: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(root, "codex-debug-dir", ".ArchiveServiceTemp.sb-123"), 0o755); err != nil {
+		t.Fatalf("mkdir transient nested dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "（AUHelperService正在保存文稿，已完成3）", ".AU.temp.nosync"), 0o755); err != nil {
+		t.Fatalf("mkdir transient target parent: %v", err)
+	}
+
+	items, err := overlay.listRootEntries()
+	if err != nil {
+		t.Fatalf("listRootEntries: %v", err)
+	}
+	for _, item := range items {
+		if item.Key == "codex-debug-dir/" || item.Key == "（AUHelperService正在保存文稿，已完成3）/" {
+			t.Fatalf("unexpected transient parent directory surfaced at root: %+v", item)
+		}
+	}
+}
