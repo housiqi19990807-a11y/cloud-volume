@@ -44,6 +44,10 @@ func (s *mountSession) stop() error {
 	if s.server != nil {
 		serverErr = s.server.stop()
 	}
+	accessErr := error(nil)
+	if s.access != nil {
+		accessErr = s.access.close()
+	}
 	if mountErr != nil {
 		s.lastError = mountErr.Error()
 		return mountErr
@@ -51,6 +55,10 @@ func (s *mountSession) stop() error {
 	if serverErr != nil {
 		s.lastError = serverErr.Error()
 		return serverErr
+	}
+	if accessErr != nil {
+		s.lastError = accessErr.Error()
+		return accessErr
 	}
 	return nil
 }

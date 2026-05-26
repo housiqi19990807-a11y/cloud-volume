@@ -87,6 +87,7 @@ abstract class RemoteStorageGateway {
     String taskId,
   );
   Future<void> cancelTransfer(String taskId);
+  Future<bool> triggerTransfer(String taskId);
   Future<List<TransferSnapshot>> listTransferJobs();
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
@@ -359,6 +360,17 @@ class RemoteStorageApi implements RemoteStorageGateway {
   @override
   Future<void> cancelTransfer(String taskId) async {
     _bridge.call('cancel_transfer', <String, dynamic>{'taskId': taskId});
+  }
+
+  @override
+  Future<bool> triggerTransfer(String taskId) async {
+    final result = _bridge.call('trigger_transfer', <String, dynamic>{
+      'taskId': taskId,
+    });
+    if (result is Map<String, dynamic>) {
+      return result['ok'] == true;
+    }
+    return false;
   }
 
   @override

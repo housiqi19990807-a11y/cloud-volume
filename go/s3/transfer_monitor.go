@@ -81,6 +81,47 @@ func startTransfer(
 	}
 }
 
+// QueueTransfer registers a pending task before bytes start moving.
+func QueueTransfer(
+	id,
+	kind,
+	bucket,
+	key,
+	localPath string,
+	totalBytes int64,
+) {
+	now := time.Now()
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		globalTransferMonitor.tasks[id] = &transferState{
+			snapshot: TransferSnapshot{
+				ID:         id,
+				Type:       kind,
+				Bucket:     bucket,
+				Key:        key,
+				LocalPath:  localPath,
+				Status:     "pending",
+				TotalBytes: totalBytes,
+			},
+			startedAt: now,
+			updatedAt: now,
+		}
+		return
+	}
+	task.snapshot.Type = kind
+	task.snapshot.Bucket = bucket
+	task.snapshot.Key = key
+	task.snapshot.LocalPath = localPath
+	task.snapshot.TotalBytes = totalBytes
+	task.snapshot.Status = "pending"
+	task.snapshot.Error = ""
+	task.snapshot.SpeedBytes = 0
+	task.updatedAt = now
+}
+
 func setTransferTotal(id string, totalBytes int64) {
 	globalTransferMonitor.mu.Lock()
 	defer globalTransferMonitor.mu.Unlock()

@@ -1,4 +1,4 @@
-// 传输管理页：读取共享传输队列，展示对象操作任务的实时状态。
+// 任务队列页：展示上传、下载、复制、移动以及挂载写回等待任务。
 
 import 'dart:async';
 
@@ -25,7 +25,7 @@ class TransfersPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '传输管理',
+            '任务队列',
             style: theme.textTheme.h3.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 22,
@@ -33,7 +33,7 @@ class TransfersPage extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '查看上传、下载、复制和移动任务的状态。',
+            '查看上传、下载、复制、移动，以及等待同步到远端的挂载任务。',
             style: TextStyle(
               color: theme.colorScheme.mutedForeground,
               fontSize: 13,
@@ -64,7 +64,7 @@ class TransfersPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              '暂无传输任务',
+              '暂无任务',
               style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
                 fontSize: 14,
@@ -72,7 +72,7 @@ class TransfersPage extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '在文件管理页面中发起上传、下载、复制、移动，或通过已挂载云卷取读写文件。',
+              '在文件管理页发起上传、下载、复制、移动，或通过已挂载云卷读写文件后，任务会显示在这里。',
               style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
                 fontSize: 12,
@@ -131,6 +131,19 @@ class TransfersPage extends StatelessWidget {
                       color: theme.colorScheme.mutedForeground,
                     ),
                   ),
+                if (task.status == TransferStatus.pending && task.isUpload)
+                  IconButton(
+                    tooltip: '立即同步',
+                    iconSize: 16,
+                    splashRadius: 16,
+                    onPressed: () => unawaited(
+                      TransferQueue.instance.triggerTaskNow(task.id),
+                    ),
+                    icon: Icon(
+                      LucideIcons.play,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
                 _StatusBadge(task: task),
               ],
             ),
@@ -146,6 +159,12 @@ class TransfersPage extends StatelessWidget {
     }
     if (task.status == TransferStatus.canceled) {
       return '${task.typeLabel}已取消';
+    }
+    if (task.status == TransferStatus.pending && task.isUpload) {
+      if (task.totalBytes > 0) {
+        return '等待同步到远端  ${formatBytes(task.totalBytes)}';
+      }
+      return '等待同步到远端';
     }
     if ((task.isCopy || task.isMove) && task.targetPath.isNotEmpty) {
       final suffix = task.totalBytes > 0
@@ -186,7 +205,7 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final text = switch (task.status) {
-      TransferStatus.pending => '等待中',
+      TransferStatus.pending => task.isUpload ? '等待同步' : '等待中',
       TransferStatus.running => formatBytesPerSecond(task.speedBytes),
       TransferStatus.done => '已完成',
       TransferStatus.failed => '失败',

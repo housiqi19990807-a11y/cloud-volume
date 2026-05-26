@@ -1,0 +1,161 @@
+// Bucket access read helpers serve WebDAV list/stat/open requests from cache plus remote state.
+package mount
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	s3ops "remote-storage/go/s3"
+)
+
+func (a *bucketAccess) listDirectory(
+	ctx context.Context,
+	virtualPrefix string,
+) ([]s3ops.ObjectInfo, error) {
+	if err := a.hiddenTrashError(virtualPrefix); err != nil {
+		return nil, err
+	}
+	if a.overlay.handles(virtualPrefix) {
+		return a.overlay.listDirectory(virtualPrefix)
+	}
+	if items, ok := a.cache.cachedList(cleanVirtualPath(virtualPrefix)); ok {
+		merged := a.filterTrashItems(
+			a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items)),
+		)
+		a.prefetchChildren(merged)
+		return cloneObjects(merged), nil
+	}
+
+	flightKey := "list:" + cleanVirtualPath(virtualPrefix)
+	value, err, _ := a.group.Do(flightKey, func() (any, error) {
+		items, err := a.fetchDirectory(ctx, virtualPrefix)
+		if err != nil {
+			return nil, err
+		}
+		a.cache.storeList(virtualPrefix, items)
+		return a.filterTrashItems(
+			a.mergeOverlayItems(virtualPrefix, a.cache.mergeLocalFiles(virtualPrefix, items)),
+		), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	items, _ := value.([]s3ops.ObjectInfo)
+	a.prefetchChildren(items)
+	return cloneObjects(items), nil
+}
+
+func (a *bucketAccess) statPath(
+	ctx context.Context,
+	virtualPath string,
+) (s3ops.ObjectInfo, error) {
+	clean := cleanVirtualPath(virtualPath)
+	if err := a.hiddenTrashError(clean); err != nil {
+		return s3ops.ObjectInfo{}, err
+	}
+	if clean == "" {
+		return s3ops.ObjectInfo{Key: "", IsDir: true}, nil
+	}
+	if a.overlay.handles(clean) {
+		info, err := a.overlay.statObject(clean)
+		if err != nil {
+			return s3ops.ObjectInfo{}, err
+		}
+		return info, nil
+	}
+	if item, ok := a.cache.localFile(clean); ok {
+		return item.info, nil
+	}
+	if item, ok := a.cache.cachedObject(clean); ok {
+		return item, nil
+	}
+	if a.cache.isMarkedDeleted(clean) {
+		return s3ops.ObjectInfo{}, os.ErrNotExist
+	}
+
+	parentPrefix := parentVirtualPrefix(clean)
+	if items, ok := a.cache.cachedList(parentPrefix); ok {
+		for _, item := range a.cache.mergeLocalFiles(parentPrefix, items) {
+			if item.Key == clean || item.Key == ensureDirSuffix(clean) {
+				a.cache.storeObject(clean, item)
+				return item, nil
+			}
+		}
+	}
+
+	flightKey := "stat:" + clean
+	value, err, _ := a.group.Do(flightKey, func() (any, error) {
+		info, err := a.fetchStat(ctx, clean)
+		if err != nil {
+			return nil, err
+		}
+		a.cache.storeObject(clean, info)
+		return info, nil
+	})
+	if err != nil {
+		return s3ops.ObjectInfo{}, err
+	}
+	info, _ := value.(s3ops.ObjectInfo)
+	return info, nil
+}
+
+func (a *bucketAccess) ensureLocalFile(
+	ctx context.Context,
+	virtualPath string,
+) (string, s3ops.ObjectInfo, error) {
+	clean := cleanVirtualPath(virtualPath)
+	if item, ok := a.cache.localFile(clean); ok {
+		if isUsableLocalFile(item.localPath, item.info.Size) {
+			return item.localPath, item.info, nil
+		}
+	}
+
+	info, err := a.statPath(ctx, clean)
+	if err != nil {
+		return "", s3ops.ObjectInfo{}, err
+	}
+	if info.IsDir {
+		return "", s3ops.ObjectInfo{}, fmt.Errorf("%s is a directory", clean)
+	}
+
+	localPath := a.cachePathFor(clean)
+	if isUsableLocalFile(localPath, info.Size) {
+		return localPath, info, nil
+	}
+
+	flightKey := "download:" + clean
+	value, err, _ := a.group.Do(flightKey, func() (any, error) {
+		return a.downloadToCache(ctx, clean, info, localPath)
+	})
+	if err != nil {
+		return "", s3ops.ObjectInfo{}, err
+	}
+	pathValue, _ := value.(string)
+	return pathValue, info, nil
+}
+
+func (a *bucketAccess) mergeOverlayItems(
+	virtualPrefix string,
+	items []s3ops.ObjectInfo,
+) []s3ops.ObjectInfo {
+	if cleanVirtualPath(virtualPrefix) != "" {
+		return items
+	}
+	overlayItems, err := a.overlay.listRootEntries()
+	if err != nil {
+		return items
+	}
+	byKey := make(map[string]s3ops.ObjectInfo, len(items)+len(overlayItems))
+	for _, item := range items {
+		byKey[item.Key] = item
+	}
+	for _, item := range overlayItems {
+		byKey[item.Key] = item
+	}
+	merged := make([]s3ops.ObjectInfo, 0, len(byKey))
+	for _, item := range byKey {
+		merged = append(merged, item)
+	}
+	return merged
+}

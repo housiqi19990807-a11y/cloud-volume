@@ -150,7 +150,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                 ),
                 _navItem(
                   FluentSystemGlyph.transfers,
-                  '传输管理',
+                  '任务队列',
                   SidebarItem.transfers,
                   ac,
                   muted,

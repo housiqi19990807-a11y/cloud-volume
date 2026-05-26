@@ -3,6 +3,7 @@ package mount
 
 import (
 	"strings"
+	"time"
 
 	storageconfig "remote-storage/go/config"
 )
@@ -11,6 +12,7 @@ const (
 	defaultRequestTimeout = 15
 	defaultCacheTTL       = 15
 	defaultPrefetchTTL    = 10
+	writebackQuietPeriod  = time.Minute
 )
 
 // BucketMountStatus is returned to Flutter so the UI can render mount actions.

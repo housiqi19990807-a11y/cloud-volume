@@ -171,6 +171,16 @@ class TransferQueue extends ChangeNotifier {
     _ensurePolling();
   }
 
+  Future<bool> triggerTaskNow(String id) async {
+    final task = _taskById(id);
+    if (task == null || task.status != TransferStatus.pending || _api == null) {
+      return false;
+    }
+    final triggered = await _api!.triggerTransfer(id);
+    await pollNow();
+    return triggered;
+  }
+
   bool isCancelRequested(String id) => _cancelRequestedIds.contains(id);
 
   TransferStatus? statusOf(String id) => _taskById(id)?.status;

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	storageconfig "remote-storage/go/config"
+	bucketmount "remote-storage/go/mount"
 	s3ops "remote-storage/go/s3"
 )
 
@@ -70,6 +71,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listTransferJobs()
 	case "cancel_transfer":
 		return cancelTransfer(args)
+	case "trigger_transfer":
+		return triggerTransfer(args)
 	// Bucket mounts.
 	case "mount_bucket":
 		return mountBucket(args)
@@ -346,5 +349,19 @@ func cancelTransfer(args json.RawMessage) (any, error) {
 	if input.TaskID == "" {
 		return nil, fmt.Errorf("missing transfer task id")
 	}
+	if bucketmount.CancelQueuedTransfer(input.TaskID) {
+		return map[string]any{"ok": true}, nil
+	}
 	return map[string]any{"ok": s3ops.CancelTransfer(input.TaskID)}, nil
+}
+
+func triggerTransfer(args json.RawMessage) (any, error) {
+	var input transferTaskArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if input.TaskID == "" {
+		return nil, fmt.Errorf("missing transfer task id")
+	}
+	return map[string]any{"ok": bucketmount.TriggerQueuedTransfer(input.TaskID)}, nil
 }
