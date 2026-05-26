@@ -65,7 +65,13 @@ func executeObjectCopyPlan(
 		if isDirectory {
 			nextKey += strings.TrimPrefix(*entry.Key, plan.sourcePrefix)
 		}
-		copySource := bucket + "/" + *entry.Key
+		if isDirectory && isDirectoryPlaceholderKey(*entry.Key) {
+			if err := putDirectoryPlaceholder(ctx, client, bucket, nextKey); err != nil {
+				return err
+			}
+			continue
+		}
+		copySource := encodeCopySource(bucket, *entry.Key)
 		_, err := client.CopyObject(ctx, &s3.CopyObjectInput{
 			Bucket:     &bucket,
 			Key:        aws.String(nextKey),

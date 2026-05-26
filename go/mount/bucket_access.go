@@ -5,8 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,8 +31,10 @@ type bucketAccess struct {
 
 	group singleflight.Group
 
-	cache   *bucketCache
-	overlay *localMountOverlay
+	cache          *bucketCache
+	overlay        *localMountOverlay
+	uploadMu       sync.Mutex
+	pendingUploads map[string]context.CancelFunc
 }
 
 func newBucketAccess(
@@ -66,6 +71,7 @@ func newBucketAccess(
 		prefetchTTL:    defaultPrefetchTTL * time.Second,
 		cache:          newBucketCache(defaultCacheTTL*time.Second, defaultPrefetchTTL*time.Second),
 		overlay:        overlay,
+		pendingUploads: map[string]context.CancelFunc{},
 	}, nil
 }
 
@@ -206,7 +212,14 @@ func (a *bucketAccess) scheduleUpload(virtualPath, localPath string) {
 	clean := cleanVirtualPath(virtualPath)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), a.requestTimeout)
-		defer cancel()
+		if !a.registerPendingUpload(clean, localPath, cancel) {
+			cancel()
+			return
+		}
+		defer a.finishPendingUpload(clean, cancel)
+		if !a.shouldUploadLocalFile(clean, localPath) {
+			return
+		}
 		taskID := "mount-upload-" + uuid.NewString()
 		if err := s3ops.UploadFileContext(
 			ctx,
@@ -216,8 +229,12 @@ func (a *bucketAccess) scheduleUpload(virtualPath, localPath string) {
 			localPath,
 			taskID,
 		); err == nil {
+			if !a.shouldUploadLocalFile(clean, localPath) {
+				return
+			}
 			a.cache.invalidatePath(clean)
-			a.cache.storeLocalFile(clean, localPath, s3ops.ObjectInfo{
+			a.cache.clearLocalFileMarker(clean)
+			a.cache.storeObject(clean, s3ops.ObjectInfo{
 				Key:          clean,
 				Size:         fileSize(localPath),
 				LastModified: time.Now().Format("2006-01-02 15:04:05"),
@@ -252,6 +269,15 @@ func (a *bucketAccess) createDirectory(
 		a.remotePrefix(parent),
 		name,
 	); err != nil {
+		log.Printf(
+			"[mount/mkdir] bucket=%q path=%q parent=%q name=%q remotePrefix=%q error=%v",
+			a.bucket,
+			clean,
+			parent,
+			name,
+			a.remotePrefix(parent),
+			err,
+		)
 		return err
 	}
 	a.cache.invalidatePath(clean)
@@ -271,18 +297,82 @@ func (a *bucketAccess) deletePath(
 	}
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()
-	if err := s3ops.DeleteObjectContext(
+	if !isDir {
+		hadPendingUpload := a.cancelPendingUpload(cleanVirtualPath(virtualPath))
+		if hadPendingUpload && !a.remoteFileExists(timeoutCtx, virtualPath) {
+			a.cache.removeLocalFile(virtualPath, false)
+			a.cache.invalidatePath(virtualPath)
+			return nil
+		}
+	} else {
+		a.cancelPendingUploadsAtOrBelow(virtualPath, true)
+	}
+	deleteFunc := s3ops.DeleteObjectContext
+	if isLocalMetadataPath(virtualPath) {
+		deleteFunc = s3ops.DeleteObjectHardContext
+	}
+	if err := a.runDelete(
 		timeoutCtx,
-		a.config,
-		a.bucket,
-		a.remoteKeyForMutation(virtualPath, isDir),
+		deleteFunc,
+		virtualPath,
 		isDir,
+		isLocalMetadataPath(virtualPath),
 	); err != nil {
+		log.Printf(
+			"[mount/delete] bucket=%q path=%q isDir=%t remoteKey=%q hard=%t error=%v",
+			a.bucket,
+			virtualPath,
+			isDir,
+			a.remoteKeyForMutation(virtualPath, isDir),
+			isLocalMetadataPath(virtualPath),
+			err,
+		)
 		return err
 	}
 	a.cache.removeLocalFile(virtualPath, isDir)
 	a.cache.invalidatePath(virtualPath)
 	return nil
+}
+
+func (a *bucketAccess) runDelete(
+	ctx context.Context,
+	deleteFunc func(context.Context, storageconfig.RemoteStorageConfig, string, string, bool) error,
+	virtualPath string,
+	isDir bool,
+	hardDelete bool,
+) error {
+	err := deleteFunc(
+		ctx,
+		a.config,
+		a.bucket,
+		a.remoteKeyForMutation(virtualPath, isDir),
+		isDir,
+	)
+	if err == nil || isDir || hardDelete || !isRetryableCopySourceError(err) {
+		return err
+	}
+	for attempt := 0; attempt < 4; attempt++ {
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(750 * time.Millisecond):
+		}
+		retryErr := deleteFunc(
+			ctx,
+			a.config,
+			a.bucket,
+			a.remoteKeyForMutation(virtualPath, isDir),
+			isDir,
+		)
+		if retryErr == nil {
+			return nil
+		}
+		err = retryErr
+		if !isRetryableCopySourceError(err) {
+			return err
+		}
+	}
+	return err
 }
 
 func (a *bucketAccess) renamePath(
@@ -296,6 +386,7 @@ func (a *bucketAccess) renamePath(
 	if a.overlay.isTrashPath(newClean) {
 		return a.deletePath(ctx, oldClean, isDir)
 	}
+	a.cancelPendingUploadsAtOrBelow(oldClean, isDir)
 	if err := a.hiddenTrashError(oldClean); err != nil {
 		return err
 	}
@@ -331,6 +422,104 @@ func (a *bucketAccess) renamePath(
 	a.cache.invalidatePath(oldClean)
 	a.cache.invalidatePath(newClean)
 	return nil
+}
+
+func (a *bucketAccess) registerPendingUpload(
+	virtualPath,
+	localPath string,
+	cancel context.CancelFunc,
+) bool {
+	a.uploadMu.Lock()
+	defer a.uploadMu.Unlock()
+
+	if !a.shouldUploadLocalFileLocked(virtualPath, localPath) {
+		return false
+	}
+	if existing, ok := a.pendingUploads[virtualPath]; ok {
+		existing()
+	}
+	a.pendingUploads[virtualPath] = cancel
+	return true
+}
+
+func (a *bucketAccess) finishPendingUpload(virtualPath string, cancel context.CancelFunc) {
+	a.uploadMu.Lock()
+	defer a.uploadMu.Unlock()
+
+	current, ok := a.pendingUploads[virtualPath]
+	if ok && sameCancelFunc(current, cancel) {
+		delete(a.pendingUploads, virtualPath)
+	}
+	cancel()
+}
+
+func (a *bucketAccess) shouldUploadLocalFile(virtualPath, localPath string) bool {
+	a.uploadMu.Lock()
+	defer a.uploadMu.Unlock()
+	return a.shouldUploadLocalFileLocked(virtualPath, localPath)
+}
+
+func (a *bucketAccess) shouldUploadLocalFileLocked(virtualPath, localPath string) bool {
+	item, ok := a.cache.localFile(virtualPath)
+	if !ok {
+		return false
+	}
+	return item.localPath == localPath
+}
+
+func (a *bucketAccess) cancelPendingUploadsAtOrBelow(virtualPath string, isDir bool) {
+	a.uploadMu.Lock()
+	defer a.uploadMu.Unlock()
+
+	clean := cleanVirtualPath(virtualPath)
+	if !isDir {
+		if cancel, ok := a.pendingUploads[clean]; ok {
+			cancel()
+			delete(a.pendingUploads, clean)
+		}
+		return
+	}
+	prefix := ensureDirSuffix(clean)
+	for key, cancel := range a.pendingUploads {
+		if strings.HasPrefix(key, prefix) {
+			cancel()
+			delete(a.pendingUploads, key)
+		}
+	}
+}
+
+func (a *bucketAccess) cancelPendingUpload(virtualPath string) bool {
+	a.uploadMu.Lock()
+	defer a.uploadMu.Unlock()
+
+	cancel, ok := a.pendingUploads[cleanVirtualPath(virtualPath)]
+	if ok {
+		cancel()
+		delete(a.pendingUploads, cleanVirtualPath(virtualPath))
+	}
+	return ok
+}
+
+func (a *bucketAccess) remoteFileExists(ctx context.Context, virtualPath string) bool {
+	_, err := s3ops.HeadObjectContext(
+		ctx,
+		a.config,
+		a.bucket,
+		a.remoteKey(virtualPath),
+	)
+	return err == nil
+}
+
+func sameCancelFunc(left, right context.CancelFunc) bool {
+	return fmt.Sprintf("%p", left) == fmt.Sprintf("%p", right)
+}
+
+func isRetryableCopySourceError(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := err.Error()
+	return strings.Contains(text, "CopyObject") && strings.Contains(text, "InvalidArgument")
 }
 
 func (a *bucketAccess) stagePathFor(virtualPath string) string {

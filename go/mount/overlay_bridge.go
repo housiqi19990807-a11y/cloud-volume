@@ -146,7 +146,7 @@ func (a *bucketAccess) uploadOverlayFile(
 		if copyErr := copyFile(cachePath, localPath); copyErr == nil {
 			localPath = cachePath
 		}
-		a.cache.storeLocalFile(cleanVirtualPath(newVirtualPath), localPath, s3ops.ObjectInfo{
+		a.cache.storeObject(cleanVirtualPath(newVirtualPath), s3ops.ObjectInfo{
 			Key:          cleanVirtualPath(newVirtualPath),
 			Size:         info.Size(),
 			LastModified: info.ModTime().Format("2006-01-02 15:04:05"),

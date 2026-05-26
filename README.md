@@ -99,6 +99,7 @@ The initial setup page persists these S3-compatible settings:
 - On macOS app termination, the host now proactively unmounts any active bucket mount before exit so Finder does not keep a stale desktop mount entry that hangs on later access.
 - In list mode, the bucket browser now also uses a fixed header row so bucket names, types, and mount actions align with the same structured table feel as the object browser.
 - Deletes now use an app-level recycle bin per bucket instead of Finder trash on the mounted WebDAV volume, so files and directories are soft-deleted into a hidden bucket directory such as `.trash`; for compatibility, the mount layer also treats both `.trash` and Finder-style `.Trash` as reserved trash roots.
+- Mounted deletes now also handle MinIO-style directory placeholder objects, macOS `._*` sidecar metadata files, and just-written file timing races, so real Finder or shell recursive deletes can remove freshly created directories without leaving phantom entries behind.
 - The bucket list now exposes a recycle-bin entry per bucket through the visible action area in list mode and the right-click menu in both list and grid modes, which keeps recycle-bin browsing scoped to the current bucket instead of a global page.
 - Settings now expose the recycle-bin directory name and retention days, and the mounted WebDAV view hides that configured recycle-bin directory from Finder so the special trash area stays app-managed.
 - Full Chinese interface.

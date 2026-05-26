@@ -55,5 +55,6 @@
 - Settings now expose the recycle-bin directory name and retention days, so the hidden bucket trash path and automatic cleanup policy can be adjusted without editing the config file manually.
 - The mounted WebDAV view now hides the configured recycle-bin directory from Finder so the special trash area stays app-managed and does not appear as a normal folder on the desktop volume.
 - Trash root detection now treats both `.trash` and `.Trash` as reserved recycle-bin paths, so existing app trash data and Finder-style trash naming stay protected and hidden consistently.
+- Mounted delete handling now skips macOS `._*` sidecar files from the recycle-bin move path, rewrites MinIO-style directory placeholders directly instead of `CopyObject`-moving them, and retries just-written file deletes long enough for remote copy eligibility, which fixes recursive delete failures on freshly created directories.
 - Bucket mount status now reconciles against the real macOS WebDAV mount table, so Finder-side manual unmounts are detected automatically and the file manager no longer stays stuck on a stale "已挂载" state.
 - Full Chinese interface.

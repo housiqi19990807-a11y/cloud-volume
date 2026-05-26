@@ -2,6 +2,7 @@
 package mount
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"path"
@@ -16,26 +17,40 @@ func (h webDAVLoggingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 	h.next.ServeHTTP(recorder, r)
 	if shouldLogWebDAVRequest(r, recorder.status) {
+		errorText := ""
+		if recorder.lastWriteErr != nil {
+			errorText = fmt.Sprintf(" error=%q", recorder.lastWriteErr.Error())
+		}
 		log.Printf(
-			"[mount/webdav] method=%s path=%q destination=%q depth=%q overwrite=%q status=%d",
+			"[mount/webdav] method=%s path=%q destination=%q depth=%q overwrite=%q status=%d%s",
 			r.Method,
 			r.URL.Path,
 			r.Header.Get("Destination"),
 			r.Header.Get("Depth"),
 			r.Header.Get("Overwrite"),
 			recorder.status,
+			errorText,
 		)
 	}
 }
 
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status       int
+	lastWriteErr error
 }
 
 func (r *statusRecorder) WriteHeader(statusCode int) {
 	r.status = statusCode
 	r.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (r *statusRecorder) Write(p []byte) (int, error) {
+	count, err := r.ResponseWriter.Write(p)
+	if err != nil {
+		r.lastWriteErr = err
+	}
+	return count, err
 }
 
 func shouldLogWebDAVRequest(r *http.Request, status int) bool {

@@ -146,6 +146,13 @@ func (c *bucketCache) removeLocalFile(virtualPath string, isDir bool) {
 	}
 }
 
+func (c *bucketCache) clearLocalFileMarker(virtualPath string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	delete(c.localFiles, cleanVirtualPath(virtualPath))
+}
+
 func (c *bucketCache) renameLocalFile(
 	oldVirtualPath,
 	newVirtualPath string,

@@ -54,6 +54,22 @@ func baseName(virtualPath string) string {
 	return parts[len(parts)-1]
 }
 
+func isLocalMetadataPath(virtualPath string) bool {
+	name := baseName(virtualPath)
+	if name == "" {
+		return false
+	}
+	if strings.HasPrefix(name, "._") {
+		return true
+	}
+	switch name {
+	case ".DS_Store", ".localized":
+		return true
+	default:
+		return false
+	}
+}
+
 func splitVirtualPath(virtualPath string) []string {
 	clean := cleanVirtualPath(virtualPath)
 	if clean == "" {
