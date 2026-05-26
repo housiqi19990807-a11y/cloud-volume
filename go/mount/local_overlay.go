@@ -184,7 +184,11 @@ func (o *localMountOverlay) removeAll(virtualPath string) error {
 }
 
 func (o *localMountOverlay) rename(oldVirtualPath, newVirtualPath string) error {
-	return os.Rename(o.localPath(oldVirtualPath), o.localPath(newVirtualPath))
+	targetPath := o.localPath(newVirtualPath)
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+	return os.Rename(o.localPath(oldVirtualPath), targetPath)
 }
 
 func (o *localMountOverlay) localPath(virtualPath string) string {

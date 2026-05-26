@@ -96,3 +96,29 @@ func TestLocalMountOverlayListsNestedTransientEntries(t *testing.T) {
 		t.Fatalf("expected 2 transient overlay items, got %d (%+v)", len(items), items)
 	}
 }
+
+func TestLocalMountOverlayRenameCreatesTargetParent(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	overlay, err := newLocalMountOverlay(root)
+	if err != nil {
+		t.Fatalf("newLocalMountOverlay: %v", err)
+	}
+
+	sourcePath := filepath.Join(root, "codex-debug-dir", ".AU.temp.nosync")
+	if err := os.MkdirAll(sourcePath, 0o755); err != nil {
+		t.Fatalf("mkdir source path: %v", err)
+	}
+
+	if err := overlay.rename(
+		"codex-debug-dir/.AU.temp.nosync",
+		"（AUHelperService正在保存文稿，已完成2）/.AU.temp.nosync",
+	); err != nil {
+		t.Fatalf("overlay rename: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "（AUHelperService正在保存文稿，已完成2）", ".AU.temp.nosync")); err != nil {
+		t.Fatalf("expected renamed overlay directory, got %v", err)
+	}
+}
