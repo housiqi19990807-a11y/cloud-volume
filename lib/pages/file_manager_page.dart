@@ -209,69 +209,65 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Widget _buildHeader(ShadThemeData theme) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: FileManagerBreadcrumbBar(
-            theme: theme,
-            activeBucket: _activeBucket,
-            breadcrumbs: _breadcrumbs,
-            onOpenBucketList: () => unawaited(_loadBuckets()),
-            onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucket!)),
-            onOpenCrumb: (index) => unawaited(_navCrumb(index)),
-          ),
+        FileManagerBreadcrumbBar(
+          theme: theme,
+          activeBucket: _activeBucket,
+          breadcrumbs: _breadcrumbs,
+          onOpenBucketList: () => unawaited(_loadBuckets()),
+          onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucket!)),
+          onOpenCrumb: (index) => unawaited(_navCrumb(index)),
         ),
-        const SizedBox(width: 16),
-        Flexible(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: FileManagerActionBar(
-              theme: theme,
-              isGrid: _isGrid,
-              selectedCount: _selectedObjectKeys.length,
-              batchDownloadEnabled: _selectedObjects.any(
-                (object) => !object.isDir,
-              ),
-              showingTrash: _showTrash,
-              mounted: _activeMountStatus?.mounted ?? false,
-              mountBusy: _activeMountBusy,
-              onToggleView: () => setState(() => _isGrid = !_isGrid),
-              onOpenTrash: _activeBucket == null || _loading || _showTrash
-                  ? null
-                  : _openBucketTrash,
-              onCloseTrash: _activeBucket == null || _loading || !_showTrash
-                  ? null
-                  : _closeBucketTrash,
-              onMount:
-                  _activeBucket == null ||
-                      _loading ||
-                      _activeMountBusy ||
-                      (_activeMountStatus?.mounted ?? false)
-                  ? null
-                  : _mountBucket,
-              onUnmount:
-                  _activeBucket == null ||
-                      _loading ||
-                      _activeMountBusy ||
-                      !(_activeMountStatus?.mounted ?? false)
-                  ? null
-                  : _unmountBucket,
-              onOpenMount:
-                  _activeBucket == null ||
-                      _loading ||
-                      _activeMountBusy ||
-                      !(_activeMountStatus?.mounted ?? false)
-                  ? null
-                  : _openMountedBucket,
-              onCreateDirectory: _activeBucket == null || _loading
-                  ? null
-                  : _createDirectory,
-              onUpload: _activeBucket == null || _loading ? null : _upload,
-              onBatchDownload: _loading ? null : _downloadSelectedObjects,
-              onBatchDelete: _loading ? null : _deleteSelectedObjects,
-              onClearSelection: _clearSelection,
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FileManagerActionBar(
+            theme: theme,
+            isGrid: _isGrid,
+            selectedCount: _selectedObjectKeys.length,
+            batchDownloadEnabled: _selectedObjects.any(
+              (object) => !object.isDir,
             ),
+            showingTrash: _showTrash,
+            mounted: _activeMountStatus?.mounted ?? false,
+            mountBusy: _activeMountBusy,
+            onToggleView: () => setState(() => _isGrid = !_isGrid),
+            onOpenTrash: _activeBucket == null || _loading || _showTrash
+                ? null
+                : _openBucketTrash,
+            onCloseTrash: _activeBucket == null || _loading || !_showTrash
+                ? null
+                : _closeBucketTrash,
+            onMount:
+                _activeBucket == null ||
+                    _loading ||
+                    _activeMountBusy ||
+                    (_activeMountStatus?.mounted ?? false)
+                ? null
+                : _mountBucket,
+            onUnmount:
+                _activeBucket == null ||
+                    _loading ||
+                    _activeMountBusy ||
+                    !(_activeMountStatus?.mounted ?? false)
+                ? null
+                : _unmountBucket,
+            onOpenMount:
+                _activeBucket == null ||
+                    _loading ||
+                    _activeMountBusy ||
+                    !(_activeMountStatus?.mounted ?? false)
+                ? null
+                : _openMountedBucket,
+            onCreateDirectory: _activeBucket == null || _loading
+                ? null
+                : _createDirectory,
+            onUpload: _activeBucket == null || _loading ? null : _upload,
+            onBatchDownload: _loading ? null : _downloadSelectedObjects,
+            onBatchDelete: _loading ? null : _deleteSelectedObjects,
+            onClearSelection: _clearSelection,
           ),
         ),
       ],

@@ -12,6 +12,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
+  static const double _bucketActionColumnWidth = 228;
+
   const FileManagerBucketBrowser({
     super.key,
     required this.buckets,
@@ -121,7 +123,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 SizedBox(
-                  width: 300,
+                  width: _bucketActionColumnWidth,
                   child: Text(
                     '挂载操作',
                     textAlign: TextAlign.right,
@@ -148,8 +150,11 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     sizeLabel: '存储桶',
                     onTap: () => _handleBucketTap(bucket.name),
                     showDivider: index != buckets.length - 1,
-                    trailing: SizedBox(
-                      width: 300,
+                    trailing: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 160,
+                        maxWidth: _bucketActionColumnWidth,
+                      ),
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: _BucketMountActions(

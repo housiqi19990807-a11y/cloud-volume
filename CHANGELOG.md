@@ -61,3 +61,4 @@
 - Mounted delete handling now skips macOS `._*` sidecar files from the recycle-bin move path, rewrites MinIO-style directory placeholders directly instead of `CopyObject`-moving them, and retries just-written file deletes long enough for remote copy eligibility, which fixes recursive delete failures on freshly created directories.
 - Bucket mount status now reconciles against the real macOS WebDAV mount table, so Finder-side manual unmounts are detected automatically and the file manager no longer stays stuck on a stale "已挂载" state.
 - Full Chinese interface.
+- The file-manager header now keeps breadcrumbs and action buttons on separate rows, and bucket-list mount actions use a tighter adaptive column so mounted actions such as `打开挂载目录` no longer render truncated after mounting.
