@@ -323,12 +323,12 @@ class _BucketMountActions extends StatelessWidget {
               : () => onOpenTrashBucket!(bucket),
         ),
         _miniButton(
-          label: '挂载',
-          icon: LucideIcons.link,
+          label: mounted ? '卸载' : '挂载',
+          icon: mounted ? LucideIcons.x : LucideIcons.link,
           color: foreground,
-          onPressed: mounted || onMountBucket == null
-              ? null
-              : () => onMountBucket!(bucket),
+          onPressed: mounted
+              ? (onUnmountBucket == null ? null : () => onUnmountBucket!(bucket))
+              : (onMountBucket == null ? null : () => onMountBucket!(bucket)),
         ),
         if (mounted) ...[
           _miniButton(
@@ -338,14 +338,6 @@ class _BucketMountActions extends StatelessWidget {
             onPressed: onOpenMountedBucket == null
                 ? null
                 : () => onOpenMountedBucket!(bucket),
-          ),
-          _miniButton(
-            label: '卸载',
-            icon: LucideIcons.x,
-            color: theme.colorScheme.mutedForeground,
-            onPressed: onUnmountBucket == null
-                ? null
-                : () => onUnmountBucket!(bucket),
           ),
         ],
       ],
