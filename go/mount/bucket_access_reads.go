@@ -139,11 +139,11 @@ func (a *bucketAccess) mergeOverlayItems(
 	virtualPrefix string,
 	items []s3ops.ObjectInfo,
 ) []s3ops.ObjectInfo {
-	if cleanVirtualPath(virtualPrefix) != "" {
-		return items
-	}
 	overlayItems, err := a.overlay.listRootEntries()
-	if err != nil {
+	if cleanVirtualPath(virtualPrefix) != "" {
+		overlayItems, err = a.overlay.listDirectory(virtualPrefix)
+	}
+	if err != nil || len(overlayItems) == 0 {
 		return items
 	}
 	byKey := make(map[string]s3ops.ObjectInfo, len(items)+len(overlayItems))

@@ -84,12 +84,21 @@ func (o *localMountOverlay) ensureSeed() error {
 }
 
 func (o *localMountOverlay) handles(virtualPath string) bool {
-	head := topLevelSegment(virtualPath)
-	if head == "" {
+	segments := splitVirtualPath(virtualPath)
+	if len(segments) == 0 {
 		return false
 	}
-	_, ok := o.entries[head]
-	return ok
+	for index, segment := range segments {
+		if index == 0 {
+			if _, ok := o.entries[segment]; ok {
+				return true
+			}
+		}
+		if isOverlayTransientSegment(segment) {
+			return true
+		}
+	}
+	return isLocalMetadataPath(virtualPath)
 }
 
 func (o *localMountOverlay) isTrashPath(virtualPath string) bool {
@@ -98,22 +107,17 @@ func (o *localMountOverlay) isTrashPath(virtualPath string) bool {
 }
 
 func (o *localMountOverlay) listRootEntries() ([]s3ops.ObjectInfo, error) {
-	if err := o.ensureSeed(); err != nil {
-		return nil, err
-	}
-	items := make([]s3ops.ObjectInfo, 0, len(o.entries))
-	for _, entry := range o.entries {
-		info, err := os.Stat(filepath.Join(o.root, entry.name))
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, objectInfoFromLocalStat(entry.name, info))
-	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Key < items[j].Key })
-	return items, nil
+	return o.listVisibleEntries("")
 }
 
 func (o *localMountOverlay) listDirectory(virtualPrefix string) ([]s3ops.ObjectInfo, error) {
+	return o.listVisibleEntries(virtualPrefix)
+}
+
+func (o *localMountOverlay) listVisibleEntries(virtualPrefix string) ([]s3ops.ObjectInfo, error) {
+	if err := o.ensureSeed(); err != nil {
+		return nil, err
+	}
 	localPath := o.localPath(virtualPrefix)
 	entries, err := os.ReadDir(localPath)
 	if err != nil {
@@ -129,8 +133,12 @@ func (o *localMountOverlay) listDirectory(virtualPrefix string) ([]s3ops.ObjectI
 		if clean := cleanVirtualPath(virtualPrefix); clean != "" {
 			key = clean + "/" + key
 		}
+		if !o.handles(key) && cleanVirtualPath(virtualPrefix) != "" {
+			continue
+		}
 		items = append(items, objectInfoFromLocalStat(key, info))
 	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Key < items[j].Key })
 	return items, nil
 }
 
@@ -210,6 +218,19 @@ func topLevelSegment(virtualPath string) string {
 		return clean
 	}
 	return clean[:index]
+}
+
+func isOverlayTransientSegment(segment string) bool {
+	switch {
+	case strings.HasPrefix(segment, ".AU."):
+		return true
+	case segment == ".ArchiveServiceTemp":
+		return true
+	case strings.HasPrefix(segment, ".ArchiveServiceTemp."):
+		return true
+	default:
+		return false
+	}
 }
 
 type localWebDAVFile struct {

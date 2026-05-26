@@ -42,6 +42,15 @@ func TestLocalMountOverlaySeedsWritableSystemPaths(t *testing.T) {
 	if !overlay.handles(".TemporaryItems") {
 		t.Fatal("expected overlay to handle .TemporaryItems")
 	}
+	if !overlay.handles("codex-debug-dir/.AU.test") {
+		t.Fatal("expected overlay to handle nested .AU temp directory")
+	}
+	if !overlay.handles("codex-debug-dir/.ArchiveServiceTemp.sb-123") {
+		t.Fatal("expected overlay to handle nested Archive Utility temp directory")
+	}
+	if !overlay.handles("codex-debug-dir/.DS_Store") {
+		t.Fatal("expected overlay to handle nested .DS_Store sidecar file")
+	}
 	if overlay.handles(".Trash") {
 		t.Fatal("expected overlay to stop handling .Trash")
 	}
@@ -56,5 +65,34 @@ func TestLocalMountOverlaySeedsWritableSystemPaths(t *testing.T) {
 	}
 	if !overlay.isTrashPath(".Trashes/" + trashUID + "/example.txt") {
 		t.Fatal("expected .Trashes/<uid> path to be treated as trash")
+	}
+}
+
+func TestLocalMountOverlayListsNestedTransientEntries(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	overlay, err := newLocalMountOverlay(root)
+	if err != nil {
+		t.Fatalf("newLocalMountOverlay: %v", err)
+	}
+
+	tempDir := filepath.Join(root, "codex-debug-dir", ".ArchiveServiceTemp.sb-123")
+	if err := os.MkdirAll(tempDir, 0o755); err != nil {
+		t.Fatalf("mkdir temp dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "codex-debug-dir", ".DS_Store"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write ds_store: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "codex-debug-dir", "real.txt"), []byte("skip"), 0o644); err != nil {
+		t.Fatalf("write real file: %v", err)
+	}
+
+	items, err := overlay.listDirectory("codex-debug-dir")
+	if err != nil {
+		t.Fatalf("listDirectory: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 transient overlay items, got %d (%+v)", len(items), items)
 	}
 }
