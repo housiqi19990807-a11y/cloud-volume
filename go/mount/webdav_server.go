@@ -28,13 +28,14 @@ func startWebDAVServer(
 	}
 	address := listener.Addr().(*net.TCPAddr)
 	fs := &webDAVFS{access: access}
+	scope := "/" + strings.Trim(volumeName, "/")
 	handler := &webdav.Handler{
+		Prefix:     scope,
 		FileSystem: fs,
 		LockSystem: webdav.NewMemLS(),
 	}
-	scope := "/" + strings.Trim(volumeName, "/")
 	server := &http.Server{
-		Handler:           webDAVLoggingHandler{next: newScopedWebDAVHandler(scope, handler)},
+		Handler:           webDAVLoggingHandler{next: handler},
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	instance := &webDAVServer{
@@ -56,53 +57,10 @@ func (s *webDAVServer) stop() error {
 	return s.server.Shutdown(ctx)
 }
 
-type scopedWebDAVHandler struct {
-	scope string
-	next  http.Handler
-}
-
-func newScopedWebDAVHandler(scope string, next http.Handler) http.Handler {
-	return scopedWebDAVHandler{
-		scope: strings.TrimRight(scope, "/"),
-		next:  next,
-	}
-}
-
-func (h scopedWebDAVHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.URL.Path, h.scope) {
-		http.NotFound(w, r)
-		return
-	}
-	cloned := r.Clone(r.Context())
-	cloned.URL = cloneURL(r.URL)
-	cloned.URL.Path = trimScopedPath(r.URL.Path, h.scope)
-	cloned.URL.RawPath = ""
-	h.next.ServeHTTP(w, cloned)
-}
-
 func scopedServerURL(port int, scope string) string {
 	return (&url.URL{
 		Scheme: "http",
 		Host:   fmt.Sprintf("127.0.0.1:%d", port),
 		Path:   ensureDirSuffix(strings.Trim(scope, "/")),
 	}).String()
-}
-
-func cloneURL(value *url.URL) *url.URL {
-	if value == nil {
-		return &url.URL{}
-	}
-	cloned := *value
-	return &cloned
-}
-
-func trimScopedPath(pathValue, scope string) string {
-	trimmed := strings.TrimPrefix(pathValue, scope)
-	if trimmed == "" {
-		return "/"
-	}
-	if !strings.HasPrefix(trimmed, "/") {
-		return "/" + trimmed
-	}
-	return trimmed
 }
