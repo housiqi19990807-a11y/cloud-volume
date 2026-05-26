@@ -9,8 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/google/uuid"
+	"time"
 
 	s3ops "remote-storage/go/s3"
 )
@@ -66,7 +65,7 @@ func (a *bucketAccess) handleRemoteMoveIntoOverlay(
 }
 
 func (a *bucketAccess) moveOverlayPathToRemote(
-	ctx context.Context,
+	_ context.Context,
 	oldVirtualPath,
 	newVirtualPath string,
 ) error {
@@ -75,11 +74,11 @@ func (a *bucketAccess) moveOverlayPathToRemote(
 		return err
 	}
 	if info.IsDir() {
-		if err := a.uploadOverlayDirectory(ctx, oldVirtualPath, newVirtualPath); err != nil {
+		if err := a.stageOverlayDirectory(oldVirtualPath, newVirtualPath); err != nil {
 			return err
 		}
 	} else {
-		if err := a.uploadOverlayFile(ctx, oldVirtualPath, newVirtualPath); err != nil {
+		if err := a.stageOverlayFile(oldVirtualPath, newVirtualPath); err != nil {
 			return err
 		}
 	}
@@ -91,15 +90,9 @@ func (a *bucketAccess) moveOverlayPathToRemote(
 	return nil
 }
 
-func (a *bucketAccess) uploadOverlayDirectory(
-	ctx context.Context,
-	oldVirtualPath,
-	newVirtualPath string,
-) error {
+func (a *bucketAccess) stageOverlayDirectory(oldVirtualPath, newVirtualPath string) error {
 	localRoot := a.overlay.localPath(oldVirtualPath)
-	if err := a.createRemoteDirectory(ctx, newVirtualPath); err != nil {
-		return err
-	}
+	a.stageLocalDirectory(newVirtualPath, time.Now())
 	return filepath.WalkDir(localRoot, func(current string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -114,46 +107,72 @@ func (a *bucketAccess) uploadOverlayDirectory(
 		virtualRelative := filepath.ToSlash(relative)
 		targetVirtualPath := joinVirtualPath(newVirtualPath, virtualRelative)
 		if entry.IsDir() {
-			return a.createRemoteDirectory(ctx, targetVirtualPath)
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			a.stageLocalDirectory(targetVirtualPath, info.ModTime())
+			return nil
 		}
 		sourceVirtualPath := joinVirtualPath(oldVirtualPath, virtualRelative)
-		return a.uploadOverlayFile(ctx, sourceVirtualPath, targetVirtualPath)
+		return a.stageOverlayFile(sourceVirtualPath, targetVirtualPath)
 	})
 }
 
-func (a *bucketAccess) uploadOverlayFile(
-	ctx context.Context,
-	oldVirtualPath,
-	newVirtualPath string,
-) error {
-	timeoutCtx, cancel := a.withTimeout(ctx)
-	defer cancel()
-	taskID := "mount-upload-" + uuid.NewString()
+func (a *bucketAccess) stageOverlayFile(oldVirtualPath, newVirtualPath string) error {
 	localPath := a.overlay.localPath(oldVirtualPath)
-	if err := s3ops.UploadFileContext(
-		timeoutCtx,
-		a.config,
-		a.bucket,
-		a.remoteKey(newVirtualPath),
-		localPath,
-		taskID,
-	); err != nil {
+	info, err := os.Stat(localPath)
+	if err != nil {
 		return err
 	}
-	info, err := os.Stat(localPath)
-	if err == nil {
-		cachePath := a.cachePathFor(newVirtualPath)
-		if copyErr := copyFile(cachePath, localPath); copyErr == nil {
-			localPath = cachePath
-		}
-		a.cache.storeObject(cleanVirtualPath(newVirtualPath), s3ops.ObjectInfo{
-			Key:          cleanVirtualPath(newVirtualPath),
-			Size:         info.Size(),
-			LastModified: info.ModTime().Format("2006-01-02 15:04:05"),
-			IsDir:        false,
-		})
+	cachePath := a.cachePathFor(newVirtualPath)
+	if err := copyFile(cachePath, localPath); err != nil {
+		return err
 	}
+	a.registerLocalWrite(newVirtualPath, cachePath, info.Size())
+	a.scheduleUpload(newVirtualPath, cachePath)
 	return nil
+}
+
+func joinVirtualPath(basePath, relativePath string) string {
+	base := cleanVirtualPath(basePath)
+	relative := cleanVirtualPath(relativePath)
+	switch {
+	case base == "":
+		return relative
+	case relative == "":
+		return base
+	default:
+		return base + "/" + relative
+	}
+}
+
+func (a *bucketAccess) stageLocalDirectory(virtualPath string, modTime time.Time) {
+	clean := cleanVirtualPath(virtualPath)
+	if clean == "" {
+		return
+	}
+	a.cache.storeLocalDirectory(clean, s3ops.ObjectInfo{
+		Key:          ensureDirSuffix(clean),
+		LastModified: modTime.Format("2006-01-02 15:04:05"),
+		IsDir:        true,
+	})
+	a.cache.invalidatePath(clean)
+	a.queueRemoteDirectory(clean)
+}
+
+func (a *bucketAccess) queueRemoteDirectory(virtualPath string) {
+	clean := cleanVirtualPath(virtualPath)
+	if clean == "" {
+		return
+	}
+	go func(target string) {
+		ctx, cancel := context.WithTimeout(context.Background(), a.requestTimeout)
+		defer cancel()
+		if err := a.createRemoteDirectory(ctx, target); err != nil {
+			log.Printf("[mount/dir-sync] bucket=%q path=%q error=%v", a.bucket, target, err)
+		}
+	}(clean)
 }
 
 func (a *bucketAccess) createRemoteDirectory(
@@ -179,17 +198,4 @@ func (a *bucketAccess) createRemoteDirectory(
 		return err
 	}
 	return nil
-}
-
-func joinVirtualPath(basePath, relativePath string) string {
-	base := cleanVirtualPath(basePath)
-	relative := cleanVirtualPath(relativePath)
-	switch {
-	case base == "":
-		return relative
-	case relative == "":
-		return base
-	default:
-		return base + "/" + relative
-	}
 }

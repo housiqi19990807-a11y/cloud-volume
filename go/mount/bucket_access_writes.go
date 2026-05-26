@@ -42,37 +42,10 @@ func (a *bucketAccess) createDirectory(
 	if a.overlay.handles(clean) {
 		return a.overlay.mkdir(clean, 0o755)
 	}
-	parent := parentVirtualPrefix(clean)
-	name := baseName(clean)
-	if name == "" {
+	if clean == "" {
 		return fmt.Errorf("directory name is required")
 	}
-	timeoutCtx, cancel := a.withTimeout(ctx)
-	defer cancel()
-	if err := s3ops.CreateDirectoryContext(
-		timeoutCtx,
-		a.config,
-		a.bucket,
-		a.remotePrefix(parent),
-		name,
-	); err != nil {
-		log.Printf(
-			"[mount/mkdir] bucket=%q path=%q parent=%q name=%q remotePrefix=%q error=%v",
-			a.bucket,
-			clean,
-			parent,
-			name,
-			a.remotePrefix(parent),
-			err,
-		)
-		return err
-	}
-	a.cache.storeLocalDirectory(clean, s3ops.ObjectInfo{
-		Key:          ensureDirSuffix(clean),
-		LastModified: time.Now().Format("2006-01-02 15:04:05"),
-		IsDir:        true,
-	})
-	a.cache.invalidatePath(clean)
+	a.stageLocalDirectory(clean, time.Now())
 	return nil
 }
 

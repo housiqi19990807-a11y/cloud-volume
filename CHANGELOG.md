@@ -64,3 +64,4 @@
 - The file-manager header now keeps breadcrumbs and action buttons on separate rows, and bucket-list mount actions use a tighter adaptive column so mounted actions such as `打开挂载目录` no longer render truncated after mounting.
 - The bucket list now left-aligns its action column and hides the non-clickable `已挂载` badge in list mode, so mounted buckets keep a cleaner single-row action area with just actionable buttons.
 - In the bucket list, the primary mount action now switches between `挂载` and `卸载` instead of showing a separate mounted-state badge plus an extra unmount button, which keeps mounted rows on a single cleaner action line.
+- Mounted directory creation and temp-folder-to-final-folder moves now commit locally first inside the WebDAV view, then backfill remote directory placeholders and delayed uploads asynchronously, which keeps Archive Utility and similar macOS app workflows from failing when they immediately re-probe freshly moved extraction results.
