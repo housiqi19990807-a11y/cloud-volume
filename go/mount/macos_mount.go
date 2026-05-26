@@ -30,7 +30,12 @@ func (s *mountSession) start() error {
 func (s *mountSession) stop() error {
 	var mountErr error
 	if s.mounted && s.mountTarget != "" {
-		mountErr = unmountWebDAV(s.mountTarget)
+		active, err := isWebDAVMountActive(s.mountTarget)
+		if err != nil {
+			mountErr = err
+		} else if active {
+			mountErr = unmountWebDAV(s.mountTarget)
+		}
 		s.mounted = false
 	}
 	serverErr := error(nil)

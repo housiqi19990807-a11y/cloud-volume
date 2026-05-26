@@ -6,6 +6,18 @@ part of 'file_manager_page.dart';
 
 extension _FileManagerPageMount on _FileManagerPageState {
   Future<void> _refreshVisibleMountStatuses() async {
+    if (_mountStatusRefreshInFlight || _mountBusyBuckets.isNotEmpty) {
+      return;
+    }
+    _mountStatusRefreshInFlight = true;
+    try {
+      await _refreshVisibleMountStatusesOnce();
+    } finally {
+      _mountStatusRefreshInFlight = false;
+    }
+  }
+
+  Future<void> _refreshVisibleMountStatusesOnce() async {
     if (_activeBucket != null) {
       await _refreshMountStatus(_activeBucket!);
       return;

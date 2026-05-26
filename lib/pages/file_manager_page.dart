@@ -42,6 +42,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   static const double _gridIconSize = 68;
   static const double _listIconSize = 20;
   static const double _bucketGridIconSize = 72;
+  static const Duration _mountStatusRefreshInterval = Duration(seconds: 4);
 
   List<BucketInfo>? _buckets;
   String? _activeBucket;
@@ -57,6 +58,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
       <String, BucketMountStatus>{};
   final Set<String> _mountBusyBuckets = <String>{};
   final Set<String> _selectedObjectKeys = <String>{};
+  Timer? _mountStatusRefreshTimer;
+  bool _mountStatusRefreshInFlight = false;
 
   BucketMountStatus? get _activeMountStatus =>
       _activeBucket == null ? null : _bucketMountStatuses[_activeBucket!];
@@ -67,7 +70,14 @@ class _FileManagerPageState extends State<FileManagerPage> {
   @override
   void initState() {
     super.initState();
+    _startMountStatusRefreshTimer();
     _loadBuckets();
+  }
+
+  @override
+  void dispose() {
+    _mountStatusRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -171,6 +181,14 @@ class _FileManagerPageState extends State<FileManagerPage> {
     return _loadObjects(
       _activeBucket!,
       _breadcrumbs.sublist(0, index + 1).map((segment) => '$segment/').join(),
+    );
+  }
+
+  void _startMountStatusRefreshTimer() {
+    _mountStatusRefreshTimer?.cancel();
+    _mountStatusRefreshTimer = Timer.periodic(
+      _mountStatusRefreshInterval,
+      (_) => unawaited(_refreshVisibleMountStatuses()),
     );
   }
 

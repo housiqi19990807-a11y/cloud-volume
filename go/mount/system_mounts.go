@@ -1,0 +1,61 @@
+// System mount probing keeps in-memory mount state aligned with macOS reality.
+package mount
+
+import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+var mountEscapePattern = regexp.MustCompile(`\\([0-7]{3})`)
+
+func isWebDAVMountActive(mountPath string) (bool, error) {
+	output, err := exec.Command("mount", "-t", "webdav").CombinedOutput()
+	if err != nil {
+		return false, fmt.Errorf("list webdav mounts: %w: %s", err, string(output))
+	}
+	return mountOutputContainsPath(string(output), mountPath), nil
+}
+
+func mountOutputContainsPath(output, mountPath string) bool {
+	target := filepath.Clean(strings.TrimSpace(mountPath))
+	if target == "." || target == "" {
+		return false
+	}
+	for _, line := range strings.Split(output, "\n") {
+		current, ok := parseMountPoint(line)
+		if !ok {
+			continue
+		}
+		if filepath.Clean(current) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func parseMountPoint(line string) (string, bool) {
+	start := strings.Index(line, " on ")
+	if start < 0 {
+		return "", false
+	}
+	rest := line[start+4:]
+	end := strings.LastIndex(rest, " (")
+	if end < 0 {
+		return "", false
+	}
+	return decodeMountField(rest[:end]), true
+}
+
+func decodeMountField(value string) string {
+	return mountEscapePattern.ReplaceAllStringFunc(value, func(match string) string {
+		code, err := strconv.ParseInt(match[1:], 8, 32)
+		if err != nil {
+			return match
+		}
+		return string(rune(code))
+	})
+}

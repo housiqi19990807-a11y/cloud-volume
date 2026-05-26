@@ -55,4 +55,5 @@
 - Deletes now use an app-level bucket recycle bin instead of relying on Finder trash support from the mounted WebDAV volume: objects are soft-deleted into a hidden bucket directory such as `.trash`, can be browsed per bucket from the bucket list actions, restored, or permanently deleted from the in-app recycle bin view.
 - Settings now expose the recycle-bin directory name and retention days, so the hidden bucket trash path and automatic cleanup policy can be adjusted without editing the config file manually.
 - The mounted WebDAV view now hides the configured recycle-bin directory from Finder so the special trash area stays app-managed and does not appear as a normal folder on the desktop volume.
+- Bucket mount status now reconciles against the real macOS WebDAV mount table, so Finder-side manual unmounts are detected automatically and the file manager no longer stays stuck on a stale "已挂载" state.
 - Full Chinese interface.

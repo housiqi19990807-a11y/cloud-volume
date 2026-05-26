@@ -66,6 +66,9 @@ func (m *manager) mountBucket(
 		return BucketMountStatus{}, fmt.Errorf("missing bucket name")
 	}
 
+	if err := m.syncSessionLocked(); err != nil {
+		return BucketMountStatus{}, err
+	}
 	if m.session != nil && m.session.bucket == trimmedBucket && m.session.server != nil {
 		return m.session.status(), nil
 	}
@@ -92,6 +95,9 @@ func (m *manager) unmountBucket(bucket string) (BucketMountStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if err := m.syncSessionLocked(); err != nil {
+		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, err
+	}
 	if m.session == nil {
 		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, nil
 	}
@@ -111,6 +117,9 @@ func (m *manager) getBucketMountStatus(bucket string) (BucketMountStatus, error)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if err := m.syncSessionLocked(); err != nil {
+		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, err
+	}
 	if m.session == nil {
 		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, nil
 	}
@@ -122,6 +131,10 @@ func (m *manager) getBucketMountStatus(bucket string) (BucketMountStatus, error)
 
 func (m *manager) openBucketMount(bucket string) (BucketMountStatus, error) {
 	m.mu.Lock()
+	if err := m.syncSessionLocked(); err != nil {
+		m.mu.Unlock()
+		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, err
+	}
 	session := m.session
 	m.mu.Unlock()
 
@@ -135,6 +148,24 @@ func (m *manager) openBucketMount(bucket string) (BucketMountStatus, error) {
 		return session.status(), err
 	}
 	return session.status(), nil
+}
+
+func (m *manager) syncSessionLocked() error {
+	if m.session == nil {
+		return nil
+	}
+	active, err := isWebDAVMountActive(m.session.mountTarget)
+	if err != nil {
+		m.session.lastError = err.Error()
+		return err
+	}
+	if active {
+		m.session.mounted = true
+		return nil
+	}
+	_ = m.session.stop()
+	m.session = nil
+	return nil
 }
 
 func (m *manager) unmountCurrentLocked() error {
