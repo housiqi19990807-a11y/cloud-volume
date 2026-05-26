@@ -105,22 +105,31 @@ func (a *bucketAccess) ensureLocalFile(
 	virtualPath string,
 ) (string, s3ops.ObjectInfo, error) {
 	clean := cleanVirtualPath(virtualPath)
+	if a.overlay.handles(clean) {
+		info, err := a.overlay.statObject(clean)
+		if err != nil {
+			return "", s3ops.ObjectInfo{}, err
+		}
+		return a.overlay.localPath(clean), info, nil
+	}
 	if item, ok := a.cache.localFile(clean); ok {
 		if isUsableLocalFile(item.localPath, item.info.Size) {
 			return item.localPath, item.info, nil
 		}
 	}
 
-	info, err := a.statPath(ctx, clean)
+	info, err := a.fetchStat(ctx, clean)
 	if err != nil {
 		return "", s3ops.ObjectInfo{}, err
 	}
+	a.cache.storeObject(clean, info)
 	if info.IsDir {
 		return "", s3ops.ObjectInfo{}, fmt.Errorf("%s is a directory", clean)
 	}
 
 	localPath := a.cachePathFor(clean)
-	if isUsableLocalFile(localPath, info.Size) {
+	reconcileDownloadArtifacts(localPath, info)
+	if isCompleteDownloadUsable(localPath, info) {
 		return localPath, info, nil
 	}
 

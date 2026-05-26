@@ -205,25 +205,44 @@ func DownloadFileContext(
 	if ctx == nil {
 		ctx = Ctx()
 	}
-	if taskID != "" {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithCancel(ctx)
-		startTransfer(taskID, "download", bucket, key, localPath, 0, cancel)
-		defer func() { finishTransfer(taskID, err) }()
-	}
-
-	out, err := client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: &bucket, Key: &key,
+	head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
 	})
 	if err != nil {
 		return normalizeNotExistError(err)
 	}
-	defer out.Body.Close()
+	totalBytes := aws.ToInt64(head.ContentLength)
+	resumeOffset := existingFileSize(localPath, totalBytes)
+	if resumeOffset >= totalBytes && totalBytes > 0 {
+		return nil
+	}
 	if taskID != "" {
-		setTransferTotal(taskID, aws.ToInt64(out.ContentLength))
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		startTransfer(taskID, "download", bucket, key, localPath, totalBytes, cancel)
+		defer func() { finishTransfer(taskID, err) }()
 	}
 
-	f, err := os.Create(localPath)
+	input := &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}
+	if resumeOffset > 0 {
+		input.Range = aws.String(fmt.Sprintf("bytes=%d-", resumeOffset))
+	}
+	out, err := client.GetObject(ctx, input)
+	if err != nil {
+		return normalizeNotExistError(err)
+	}
+	defer out.Body.Close()
+
+	writeOffset := resolvedResumeOffset(resumeOffset, out.ContentRange)
+	if taskID != "" && writeOffset > 0 {
+		advanceTransfer(taskID, writeOffset)
+	}
+
+	f, err := openDownloadTarget(localPath, writeOffset)
 	if err != nil {
 		return err
 	}
@@ -240,6 +259,50 @@ func DownloadFileContext(
 
 	_, err = io.Copy(f, body)
 	return err
+}
+
+func existingFileSize(localPath string, totalBytes int64) int64 {
+	if info, statErr := os.Stat(localPath); statErr == nil && !info.IsDir() {
+		resumeOffset := info.Size()
+		if resumeOffset > totalBytes {
+			_ = os.Remove(localPath)
+			return 0
+		}
+		return resumeOffset
+	}
+	return 0
+}
+
+func resolvedResumeOffset(resumeOffset int64, contentRange *string) int64 {
+	if resumeOffset <= 0 {
+		return 0
+	}
+	if contentRange == nil {
+		return 0
+	}
+	expected := fmt.Sprintf("bytes %d-", resumeOffset)
+	if strings.HasPrefix(strings.TrimSpace(*contentRange), expected) {
+		return resumeOffset
+	}
+	return 0
+}
+
+func openDownloadTarget(localPath string, writeOffset int64) (*os.File, error) {
+	openFlags := os.O_CREATE | os.O_WRONLY
+	if writeOffset == 0 {
+		openFlags |= os.O_TRUNC
+	}
+	f, err := os.OpenFile(localPath, openFlags, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if writeOffset > 0 {
+		if _, err := f.Seek(writeOffset, io.SeekStart); err != nil {
+			_ = f.Close()
+			return nil, err
+		}
+	}
+	return f, nil
 }
 
 // GetPresignedURL generates a presigned download URL.

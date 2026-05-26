@@ -68,7 +68,7 @@ func (q *writebackQueue) flush(virtualPath string) {
 }
 
 func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
-	ctx, cancel := context.WithTimeout(context.Background(), q.access.requestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), q.access.transferTimeout)
 	defer cancel()
 
 	err := s3ops.UploadFileContext(

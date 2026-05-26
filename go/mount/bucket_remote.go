@@ -77,10 +77,18 @@ func (a *bucketAccess) downloadToCache(
 	info s3ops.ObjectInfo,
 	localPath string,
 ) (string, error) {
-	timeoutCtx, cancel := a.withTimeout(ctx)
+	timeoutCtx, cancel := a.withTransferTimeout(ctx)
 	defer cancel()
-	tempPath := localPath + ".downloading"
-	_ = os.Remove(tempPath)
+	reconcileDownloadArtifacts(localPath, info)
+	if isCompleteDownloadUsable(localPath, info) {
+		a.cache.storeObject(virtualPath, info)
+		return localPath, nil
+	}
+
+	tempPath := partialDownloadPath(localPath)
+	if err := writeDownloadStamp(tempPath, info); err != nil {
+		return "", err
+	}
 	taskID := "mount-download-" + uuid.NewString()
 	if err := s3ops.DownloadFileContext(
 		timeoutCtx,
@@ -90,7 +98,6 @@ func (a *bucketAccess) downloadToCache(
 		tempPath,
 		taskID,
 	); err != nil {
-		_ = os.Remove(tempPath)
 		return "", err
 	}
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
@@ -99,6 +106,16 @@ func (a *bucketAccess) downloadToCache(
 	_ = os.Remove(localPath)
 	if err := os.Rename(tempPath, localPath); err != nil {
 		return "", err
+	}
+	if err := renameDownloadStamp(stampPath(tempPath), stampPath(localPath)); err != nil {
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		if err := writeDownloadStamp(localPath, info); err != nil {
+			return "", err
+		}
+	} else {
+		_ = os.Remove(partialStampPath(localPath))
 	}
 	a.cache.storeObject(virtualPath, info)
 	return localPath, nil
@@ -126,6 +143,13 @@ func (a *bucketAccess) withTimeout(ctx context.Context) (context.Context, contex
 		ctx = context.Background()
 	}
 	return context.WithTimeout(ctx, a.requestTimeout)
+}
+
+func (a *bucketAccess) withTransferTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(ctx, a.transferTimeout)
 }
 
 func (a *bucketAccess) remotePrefix(virtualPrefix string) string {

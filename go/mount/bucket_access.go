@@ -14,14 +14,15 @@ import (
 )
 
 type bucketAccess struct {
-	config         storageconfig.RemoteStorageConfig
-	bucket         string
-	rootPrefix     string
-	cacheRoot      string
-	stageRoot      string
-	requestTimeout time.Duration
-	listTTL        time.Duration
-	prefetchTTL    time.Duration
+	config          storageconfig.RemoteStorageConfig
+	bucket          string
+	rootPrefix      string
+	cacheRoot       string
+	stageRoot       string
+	requestTimeout  time.Duration
+	transferTimeout time.Duration
+	listTTL         time.Duration
+	prefetchTTL     time.Duration
 
 	group singleflight.Group
 
@@ -54,16 +55,17 @@ func newBucketAccess(
 	}
 
 	access := &bucketAccess{
-		config:         cfg,
-		bucket:         bucket,
-		rootPrefix:     normalizeRootPrefix(cfg.RootPrefix),
-		cacheRoot:      cacheRoot,
-		stageRoot:      stageRoot,
-		requestTimeout: defaultRequestTimeout * time.Second,
-		listTTL:        defaultCacheTTL * time.Second,
-		prefetchTTL:    defaultPrefetchTTL * time.Second,
-		cache:          newBucketCache(defaultCacheTTL*time.Second, defaultPrefetchTTL*time.Second),
-		overlay:        overlay,
+		config:          cfg,
+		bucket:          bucket,
+		rootPrefix:      normalizeRootPrefix(cfg.RootPrefix),
+		cacheRoot:       cacheRoot,
+		stageRoot:       stageRoot,
+		requestTimeout:  defaultRequestTimeout * time.Second,
+		transferTimeout: defaultTransferTimeout * time.Second,
+		listTTL:         defaultCacheTTL * time.Second,
+		prefetchTTL:     defaultPrefetchTTL * time.Second,
+		cache:           newBucketCache(defaultCacheTTL*time.Second, defaultPrefetchTTL*time.Second),
+		overlay:         overlay,
 	}
 	access.writeback = newWritebackQueue(access)
 	return access, nil
