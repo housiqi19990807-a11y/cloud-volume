@@ -1,4 +1,4 @@
-// Local overlay tests keep Finder-specific trash bootstrap behavior pinned down.
+// Local overlay tests keep Finder-specific writable temp path behavior pinned down.
 package mount
 
 import (
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestLocalMountOverlaySeedsTrashFamilies(t *testing.T) {
+func TestLocalMountOverlaySeedsWritableSystemPaths(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -19,29 +19,34 @@ func TestLocalMountOverlaySeedsTrashFamilies(t *testing.T) {
 
 	trashUID := fmt.Sprintf("%d", os.Getuid())
 	requiredPaths := []string{
-		filepath.Join(root, ".Trash"),
-		filepath.Join(root, ".Trash-"+trashUID),
-		filepath.Join(root, ".Trashes"),
-		filepath.Join(root, ".Trashes", trashUID),
+		filepath.Join(root, ".TemporaryItems"),
+		filepath.Join(root, ".fseventsd"),
+		filepath.Join(root, ".metadata_never_index"),
 	}
 	for _, path := range requiredPaths {
 		info, statErr := os.Stat(path)
 		if statErr != nil {
 			t.Fatalf("stat %q: %v", path, statErr)
 		}
+		if path == filepath.Join(root, ".metadata_never_index") {
+			if info.IsDir() {
+				t.Fatalf("%q should be a file", path)
+			}
+			continue
+		}
 		if !info.IsDir() {
 			t.Fatalf("%q is not a directory", path)
 		}
 	}
 
-	if !overlay.handles(".Trash") {
-		t.Fatal("expected overlay to handle .Trash")
+	if !overlay.handles(".TemporaryItems") {
+		t.Fatal("expected overlay to handle .TemporaryItems")
 	}
-	if !overlay.handles(".Trash-" + trashUID) {
-		t.Fatal("expected overlay to handle .Trash-<uid>")
+	if overlay.handles(".Trash") {
+		t.Fatal("expected overlay to stop handling .Trash")
 	}
-	if !overlay.handles(".Trashes") {
-		t.Fatal("expected overlay to handle .Trashes")
+	if overlay.handles(".Trashes") {
+		t.Fatal("expected overlay to stop handling .Trashes")
 	}
 	if !overlay.isTrashPath(".Trash/example.txt") {
 		t.Fatal("expected .Trash path to be treated as trash")

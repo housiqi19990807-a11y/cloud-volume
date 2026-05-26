@@ -115,15 +115,16 @@ func isRootTrashKey(cfg storageconfig.RemoteStorageConfig, key string) bool {
 	if trimmed == "" {
 		return false
 	}
-	name := strings.Trim(strings.TrimSpace(cfg.TrashDirectoryName), "/")
-	if name == "" {
-		name = ".trash"
-	}
 	index := strings.Index(trimmed, "/")
 	if index >= 0 {
 		trimmed = trimmed[:index]
 	}
-	return trimmed == name
+	for _, alias := range storageconfig.TrashDirectoryAliases(cfg.TrashDirectoryName) {
+		if trimmed == strings.Trim(strings.TrimSpace(alias), "/") {
+			return true
+		}
+	}
+	return false
 }
 
 // UploadFile uploads a local file to the given bucket + key.

@@ -111,8 +111,13 @@ func isTrashKey(cfg storageconfig.RemoteStorageConfig, key string) bool {
 	if trimmed == "" {
 		return false
 	}
-	prefix := strings.TrimSuffix(trashPrefix(cfg), "/")
-	return trimmed == prefix || strings.HasPrefix(trimmed, prefix+"/")
+	for _, alias := range storageconfig.TrashDirectoryAliases(cfg.TrashDirectoryName) {
+		prefix := strings.Trim(strings.TrimSpace(alias), "/")
+		if trimmed == prefix || strings.HasPrefix(trimmed, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func trashDisplayName(originalKey string) string {

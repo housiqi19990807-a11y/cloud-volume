@@ -1,9 +1,8 @@
-// Mount manager coordinates one macOS desktop bucket mount at a time for now.
+// Mount manager coordinates one macOS system WebDAV bucket volume at a time for now.
 package mount
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -19,7 +18,7 @@ type manager struct {
 
 var globalManager = &manager{}
 
-// MountBucket starts the local WebDAV server and mounts the bucket to Desktop.
+// MountBucket starts the local WebDAV server and mounts the bucket as a system volume.
 func MountBucket(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
@@ -42,7 +41,7 @@ func OpenBucketMount(bucket string) (BucketMountStatus, error) {
 	return globalManager.openBucketMount(bucket)
 }
 
-// CleanupMounts unmounts any active desktop mount during app shutdown.
+// CleanupMounts unmounts any active bucket volume during app shutdown.
 func CleanupMounts() error {
 	return globalManager.cleanupMounts()
 }
@@ -187,12 +186,7 @@ func newMountSession(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) (*mountSession, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("resolve user home: %w", err)
-	}
 	mountName := "云卷-" + bucket
-	mountPath := filepath.Join(homeDir, "Desktop", mountName)
 	access, err := newBucketAccess(cfg, bucket)
 	if err != nil {
 		return nil, err
@@ -202,8 +196,8 @@ func newMountSession(
 		bucket:      bucket,
 		rootPrefix:  normalizeRootPrefix(cfg.RootPrefix),
 		mountName:   mountName,
-		mountPath:   mountPath,
-		mountTarget: mountPath,
+		mountPath:   filepath.Join("/Volumes", mountName),
+		mountTarget: filepath.Join("/Volumes", mountName),
 		access:      access,
 	}, nil
 }

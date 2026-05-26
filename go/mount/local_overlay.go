@@ -3,12 +3,12 @@ package mount
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,22 +28,14 @@ type localMountOverlay struct {
 }
 
 func newLocalMountOverlay(root string) (*localMountOverlay, error) {
-	trashUID := fmt.Sprintf("%d", os.Getuid())
 	overlay := &localMountOverlay{
 		root: root,
 		entries: map[string]localOverlayEntry{
-			".TemporaryItems": {name: ".TemporaryItems", isDir: true, mode: 0o777 | fs.ModeSticky},
-			".Trash":          {name: ".Trash", isDir: true, mode: 0o700},
-			".Trash-" + trashUID: {
-				name:  ".Trash-" + trashUID,
-				isDir: true,
-				mode:  0o700,
-			},
-			".Trashes":              {name: ".Trashes", isDir: true, mode: 0o777 | fs.ModeSticky},
+			".TemporaryItems":       {name: ".TemporaryItems", isDir: true, mode: 0o777 | fs.ModeSticky},
 			".fseventsd":            {name: ".fseventsd", isDir: true, mode: 0o755},
 			".metadata_never_index": {name: ".metadata_never_index", isDir: false, mode: 0o644},
 		},
-		trashUID: trashUID,
+		trashUID: strconv.Itoa(os.Getuid()),
 	}
 	if err := overlay.ensureSeed(); err != nil {
 		return nil, err
@@ -88,11 +80,7 @@ func (o *localMountOverlay) ensureSeed() error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	trashUserPath := filepath.Join(o.root, ".Trashes", o.trashUID)
-	if err := os.MkdirAll(trashUserPath, 0o700); err != nil {
-		return err
-	}
-	return os.Chmod(trashUserPath, 0o700)
+	return nil
 }
 
 func (o *localMountOverlay) handles(virtualPath string) bool {

@@ -1,14 +1,16 @@
-// macOS mount helpers wrap mount_webdav, umount, and Finder opening.
+// macOS mount helpers wrap system WebDAV mounting, unmounting, and Finder opening.
 package mount
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 func (s *mountSession) start() error {
-	server, serverURL, port, err := startWebDAVServer(s.access)
+	server, serverURL, port, err := startWebDAVServer(s.access, s.mountName)
 	if err != nil {
 		return err
 	}
@@ -16,13 +18,13 @@ func (s *mountSession) start() error {
 	s.serverURL = serverURL
 	s.port = port
 
-	if err := prepareMountTarget(s.mountTarget); err != nil {
-		return err
-	}
-	if err := mountWebDAV(serverURL, s.mountTarget, s.mountName); err != nil {
+	mountPath, err := mountWebDAV(serverURL)
+	if err != nil {
 		s.lastError = err.Error()
 		return err
 	}
+	s.mountPath = mountPath
+	s.mountTarget = mountPath
 	s.mounted = true
 	return nil
 }
@@ -46,7 +48,6 @@ func (s *mountSession) stop() error {
 		s.lastError = mountErr.Error()
 		return mountErr
 	}
-	_ = os.Remove(s.mountTarget)
 	if serverErr != nil {
 		s.lastError = serverErr.Error()
 		return serverErr
@@ -54,20 +55,21 @@ func (s *mountSession) stop() error {
 	return nil
 }
 
-func mountWebDAV(serverURL, mountPath, volumeName string) error {
-	cmd := exec.Command(
-		"/sbin/mount_webdav",
-		"-S",
-		"-v",
-		volumeName,
-		serverURL,
-		mountPath,
+func mountWebDAV(serverURL string) (string, error) {
+	script := fmt.Sprintf(
+		"POSIX path of (mount volume %s)",
+		appleScriptStringLiteral(serverURL),
 	)
+	cmd := exec.Command("osascript", "-e", script)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("mount bucket with mount_webdav: %w: %s", err, string(output))
+		return "", fmt.Errorf("mount bucket with macOS mount volume: %w: %s", err, string(output))
 	}
-	return nil
+	mountPath := strings.TrimSpace(string(output))
+	if mountPath == "" {
+		return "", fmt.Errorf("mount bucket with macOS mount volume: empty mount path")
+	}
+	return filepath.Clean(mountPath), nil
 }
 
 func unmountWebDAV(mountPath string) error {
@@ -93,37 +95,8 @@ func openMountPath(mountPath string) error {
 	return nil
 }
 
-// The Desktop path itself is the real mount point so Finder and Archive Utility
-// see a normal writable volume instead of a symlinked proxy directory.
-func prepareMountTarget(mountPath string) error {
-	info, err := os.Lstat(mountPath)
-	switch {
-	case os.IsNotExist(err):
-		if err := os.MkdirAll(mountPath, 0o755); err != nil {
-			return err
-		}
-		return markMountPathIgnoredByFileProvider(mountPath)
-	case err != nil:
-		return fmt.Errorf("inspect mount target: %w", err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		if err := os.Remove(mountPath); err != nil {
-			return fmt.Errorf("remove legacy mount symlink: %w", err)
-		}
-		if err := os.MkdirAll(mountPath, 0o755); err != nil {
-			return err
-		}
-		return markMountPathIgnoredByFileProvider(mountPath)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("mount path %q already exists and is not a directory", mountPath)
-	}
-	entries, err := os.ReadDir(mountPath)
-	if err != nil {
-		return fmt.Errorf("inspect mount target entries: %w", err)
-	}
-	if len(entries) > 0 {
-		return fmt.Errorf("mount path %q already exists and is not empty", mountPath)
-	}
-	return markMountPathIgnoredByFileProvider(mountPath)
+func appleScriptStringLiteral(value string) string {
+	escaped := strings.ReplaceAll(value, "\\", "\\\\")
+	escaped = strings.ReplaceAll(escaped, "\"", "\\\"")
+	return fmt.Sprintf("\"%s\"", escaped)
 }

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"strings"
 
+	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
 )
 
@@ -13,11 +14,13 @@ func (a *bucketAccess) isTrashPath(virtualPath string) bool {
 	if clean == "" {
 		return false
 	}
-	trashName := strings.Trim(strings.TrimSpace(a.config.TrashDirectoryName), "/")
-	if trashName == "" {
-		trashName = ".trash"
+	for _, trashName := range storageconfig.TrashDirectoryAliases(a.config.TrashDirectoryName) {
+		trimmed := strings.Trim(strings.TrimSpace(trashName), "/")
+		if clean == trimmed || strings.HasPrefix(clean, trimmed+"/") {
+			return true
+		}
 	}
-	return clean == trashName || strings.HasPrefix(clean, trashName+"/")
+	return false
 }
 
 func (a *bucketAccess) filterTrashItems(items []s3ops.ObjectInfo) []s3ops.ObjectInfo {

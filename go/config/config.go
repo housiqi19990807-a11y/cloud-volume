@@ -93,3 +93,16 @@ func normalizeTrashDirectoryName(value string) string {
 	}
 	return trimmed
 }
+
+// TrashDirectoryAliases returns all reserved bucket-trash roots that should be hidden and protected.
+func TrashDirectoryAliases(value string) []string {
+	primary := normalizeTrashDirectoryName(value)
+	aliases := []string{primary}
+	switch primary {
+	case ".trash":
+		aliases = append(aliases, ".Trash")
+	case ".Trash":
+		aliases = append(aliases, ".trash")
+	}
+	return aliases
+}

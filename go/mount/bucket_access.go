@@ -293,6 +293,9 @@ func (a *bucketAccess) renamePath(
 ) error {
 	oldClean := cleanVirtualPath(oldVirtualPath)
 	newClean := cleanVirtualPath(newVirtualPath)
+	if a.overlay.isTrashPath(newClean) {
+		return a.deletePath(ctx, oldClean, isDir)
+	}
 	if err := a.hiddenTrashError(oldClean); err != nil {
 		return err
 	}
