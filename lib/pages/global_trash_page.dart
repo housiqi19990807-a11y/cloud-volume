@@ -230,8 +230,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     }
   }
 
-  void _toggleSelectAllFiltered(bool? nextValue) {
-    final shouldSelect = nextValue ?? false;
+  void _toggleSelectAllFiltered(bool nextValue) {
+    final shouldSelect = nextValue;
     setState(() {
       for (final entry in _filteredEntries) {
         if (_busyEntries.contains(entry.id)) continue;
@@ -372,13 +372,14 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         children: [
           Row(
             children: [
-              Checkbox(
+              ShadCheckbox(
                 value: selected,
+                enabled: !busy,
                 onChanged: busy
                     ? null
                     : (value) {
                         setState(() {
-                          if (value ?? false) {
+                          if (value) {
                             _selectedIds.add(entry.id);
                           } else {
                             _selectedIds.remove(entry.id);

@@ -39,7 +39,7 @@ class GlobalTrashFilters extends StatelessWidget {
   final bool loading;
   final ValueChanged<String?> onBucketChanged;
   final ValueChanged<TrashTypeFilter?> onTypeChanged;
-  final ValueChanged<bool?> onToggleSelectAll;
+  final ValueChanged<bool> onToggleSelectAll;
 
   @override
   Widget build(BuildContext context) {
@@ -69,15 +69,12 @@ class GlobalTrashFilters extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         SizedBox(
-          width: 48,
-          child: Checkbox(
-            value: allFilteredSelected
-                ? true
-                : partiallySelected
-                ? null
-                : false,
-            tristate: true,
+          width: 132,
+          child: ShadCheckbox(
+            value: allFilteredSelected,
+            enabled: !loading,
             onChanged: loading ? null : onToggleSelectAll,
+            label: Text(partiallySelected ? '部分已选' : '全选结果'),
           ),
         ),
       ],
@@ -93,16 +90,16 @@ class GlobalTrashFilters extends StatelessWidget {
   }) {
     return SizedBox(
       width: width,
-      child: DropdownButtonFormField<T>(
+      child: ShadSelect<T>(
+        key: ValueKey<Object>(value as Object),
+        minWidth: width,
         initialValue: value,
-        isExpanded: true,
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        items: items
+        placeholder: Text(labelBuilder(value)),
+        selectedOptionBuilder: (context, selected) =>
+            Text(labelBuilder(selected), overflow: TextOverflow.ellipsis),
+        options: items
             .map(
-              (item) => DropdownMenuItem<T>(
+              (item) => ShadOption<T>(
                 value: item,
                 child: Text(
                   labelBuilder(item),

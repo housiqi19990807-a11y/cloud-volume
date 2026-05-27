@@ -296,19 +296,17 @@ class _TransfersPageState extends State<TransfersPage> {
   }) {
     return SizedBox(
       width: width,
-      child: DropdownButtonFormField<T>(
+      child: ShadSelect<T>(
+        key: ValueKey<Object>(value as Object),
+        minWidth: width,
         initialValue: value,
-        isExpanded: true,
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        items: items
+        placeholder: Text(labelBuilder(value)),
+        selectedOptionBuilder: (context, selected) =>
+            Text(labelBuilder(selected)),
+        options: items
             .map(
-              (item) => DropdownMenuItem<T>(
-                value: item,
-                child: Text(labelBuilder(item)),
-              ),
+              (item) =>
+                  ShadOption<T>(value: item, child: Text(labelBuilder(item))),
             )
             .toList(growable: false),
         onChanged: onChanged,
