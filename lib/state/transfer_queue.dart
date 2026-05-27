@@ -1,10 +1,14 @@
 // 全局传输状态：共享对象操作任务、轮询 Go 进度快照，并为侧边栏提供聚合速度。
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+part 'transfer_queue_storage.dart';
 
 /// 传输任务状态。
 enum TransferStatus { pending, running, done, failed, canceled }
@@ -26,6 +30,22 @@ class TransferTask {
     this.speedBytes = 0,
     this.error,
   });
+
+  factory TransferTask.fromJson(Map<String, dynamic> json) {
+    return TransferTask(
+      id: (json['id'] ?? '').toString(),
+      kind: _transferKindFromName((json['kind'] ?? '').toString()),
+      bucket: (json['bucket'] ?? '').toString(),
+      key: (json['key'] ?? '').toString(),
+      localPath: (json['localPath'] ?? '').toString(),
+      targetPath: (json['targetPath'] ?? '').toString(),
+      status: _transferStatusFromName((json['status'] ?? '').toString()),
+      bytesCompleted: (json['bytesCompleted'] ?? 0) as int,
+      totalBytes: (json['totalBytes'] ?? 0) as int,
+      speedBytes: (json['speedBytes'] ?? 0).toDouble(),
+      error: json['error']?.toString(),
+    );
+  }
 
   final String id;
   final TransferKind kind;
@@ -70,6 +90,22 @@ class TransferTask {
       status == TransferStatus.canceled;
   double get progress =>
       totalBytes <= 0 ? 0 : (bytesCompleted / totalBytes).clamp(0, 1);
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'kind': kind.name,
+      'bucket': bucket,
+      'key': key,
+      'localPath': localPath,
+      'targetPath': targetPath,
+      'status': status.name,
+      'bytesCompleted': bytesCompleted,
+      'totalBytes': totalBytes,
+      'speedBytes': speedBytes,
+      'error': error,
+    };
+  }
 }
 
 /// 全局队列：页面和侧边栏共享。
@@ -84,9 +120,11 @@ class TransferQueue extends ChangeNotifier {
   RemoteStorageGateway? _api;
   Timer? _pollTimer;
   Duration? _pollInterval;
+  Timer? _persistTimer;
   bool _polling = false;
   int _seed = 0;
   final Set<String> _cancelRequestedIds = <String>{};
+  Future<void>? _restoreFuture;
 
   List<TransferTask> get tasks => List.unmodifiable(_tasks);
   bool get hasRunning => _tasks.any((task) => task.isRunning || task.isPending);
@@ -95,7 +133,7 @@ class TransferQueue extends ChangeNotifier {
 
   void bindApi(RemoteStorageGateway api) {
     _api = api;
-    unawaited(pollNow());
+    unawaited(restorePersistedTransferQueueState(this).then((_) => pollNow()));
     _ensurePolling();
   }
 
@@ -115,6 +153,7 @@ class TransferQueue extends ChangeNotifier {
       targetPath: targetPath,
     );
     _tasks.insert(0, task);
+    scheduleTransferQueuePersist(this);
     notifyListeners();
     _ensurePolling();
     return task;
@@ -131,6 +170,7 @@ class TransferQueue extends ChangeNotifier {
     task.status = TransferStatus.failed;
     task.error = error.toString();
     task.speedBytes = 0;
+    scheduleTransferQueuePersist(this);
     notifyListeners();
     _ensurePolling();
   }
@@ -144,6 +184,7 @@ class TransferQueue extends ChangeNotifier {
     task.bytesCompleted = task.totalBytes > 0
         ? task.totalBytes
         : task.bytesCompleted;
+    scheduleTransferQueuePersist(this);
     notifyListeners();
     _ensurePolling();
   }
@@ -155,6 +196,7 @@ class TransferQueue extends ChangeNotifier {
     task.status = TransferStatus.canceled;
     task.speedBytes = 0;
     task.error = null;
+    scheduleTransferQueuePersist(this);
     notifyListeners();
     _ensurePolling();
   }
@@ -166,6 +208,7 @@ class TransferQueue extends ChangeNotifier {
     task.status = TransferStatus.canceled;
     task.speedBytes = 0;
     task.error = null;
+    scheduleTransferQueuePersist(this);
     notifyListeners();
     if (_api != null) {
       await _api!.cancelTransfer(id);
@@ -207,9 +250,28 @@ class TransferQueue extends ChangeNotifier {
   }
 
   void refreshFromSnapshots(List<TransferSnapshot> snapshots) {
+    var changed = false;
+    var shouldPersist = false;
     for (final snapshot in snapshots) {
-      final task = _taskById(snapshot.id) ?? _addRemoteTask(snapshot);
+      final task =
+          _taskById(snapshot.id) ??
+          (() {
+            changed = true;
+            shouldPersist = true;
+            return _addRemoteTask(snapshot);
+          })();
       final nextStatus = _statusFromWire(snapshot.status);
+      final resolvedStatus =
+          _cancelRequestedIds.contains(snapshot.id) &&
+              nextStatus != TransferStatus.canceled &&
+              nextStatus != TransferStatus.done &&
+              nextStatus != TransferStatus.failed
+          ? TransferStatus.canceled
+          : nextStatus;
+      if (task.status != resolvedStatus) {
+        changed = true;
+        shouldPersist = true;
+      }
       if (_cancelRequestedIds.contains(snapshot.id) &&
           nextStatus != TransferStatus.canceled &&
           nextStatus != TransferStatus.done &&
@@ -223,13 +285,30 @@ class TransferQueue extends ChangeNotifier {
         }
         task.status = nextStatus;
       }
+      if (task.bytesCompleted != snapshot.bytesCompleted ||
+          task.totalBytes != snapshot.totalBytes ||
+          task.speedBytes != snapshot.speedBytes ||
+          task.targetPath != snapshot.targetPath ||
+          task.error != snapshot.error) {
+        changed = true;
+      }
+      if (task.totalBytes != snapshot.totalBytes ||
+          task.targetPath != snapshot.targetPath ||
+          task.error != snapshot.error) {
+        shouldPersist = true;
+      }
       task.bytesCompleted = snapshot.bytesCompleted;
       task.totalBytes = snapshot.totalBytes;
       task.speedBytes = snapshot.speedBytes;
       task.targetPath = snapshot.targetPath;
       task.error = snapshot.error;
     }
-    notifyListeners();
+    if (changed) {
+      if (shouldPersist) {
+        scheduleTransferQueuePersist(this);
+      }
+      notifyListeners();
+    }
     _ensurePolling();
   }
 
@@ -257,13 +336,23 @@ class TransferQueue extends ChangeNotifier {
     _pollTimer?.cancel();
     _pollTimer = null;
     _pollInterval = null;
+    _persistTimer?.cancel();
+    _persistTimer = null;
     _polling = false;
     _seed = 0;
     _api = null;
+    _restoreFuture = null;
     _tasks.clear();
     _cancelRequestedIds.clear();
     notifyListeners();
   }
+
+  @visibleForTesting
+  Future<void> restorePersistedStateForTest() =>
+      restorePersistedTransferQueueState(this);
+
+  @visibleForTesting
+  Future<void> flushPersistenceForTest() => persistTransferQueueState(this);
 
   Future<void> pollNow() async {
     if (_api == null || _polling) return;
@@ -305,6 +394,14 @@ class TransferQueue extends ChangeNotifier {
     );
     _tasks.insert(0, task);
     return task;
+  }
+
+  Future<void> _restorePersistedTasks() async {
+    await loadPersistedTransferQueueStateData(this);
+    if (_tasks.isNotEmpty) {
+      scheduleTransferQueuePersist(this);
+      notifyListeners();
+    }
   }
 
   TransferKind _kindFromWire(String value) {
@@ -353,6 +450,26 @@ class TransferQueue extends ChangeNotifier {
     if (total <= 0) return '';
     return '↔ ${formatBytesPerSecond(total)}';
   }
+}
+
+TransferKind _transferKindFromName(String value) {
+  return switch (value) {
+    'download' => TransferKind.download,
+    'copy' => TransferKind.copy,
+    'move' => TransferKind.move,
+    'delete' => TransferKind.delete,
+    _ => TransferKind.upload,
+  };
+}
+
+TransferStatus _transferStatusFromName(String value) {
+  return switch (value) {
+    'running' => TransferStatus.running,
+    'done' => TransferStatus.done,
+    'failed' => TransferStatus.failed,
+    'canceled' => TransferStatus.canceled,
+    _ => TransferStatus.pending,
+  };
 }
 
 /// 将速率格式化成适合侧边栏展示的短文本。

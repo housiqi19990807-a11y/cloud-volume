@@ -10,6 +10,7 @@
 - Files now expose a `创建分享` context-menu action that generates a presigned download link with a configurable lifetime, and the sidebar now includes a share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and share records can open their links directly in the default browser.
 - The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
+- The transfer queue now persists its recent task list in local app storage and restores it on the next launch, so a sudden app close no longer clears the queue; unfinished tasks from the previous session reappear as interrupted failed entries for follow-up instead of vanishing.
 - The file-manager action bar now adds a left-side search box for bucket lists, object lists, and per-bucket trash lists, and select-all now respects the filtered visible results.
 - The desktop UI now embeds Source Han Sans CN in the app bundle and uses it as the global theme font, which keeps typography consistent across macOS, Windows, and Linux instead of depending on each system's fallback fonts.
 - Large delayed mounted uploads now use resumable multipart writeback instead of restarting from a single timeout-bound `PutObject`, so Archive Utility and other WebDAV-driven extraction flows can continue from already uploaded parts after failures or long stalls.

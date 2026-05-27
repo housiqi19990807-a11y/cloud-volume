@@ -76,6 +76,7 @@ The initial setup page persists these S3-compatible settings:
 - File context menus now support creating presigned sharing links with a user-controlled expiry, and the sidebar includes a dedicated share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and saved share records can open their links directly in the default browser.
 - The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
+- The transfer queue now also persists its recent task list locally and restores it on the next launch, so sudden app exits no longer wipe task history; tasks that were still pending or running in the previous session come back as interrupted failed entries instead of silently disappearing.
 - The file manager header now uses a dedicated breadcrumb row plus a separate action row, so long paths can still collapse to `...` without truncating mount, trash, upload, or multi-select actions on the right.
 - The file manager action row now includes a left-side search box that filters the current bucket list, object list, or bucket-trash list in place, and table-header select-all follows the filtered results.
 - Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
