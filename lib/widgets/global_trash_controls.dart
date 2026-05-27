@@ -97,6 +97,13 @@ class GlobalTrashHeaderActions extends StatelessWidget {
     final theme = ShadTheme.of(context);
     final hasSelection = selectedCount > 0;
 
+    if (!hasSelection) {
+      return ShadButton.outline(
+        onPressed: loading ? null : onRefresh,
+        child: const Text('刷新'),
+      );
+    }
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
