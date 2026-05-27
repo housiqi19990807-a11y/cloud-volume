@@ -12,7 +12,6 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:remote_storage/widgets/app_brand_mark.dart';
-import 'package:remote_storage/widgets/fluent_system_icon.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -145,47 +144,35 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                 ),
                 // 菜单项。
                 _navItem(
-                  FluentSystemGlyph.fileManager,
+                  LucideIcons.folderOpen,
                   '文件管理',
                   SidebarItem.fileManager,
                   ac,
                   muted,
                 ),
-                _navItemWidget(
-                  Icon(
-                    LucideIcons.trash2,
-                    size: 18,
-                    color: _selected == SidebarItem.trash ? ac : muted,
-                  ),
+                _navItem(
+                  LucideIcons.trash2,
                   '回收站',
                   SidebarItem.trash,
                   ac,
                   muted,
                 ),
-                _navItemWidget(
-                  Icon(
-                    LucideIcons.share2,
-                    size: 18,
-                    color: _selected == SidebarItem.shares ? ac : muted,
-                  ),
+                _navItem(
+                  LucideIcons.share2,
                   '分享管理',
                   SidebarItem.shares,
                   ac,
                   muted,
                 ),
                 _navItem(
-                  FluentSystemGlyph.transfers,
+                  LucideIcons.arrowLeftRight,
                   '任务队列',
                   SidebarItem.transfers,
                   ac,
                   muted,
                 ),
-                _navItemWidget(
-                  FluentSystemIcon(
-                    glyph: FluentSystemGlyph.settings,
-                    size: 18,
-                    color: _selected == SidebarItem.settings ? ac : muted,
-                  ),
+                _navItem(
+                  LucideIcons.settings2,
                   '系统设置',
                   SidebarItem.settings,
                   ac,
@@ -215,7 +202,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   }
 
   Widget _navItem(
-    FluentSystemGlyph glyph,
+    IconData icon,
     String label,
     SidebarItem item,
     Color ac,
@@ -244,53 +231,8 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
             children: [
               Opacity(
                 opacity: selected ? 1 : 0.9,
-                child: FluentSystemIcon(glyph: glyph, size: 17, color: fg),
+                child: Icon(icon, size: 17, color: fg),
               ),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _navItemWidget(
-    Widget leading,
-    String label,
-    SidebarItem item,
-    Color ac,
-    Color muted,
-  ) {
-    final selected = _selected == item;
-    final bg = selected ? ac.withValues(alpha: 0.1) : Colors.transparent;
-    final fg = selected ? ac : muted;
-    final border = selected
-        ? Border.all(color: ac.withValues(alpha: 0.2))
-        : Border.all(color: Colors.transparent);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      child: GestureDetector(
-        onTap: () => setState(() => _selected = item),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-            border: border,
-          ),
-          child: Row(
-            children: [
-              Opacity(opacity: selected ? 1 : 0.9, child: leading),
               const SizedBox(width: 10),
               Text(
                 label,

@@ -3,6 +3,7 @@ package mount
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -59,20 +60,22 @@ func (q *writebackQueue) flush(virtualPath string) {
 		return
 	}
 	delete(q.entries, entry.virtualPath)
+	q.running[entry.taskID] = entry
 	q.mu.Unlock()
 
 	err := q.flushNow(entry)
-	if err != nil {
+	q.mu.Lock()
+	delete(q.running, entry.taskID)
+	discard := entry.discard
+	q.mu.Unlock()
+	if err != nil && !discard && !errors.Is(err, context.Canceled) {
 		q.enqueue(entry.virtualPath, entry.localPath, entry.size)
 	}
 }
 
 func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
-	ctx, cancel := context.WithTimeout(context.Background(), q.access.transferTimeout)
-	defer cancel()
-
-	err := s3ops.UploadFileContext(
-		ctx,
+	err := s3ops.UploadFileContextResumable(
+		context.Background(),
 		q.access.config,
 		q.access.bucket,
 		q.access.remoteKey(entry.virtualPath),
@@ -99,16 +102,27 @@ func (q *writebackQueue) cancel(virtualPath string) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	entry, ok := q.entries[cleanVirtualPath(virtualPath)]
-	if !ok {
-		return false
+	clean := cleanVirtualPath(virtualPath)
+	if entry, ok := q.entries[clean]; ok {
+		if entry.timer != nil {
+			entry.timer.Stop()
+		}
+		delete(q.entries, clean)
+		entry.discard = true
+		s3ops.CancelTransfer(entry.taskID)
+		q.discardEntryLocalState(entry)
+		return true
 	}
-	if entry.timer != nil {
-		entry.timer.Stop()
+	for _, entry := range q.running {
+		if entry.virtualPath != clean {
+			continue
+		}
+		entry.discard = true
+		s3ops.CancelTransfer(entry.taskID)
+		q.discardEntryLocalState(entry)
+		return true
 	}
-	delete(q.entries, cleanVirtualPath(virtualPath))
-	s3ops.CancelTransfer(entry.taskID)
-	return true
+	return false
 }
 
 func (q *writebackQueue) cancelAtOrBelow(virtualPath string, isDir bool) {
@@ -121,8 +135,18 @@ func (q *writebackQueue) cancelAtOrBelow(virtualPath string, isDir bool) {
 			if entry.timer != nil {
 				entry.timer.Stop()
 			}
+			entry.discard = true
+			q.discardEntryLocalState(entry)
 			s3ops.CancelTransfer(entry.taskID)
 			delete(q.entries, clean)
+		}
+		for _, entry := range q.running {
+			if entry.virtualPath != clean {
+				continue
+			}
+			entry.discard = true
+			q.discardEntryLocalState(entry)
+			s3ops.CancelTransfer(entry.taskID)
 		}
 		return
 	}
@@ -132,8 +156,17 @@ func (q *writebackQueue) cancelAtOrBelow(virtualPath string, isDir bool) {
 			if entry.timer != nil {
 				entry.timer.Stop()
 			}
+			entry.discard = true
+			q.discardEntryLocalState(entry)
 			s3ops.CancelTransfer(entry.taskID)
 			delete(q.entries, key)
+		}
+	}
+	for _, entry := range q.running {
+		if strings.HasPrefix(entry.virtualPath, prefix) {
+			entry.discard = true
+			q.discardEntryLocalState(entry)
+			s3ops.CancelTransfer(entry.taskID)
 		}
 	}
 }
@@ -213,7 +246,15 @@ func (q *writebackQueue) cancelTask(taskID string) bool {
 			entry.timer.Stop()
 		}
 		delete(q.entries, key)
+		entry.discard = true
 		s3ops.CancelTransfer(entry.taskID)
+		q.discardEntryLocalState(entry)
+		return true
+	}
+	if entry, ok := q.running[taskID]; ok {
+		entry.discard = true
+		s3ops.CancelTransfer(entry.taskID)
+		q.discardEntryLocalState(entry)
 		return true
 	}
 	return false
@@ -241,10 +282,24 @@ func (q *writebackQueue) triggerTask(taskID string) bool {
 	if entry == nil {
 		return false
 	}
+	q.mu.Lock()
+	q.running[entry.taskID] = entry
+	q.mu.Unlock()
 	go func(item *pendingWriteback) {
 		if err := q.flushNow(item); err != nil {
+			q.mu.Lock()
+			delete(q.running, item.taskID)
+			discard := item.discard
+			q.mu.Unlock()
+			if discard || errors.Is(err, context.Canceled) {
+				return
+			}
 			q.enqueue(item.virtualPath, item.localPath, item.size)
+			return
 		}
+		q.mu.Lock()
+		delete(q.running, item.taskID)
+		q.mu.Unlock()
 	}(entry)
 	return true
 }
@@ -273,4 +328,10 @@ func (q *writebackQueue) shutdown() error {
 		_ = q.flushNow(entry)
 	}
 	return nil
+}
+
+func (q *writebackQueue) discardEntryLocalState(entry *pendingWriteback) {
+	q.access.cache.removeLocalFile(entry.virtualPath, false)
+	q.access.cache.invalidatePath(entry.virtualPath)
+	_ = s3ops.DiscardResumableUpload(q.access.config, entry.localPath)
 }

@@ -92,6 +92,7 @@ type writebackQueue struct {
 	access  *bucketAccess
 	mu      sync.Mutex
 	entries map[string]*pendingWriteback
+	running map[string]*pendingWriteback
 	closed  bool
 }
 
@@ -101,11 +102,13 @@ type pendingWriteback struct {
 	localPath   string
 	size        int64
 	timer       *time.Timer
+	discard     bool
 }
 
 func newWritebackQueue(access *bucketAccess) *writebackQueue {
 	return &writebackQueue{
 		access:  access,
 		entries: map[string]*pendingWriteback{},
+		running: map[string]*pendingWriteback{},
 	}
 }

@@ -4,7 +4,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
-import 'package:remote_storage/widgets/fluent_system_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SidebarTransferStatus extends StatefulWidget {
@@ -26,6 +25,7 @@ class SidebarTransferStatus extends StatefulWidget {
 class _SidebarTransferStatusState extends State<SidebarTransferStatus>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  final LayerLink _layerLink = LayerLink();
   bool _hovered = false;
 
   @override
@@ -67,117 +67,125 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_hovered)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-              child: _TransferHoverCard(theme: theme),
-            ),
-          AnimatedBuilder(
-            animation: queue,
-            builder: (context, _) {
-              return GestureDetector(
-                onTap: widget.onTap,
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(10, 0, 10, 14),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: queue.hasRunning
-                        ? widget.accent.withValues(alpha: 0.08)
-                        : Colors.white.withValues(alpha: 0.34),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: queue.hasRunning
-                          ? widget.accent.withValues(alpha: 0.18)
-                          : theme.colorScheme.border.withValues(alpha: 0.45),
+      child: CompositedTransformTarget(
+        link: _layerLink,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (_hovered)
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 58,
+                child: IgnorePointer(
+                  ignoring: false,
+                  child: _TransferHoverCard(theme: theme),
+                ),
+              ),
+            AnimatedBuilder(
+              animation: queue,
+              builder: (context, _) {
+                return GestureDetector(
+                  onTap: widget.onTap,
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(10, 0, 10, 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          ScaleTransition(
-                            scale: Tween<double>(begin: 1, end: 1.08).animate(
-                              CurvedAnimation(
-                                parent: _controller,
-                                curve: Curves.easeInOut,
-                              ),
-                            ),
-                            child: Opacity(
-                              opacity: queue.hasRunning ? 1 : 0.9,
-                              child: FluentSystemIcon(
-                                glyph: FluentSystemGlyph.transfers,
-                                size: 16,
-                                color: foreground,
-                              ),
-                            ),
-                          ),
-                          if (badgeCount > 0)
-                            Positioned(
-                              right: -9,
-                              top: -8,
-                              child: _TransferTaskBadge(
-                                count: badgeCount,
-                                accent: widget.accent,
-                              ),
-                            ),
-                        ],
+                    decoration: BoxDecoration(
+                      color: queue.hasRunning
+                          ? widget.accent.withValues(alpha: 0.08)
+                          : Colors.white.withValues(alpha: 0.34),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: queue.hasRunning
+                            ? widget.accent.withValues(alpha: 0.18)
+                            : theme.colorScheme.border.withValues(alpha: 0.45),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    child: Row(
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
                           children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '对象传输',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: foreground,
-                                  ),
+                            ScaleTransition(
+                              scale: Tween<double>(begin: 1, end: 1.08).animate(
+                                CurvedAnimation(
+                                  parent: _controller,
+                                  curve: Curves.easeInOut,
                                 ),
-                                if (badgeCount > 0) ...[
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '$badgeCount 项',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: widget.accent,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              queue.speedSummary,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: theme.colorScheme.mutedForeground,
+                              ),
+                              child: Opacity(
+                                opacity: queue.hasRunning ? 1 : 0.9,
+                                child: Icon(
+                                  LucideIcons.arrowLeftRight,
+                                  size: 16,
+                                  color: foreground,
+                                ),
                               ),
                             ),
+                            if (badgeCount > 0)
+                              Positioned(
+                                right: -9,
+                                top: -8,
+                                child: _TransferTaskBadge(
+                                  count: badgeCount,
+                                  accent: widget.accent,
+                                ),
+                              ),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '对象传输',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: foreground,
+                                    ),
+                                  ),
+                                  if (badgeCount > 0) ...[
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '$badgeCount 项',
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: widget.accent,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                queue.speedSummary,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: theme.colorScheme.mutedForeground,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-        ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
