@@ -122,6 +122,24 @@ func QueueTransfer(
 	task.updatedAt = now
 }
 
+// StartQueuedTransfer switches a previously queued task into the running state.
+func StartQueuedTransfer(
+	id,
+	kind,
+	bucket,
+	key,
+	localPath string,
+	totalBytes int64,
+	cancel context.CancelFunc,
+) {
+	startTransfer(id, kind, bucket, key, localPath, totalBytes, cancel)
+}
+
+// FinishQueuedTransfer finalizes a queued task after the mount layer finishes the remote operation.
+func FinishQueuedTransfer(id string, err error) {
+	finishTransfer(id, err)
+}
+
 func setTransferTotal(id string, totalBytes int64) {
 	globalTransferMonitor.mu.Lock()
 	defer globalTransferMonitor.mu.Unlock()

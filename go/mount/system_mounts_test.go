@@ -24,3 +24,35 @@ func TestMountOutputContainsPath(t *testing.T) {
 		t.Fatal("expected unrelated mount path to be absent")
 	}
 }
+
+func TestMatchingBucketMountPaths(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{
+		"/Volumes/云卷-demo",
+		"/Volumes/云卷-demo-1",
+		"/Volumes/云卷-demo-2",
+		"/Volumes/云卷-other",
+	}
+	matches := matchingBucketMountPaths(paths, "云卷-demo")
+	if len(matches) != 3 {
+		t.Fatalf("expected 3 matching bucket mount paths, got %d: %+v", len(matches), matches)
+	}
+	if matches[0] != "/Volumes/云卷-demo" || matches[2] != "/Volumes/云卷-demo-2" {
+		t.Fatalf("unexpected matching mount paths: %+v", matches)
+	}
+}
+
+func TestMatchingManagedMountPaths(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{
+		"/Volumes/云卷-demo",
+		"/Volumes/云卷-demo-1",
+		"/Volumes/Other",
+	}
+	matches := matchingManagedMountPaths(paths)
+	if len(matches) != 2 {
+		t.Fatalf("expected 2 managed mount paths, got %d: %+v", len(matches), matches)
+	}
+}

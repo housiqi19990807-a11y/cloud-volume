@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_use_of_protected_member
+
 part of 'file_manager_page.dart';
 
 // 文件管理页操作逻辑：上传、目录创建、对象打开/下载以及右键动作。
@@ -207,16 +209,8 @@ extension _FileManagerPageActions on _FileManagerPageState {
         if (!mounted) return;
         final confirmed = await showDeleteObjectDialog(context, object);
         if (!confirmed) return;
-        await widget.api.deleteObject(
-          widget.config,
-          _activeBucket!,
-          object.key,
-          object.isDir,
-        );
-        await FileAccessService.instance.evictCacheForObject(
-          bucket: _activeBucket!,
-          object: object,
-        );
+        _queueObjectDeletes(<ObjectInfo>[object]);
+        return;
       }
       if (!mounted) return;
       await _loadObjects(_activeBucket!, _prefix);
@@ -259,5 +253,74 @@ extension _FileManagerPageActions on _FileManagerPageState {
         ),
       ),
     );
+  }
+
+  void _queueObjectDeletes(List<ObjectInfo> objects) {
+    if (_activeBucket == null || objects.isEmpty) {
+      return;
+    }
+    final bucket = _activeBucket!;
+    final targets = objects
+        .where((object) => !_deletingObjectKeys.contains(object.key))
+        .toList();
+    if (targets.isEmpty) {
+      return;
+    }
+    setState(() {
+      for (final object in targets) {
+        _deletingObjectKeys.add(object.key);
+        _selectedObjectKeys.remove(object.key);
+      }
+    });
+
+    final futures = targets
+        .map((object) => _runDeleteTask(bucket, object))
+        .toList(growable: false);
+    unawaited(() async {
+      final errors = await Future.wait(futures);
+      if (!mounted || _activeBucket != bucket) {
+        return;
+      }
+      await _loadObjects(bucket, _prefix);
+      final failures = errors.whereType<Object>().toList(growable: false);
+      if (failures.isNotEmpty) {
+        _showPageMessage(
+          title: '删除失败',
+          message: failures.length == 1
+              ? failures.first.toString()
+              : '有 ${failures.length} 个删除任务失败，请在任务队列中查看详情。',
+        );
+      }
+    }());
+  }
+
+  Future<Object?> _runDeleteTask(String bucket, ObjectInfo object) async {
+    final task = TransferQueue.instance.startTask(
+      kind: TransferKind.delete,
+      bucket: bucket,
+      key: object.key,
+      localPath: '',
+    );
+    try {
+      await widget.api.deleteObject(
+        widget.config,
+        bucket,
+        object.key,
+        object.isDir,
+        task.id,
+      );
+      await FileAccessService.instance.evictCacheForObject(
+        bucket: bucket,
+        object: object,
+      );
+      TransferQueue.instance.markTaskDone(task.id);
+      return null;
+    } catch (error) {
+      TransferQueue.instance.markTaskFailed(task.id, error);
+      if (mounted) {
+        setState(() => _deletingObjectKeys.remove(object.key));
+      }
+      return error;
+    }
   }
 }

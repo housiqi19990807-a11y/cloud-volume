@@ -5,15 +5,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
-	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
 )
 
@@ -54,90 +51,25 @@ func (a *bucketAccess) deletePath(
 	virtualPath string,
 	isDir bool,
 ) error {
+	_ = ctx
 	if err := a.hiddenTrashError(virtualPath); err != nil {
 		return err
 	}
-	if a.overlay.handles(virtualPath) {
-		return a.overlay.removeAll(virtualPath)
+	clean := cleanVirtualPath(virtualPath)
+	if a.overlay.handles(clean) {
+		return a.overlay.removeAll(clean)
 	}
-	timeoutCtx, cancel := a.withTimeout(ctx)
-	defer cancel()
 	if !isDir {
-		hadPendingUpload := a.writeback.cancel(cleanVirtualPath(virtualPath))
-		if hadPendingUpload && !a.remoteFileExists(timeoutCtx, virtualPath) {
-			a.cache.markDeleted(virtualPath, false)
-			a.cache.invalidatePath(virtualPath)
-			return nil
-		}
+		a.writeback.cancel(clean)
 	} else {
-		a.writeback.cancelAtOrBelow(virtualPath, true)
+		a.writeback.cancelAtOrBelow(clean, true)
 	}
-	deleteFunc := s3ops.DeleteObjectContext
-	if isLocalMetadataPath(virtualPath) {
-		deleteFunc = s3ops.DeleteObjectHardContext
+	a.cache.markDeleted(clean, isDir)
+	a.cache.invalidatePath(clean)
+	if a.deletes != nil {
+		a.deletes.enqueue(clean, isDir, isLocalMetadataPath(clean))
 	}
-	if err := a.runDelete(
-		timeoutCtx,
-		deleteFunc,
-		virtualPath,
-		isDir,
-		isLocalMetadataPath(virtualPath),
-	); err != nil {
-		log.Printf(
-			"[mount/delete] bucket=%q path=%q isDir=%t remoteKey=%q hard=%t error=%v",
-			a.bucket,
-			virtualPath,
-			isDir,
-			a.remoteKeyForMutation(virtualPath, isDir),
-			isLocalMetadataPath(virtualPath),
-			err,
-		)
-		return err
-	}
-	a.cache.markDeleted(virtualPath, isDir)
-	a.cache.invalidatePath(virtualPath)
 	return nil
-}
-
-func (a *bucketAccess) runDelete(
-	ctx context.Context,
-	deleteFunc func(context.Context, storageconfig.RemoteStorageConfig, string, string, bool) error,
-	virtualPath string,
-	isDir bool,
-	hardDelete bool,
-) error {
-	err := deleteFunc(
-		ctx,
-		a.config,
-		a.bucket,
-		a.remoteKeyForMutation(virtualPath, isDir),
-		isDir,
-	)
-	if err == nil || isDir || hardDelete || !isRetryableCopySourceError(err) {
-		return err
-	}
-	for attempt := 0; attempt < 4; attempt++ {
-		select {
-		case <-ctx.Done():
-			return err
-		case <-time.After(750 * time.Millisecond):
-		}
-		retryErr := deleteFunc(
-			ctx,
-			a.config,
-			a.bucket,
-			a.remoteKeyForMutation(virtualPath, isDir),
-			isDir,
-		)
-		if retryErr == nil {
-			return nil
-		}
-		err = retryErr
-		if !isRetryableCopySourceError(err) {
-			return err
-		}
-	}
-	return err
 }
 
 func (a *bucketAccess) renamePath(
@@ -218,14 +150,6 @@ func (a *bucketAccess) remotePathExists(ctx context.Context, virtualPath string,
 		a.remotePrefix(virtualPath),
 	)
 	return err == nil && len(items) > 0
-}
-
-func isRetryableCopySourceError(err error) bool {
-	if err == nil {
-		return false
-	}
-	text := err.Error()
-	return strings.Contains(text, "CopyObject") && strings.Contains(text, "InvalidArgument")
 }
 
 func (a *bucketAccess) stagePathFor(virtualPath string) string {

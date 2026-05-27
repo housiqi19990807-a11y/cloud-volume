@@ -20,21 +20,37 @@ func isWebDAVMountActive(mountPath string) (bool, error) {
 	return mountOutputContainsPath(string(output), mountPath), nil
 }
 
+func listWebDAVMountPaths() ([]string, error) {
+	output, err := exec.Command("mount", "-t", "webdav").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("list webdav mounts: %w: %s", err, string(output))
+	}
+	return parseMountPaths(string(output)), nil
+}
+
 func mountOutputContainsPath(output, mountPath string) bool {
 	target := filepath.Clean(strings.TrimSpace(mountPath))
 	if target == "." || target == "" {
 		return false
 	}
-	for _, line := range strings.Split(output, "\n") {
-		current, ok := parseMountPoint(line)
-		if !ok {
-			continue
-		}
+	for _, current := range parseMountPaths(output) {
 		if filepath.Clean(current) == target {
 			return true
 		}
 	}
 	return false
+}
+
+func parseMountPaths(output string) []string {
+	paths := make([]string, 0)
+	for _, line := range strings.Split(output, "\n") {
+		current, ok := parseMountPoint(line)
+		if !ok {
+			continue
+		}
+		paths = append(paths, current)
+	}
+	return paths
 }
 
 func parseMountPoint(line string) (string, bool) {

@@ -29,6 +29,7 @@ type bucketAccess struct {
 	cache     *bucketCache
 	overlay   *localMountOverlay
 	writeback *writebackQueue
+	deletes   *deleteQueue
 }
 
 func newBucketAccess(
@@ -68,14 +69,23 @@ func newBucketAccess(
 		overlay:         overlay,
 	}
 	access.writeback = newWritebackQueue(access)
+	access.deletes = newDeleteQueue(access)
 	return access, nil
 }
 
 func (a *bucketAccess) close() error {
-	if a == nil || a.writeback == nil {
+	if a == nil {
 		return nil
 	}
-	return a.writeback.shutdown()
+	if a.writeback != nil {
+		if err := a.writeback.shutdown(); err != nil {
+			return err
+		}
+	}
+	if a.deletes != nil {
+		a.deletes.shutdown()
+	}
+	return nil
 }
 
 type writebackQueue struct {

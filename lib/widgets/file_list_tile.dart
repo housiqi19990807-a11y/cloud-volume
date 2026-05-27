@@ -18,6 +18,7 @@ class FileListTile extends StatelessWidget {
     this.isSelected = false,
     this.showSelectionControl = false,
     this.showDivider = true,
+    this.deleting = false,
     this.trailing,
     this.sizeColumnWidthOverride = FileListTile.sizeColumnWidth,
   });
@@ -36,6 +37,7 @@ class FileListTile extends StatelessWidget {
   final bool isSelected;
   final bool showSelectionControl;
   final bool showDivider;
+  final bool deleting;
   final Widget? trailing;
   final double sizeColumnWidthOverride;
 
@@ -47,14 +49,15 @@ class FileListTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
-        onDoubleTap: onDoubleTap,
+        onTap: deleting ? null : onTap,
+        onDoubleTap: deleting ? null : onDoubleTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: isSelected
                 ? theme.colorScheme.primary.withValues(alpha: 0.12)
                 : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
             border: showDivider
                 ? Border(bottom: BorderSide(color: dividerColor, width: 0.6))
                 : null,
@@ -80,7 +83,9 @@ class FileListTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: theme.colorScheme.foreground,
+                        color: deleting
+                            ? theme.colorScheme.mutedForeground
+                            : theme.colorScheme.foreground,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -96,7 +101,9 @@ class FileListTile extends StatelessWidget {
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: 11.5,
-                    color: theme.colorScheme.mutedForeground,
+                    color: deleting
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.mutedForeground,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -113,7 +120,9 @@ class FileListTile extends StatelessWidget {
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 11.5,
-                      color: theme.colorScheme.mutedForeground,
+                      color: deleting
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.mutedForeground,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

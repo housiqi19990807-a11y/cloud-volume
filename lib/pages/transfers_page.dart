@@ -1,4 +1,4 @@
-// 任务队列页：展示上传、下载、复制、移动以及挂载写回等待任务。
+// 任务队列页：展示上传、下载、复制、移动、删除以及挂载写回等待任务。
 
 import 'dart:async';
 
@@ -33,7 +33,7 @@ class TransfersPage extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '查看上传、下载、复制、移动，以及等待同步到远端的挂载任务。',
+            '查看上传、下载、复制、移动、删除，以及等待同步到远端的挂载任务。',
             style: TextStyle(
               color: theme.colorScheme.mutedForeground,
               fontSize: 13,
@@ -72,7 +72,7 @@ class TransfersPage extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '在文件管理页发起上传、下载、复制、移动，或通过已挂载云卷读写文件后，任务会显示在这里。',
+              '在文件管理页发起上传、下载、复制、移动、删除，或通过已挂载云卷读写文件后，任务会显示在这里。',
               style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
                 fontSize: 12,
@@ -185,6 +185,7 @@ class TransfersPage extends StatelessWidget {
     if (task.isUpload) return LucideIcons.upload;
     if (task.isDownload) return LucideIcons.download;
     if (task.isCopy) return LucideIcons.copy;
+    if (task.isDelete) return LucideIcons.trash2;
     return LucideIcons.moveRight;
   }
 
@@ -192,6 +193,7 @@ class TransfersPage extends StatelessWidget {
     if (task.isUpload) return const Color(0xff2563eb);
     if (task.isDownload) return const Color(0xff0f766e);
     if (task.isCopy) return const Color(0xff7c3aed);
+    if (task.isDelete) return const Color(0xffdc2626);
     return const Color(0xffc2410c);
   }
 }
@@ -206,7 +208,10 @@ class _StatusBadge extends StatelessWidget {
     final theme = ShadTheme.of(context);
     final text = switch (task.status) {
       TransferStatus.pending => task.isUpload ? '等待同步' : '等待中',
-      TransferStatus.running => formatBytesPerSecond(task.speedBytes),
+      TransferStatus.running =>
+        task.speedBytes > 0
+            ? formatBytesPerSecond(task.speedBytes)
+            : '${task.typeLabel}中',
       TransferStatus.done => '已完成',
       TransferStatus.failed => '失败',
       TransferStatus.canceled => '已取消',

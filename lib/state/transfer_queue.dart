@@ -9,7 +9,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 /// 传输任务状态。
 enum TransferStatus { pending, running, done, failed, canceled }
 
-enum TransferKind { upload, download, copy, move }
+enum TransferKind { upload, download, copy, move, delete }
 
 /// 单个传输任务。
 class TransferTask {
@@ -53,11 +53,13 @@ class TransferTask {
     TransferKind.download => '下载',
     TransferKind.copy => '复制',
     TransferKind.move => '移动',
+    TransferKind.delete => '删除',
   };
   bool get isUpload => kind == TransferKind.upload;
   bool get isDownload => kind == TransferKind.download;
   bool get isCopy => kind == TransferKind.copy;
   bool get isMove => kind == TransferKind.move;
+  bool get isDelete => kind == TransferKind.delete;
   bool get isRunning => status == TransferStatus.running;
   bool get isPending => status == TransferStatus.pending;
   bool get isCancelable =>
@@ -250,6 +252,19 @@ class TransferQueue extends ChangeNotifier {
     return parts.join('  ');
   }
 
+  @visibleForTesting
+  void resetForTest() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _pollInterval = null;
+    _polling = false;
+    _seed = 0;
+    _api = null;
+    _tasks.clear();
+    _cancelRequestedIds.clear();
+    notifyListeners();
+  }
+
   Future<void> pollNow() async {
     if (_api == null || _polling) return;
     _polling = true;
@@ -300,6 +315,8 @@ class TransferQueue extends ChangeNotifier {
         return TransferKind.copy;
       case 'move':
         return TransferKind.move;
+      case 'delete':
+        return TransferKind.delete;
       default:
         return TransferKind.upload;
     }

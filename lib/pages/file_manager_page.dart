@@ -58,6 +58,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       <String, BucketMountStatus>{};
   final Set<String> _mountBusyBuckets = <String>{};
   final Set<String> _selectedObjectKeys = <String>{};
+  final Set<String> _deletingObjectKeys = <String>{};
   Timer? _mountStatusRefreshTimer;
   bool _mountStatusRefreshInFlight = false;
 
@@ -110,6 +111,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _bucketMountStatuses.clear();
         _mountBusyBuckets.clear();
         _selectedObjectKeys.clear();
+        _deletingObjectKeys.clear();
         _loading = false;
       });
       unawaited(_refreshBucketMountStatuses(buckets));
@@ -137,6 +139,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       );
       if (!mounted) return false;
       setState(() {
+        final visibleKeys = objects.map((object) => object.key).toSet();
         _activeBucket = bucket;
         _objects = objects;
         _trashItems = null;
@@ -144,6 +147,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
         _showTrash = false;
         _selectedObjectKeys.clear();
+        _deletingObjectKeys.removeWhere((key) => !visibleKeys.contains(key));
         _loading = false;
       });
       unawaited(_refreshMountStatus(bucket));
@@ -343,6 +347,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       isGrid: _isGrid,
       fileOpenMode: widget.config.fileOpenMode,
       selectedKeys: _selectedObjectKeys,
+      deletingKeys: _deletingObjectKeys,
       gridIconSize: _gridIconSize,
       listIconSize: _listIconSize,
       onOpenDirectory: (prefix) => unawaited(_navToPrefix(prefix)),

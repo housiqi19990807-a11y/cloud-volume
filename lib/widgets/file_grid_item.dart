@@ -20,6 +20,7 @@ class FileGridItem extends StatelessWidget {
     this.onSelectionTap,
     this.isSelected = false,
     this.showSelectionControl = false,
+    this.deleting = false,
     this.onSecondaryTapDown,
     this.footer,
     this.bottomOverlay,
@@ -35,6 +36,7 @@ class FileGridItem extends StatelessWidget {
   final VoidCallback? onSelectionTap;
   final bool isSelected;
   final bool showSelectionControl;
+  final bool deleting;
   final GestureTapDownCallback? onSecondaryTapDown;
   final Widget? footer;
   final Widget? bottomOverlay;
@@ -46,9 +48,9 @@ class FileGridItem extends StatelessWidget {
     return _HoverBuilder(
       builder: (hovered) {
         return GestureDetector(
-          onTap: onTap,
-          onDoubleTap: onDoubleTap,
-          onSecondaryTapDown: onSecondaryTapDown,
+          onTap: deleting ? null : onTap,
+          onDoubleTap: deleting ? null : onDoubleTap,
+          onSecondaryTapDown: deleting ? null : onSecondaryTapDown,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             curve: Curves.easeOut,
@@ -92,7 +94,9 @@ class FileGridItem extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w500,
-                                      color: theme.colorScheme.foreground,
+                                      color: deleting
+                                          ? theme.colorScheme.mutedForeground
+                                          : theme.colorScheme.foreground,
                                       height: 1.25,
                                     ),
                                     textAlign: TextAlign.center,
@@ -109,7 +113,9 @@ class FileGridItem extends StatelessWidget {
                               subtitle,
                               style: TextStyle(
                                 fontSize: 10,
-                                color: theme.colorScheme.mutedForeground,
+                                color: deleting
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.mutedForeground,
                               ),
                               textAlign: TextAlign.center,
                               maxLines: 1,

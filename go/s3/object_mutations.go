@@ -29,6 +29,28 @@ func DeleteObjectContext(
 	return MoveObjectToTrashContext(ctx, cfg, bucket, key, isDirectory)
 }
 
+// DeleteObjectContextWithTask soft-deletes an object tree while reporting task status.
+func DeleteObjectContextWithTask(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+	isDirectory bool,
+	taskID string,
+) (err error) {
+	if taskID == "" {
+		return DeleteObjectContext(ctx, cfg, bucket, key, isDirectory)
+	}
+	if ctx == nil {
+		ctx = Ctx()
+	}
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithCancel(ctx)
+	startTransfer(taskID, "delete", bucket, key, "", 0, cancel)
+	defer func() { finishTransfer(taskID, err) }()
+	return MoveObjectToTrashContext(ctx, cfg, bucket, key, isDirectory)
+}
+
 // DeleteObjectHard permanently removes either a single object or all objects under a prefix.
 func DeleteObjectHard(
 	cfg storageconfig.RemoteStorageConfig,
@@ -65,6 +87,28 @@ func DeleteObjectHardContext(
 		}
 	}
 	return nil
+}
+
+// DeleteObjectHardContextWithTask permanently removes an object tree while reporting task status.
+func DeleteObjectHardContextWithTask(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+	isDirectory bool,
+	taskID string,
+) (err error) {
+	if taskID == "" {
+		return DeleteObjectHardContext(ctx, cfg, bucket, key, isDirectory)
+	}
+	if ctx == nil {
+		ctx = Ctx()
+	}
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithCancel(ctx)
+	startTransfer(taskID, "delete", bucket, key, "", 0, cancel)
+	defer func() { finishTransfer(taskID, err) }()
+	return DeleteObjectHardContext(ctx, cfg, bucket, key, isDirectory)
 }
 
 // RenameObject emulates rename by copying to a sibling key and removing the source.

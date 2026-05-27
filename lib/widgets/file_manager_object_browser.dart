@@ -21,6 +21,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.isGrid,
     required this.fileOpenMode,
     required this.selectedKeys,
+    required this.deletingKeys,
     required this.gridIconSize,
     required this.listIconSize,
     required this.onOpenDirectory,
@@ -44,6 +45,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final bool isGrid;
   final FileOpenMode fileOpenMode;
   final Set<String> selectedKeys;
+  final Set<String> deletingKeys;
   final double gridIconSize;
   final double listIconSize;
   final ValueChanged<String> onOpenDirectory;
@@ -113,6 +115,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     onSelectionTap: _selectionTapHandler(object),
                     isSelected: _isSelected(object),
                     showSelectionControl: _showsSelectionControl(object),
+                    deleting: _isDeleting(object),
                   ),
                 ),
               )
@@ -161,6 +164,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     isSelected: _isSelected(object),
                     showSelectionControl: _showsSelectionControl(object),
                     showDivider: index != objects.length - 1,
+                    deleting: _isDeleting(object),
                   ),
                 );
               },
@@ -197,6 +201,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   String _subtitle(ObjectInfo object, {bool forGrid = false}) {
     if (_isParentDirectory(object)) return '返回上一级';
+    if (_isDeleting(object)) return '删除中';
     if (object.isDir) return forGrid ? '' : '文件夹';
     return forGrid
         ? object.sizeText
@@ -204,17 +209,23 @@ class FileManagerObjectBrowser extends StatelessWidget {
   }
 
   String _sizeLabel(ObjectInfo object) {
-    if (_isParentDirectory(object) || object.isDir) return '';
+    if (_isParentDirectory(object) || object.isDir || _isDeleting(object)) {
+      return '';
+    }
     return object.sizeText;
   }
 
   String _modifiedLabel(ObjectInfo object) {
+    if (_isDeleting(object)) return '删除中';
     if (_isParentDirectory(object) || object.lastModified.isEmpty) return '';
     return object.lastModified;
   }
 
   VoidCallback _tapHandler(ObjectInfo object) {
     return () {
+      if (_isDeleting(object)) {
+        return;
+      }
       if (_dismissActiveContextMenu()) {
         return;
       }
@@ -237,10 +248,14 @@ class FileManagerObjectBrowser extends StatelessWidget {
   VoidCallback? _doubleTapHandler(ObjectInfo object) {
     if (_isSelectionMode ||
         _isParentDirectory(object) ||
+        _isDeleting(object) ||
         fileOpenMode == FileOpenMode.singleClick) {
       return null;
     }
     return () {
+      if (_isDeleting(object)) {
+        return;
+      }
       if (_dismissActiveContextMenu()) {
         return;
       }
@@ -269,6 +284,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
       return null;
     }
     return () {
+      if (_isDeleting(object)) {
+        return;
+      }
       if (_dismissActiveContextMenu()) {
         return;
       }
@@ -278,6 +296,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   Widget _wrapWithContextMenu(ObjectInfo object, Widget child) {
     if (_isParentDirectory(object)) {
+      return child;
+    }
+    if (_isDeleting(object)) {
       return child;
     }
     return DesktopContextMenuRegion(
@@ -329,6 +350,13 @@ class FileManagerObjectBrowser extends StatelessWidget {
       return false;
     }
     return selectedKeys.contains(object.key);
+  }
+
+  bool _isDeleting(ObjectInfo object) {
+    if (_isParentDirectory(object)) {
+      return false;
+    }
+    return deletingKeys.contains(object.key);
   }
 
   bool _showsSelectionControl(ObjectInfo object) {

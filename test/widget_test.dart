@@ -1,5 +1,6 @@
 // Smoke test: verify the app boots and shows the Chinese bootstrap UI.
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:remote_storage/app/remote_storage_app.dart';
@@ -11,8 +12,17 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
+import 'package:remote_storage/state/transfer_queue.dart';
 
 void main() {
+  setUp(() {
+    TransferQueue.instance.resetForTest();
+  });
+
+  tearDown(() {
+    TransferQueue.instance.resetForTest();
+  });
+
   testWidgets('App shows setup page when config is missing', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
@@ -20,6 +30,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('登录远程存储'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    TransferQueue.instance.resetForTest();
   });
 
   testWidgets('App shows main layout when config exists', (tester) async {
@@ -29,6 +42,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(FileManagerPage), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    TransferQueue.instance.resetForTest();
   });
 }
 
@@ -98,6 +114,7 @@ class _FakeApi implements RemoteStorageGateway {
     String bucket,
     String key,
     bool isDirectory,
+    String taskId,
   ) async {}
 
   @override

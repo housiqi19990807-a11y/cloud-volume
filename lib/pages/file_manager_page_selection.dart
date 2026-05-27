@@ -103,26 +103,6 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     if (!confirmed) {
       return;
     }
-    try {
-      for (final object in selected) {
-        await widget.api.deleteObject(
-          widget.config,
-          _activeBucket!,
-          object.key,
-          object.isDir,
-        );
-        await FileAccessService.instance.evictCacheForObject(
-          bucket: _activeBucket!,
-          object: object,
-        );
-      }
-      _clearSelection();
-      await _loadObjects(_activeBucket!, _prefix);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _showPageError(error);
-    }
+    _queueObjectDeletes(selected);
   }
 }

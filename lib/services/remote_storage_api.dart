@@ -37,6 +37,7 @@ abstract class RemoteStorageGateway {
     String bucket,
     String key,
     bool isDirectory,
+    String taskId,
   );
   Future<void> renameObject(
     RemoteStorageConfig config,
@@ -209,12 +210,14 @@ class RemoteStorageApi implements RemoteStorageGateway {
     String bucket,
     String key,
     bool isDirectory,
+    String taskId,
   ) async {
     _bridge.call('delete_object', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'key': key,
       'isDirectory': isDirectory,
+      'taskId': taskId,
     });
   }
 

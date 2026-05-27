@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -200,6 +201,7 @@ type objectMutationArgs struct {
 	Bucket      string                            `json:"bucket"`
 	Key         string                            `json:"key"`
 	IsDirectory bool                              `json:"isDirectory"`
+	TaskID      string                            `json:"taskId"`
 }
 
 type renameObjectArgs struct {
@@ -275,11 +277,13 @@ func deleteObject(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.DeleteObject(
+	if err := s3ops.DeleteObjectContextWithTask(
+		context.Background(),
 		input.Config,
 		input.Bucket,
 		input.Key,
 		input.IsDirectory,
+		input.TaskID,
 	); err != nil {
 		return nil, err
 	}

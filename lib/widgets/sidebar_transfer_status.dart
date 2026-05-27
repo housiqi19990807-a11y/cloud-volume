@@ -322,9 +322,10 @@ class _TransferHoverRow extends StatelessWidget {
               Text(
                 switch (task.status) {
                   TransferStatus.pending => '等待',
-                  TransferStatus.running => formatBytesPerSecond(
-                    task.speedBytes,
-                  ),
+                  TransferStatus.running =>
+                    task.speedBytes > 0
+                        ? formatBytesPerSecond(task.speedBytes)
+                        : '${task.typeLabel}中',
                   TransferStatus.done => '完成',
                   TransferStatus.failed => '失败',
                   TransferStatus.canceled => '已取消',
@@ -368,6 +369,7 @@ class _TransferHoverRow extends StatelessWidget {
     if (task.isUpload) return LucideIcons.upload;
     if (task.isDownload) return LucideIcons.download;
     if (task.isCopy) return LucideIcons.copy;
+    if (task.isDelete) return LucideIcons.trash2;
     return LucideIcons.moveRight;
   }
 
@@ -375,6 +377,7 @@ class _TransferHoverRow extends StatelessWidget {
     if (task.isUpload) return const Color(0xff2563eb);
     if (task.isDownload) return const Color(0xff0f766e);
     if (task.isCopy) return const Color(0xff7c3aed);
+    if (task.isDelete) return const Color(0xffdc2626);
     return const Color(0xffc2410c);
   }
 }

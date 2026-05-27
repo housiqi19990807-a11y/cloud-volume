@@ -81,6 +81,9 @@ func (m *manager) mountBucket(
 	if err != nil {
 		return BucketMountStatus{}, err
 	}
+	if err := cleanupStaleBucketMounts(session.mountName); err != nil {
+		return BucketMountStatus{}, err
+	}
 	if err := session.start(); err != nil {
 		_ = session.stop()
 		return BucketMountStatus{}, err
@@ -179,7 +182,10 @@ func (m *manager) unmountCurrentLocked() error {
 func (m *manager) cleanupMounts() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.unmountCurrentLocked()
+	if err := m.unmountCurrentLocked(); err != nil {
+		return err
+	}
+	return cleanupAllManagedMounts()
 }
 
 func newMountSession(
@@ -204,4 +210,54 @@ func newMountSession(
 
 func normalizeBucketName(value string) string {
 	return strings.TrimSpace(value)
+}
+
+func cleanupStaleBucketMounts(mountName string) error {
+	paths, err := listWebDAVMountPaths()
+	if err != nil {
+		return err
+	}
+	for _, mountPath := range matchingBucketMountPaths(paths, mountName) {
+		if err := unmountWebDAV(mountPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func matchingBucketMountPaths(paths []string, mountName string) []string {
+	basePath := filepath.Join("/Volumes", mountName)
+	matches := make([]string, 0, len(paths))
+	for _, mountPath := range paths {
+		clean := filepath.Clean(strings.TrimSpace(mountPath))
+		if clean == basePath || strings.HasPrefix(clean, basePath+"-") {
+			matches = append(matches, clean)
+		}
+	}
+	return matches
+}
+
+func cleanupAllManagedMounts() error {
+	paths, err := listWebDAVMountPaths()
+	if err != nil {
+		return err
+	}
+	for _, mountPath := range matchingManagedMountPaths(paths) {
+		if err := unmountWebDAV(mountPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func matchingManagedMountPaths(paths []string) []string {
+	basePrefix := filepath.Join("/Volumes", "云卷-")
+	matches := make([]string, 0, len(paths))
+	for _, mountPath := range paths {
+		clean := filepath.Clean(strings.TrimSpace(mountPath))
+		if strings.HasPrefix(clean, basePrefix) {
+			matches = append(matches, clean)
+		}
+	}
+	return matches
 }
