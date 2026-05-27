@@ -70,8 +70,10 @@ The initial setup page persists these S3-compatible settings:
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
 - Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
 - Sidebar navigation now includes a dedicated recycle-bin entry that aggregates deleted items across all accessible buckets for global restore and purge management.
+- The global recycle-bin page now supports keyword, bucket, and file-type filters plus batch restore and batch permanent delete.
 - File context menus now support creating presigned sharing links with a user-controlled expiry, and the sidebar includes a dedicated share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and saved share records can open their links directly in the default browser.
+- The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
 - The file manager header now uses a dedicated breadcrumb row plus a separate action row, so long paths can still collapse to `...` without truncating mount, trash, upload, or multi-select actions on the right.
 - Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
 - Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, an active-task badge, and a hover task list.
