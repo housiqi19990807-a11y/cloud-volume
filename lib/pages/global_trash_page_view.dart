@@ -52,7 +52,7 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '默认自动选中第一个有内容的存储桶，并在滚动到底部时继续加载下一页。',
+                      '集中管理已删除的文件与目录。',
                       style: TextStyle(
                         color: theme.colorScheme.mutedForeground,
                         fontSize: 13,

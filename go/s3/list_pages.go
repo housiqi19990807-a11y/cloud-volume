@@ -5,6 +5,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -13,6 +14,7 @@ import (
 )
 
 const defaultListPageSize int32 = 200
+const trashMetadataPageConcurrency = 8
 
 type ObjectPage struct {
 	Items     []ObjectInfo `json:"items"`
@@ -115,9 +117,7 @@ func ListTrashPageContext(
 	if ctx == nil {
 		ctx = Ctx()
 	}
-	if err := purgeExpiredTrash(ctx, client, cfg, bucket); err != nil {
-		return TrashPage{}, err
-	}
+	scheduleExpiredTrashPurge(cfg, bucket)
 	if pageSize <= 0 {
 		pageSize = defaultListPageSize
 	}
@@ -134,16 +134,16 @@ func ListTrashPageContext(
 		return TrashPage{}, err
 	}
 
-	items := make([]TrashItem, 0, len(out.Contents))
+	metadataKeys := make([]string, 0, len(out.Contents))
 	for _, obj := range out.Contents {
 		if obj.Key == nil || !strings.HasSuffix(*obj.Key, trashMetadataSuffix) {
 			continue
 		}
-		metadata, err := loadTrashMetadataByKey(ctx, client, bucket, *obj.Key)
-		if err != nil {
-			return TrashPage{}, err
-		}
-		items = append(items, trashItemFromMetadata(metadata))
+		metadataKeys = append(metadataKeys, *obj.Key)
+	}
+	items, err := loadTrashItemsPage(ctx, client, bucket, metadataKeys)
+	if err != nil {
+		return TrashPage{}, err
 	}
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].DeletedAt > items[j].DeletedAt
@@ -152,4 +152,59 @@ func ListTrashPageContext(
 		Items:     items,
 		NextToken: aws.ToString(out.NextContinuationToken),
 	}, nil
+}
+
+func loadTrashItemsPage(
+	ctx context.Context,
+	client *s3.Client,
+	bucket string,
+	metadataKeys []string,
+) ([]TrashItem, error) {
+	if len(metadataKeys) == 0 {
+		return []TrashItem{}, nil
+	}
+
+	items := make([]TrashItem, len(metadataKeys))
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+		sem      = make(chan struct{}, trashMetadataPageConcurrency)
+	)
+
+	for index, metadataKey := range metadataKeys {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(index int, metadataKey string) {
+			defer wg.Done()
+			defer func() {
+				<-sem
+			}()
+
+			metadata, err := loadTrashMetadataByKey(ctx, client, bucket, metadataKey)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				return
+			}
+			items[index] = trashItemFromMetadata(metadata)
+		}(index, metadataKey)
+	}
+
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
+	filtered := items[:0]
+	for _, item := range items {
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered, nil
 }

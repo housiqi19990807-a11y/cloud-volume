@@ -77,7 +77,7 @@ extension _FileManagerPagePaging on _FileManagerPageState {
         widget.config,
         _activeBucket!,
         _trashNextToken,
-        _FileManagerPageState._listPageSize,
+        _FileManagerPageState._trashPageSize,
       );
       if (!mounted) {
         return;

@@ -25,7 +25,7 @@ class GlobalTrashPage extends StatefulWidget {
 }
 
 class _GlobalTrashPageState extends State<GlobalTrashPage> {
-  static const int _pageSize = 200;
+  static const int _pageSize = 80;
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();

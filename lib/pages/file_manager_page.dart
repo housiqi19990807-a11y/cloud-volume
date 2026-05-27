@@ -57,6 +57,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   static const double _bucketGridIconSize = 72;
   static const Duration _mountStatusRefreshInterval = Duration(seconds: 4);
   static const int _listPageSize = 200;
+  static const int _trashPageSize = 80;
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _contentScrollController = ScrollController();

@@ -19,7 +19,7 @@ extension _FileManagerPageTrash on _FileManagerPageState {
         widget.config,
         targetBucket,
         '',
-        _FileManagerPageState._listPageSize,
+        _FileManagerPageState._trashPageSize,
       );
       if (!mounted) return false;
       setState(() {
