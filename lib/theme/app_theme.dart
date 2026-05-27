@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+const String kAppFontFamily = 'SourceHanSansCN';
+
 /// Named accent presets the user can pick from.
 enum AccentPreset {
   blue('科技蓝', Color(0xff2563eb)),
@@ -38,7 +40,11 @@ ShadThemeData buildAppTheme(AccentPreset preset) {
     accent: c.withValues(alpha: 0.08),
     secondary: c.withValues(alpha: 0.06),
   );
-  return ShadThemeData(colorScheme: scheme, brightness: Brightness.light);
+  return ShadThemeData(
+    colorScheme: scheme,
+    brightness: Brightness.light,
+    textTheme: ShadTextTheme(family: kAppFontFamily),
+  );
 }
 
 /// Dark variant for future use.
@@ -46,5 +52,9 @@ ShadThemeData buildAppThemeDark(AccentPreset preset) {
   final base = ShadBlueColorScheme.dark();
   final c = preset.color;
   final scheme = base.copyWith(primary: c, ring: c, selection: _lighten(c));
-  return ShadThemeData(colorScheme: scheme, brightness: Brightness.dark);
+  return ShadThemeData(
+    colorScheme: scheme,
+    brightness: Brightness.dark,
+    textTheme: ShadTextTheme(family: kAppFontFamily),
+  );
 }

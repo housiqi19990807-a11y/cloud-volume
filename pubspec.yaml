@@ -25,8 +25,20 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: SourceHanSansCN
+      fonts:
+        - asset: assets/fonts/SourceHanSansCN-Bold.otf
+          weight: 400
+        - asset: assets/fonts/SourceHanSansCN-Bold.otf
+          weight: 500
+        - asset: assets/fonts/SourceHanSansCN-Bold.otf
+          weight: 600
+        - asset: assets/fonts/SourceHanSansCN-Bold.otf
+          weight: 700
   assets:
     - assets/brand/
+    - assets/fonts/
     - assets/icons/local_cloudpan/fileType/
     - assets/icons/local_cloudpan/fileType/audio/
     - assets/icons/local_cloudpan/fileType/compression/

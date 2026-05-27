@@ -11,6 +11,7 @@
 - Share creation and renewal dialogs now include common duration presets, and share records can open their links directly in the default browser.
 - The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
 - The file-manager action bar now adds a left-side search box for bucket lists, object lists, and per-bucket trash lists, and select-all now respects the filtered visible results.
+- The desktop UI now embeds Source Han Sans CN in the app bundle and uses it as the global theme font, which keeps typography consistent across macOS, Windows, and Linux instead of depending on each system's fallback fonts.
 - Large delayed mounted uploads now use resumable multipart writeback instead of restarting from a single timeout-bound `PutObject`, so Archive Utility and other WebDAV-driven extraction flows can continue from already uploaded parts after failures or long stalls.
 - Canceling a queued or already-running mounted upload from the task queue now also clears its local staged/cache file and persisted multipart resume state, which prevents canceled extraction outputs from reappearing in the mounted file list or being re-uploaded later.
 - Bootstrap a Flutter desktop shell with a Go FFI bridge and first-run remote storage configuration flow.

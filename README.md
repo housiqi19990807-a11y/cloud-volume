@@ -69,6 +69,7 @@ The initial setup page persists these S3-compatible settings:
 - On macOS launch, the main window now resets to the default centered size instead of restoring the previous session's dimensions.
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
 - Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
+- The desktop UI now embeds Source Han Sans CN directly in the app bundle, so macOS, Windows, and Linux keep the same Chinese-heavy typography instead of drifting with each platform's system fonts.
 - Sidebar navigation now includes a dedicated recycle-bin entry that aggregates deleted items across all accessible buckets for global restore and purge management.
 - The global recycle-bin page now supports keyword and bucket filters plus batch restore and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
 - The global recycle-bin list now reuses the same fixed-header file list style as the main file manager, with per-row original-path subtitles, bucket columns, header select-all, and right-click restore or permanent delete actions.
