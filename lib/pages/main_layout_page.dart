@@ -12,9 +12,10 @@ import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:remote_storage/widgets/app_brand_mark.dart';
 import 'package:remote_storage/widgets/fluent_system_icon.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 侧边栏菜单项。
-enum SidebarItem { fileManager, transfers, settings }
+enum SidebarItem { fileManager, trash, transfers, settings }
 
 class MainLayoutPage extends StatefulWidget {
   const MainLayoutPage({
@@ -145,6 +146,17 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   FluentSystemGlyph.fileManager,
                   '文件管理',
                   SidebarItem.fileManager,
+                  ac,
+                  muted,
+                ),
+                _navItemWidget(
+                  Icon(
+                    LucideIcons.trash2,
+                    size: 18,
+                    color: _selected == SidebarItem.trash ? ac : muted,
+                  ),
+                  '回收站',
+                  SidebarItem.trash,
                   ac,
                   muted,
                 ),
@@ -285,14 +297,20 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   Widget _buildContent() {
     final index = switch (_selected) {
       SidebarItem.fileManager => 0,
-      SidebarItem.transfers => 1,
-      SidebarItem.settings => 2,
+      SidebarItem.trash => 1,
+      SidebarItem.transfers => 2,
+      SidebarItem.settings => 3,
     };
 
     return IndexedStack(
       index: index,
       children: [
         FileManagerPage(api: widget.api, config: widget.state.config),
+        FileManagerPage(
+          api: widget.api,
+          config: widget.state.config,
+          homeView: FileManagerHomeView.trash,
+        ),
         TransfersPage(api: widget.api, config: widget.state.config),
         SettingsPage(
           state: widget.state,

@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.
+- The recycle-bin page now hides mount, upload, and new-folder actions so its action bar only shows controls relevant to trash browsing.
+- The sidebar now exposes a dedicated recycle-bin entry that opens bucket-level trash browsing directly, with bucket clicks entering trash instead of the normal file list.
 - Bootstrap a Flutter desktop shell with a Go FFI bridge and first-run remote storage configuration flow.
 - Transparent macOS titlebar with content extending behind traffic lights.
 - Left-right split config page: dark brand panel + form.

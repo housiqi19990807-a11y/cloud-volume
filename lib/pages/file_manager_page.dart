@@ -28,11 +28,20 @@ part 'file_manager_page_mount.dart';
 part 'file_manager_page_selection.dart';
 part 'file_manager_page_trash.dart';
 
+// 文件管理页首页模式：既支持普通文件浏览，也支持侧边栏独立回收站入口。
+enum FileManagerHomeView { files, trash }
+
 class FileManagerPage extends StatefulWidget {
-  const FileManagerPage({super.key, required this.api, required this.config});
+  const FileManagerPage({
+    super.key,
+    required this.api,
+    required this.config,
+    this.homeView = FileManagerHomeView.files,
+  });
 
   final RemoteStorageGateway api;
   final RemoteStorageConfig config;
+  final FileManagerHomeView homeView;
 
   @override
   State<FileManagerPage> createState() => _FileManagerPageState();
@@ -67,6 +76,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   bool get _activeMountBusy =>
       _activeBucket != null && _mountBusyBuckets.contains(_activeBucket!);
+
+  bool get _isTrashHome => widget.homeView == FileManagerHomeView.trash;
 
   @override
   void initState() {
@@ -160,6 +171,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Future<void> _navToBucket(String bucket) {
+    if (_isTrashHome) {
+      return _openBucketTrash(bucket);
+    }
     return _loadObjects(bucket, '');
   }
 
@@ -213,6 +227,24 @@ class _FileManagerPageState extends State<FileManagerPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_isTrashHome) ...[
+          Text(
+            '回收站',
+            style: theme.textTheme.h3.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 22,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _showTrash ? '管理当前存储桶中的已删除对象。' : '选择一个存储桶进入它的回收站。',
+            style: TextStyle(
+              color: theme.colorScheme.mutedForeground,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         FileManagerBreadcrumbBar(
           theme: theme,
           activeBucket: _activeBucket,
@@ -232,40 +264,49 @@ class _FileManagerPageState extends State<FileManagerPage> {
               (object) => !object.isDir,
             ),
             showingTrash: _showTrash,
-            mounted: _activeMountStatus?.mounted ?? false,
-            mountBusy: _activeMountBusy,
+            mounted: _showTrash
+                ? false
+                : (_activeMountStatus?.mounted ?? false),
+            mountBusy: _showTrash ? false : _activeMountBusy,
             onToggleView: () => setState(() => _isGrid = !_isGrid),
-            onOpenTrash: _activeBucket == null || _loading || _showTrash
+            trashCloseLabel: _isTrashHome ? '返回存储桶' : '返回文件',
+            onOpenTrash:
+                _isTrashHome || _activeBucket == null || _loading || _showTrash
                 ? null
                 : _openBucketTrash,
             onCloseTrash: _activeBucket == null || _loading || !_showTrash
                 ? null
                 : _closeBucketTrash,
             onMount:
-                _activeBucket == null ||
+                _showTrash ||
+                    _activeBucket == null ||
                     _loading ||
                     _activeMountBusy ||
                     (_activeMountStatus?.mounted ?? false)
                 ? null
                 : _mountBucket,
             onUnmount:
-                _activeBucket == null ||
+                _showTrash ||
+                    _activeBucket == null ||
                     _loading ||
                     _activeMountBusy ||
                     !(_activeMountStatus?.mounted ?? false)
                 ? null
                 : _unmountBucket,
             onOpenMount:
-                _activeBucket == null ||
+                _showTrash ||
+                    _activeBucket == null ||
                     _loading ||
                     _activeMountBusy ||
                     !(_activeMountStatus?.mounted ?? false)
                 ? null
                 : _openMountedBucket,
-            onCreateDirectory: _activeBucket == null || _loading
+            onCreateDirectory: _showTrash || _activeBucket == null || _loading
                 ? null
                 : _createDirectory,
-            onUpload: _activeBucket == null || _loading ? null : _upload,
+            onUpload: _showTrash || _activeBucket == null || _loading
+                ? null
+                : _upload,
             onBatchDownload: _loading ? null : _downloadSelectedObjects,
             onBatchDelete: _loading ? null : _deleteSelectedObjects,
             onClearSelection: _clearSelection,
@@ -326,12 +367,23 @@ class _FileManagerPageState extends State<FileManagerPage> {
       gridIconSize: _bucketGridIconSize,
       listIconSize: _listIconSize,
       onOpenBucket: (bucket) => unawaited(_navToBucket(bucket)),
-      mountStatuses: _bucketMountStatuses,
-      busyBuckets: _mountBusyBuckets,
-      onOpenTrashBucket: (bucket) => unawaited(_openBucketTrash(bucket)),
-      onMountBucket: (bucket) => unawaited(_mountBucket(bucket)),
-      onUnmountBucket: (bucket) => unawaited(_unmountBucket(bucket)),
-      onOpenMountedBucket: (bucket) => unawaited(_openMountedBucket(bucket)),
+      mountStatuses: _isTrashHome
+          ? const <String, BucketMountStatus>{}
+          : _bucketMountStatuses,
+      busyBuckets: _isTrashHome ? const <String>{} : _mountBusyBuckets,
+      showActionColumn: !_isTrashHome,
+      onOpenTrashBucket: _isTrashHome
+          ? null
+          : (bucket) => unawaited(_openBucketTrash(bucket)),
+      onMountBucket: _isTrashHome
+          ? null
+          : (bucket) => unawaited(_mountBucket(bucket)),
+      onUnmountBucket: _isTrashHome
+          ? null
+          : (bucket) => unawaited(_unmountBucket(bucket)),
+      onOpenMountedBucket: _isTrashHome
+          ? null
+          : (bucket) => unawaited(_openMountedBucket(bucket)),
     );
   }
 

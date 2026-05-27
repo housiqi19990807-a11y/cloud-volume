@@ -39,6 +39,10 @@ extension _FileManagerPageTrash on _FileManagerPageState {
   }
 
   Future<void> _closeBucketTrash() async {
+    if (_isTrashHome) {
+      await _loadBuckets();
+      return;
+    }
     if (_activeBucket == null) {
       return;
     }

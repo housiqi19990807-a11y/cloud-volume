@@ -24,6 +24,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
     required this.onOpenBucket,
     required this.mountStatuses,
     required this.busyBuckets,
+    this.showActionColumn = true,
+    this.actionColumnLabel = '挂载操作',
     this.onOpenTrashBucket,
     this.onMountBucket,
     this.onUnmountBucket,
@@ -37,6 +39,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
   final ValueChanged<String> onOpenBucket;
   final Map<String, BucketMountStatus> mountStatuses;
   final Set<String> busyBuckets;
+  final bool showActionColumn;
+  final String actionColumnLabel;
   final ValueChanged<String>? onOpenTrashBucket;
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
@@ -122,15 +126,17 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     style: headerTextStyle,
                   ),
                 ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  width: _bucketActionColumnWidth,
-                  child: Text(
-                    '挂载操作',
-                    textAlign: TextAlign.left,
-                    style: headerTextStyle,
+                if (showActionColumn) ...[
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: _bucketActionColumnWidth,
+                    child: Text(
+                      actionColumnLabel,
+                      textAlign: TextAlign.left,
+                      style: headerTextStyle,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -152,24 +158,26 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     sizeColumnWidthOverride: _bucketTypeColumnWidth,
                     onTap: () => _handleBucketTap(bucket.name),
                     showDivider: index != buckets.length - 1,
-                    trailing: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: 160,
-                        maxWidth: _bucketActionColumnWidth,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _BucketMountActions(
-                          bucket: bucket.name,
-                          status: mountStatuses[bucket.name],
-                          busy: busyBuckets.contains(bucket.name),
-                          onOpenTrashBucket: onOpenTrashBucket,
-                          onMountBucket: onMountBucket,
-                          onUnmountBucket: onUnmountBucket,
-                          onOpenMountedBucket: onOpenMountedBucket,
-                        ),
-                      ),
-                    ),
+                    trailing: showActionColumn
+                        ? ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              minWidth: 160,
+                              maxWidth: _bucketActionColumnWidth,
+                            ),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: _BucketMountActions(
+                                bucket: bucket.name,
+                                status: mountStatuses[bucket.name],
+                                busy: busyBuckets.contains(bucket.name),
+                                onOpenTrashBucket: onOpenTrashBucket,
+                                onMountBucket: onMountBucket,
+                                onUnmountBucket: onUnmountBucket,
+                                onOpenMountedBucket: onOpenMountedBucket,
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
                 );
               },
@@ -327,7 +335,9 @@ class _BucketMountActions extends StatelessWidget {
           icon: mounted ? LucideIcons.x : LucideIcons.link,
           color: foreground,
           onPressed: mounted
-              ? (onUnmountBucket == null ? null : () => onUnmountBucket!(bucket))
+              ? (onUnmountBucket == null
+                    ? null
+                    : () => onUnmountBucket!(bucket))
               : (onMountBucket == null ? null : () => onMountBucket!(bucket)),
         ),
         if (mounted) ...[

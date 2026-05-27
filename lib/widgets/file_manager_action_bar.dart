@@ -16,6 +16,8 @@ class FileManagerActionBar extends StatelessWidget {
     this.onUpload,
     this.onOpenTrash,
     this.onCloseTrash,
+    this.trashOpenLabel = '回收站',
+    this.trashCloseLabel = '返回文件',
     this.onBatchDownload,
     this.onBatchDelete,
     this.onClearSelection,
@@ -36,6 +38,8 @@ class FileManagerActionBar extends StatelessWidget {
   final VoidCallback? onUpload;
   final VoidCallback? onOpenTrash;
   final VoidCallback? onCloseTrash;
+  final String trashOpenLabel;
+  final String trashCloseLabel;
   final VoidCallback? onBatchDownload;
   final VoidCallback? onBatchDelete;
   final VoidCallback? onClearSelection;
@@ -139,7 +143,7 @@ class FileManagerActionBar extends StatelessWidget {
                       color: p,
                     ),
                     const SizedBox(width: 5),
-                    Text(showingTrash ? '返回文件' : '回收站'),
+                    Text(showingTrash ? trashCloseLabel : trashOpenLabel),
                   ],
                 ),
               ),
