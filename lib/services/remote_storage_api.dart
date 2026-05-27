@@ -5,6 +5,7 @@ import 'dart:isolate';
 import 'package:remote_storage/bridge/remote_storage_bridge.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
+import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
@@ -12,6 +13,7 @@ import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 
 part 'remote_storage_api_shares.dart';
+part 'remote_storage_api_paging.dart';
 
 abstract class RemoteStorageGateway {
   Future<BootstrapState> loadBootstrapState();
@@ -23,6 +25,13 @@ abstract class RemoteStorageGateway {
     RemoteStorageConfig config,
     String bucket,
     String prefix,
+  );
+  Future<ObjectListPage> listObjectPage(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+    String nextToken,
+    int pageSize,
   );
   Future<ObjectInfo> headObject(
     RemoteStorageConfig config,
@@ -80,6 +89,12 @@ abstract class RemoteStorageGateway {
   );
   Future<void> deleteShare(RemoteStorageConfig config, String id);
   Future<List<TrashItem>> listTrash(RemoteStorageConfig config, String bucket);
+  Future<TrashListPage> listTrashPage(
+    RemoteStorageConfig config,
+    String bucket,
+    String nextToken,
+    int pageSize,
+  );
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
     String bucket,
@@ -123,7 +138,7 @@ Future<RemoteStorageGateway> defaultRemoteStorageApiFactory() {
 }
 
 class RemoteStorageApi
-    with _RemoteStorageShareApiMixin
+    with _RemoteStorageShareApiMixin, _RemoteStoragePagingApiMixin
     implements RemoteStorageGateway {
   RemoteStorageApi(this._bridge);
 
@@ -181,20 +196,6 @@ class RemoteStorageApi
       'config': config.toJson(),
     });
     return parseBridgeList(result, (m) => BucketInfo.fromJson(m));
-  }
-
-  @override
-  Future<List<ObjectInfo>> listObjects(
-    RemoteStorageConfig config,
-    String bucket,
-    String prefix,
-  ) async {
-    final result = _bridge.call('list_objects', <String, dynamic>{
-      'config': config.toJson(),
-      'bucket': bucket,
-      'prefix': prefix,
-    });
-    return parseBridgeList(result, (m) => ObjectInfo.fromJson(m));
   }
 
   @override
@@ -302,21 +303,6 @@ class RemoteStorageApi
         'taskId': taskId,
       });
     });
-  }
-
-  @override
-  Future<List<TrashItem>> listTrash(
-    RemoteStorageConfig config,
-    String bucket,
-  ) async {
-    final result = await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      return bridge.call('list_trash', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-      });
-    });
-    return parseBridgeList(result, (m) => TrashItem.fromJson(m));
   }
 
   @override

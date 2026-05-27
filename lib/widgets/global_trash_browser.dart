@@ -27,8 +27,11 @@ class GlobalTrashBrowser extends StatelessWidget {
   const GlobalTrashBrowser({
     super.key,
     required this.entries,
+    required this.scrollController,
+    required this.loadingMore,
     required this.selectedIds,
     required this.busyIds,
+    this.showBucketColumn = true,
     required this.onToggleSelection,
     required this.onToggleSelectAll,
     required this.onRestore,
@@ -36,8 +39,11 @@ class GlobalTrashBrowser extends StatelessWidget {
   });
 
   final List<GlobalTrashBrowserEntry> entries;
+  final ScrollController scrollController;
+  final bool loadingMore;
   final Set<String> selectedIds;
   final Set<String> busyIds;
+  final bool showBucketColumn;
   final ValueChanged<GlobalTrashBrowserEntry> onToggleSelection;
   final VoidCallback onToggleSelectAll;
   final ValueChanged<GlobalTrashBrowserEntry> onRestore;
@@ -64,14 +70,19 @@ class GlobalTrashBrowser extends StatelessWidget {
         children: [
           _GlobalTrashHeader(
             theme: theme,
+            showBucketColumn: showBucketColumn,
             allSelected: allSelected,
             partiallySelected: partiallySelected,
             onToggleSelectAll: onToggleSelectAll,
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: entries.length,
+              controller: scrollController,
+              itemCount: entries.length + (loadingMore ? 1 : 0),
               itemBuilder: (context, index) {
+                if (index >= entries.length) {
+                  return _buildLoadingRow(theme);
+                }
                 final entry = entries[index];
                 final busy = busyIds.contains(entry.id);
                 return _wrapWithContextMenu(
@@ -84,8 +95,10 @@ class GlobalTrashBrowser extends StatelessWidget {
                     ),
                     title: entry.item.name,
                     subtitleLabel: entry.item.originalKey,
-                    sizeLabel: entry.bucket,
-                    sizeColumnWidthOverride: _bucketColumnWidth,
+                    sizeLabel: showBucketColumn ? entry.bucket : '',
+                    sizeColumnWidthOverride: showBucketColumn
+                        ? _bucketColumnWidth
+                        : 0,
                     modifiedLabel: busy ? '处理中...' : entry.item.deletedAt,
                     onTap: () => _toggleEntry(entry),
                     onDoubleTap: busy ? null : () => onRestore(entry),
@@ -95,7 +108,7 @@ class GlobalTrashBrowser extends StatelessWidget {
                         : () => onToggleSelection(entry),
                     isSelected: selectedIds.contains(entry.id),
                     showSelectionControl: true,
-                    showDivider: index != entries.length - 1,
+                    showDivider: index != entries.length - 1 || loadingMore,
                     deleting: busy,
                   ),
                 );
@@ -142,17 +155,35 @@ class GlobalTrashBrowser extends StatelessWidget {
     DesktopContextMenuRegistry.dismiss(_globalTrashContextMenuGroup);
     action();
   }
+
+  Widget _buildLoadingRow(ShadThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _GlobalTrashHeader extends StatelessWidget {
   const _GlobalTrashHeader({
     required this.theme,
+    required this.showBucketColumn,
     required this.allSelected,
     required this.partiallySelected,
     required this.onToggleSelectAll,
   });
 
   final ShadThemeData theme;
+  final bool showBucketColumn;
   final bool allSelected;
   final bool partiallySelected;
   final VoidCallback onToggleSelectAll;
@@ -183,12 +214,15 @@ class _GlobalTrashHeader extends StatelessWidget {
           const SizedBox(width: 32),
           const SizedBox(width: 12),
           Expanded(child: Text('名称', style: labelStyle)),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: GlobalTrashBrowser._bucketColumnWidth,
-            child: Text('存储桶', textAlign: TextAlign.right, style: labelStyle),
-          ),
-          const SizedBox(width: 16),
+          if (showBucketColumn) ...[
+            const SizedBox(width: 12),
+            SizedBox(
+              width: GlobalTrashBrowser._bucketColumnWidth,
+              child: Text('存储桶', textAlign: TextAlign.right, style: labelStyle),
+            ),
+            const SizedBox(width: 16),
+          ] else
+            const SizedBox(width: 16),
           SizedBox(
             width: FileListTile.modifiedColumnWidth,
             child: Text('删除时间', textAlign: TextAlign.right, style: labelStyle),

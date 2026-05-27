@@ -26,7 +26,7 @@ class GlobalTrashFilters extends StatelessWidget {
         Expanded(
           child: ShadInput(
             controller: searchController,
-            placeholder: const Text('搜索名称、原路径或存储桶'),
+            placeholder: const Text('搜索名称或原路径'),
           ),
         ),
         const SizedBox(width: 12),
@@ -54,7 +54,9 @@ class GlobalTrashFilters extends StatelessWidget {
         key: ValueKey<Object>(value as Object),
         minWidth: width,
         initialValue: value,
-        placeholder: Text(labelBuilder(value)),
+        placeholder: Text(
+          value.toString().isEmpty ? '选择存储桶' : labelBuilder(value),
+        ),
         selectedOptionBuilder: (context, selected) =>
             Text(labelBuilder(selected), overflow: TextOverflow.ellipsis),
         options: items

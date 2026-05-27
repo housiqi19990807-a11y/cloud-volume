@@ -70,15 +70,16 @@ The initial setup page persists these S3-compatible settings:
 - Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
 - Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
 - The desktop UI now embeds Source Han Sans CN directly in the app bundle, so macOS, Windows, and Linux keep the same Chinese-heavy typography instead of drifting with each platform's system fonts.
-- Sidebar navigation now includes a dedicated recycle-bin entry that aggregates deleted items across all accessible buckets for global restore and purge management.
-- The global recycle-bin page now supports keyword and bucket filters plus batch restore and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
-- The global recycle-bin list now reuses the same fixed-header file list style as the main file manager, with per-row original-path subtitles, bucket columns, header select-all, and right-click restore or permanent delete actions.
+- Sidebar navigation now includes a dedicated recycle-bin entry that opens one bucket at a time, defaulting to the first bucket that currently has deleted items and falling back to the first configured bucket when all bins are empty.
+- The global recycle-bin page now supports keyword search, bucket switching, batch restore, and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
+- The global recycle-bin list now reuses the same fixed-header file list style as the main file manager, with per-row original-path subtitles, header select-all, and right-click restore or permanent delete actions.
 - File context menus now support creating presigned sharing links with a user-controlled expiry, and the sidebar includes a dedicated share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and saved share records can open their links directly in the default browser.
 - The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
 - The transfer queue now also persists its recent task list locally and restores it on the next launch, so sudden app exits no longer wipe task history; tasks that were still pending or running in the previous session come back as interrupted failed entries instead of silently disappearing.
 - The file manager header now uses a dedicated breadcrumb row plus a separate action row, so long paths can still collapse to `...` without truncating mount, trash, upload, or multi-select actions on the right.
 - The file manager action row now includes a left-side search box that filters the current bucket list, object list, or bucket-trash list in place, and table-header select-all follows the filtered results.
+- File lists, bucket-trash lists, and the global recycle-bin page now use paged loading plus infinite scroll, which keeps large directories and recycle bins responsive instead of blocking on a full initial scan.
 - Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
 - Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, an active-task badge, and a hover task list.
 - WhiteSur SVG resources are also vendored as an optional backup icon library.

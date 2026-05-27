@@ -27,6 +27,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'file_manager_page_actions.dart';
 part 'file_manager_page_mount.dart';
+part 'file_manager_page_paging.dart';
+part 'file_manager_page_state.dart';
 part 'file_manager_page_selection.dart';
 part 'file_manager_page_trash.dart';
 
@@ -54,8 +56,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
   static const double _listIconSize = 20;
   static const double _bucketGridIconSize = 72;
   static const Duration _mountStatusRefreshInterval = Duration(seconds: 4);
+  static const int _listPageSize = 200;
 
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _contentScrollController = ScrollController();
   List<BucketInfo>? _buckets;
   String? _activeBucket;
   List<ObjectInfo>? _objects;
@@ -74,48 +78,12 @@ class _FileManagerPageState extends State<FileManagerPage> {
   final Set<String> _deletingObjectKeys = <String>{};
   Timer? _mountStatusRefreshTimer;
   bool _mountStatusRefreshInFlight = false;
-
-  BucketMountStatus? get _activeMountStatus =>
-      _activeBucket == null ? null : _bucketMountStatuses[_activeBucket!];
-
-  bool get _activeMountBusy =>
-      _activeBucket != null && _mountBusyBuckets.contains(_activeBucket!);
-
-  bool get _isTrashHome => widget.homeView == FileManagerHomeView.trash;
-
-  bool get _hasSearchQuery => _searchText.isNotEmpty;
-
-  List<BucketInfo> get _filteredBuckets {
-    final buckets = _buckets ?? const <BucketInfo>[];
-    if (!_hasSearchQuery) return buckets;
-    return buckets
-        .where((bucket) => bucket.name.toLowerCase().contains(_searchText))
-        .toList(growable: false);
-  }
-
-  List<ObjectInfo> get _filteredVisibleObjects {
-    final visibleObjects = _visibleSelectableObjects;
-    if (!_hasSearchQuery) return visibleObjects;
-    return visibleObjects
-        .where(
-          (object) =>
-              object.displayName.toLowerCase().contains(_searchText) ||
-              object.key.toLowerCase().contains(_searchText),
-        )
-        .toList(growable: false);
-  }
-
-  List<TrashItem> get _filteredTrashItems {
-    final items = _trashItems ?? const <TrashItem>[];
-    if (!_hasSearchQuery) return items;
-    return items
-        .where(
-          (item) =>
-              item.name.toLowerCase().contains(_searchText) ||
-              item.originalKey.toLowerCase().contains(_searchText),
-        )
-        .toList(growable: false);
-  }
+  String _objectsNextToken = '';
+  bool _objectsHasMore = false;
+  bool _pagingObjects = false;
+  String _trashNextToken = '';
+  bool _trashHasMore = false;
+  bool _pagingTrash = false;
 
   @override
   void initState() {
@@ -123,6 +91,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
     _searchController.addListener(() {
       setState(() => _searchText = _searchController.text.trim().toLowerCase());
     });
+    _contentScrollController.addListener(_maybeLoadMoreContent);
     _startMountStatusRefreshTimer();
     _loadBuckets();
   }
@@ -130,6 +99,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   @override
   void dispose() {
     _mountStatusRefreshTimer?.cancel();
+    _contentScrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -158,12 +128,21 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _prefix = '';
         _breadcrumbs = [];
         _showTrash = false;
+        _objectsNextToken = '';
+        _objectsHasMore = false;
+        _pagingObjects = false;
+        _trashNextToken = '';
+        _trashHasMore = false;
+        _pagingTrash = false;
         _bucketMountStatuses.clear();
         _mountBusyBuckets.clear();
         _selectedObjectKeys.clear();
         _deletingObjectKeys.clear();
         _loading = false;
       });
+      if (_contentScrollController.hasClients) {
+        _contentScrollController.jumpTo(0);
+      }
       unawaited(_refreshBucketMountStatuses(buckets));
       return true;
     } catch (e) {
@@ -182,24 +161,35 @@ class _FileManagerPageState extends State<FileManagerPage> {
       _error = null;
     });
     try {
-      final objects = await widget.api.listObjects(
+      final page = await widget.api.listObjectPage(
         widget.config,
         bucket,
         prefix,
+        '',
+        _listPageSize,
       );
       if (!mounted) return false;
       setState(() {
-        final visibleKeys = objects.map((object) => object.key).toSet();
+        final visibleKeys = page.items.map((object) => object.key).toSet();
         _activeBucket = bucket;
-        _objects = objects;
+        _objects = page.items;
         _trashItems = null;
         _prefix = prefix;
         _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
         _showTrash = false;
+        _objectsNextToken = page.nextToken;
+        _objectsHasMore = page.hasMore;
+        _pagingObjects = false;
+        _trashNextToken = '';
+        _trashHasMore = false;
+        _pagingTrash = false;
         _selectedObjectKeys.clear();
         _deletingObjectKeys.removeWhere((key) => !visibleKeys.contains(key));
         _loading = false;
       });
+      if (_contentScrollController.hasClients) {
+        _contentScrollController.jumpTo(0);
+      }
       unawaited(_refreshMountStatus(bucket));
       return true;
     } catch (e) {
@@ -448,6 +438,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
       objects: visibleObjects,
       prefix: _prefix,
       isGrid: _isGrid,
+      scrollController: _contentScrollController,
+      hasMore: _objectsHasMore,
+      loadingMore: _pagingObjects,
       selectedKeys: _selectedObjectKeys,
       deletingKeys: _deletingObjectKeys,
       gridIconSize: _gridIconSize,

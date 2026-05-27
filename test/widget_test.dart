@@ -8,6 +8,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/models/trash_item.dart';
@@ -95,6 +96,15 @@ class _FakeApi implements RemoteStorageGateway {
   ) async => [];
 
   @override
+  Future<ObjectListPage> listObjectPage(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+    String nextToken,
+    int pageSize,
+  ) async => const ObjectListPage(items: <ObjectInfo>[], nextToken: '');
+
+  @override
   Future<ObjectInfo> headObject(
     RemoteStorageConfig config,
     String bucket,
@@ -117,6 +127,20 @@ class _FakeApi implements RemoteStorageGateway {
     bool isDirectory,
     String taskId,
   ) async {}
+
+  @override
+  Future<List<TrashItem>> listTrash(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async => [];
+
+  @override
+  Future<TrashListPage> listTrashPage(
+    RemoteStorageConfig config,
+    String bucket,
+    String nextToken,
+    int pageSize,
+  ) async => const TrashListPage(items: <TrashItem>[], nextToken: '');
 
   @override
   Future<void> renameObject(
@@ -189,12 +213,6 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<void> deleteShare(RemoteStorageConfig config, String id) async {}
-
-  @override
-  Future<List<TrashItem>> listTrash(
-    RemoteStorageConfig config,
-    String bucket,
-  ) async => const [];
 
   @override
   Future<void> restoreTrashItem(

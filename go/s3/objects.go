@@ -69,43 +69,28 @@ func ListObjectsContext(
 	bucket,
 	prefix string,
 ) ([]ObjectInfo, error) {
-	client := NewClient(cfg)
-
-	if prefix != "" && !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-
-	out, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket:    &bucket,
-		Prefix:    &prefix,
-		Delimiter: aws.String("/"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var result []ObjectInfo
-	for _, cp := range out.CommonPrefixes {
-		if cp.Prefix != nil && isRootTrashKey(cfg, *cp.Prefix) {
-			continue
+	nextToken := ""
+	result := make([]ObjectInfo, 0)
+	for {
+		page, err := ListObjectsPageContext(
+			ctx,
+			cfg,
+			bucket,
+			prefix,
+			nextToken,
+			1000,
+		)
+		if err != nil {
+			return nil, err
 		}
-		result = append(result, ObjectInfo{Key: *cp.Prefix, IsDir: true})
+		result = append(result, page.Items...)
+		if page.NextToken == "" {
+			break
+		}
+		nextToken = page.NextToken
 	}
-	for _, obj := range out.Contents {
-		if obj.Key != nil && *obj.Key == prefix {
-			continue
-		}
-		if obj.Key != nil && isRootTrashKey(cfg, *obj.Key) {
-			continue
-		}
-		info := ObjectInfo{Key: *obj.Key, Size: *obj.Size}
-		if obj.LastModified != nil {
-			info.LastModified = obj.LastModified.Format("2006-01-02 15:04:05")
-		}
-		result = append(result, info)
-	}
-	if result == nil {
-		result = []ObjectInfo{}
+	if len(result) == 0 {
+		return []ObjectInfo{}, nil
 	}
 	return result, nil
 }

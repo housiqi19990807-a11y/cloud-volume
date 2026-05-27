@@ -4,14 +4,15 @@
 
 - Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.
 - The recycle-bin page now hides mount, upload, and new-folder actions so its action bar only shows controls relevant to trash browsing.
-- The sidebar now exposes a dedicated global recycle-bin page that aggregates deleted items across all accessible buckets for unified restore and purge management.
-- The global recycle-bin page now supports keyword and bucket filters plus batch restore and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
-- The global recycle-bin results now render with the same fixed-header file list layout as the main file manager, including per-row original-path subtitles, bucket columns, header select-all, and right-click restore/delete actions.
+- The sidebar now exposes a dedicated global recycle-bin page that works one bucket at a time: it automatically opens the first bucket that actually has deleted items, falls back to the first configured bucket when all are empty, and still lets users switch buckets manually for restore and purge management.
+- The global recycle-bin page now supports keyword search, per-bucket switching, batch restore, and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
+- The global recycle-bin results now reuse the same fixed-header file list style as the main file manager, with original-path subtitles, header select-all, and right-click restore/delete actions, while removing the cross-bucket aggregate layout.
 - Files now expose a `创建分享` context-menu action that generates a presigned download link with a configurable lifetime, and the sidebar now includes a share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and share records can open their links directly in the default browser.
 - The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
 - The transfer queue now persists its recent task list in local app storage and restores it on the next launch, so a sudden app close no longer clears the queue; unfinished tasks from the previous session reappear as interrupted failed entries for follow-up instead of vanishing.
 - The file-manager action bar now adds a left-side search box for bucket lists, object lists, and per-bucket trash lists, and select-all now respects the filtered visible results.
+- File lists, bucket-trash lists, and the global recycle-bin page now fetch data in pages and continue loading on scroll, which avoids long first-load stalls when a bucket contains many objects or deleted entries.
 - The desktop UI now embeds Source Han Sans CN in the app bundle and uses it as the global theme font, which keeps typography consistent across macOS, Windows, and Linux instead of depending on each system's fallback fonts.
 - Large delayed mounted uploads now use resumable multipart writeback instead of restarting from a single timeout-bound `PutObject`, so Archive Utility and other WebDAV-driven extraction flows can continue from already uploaded parts after failures or long stalls.
 - Canceling a queued or already-running mounted upload from the task queue now also clears its local staged/cache file and persisted multipart resume state, which prevents canceled extraction outputs from reappearing in the mounted file list or being re-uploaded later.

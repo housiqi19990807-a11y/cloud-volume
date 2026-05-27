@@ -18,6 +18,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.objects,
     required this.prefix,
     required this.isGrid,
+    required this.scrollController,
+    required this.hasMore,
+    required this.loadingMore,
     required this.selectedKeys,
     required this.deletingKeys,
     required this.gridIconSize,
@@ -41,6 +44,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final List<ObjectInfo> objects;
   final String prefix;
   final bool isGrid;
+  final ScrollController scrollController;
+  final bool hasMore;
+  final bool loadingMore;
   final Set<String> selectedKeys;
   final Set<String> deletingKeys;
   final double gridIconSize;
@@ -94,31 +100,51 @@ class FileManagerObjectBrowser extends StatelessWidget {
           10,
         );
         return GridView.count(
+          controller: scrollController,
           crossAxisCount: crossAxisCount,
           mainAxisSpacing: 6,
           crossAxisSpacing: 6,
           childAspectRatio: 0.92,
-          children: objects
-              .map(
-                (object) => _wrapWithContextMenu(
-                  object,
-                  FileGridItem(
-                    leading: _leading(object, theme, gridIconSize),
-                    title: _title(object),
-                    subtitle: _subtitle(object, forGrid: true),
-                    onTap: _tapHandler(object),
-                    onDoubleTap: _doubleTapHandler(object),
-                    onTitleTap: _titleTapHandler(object),
-                    onSelectionTap: _selectionTapHandler(object),
-                    isSelected: _isSelected(object),
-                    showSelectionControl: _showsSelectionControl(object),
-                    deleting: _isDeleting(object),
-                  ),
+          children: [
+            ...objects.map(
+              (object) => _wrapWithContextMenu(
+                object,
+                FileGridItem(
+                  leading: _leading(object, theme, gridIconSize),
+                  title: _title(object),
+                  subtitle: _subtitle(object, forGrid: true),
+                  onTap: _tapHandler(object),
+                  onDoubleTap: _doubleTapHandler(object),
+                  onTitleTap: _titleTapHandler(object),
+                  onSelectionTap: _selectionTapHandler(object),
+                  isSelected: _isSelected(object),
+                  showSelectionControl: _showsSelectionControl(object),
+                  deleting: _isDeleting(object),
                 ),
-              )
-              .toList(),
+              ),
+            ),
+            if (loadingMore) _buildGridLoadingTile(theme),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildGridLoadingTile(ShadThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.border.withValues(alpha: 0.5),
+        ),
+      ),
+      child: const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
+        ),
+      ),
     );
   }
 
@@ -144,8 +170,12 @@ class FileManagerObjectBrowser extends StatelessWidget {
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: objects.length,
+              controller: scrollController,
+              itemCount: objects.length + (loadingMore ? 1 : 0),
               itemBuilder: (context, index) {
+                if (index >= objects.length) {
+                  return _buildListLoadingRow(theme);
+                }
                 final object = objects[index];
                 return _wrapWithContextMenu(
                   object,
@@ -160,7 +190,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     onSelectionTap: _selectionTapHandler(object),
                     isSelected: _isSelected(object),
                     showSelectionControl: _showsSelectionControl(object),
-                    showDivider: index != objects.length - 1,
+                    showDivider: index != objects.length - 1 || loadingMore,
                     deleting: _isDeleting(object),
                   ),
                 );
@@ -168,6 +198,22 @@ class FileManagerObjectBrowser extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildListLoadingRow(ShadThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: theme.colorScheme.primary,
+          ),
+        ),
       ),
     );
   }

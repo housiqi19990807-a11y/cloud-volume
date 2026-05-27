@@ -15,18 +15,32 @@ extension _FileManagerPageTrash on _FileManagerPageState {
       _error = null;
     });
     try {
-      final items = await widget.api.listTrash(widget.config, targetBucket);
+      final page = await widget.api.listTrashPage(
+        widget.config,
+        targetBucket,
+        '',
+        _FileManagerPageState._listPageSize,
+      );
       if (!mounted) return false;
       setState(() {
         _activeBucket = targetBucket;
         _objects = null;
-        _trashItems = items;
+        _trashItems = page.items;
         _prefix = '';
         _breadcrumbs = const <String>[];
         _showTrash = true;
+        _objectsNextToken = '';
+        _objectsHasMore = false;
+        _pagingObjects = false;
+        _trashNextToken = page.nextToken;
+        _trashHasMore = page.hasMore;
+        _pagingTrash = false;
         _selectedObjectKeys.clear();
         _loading = false;
       });
+      if (_contentScrollController.hasClients) {
+        _contentScrollController.jumpTo(0);
+      }
       return true;
     } catch (error) {
       if (!mounted) return false;
@@ -91,6 +105,9 @@ extension _FileManagerPageTrash on _FileManagerPageState {
     return FileManagerTrashBrowser(
       items: items,
       isGrid: _isGrid,
+      scrollController: _contentScrollController,
+      hasMore: _trashHasMore,
+      loadingMore: _pagingTrash,
       onRestore: (item) => unawaited(_restoreTrashItem(item)),
       onDeletePermanently: (item) =>
           unawaited(_deleteTrashItemPermanently(item)),

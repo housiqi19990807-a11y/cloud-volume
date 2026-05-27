@@ -1,14 +1,18 @@
-// 全局回收站页：跨所有存储桶聚合软删除项目，支持筛选与批量恢复/删除。
+// 全局回收站页：默认选中第一个有数据的桶，并以分页方式增量加载该桶的回收站内容。
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/global_trash_browser.dart';
-import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:remote_storage/widgets/global_trash_controls.dart';
+import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+part 'global_trash_page_support.dart';
+part 'global_trash_page_view.dart';
 
 class GlobalTrashPage extends StatefulWidget {
   const GlobalTrashPage({super.key, required this.api, required this.config});
@@ -21,14 +25,20 @@ class GlobalTrashPage extends StatefulWidget {
 }
 
 class _GlobalTrashPageState extends State<GlobalTrashPage> {
+  static const int _pageSize = 200;
+
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final Set<String> _busyEntries = <String>{};
   final Set<String> _selectedIds = <String>{};
   List<GlobalTrashBrowserEntry> _entries = const <GlobalTrashBrowserEntry>[];
-  List<String> _bucketOptions = const <String>[allBucketsFilter];
+  List<String> _bucketOptions = const <String>[];
+  String? _activeBucket;
   String _searchText = '';
-  String _bucketFilter = allBucketsFilter;
+  String _nextToken = '';
+  bool _hasMore = false;
   bool _loading = false;
+  bool _loadingMore = false;
   String? _error;
 
   @override
@@ -37,47 +47,23 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     _searchController.addListener(() {
       setState(() => _searchText = _searchController.text.trim().toLowerCase());
     });
-    unawaited(_loadEntries());
+    _scrollController.addListener(_maybeLoadMore);
+    unawaited(_loadInitialBucket());
   }
 
   @override
   void didUpdateWidget(covariant GlobalTrashPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.config != widget.config) {
-      unawaited(_loadEntries());
+      unawaited(_loadInitialBucket());
     }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
-  }
-
-  List<GlobalTrashBrowserEntry> get _filteredEntries {
-    return _entries
-        .where((entry) {
-          if (_bucketFilter != allBucketsFilter &&
-              entry.bucket != _bucketFilter) {
-            return false;
-          }
-          if (_searchText.isEmpty) {
-            return true;
-          }
-          final haystack = <String>[
-            entry.item.name,
-            entry.item.originalKey,
-            entry.bucket,
-          ].join('\n').toLowerCase();
-          return haystack.contains(_searchText);
-        })
-        .toList(growable: false);
-  }
-
-  int get _selectedFilteredCount {
-    return _filteredEntries
-        .where((entry) => _selectedIds.contains(entry.id))
-        .length;
   }
 
   void _toggleSelection(GlobalTrashBrowserEntry entry) {
@@ -106,58 +92,191 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     });
   }
 
-  Future<void> _loadEntries() async {
+  Future<void> _loadInitialBucket() async {
+    final previousBucket = _activeBucket;
     setState(() {
       _loading = true;
       _error = null;
+      _entries = const <GlobalTrashBrowserEntry>[];
+      _bucketOptions = const <String>[];
+      _activeBucket = null;
+      _nextToken = '';
+      _hasMore = false;
     });
     try {
       final buckets = await widget.api.listBuckets(widget.config);
-      final bucketOptions = <String>[
-        allBucketsFilter,
-        ...buckets.map((bucket) => bucket.name),
-      ];
-      final itemsPerBucket = await Future.wait(
-        buckets.map((bucket) async {
-          final items = await widget.api.listTrash(widget.config, bucket.name);
-          return items
-              .map(
-                (item) =>
-                    GlobalTrashBrowserEntry(bucket: bucket.name, item: item),
-              )
-              .toList(growable: false);
-        }),
-      );
-      final merged = itemsPerBucket.expand((items) => items).toList();
-      merged.sort((left, right) {
-        final leftTime = left.deletedAtDateTime;
-        final rightTime = right.deletedAtDateTime;
-        if (leftTime == null && rightTime == null) {
-          return left.item.name.compareTo(right.item.name);
-        }
-        if (leftTime == null) return 1;
-        if (rightTime == null) return -1;
-        return rightTime.compareTo(leftTime);
-      });
-      if (!mounted) return;
+      final bucketNames = buckets
+          .map((bucket) => bucket.name)
+          .toList(growable: false);
+      if (!mounted) {
+        return;
+      }
+      if (bucketNames.isEmpty) {
+        setState(() {
+          _bucketOptions = const <String>[];
+          _loading = false;
+        });
+        return;
+      }
+
+      final preferred =
+          previousBucket != null && bucketNames.contains(previousBucket)
+          ? previousBucket
+          : null;
+      final resolved = preferred != null
+          ? await _loadBucketFirstPage(preferred)
+          : await _findFirstBucketWithEntries(bucketNames);
+      if (!mounted) {
+        return;
+      }
       setState(() {
-        _entries = merged;
-        _bucketOptions = bucketOptions;
+        _bucketOptions = bucketNames;
+        _activeBucket = resolved.bucket;
+        _entries = resolved.entries;
+        _nextToken = resolved.page.nextToken;
+        _hasMore = resolved.page.hasMore;
         _selectedIds.removeWhere(
           (id) => !_entries.any((entry) => entry.id == id),
         );
-        if (_bucketFilter != allBucketsFilter &&
-            !_bucketOptions.contains(_bucketFilter)) {
-          _bucketFilter = allBucketsFilter;
-        }
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _error = error.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<_BucketTrashLoadResult> _findFirstBucketWithEntries(
+    List<String> bucketNames,
+  ) async {
+    _BucketTrashLoadResult? emptyResult;
+    for (final bucket in bucketNames) {
+      final result = await _loadBucketFirstPage(bucket);
+      if (result.entries.isNotEmpty) {
+        return result;
+      }
+      emptyResult ??= result;
+    }
+    return emptyResult ?? await _loadBucketFirstPage(bucketNames.first);
+  }
+
+  Future<_BucketTrashLoadResult> _loadBucketFirstPage(String bucket) async {
+    final page = await widget.api.listTrashPage(
+      widget.config,
+      bucket,
+      '',
+      _pageSize,
+    );
+    return _BucketTrashLoadResult(
+      bucket: bucket,
+      page: page,
+      entries: page.items
+          .map((item) => GlobalTrashBrowserEntry(bucket: bucket, item: item))
+          .toList(growable: false),
+    );
+  }
+
+  Future<void> _switchBucket(String bucket) async {
+    if (_activeBucket == bucket || _loading) {
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      _entries = const <GlobalTrashBrowserEntry>[];
+      _selectedIds.clear();
+      _nextToken = '';
+      _hasMore = false;
+    });
+    try {
+      final result = await _loadBucketFirstPage(bucket);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activeBucket = bucket;
+        _entries = result.entries;
+        _nextToken = result.page.nextToken;
+        _hasMore = result.page.hasMore;
+        _loading = false;
+      });
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _maybeLoadMore() {
+    if (!_scrollController.hasClients ||
+        _loading ||
+        _loadingMore ||
+        !_hasMore) {
+      return;
+    }
+    final position = _scrollController.position;
+    if (position.maxScrollExtent <= 0) {
+      return;
+    }
+    if (position.pixels < position.maxScrollExtent - 520) {
+      return;
+    }
+    unawaited(_loadMore());
+  }
+
+  Future<void> _loadMore() async {
+    final bucket = _activeBucket;
+    if (bucket == null || _loadingMore || !_hasMore) {
+      return;
+    }
+    _loadingMore = true;
+    try {
+      final page = await widget.api.listTrashPage(
+        widget.config,
+        bucket,
+        _nextToken,
+        _pageSize,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        final merged = <GlobalTrashBrowserEntry>[
+          ..._entries,
+          ...page.items.map(
+            (item) => GlobalTrashBrowserEntry(bucket: bucket, item: item),
+          ),
+        ];
+        merged.sort(
+          (left, right) => right.item.deletedAt.compareTo(left.item.deletedAt),
+        );
+        _entries = merged;
+        _nextToken = page.nextToken;
+        _hasMore = page.hasMore;
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      _loadingMore = false;
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -168,20 +287,22 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         entry.bucket,
         entry.item.id,
       );
-      await _loadEntries();
+      await _switchBucket(entry.bucket);
     });
   }
 
   Future<void> _deleteEntry(GlobalTrashBrowserEntry entry) async {
     final confirmed = await showDeleteTrashItemDialog(context, entry.item);
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
     await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.deleteTrashItem(
         widget.config,
         entry.bucket,
         entry.item.id,
       );
-      await _loadEntries();
+      await _switchBucket(entry.bucket);
     });
   }
 
@@ -189,7 +310,9 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     final targets = _filteredEntries
         .where((entry) => _selectedIds.contains(entry.id))
         .toList(growable: false);
-    if (targets.isEmpty) return;
+    if (targets.isEmpty) {
+      return;
+    }
     await _runBusy(targets, () async {
       for (final entry in targets) {
         await widget.api.restoreTrashItem(
@@ -198,7 +321,9 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
           entry.item.id,
         );
       }
-      await _loadEntries();
+      if (_activeBucket != null) {
+        await _switchBucket(_activeBucket!);
+      }
     });
   }
 
@@ -206,9 +331,13 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     final targets = _filteredEntries
         .where((entry) => _selectedIds.contains(entry.id))
         .toList(growable: false);
-    if (targets.isEmpty) return;
+    if (targets.isEmpty) {
+      return;
+    }
     final confirmed = await showDeleteTrashItemsDialog(context, targets.length);
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
     await _runBusy(targets, () async {
       for (final entry in targets) {
         await widget.api.deleteTrashItem(
@@ -217,7 +346,9 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
           entry.item.id,
         );
       }
-      await _loadEntries();
+      if (_activeBucket != null) {
+        await _switchBucket(_activeBucket!);
+      }
     });
   }
 
@@ -234,7 +365,9 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     try {
       await action();
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
@@ -250,107 +383,5 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final filteredEntries = _filteredEntries;
-    final selectedFilteredCount = _selectedFilteredCount;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '回收站',
-                      style: theme.textTheme.h3.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 22,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '跨所有存储桶统一管理已删除项目，可筛选、批量恢复或批量彻底删除。',
-                      style: TextStyle(
-                        color: theme.colorScheme.mutedForeground,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              GlobalTrashHeaderActions(
-                selectedCount: selectedFilteredCount,
-                loading: _loading,
-                onRefresh: () => unawaited(_loadEntries()),
-                onRestoreSelected: () => unawaited(_restoreSelected()),
-                onDeleteSelected: () => unawaited(_deleteSelected()),
-                onClearSelection: () => setState(() => _selectedIds.clear()),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          GlobalTrashFilters(
-            searchController: _searchController,
-            bucketFilter: _bucketFilter,
-            bucketOptions: _bucketOptions,
-            onBucketChanged: (value) {
-              if (value == null) return;
-              setState(() => _bucketFilter = value);
-            },
-          ),
-          const SizedBox(height: 16),
-          Expanded(child: _buildBody(theme, filteredEntries)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody(
-    ShadThemeData theme,
-    List<GlobalTrashBrowserEntry> filteredEntries,
-  ) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.circleAlert,
-              size: 40,
-              color: theme.colorScheme.destructive,
-            ),
-            const SizedBox(height: 12),
-            Text(_error!, textAlign: TextAlign.center),
-          ],
-        ),
-      );
-    }
-    if (filteredEntries.isEmpty) {
-      final text = _entries.isEmpty ? '全局回收站为空' : '当前筛选条件下没有结果';
-      return Center(
-        child: Text(
-          text,
-          style: TextStyle(color: theme.colorScheme.mutedForeground),
-        ),
-      );
-    }
-    return GlobalTrashBrowser(
-      entries: filteredEntries,
-      selectedIds: _selectedIds,
-      busyIds: _busyEntries,
-      onToggleSelection: _toggleSelection,
-      onToggleSelectAll: _toggleSelectAllFiltered,
-      onRestore: (entry) => unawaited(_restoreEntry(entry)),
-      onDeletePermanently: (entry) => unawaited(_deleteEntry(entry)),
-    );
-  }
+  Widget build(BuildContext context) => buildPage(context);
 }

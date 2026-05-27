@@ -14,12 +14,18 @@ class FileManagerTrashBrowser extends StatelessWidget {
     super.key,
     required this.items,
     required this.isGrid,
+    required this.scrollController,
+    required this.hasMore,
+    required this.loadingMore,
     required this.onRestore,
     required this.onDeletePermanently,
   });
 
   final List<TrashItem> items;
   final bool isGrid;
+  final ScrollController scrollController;
+  final bool hasMore;
+  final bool loadingMore;
   final ValueChanged<TrashItem> onRestore;
   final ValueChanged<TrashItem> onDeletePermanently;
 
@@ -39,46 +45,85 @@ class FileManagerTrashBrowser extends StatelessWidget {
           10,
         );
         return GridView.count(
+          controller: scrollController,
           crossAxisCount: crossAxisCount,
           mainAxisSpacing: 6,
           crossAxisSpacing: 6,
           childAspectRatio: 0.92,
-          children: items
-              .map(
-                (item) => _wrapWithContextMenu(
-                  item,
-                  FileGridItem(
-                    leading: Icon(
-                      item.isDir
-                          ? LucideIcons.folderArchive
-                          : LucideIcons.fileX2,
-                      size: 52,
-                      color: ShadTheme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.82),
+          children: [
+            ...items.map(
+              (item) => _wrapWithContextMenu(
+                item,
+                FileGridItem(
+                  leading: Icon(
+                    item.isDir ? LucideIcons.folderArchive : LucideIcons.fileX2,
+                    size: 52,
+                    color: ShadTheme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.82),
+                  ),
+                  title: item.name,
+                  subtitle: item.sizeText,
+                  contentWidth: 88,
+                  onTap: () => onRestore(item),
+                  footer: Text(
+                    item.deletedAt,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: ShadTheme.of(context).colorScheme.mutedForeground,
                     ),
-                    title: item.name,
-                    subtitle: item.sizeText,
-                    contentWidth: 88,
-                    onTap: () => onRestore(item),
-                    footer: Text(
-                      item.deletedAt,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: ShadTheme.of(
-                          context,
-                        ).colorScheme.mutedForeground,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              )
-              .toList(),
+              ),
+            ),
+            if (loadingMore) _buildGridLoadingTile(context),
+          ],
         );
       },
+    );
+  }
+
+  Widget _wrapWithContextMenu(TrashItem item, Widget child) {
+    return DesktopContextMenuRegion(
+      groupId: _trashContextMenuGroup,
+      items: [
+        ShadContextMenuItem(
+          onPressed: () => _runMenuAction(() => onRestore(item)),
+          child: const Text('恢复'),
+        ),
+        ShadContextMenuItem(
+          onPressed: () => _runMenuAction(() => onDeletePermanently(item)),
+          child: const Text('彻底删除'),
+        ),
+      ],
+      child: child,
+    );
+  }
+
+  void _runMenuAction(VoidCallback action) {
+    DesktopContextMenuRegistry.dismiss(_trashContextMenuGroup);
+    action();
+  }
+
+  Widget _buildGridLoadingTile(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.border.withValues(alpha: 0.5),
+        ),
+      ),
+      child: const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2),
+        ),
+      ),
     );
   }
 
@@ -132,8 +177,12 @@ class FileManagerTrashBrowser extends StatelessWidget {
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: items.length,
+              controller: scrollController,
+              itemCount: items.length + (loadingMore ? 1 : 0),
               itemBuilder: (context, index) {
+                if (index >= items.length) {
+                  return _buildListLoadingRow(context);
+                }
                 final item = items[index];
                 return _wrapWithContextMenu(
                   item,
@@ -149,7 +198,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
                     sizeLabel: item.originalKey,
                     modifiedLabel: item.deletedAt,
                     onTap: () => onRestore(item),
-                    showDivider: index != items.length - 1,
+                    showDivider: index != items.length - 1 || loadingMore,
                   ),
                 );
               },
@@ -160,25 +209,20 @@ class FileManagerTrashBrowser extends StatelessWidget {
     );
   }
 
-  Widget _wrapWithContextMenu(TrashItem item, Widget child) {
-    return DesktopContextMenuRegion(
-      groupId: _trashContextMenuGroup,
-      items: [
-        ShadContextMenuItem(
-          onPressed: () => _runMenuAction(() => onRestore(item)),
-          child: const Text('恢复'),
+  Widget _buildListLoadingRow(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: theme.colorScheme.primary,
+          ),
         ),
-        ShadContextMenuItem(
-          onPressed: () => _runMenuAction(() => onDeletePermanently(item)),
-          child: const Text('彻底删除'),
-        ),
-      ],
-      child: child,
+      ),
     );
-  }
-
-  void _runMenuAction(VoidCallback action) {
-    DesktopContextMenuRegistry.dismiss(_trashContextMenuGroup);
-    action();
   }
 }

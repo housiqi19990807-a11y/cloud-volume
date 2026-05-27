@@ -46,6 +46,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listBuckets(args)
 	case "list_objects":
 		return listObjects(args)
+	case "list_object_page":
+		return listObjectPage(args)
 	case "head_object":
 		return headObject(args)
 	case "create_directory":
@@ -54,6 +56,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return deleteObject(args)
 	case "list_trash":
 		return listTrash(args)
+	case "list_trash_page":
+		return listTrashPage(args)
 	case "restore_trash_item":
 		return restoreTrashItem(args)
 	case "delete_trash_item":

@@ -84,18 +84,18 @@ func ListTrashContext(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) ([]TrashItem, error) {
-	client := NewClient(cfg)
-	if ctx == nil {
-		ctx = Ctx()
-	}
-
-	if err := purgeExpiredTrash(ctx, client, cfg, bucket); err != nil {
-		return nil, err
-	}
-
-	items, err := listTrashMetadata(ctx, client, cfg, bucket)
-	if err != nil {
-		return nil, err
+	nextToken := ""
+	items := make([]TrashItem, 0)
+	for {
+		page, err := ListTrashPageContext(ctx, cfg, bucket, nextToken, 1000)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, page.Items...)
+		if page.NextToken == "" {
+			break
+		}
+		nextToken = page.NextToken
 	}
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].DeletedAt > items[j].DeletedAt
