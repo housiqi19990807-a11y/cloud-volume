@@ -34,7 +34,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
   }
 
   void _toggleSelectAllObjects() {
-    final selectableKeys = _visibleSelectableObjects
+    final selectableKeys = _filteredVisibleObjects
         .map((object) => object.key)
         .toSet();
     if (selectableKeys.isEmpty) {

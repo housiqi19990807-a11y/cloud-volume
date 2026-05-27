@@ -80,9 +80,13 @@ extension _FileManagerPageTrash on _FileManagerPageState {
   }
 
   Widget _buildTrashView(ShadThemeData theme) {
-    final items = _trashItems ?? const <TrashItem>[];
+    final items = _filteredTrashItems;
     if (items.isEmpty) {
-      return _empty(theme, LucideIcons.trash2, '此存储桶回收站为空');
+      return _empty(
+        theme,
+        LucideIcons.trash2,
+        _hasSearchQuery ? '当前搜索没有结果' : '此存储桶回收站为空',
+      );
     }
     return FileManagerTrashBrowser(
       items: items,

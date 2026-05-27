@@ -10,6 +10,7 @@
 - Files now expose a `创建分享` context-menu action that generates a presigned download link with a configurable lifetime, and the sidebar now includes a share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and share records can open their links directly in the default browser.
 - The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
+- The file-manager action bar now adds a left-side search box for bucket lists, object lists, and per-bucket trash lists, and select-all now respects the filtered visible results.
 - Bootstrap a Flutter desktop shell with a Go FFI bridge and first-run remote storage configuration flow.
 - Transparent macOS titlebar with content extending behind traffic lights.
 - Left-right split config page: dark brand panel + form.

@@ -55,6 +55,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   static const double _bucketGridIconSize = 72;
   static const Duration _mountStatusRefreshInterval = Duration(seconds: 4);
 
+  final TextEditingController _searchController = TextEditingController();
   List<BucketInfo>? _buckets;
   String? _activeBucket;
   List<ObjectInfo>? _objects;
@@ -65,6 +66,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   String? _error;
   bool _isGrid = false;
   bool _showTrash = false;
+  String _searchText = '';
   final Map<String, BucketMountStatus> _bucketMountStatuses =
       <String, BucketMountStatus>{};
   final Set<String> _mountBusyBuckets = <String>{};
@@ -81,9 +83,46 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   bool get _isTrashHome => widget.homeView == FileManagerHomeView.trash;
 
+  bool get _hasSearchQuery => _searchText.isNotEmpty;
+
+  List<BucketInfo> get _filteredBuckets {
+    final buckets = _buckets ?? const <BucketInfo>[];
+    if (!_hasSearchQuery) return buckets;
+    return buckets
+        .where((bucket) => bucket.name.toLowerCase().contains(_searchText))
+        .toList(growable: false);
+  }
+
+  List<ObjectInfo> get _filteredVisibleObjects {
+    final visibleObjects = _visibleSelectableObjects;
+    if (!_hasSearchQuery) return visibleObjects;
+    return visibleObjects
+        .where(
+          (object) =>
+              object.displayName.toLowerCase().contains(_searchText) ||
+              object.key.toLowerCase().contains(_searchText),
+        )
+        .toList(growable: false);
+  }
+
+  List<TrashItem> get _filteredTrashItems {
+    final items = _trashItems ?? const <TrashItem>[];
+    if (!_hasSearchQuery) return items;
+    return items
+        .where(
+          (item) =>
+              item.name.toLowerCase().contains(_searchText) ||
+              item.originalKey.toLowerCase().contains(_searchText),
+        )
+        .toList(growable: false);
+  }
+
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() {
+      setState(() => _searchText = _searchController.text.trim().toLowerCase());
+    });
     _startMountStatusRefreshTimer();
     _loadBuckets();
   }
@@ -91,6 +130,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   @override
   void dispose() {
     _mountStatusRefreshTimer?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -256,63 +296,63 @@ class _FileManagerPageState extends State<FileManagerPage> {
           onOpenCrumb: (index) => unawaited(_navCrumb(index)),
         ),
         const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FileManagerActionBar(
-            theme: theme,
-            isGrid: _isGrid,
-            selectedCount: _selectedObjectKeys.length,
-            batchDownloadEnabled: _selectedObjects.any(
-              (object) => !object.isDir,
-            ),
-            showingTrash: _showTrash,
-            mounted: _showTrash
-                ? false
-                : (_activeMountStatus?.mounted ?? false),
-            mountBusy: _showTrash ? false : _activeMountBusy,
-            onToggleView: () => setState(() => _isGrid = !_isGrid),
-            trashCloseLabel: _isTrashHome ? '返回存储桶' : '返回文件',
-            onOpenTrash:
-                _isTrashHome || _activeBucket == null || _loading || _showTrash
-                ? null
-                : _openBucketTrash,
-            onCloseTrash: _activeBucket == null || _loading || !_showTrash
-                ? null
-                : _closeBucketTrash,
-            onMount:
-                _showTrash ||
-                    _activeBucket == null ||
-                    _loading ||
-                    _activeMountBusy ||
-                    (_activeMountStatus?.mounted ?? false)
-                ? null
-                : _mountBucket,
-            onUnmount:
-                _showTrash ||
-                    _activeBucket == null ||
-                    _loading ||
-                    _activeMountBusy ||
-                    !(_activeMountStatus?.mounted ?? false)
-                ? null
-                : _unmountBucket,
-            onOpenMount:
-                _showTrash ||
-                    _activeBucket == null ||
-                    _loading ||
-                    _activeMountBusy ||
-                    !(_activeMountStatus?.mounted ?? false)
-                ? null
-                : _openMountedBucket,
-            onCreateDirectory: _showTrash || _activeBucket == null || _loading
-                ? null
-                : _createDirectory,
-            onUpload: _showTrash || _activeBucket == null || _loading
-                ? null
-                : _upload,
-            onBatchDownload: _loading ? null : _downloadSelectedObjects,
-            onBatchDelete: _loading ? null : _deleteSelectedObjects,
-            onClearSelection: _clearSelection,
-          ),
+        FileManagerActionBar(
+          theme: theme,
+          isGrid: _isGrid,
+          searchController: _searchController,
+          searchEnabled: !_loading,
+          searchPlaceholder: _showTrash
+              ? '搜索回收站名称或原路径'
+              : _activeBucket == null
+              ? '搜索存储桶'
+              : '搜索文件或目录',
+          selectedCount: _selectedObjectKeys.length,
+          batchDownloadEnabled: _selectedObjects.any((object) => !object.isDir),
+          showingTrash: _showTrash,
+          mounted: _showTrash ? false : (_activeMountStatus?.mounted ?? false),
+          mountBusy: _showTrash ? false : _activeMountBusy,
+          onToggleView: () => setState(() => _isGrid = !_isGrid),
+          trashCloseLabel: _isTrashHome ? '返回存储桶' : '返回文件',
+          onOpenTrash:
+              _isTrashHome || _activeBucket == null || _loading || _showTrash
+              ? null
+              : _openBucketTrash,
+          onCloseTrash: _activeBucket == null || _loading || !_showTrash
+              ? null
+              : _closeBucketTrash,
+          onMount:
+              _showTrash ||
+                  _activeBucket == null ||
+                  _loading ||
+                  _activeMountBusy ||
+                  (_activeMountStatus?.mounted ?? false)
+              ? null
+              : _mountBucket,
+          onUnmount:
+              _showTrash ||
+                  _activeBucket == null ||
+                  _loading ||
+                  _activeMountBusy ||
+                  !(_activeMountStatus?.mounted ?? false)
+              ? null
+              : _unmountBucket,
+          onOpenMount:
+              _showTrash ||
+                  _activeBucket == null ||
+                  _loading ||
+                  _activeMountBusy ||
+                  !(_activeMountStatus?.mounted ?? false)
+              ? null
+              : _openMountedBucket,
+          onCreateDirectory: _showTrash || _activeBucket == null || _loading
+              ? null
+              : _createDirectory,
+          onUpload: _showTrash || _activeBucket == null || _loading
+              ? null
+              : _upload,
+          onBatchDownload: _loading ? null : _downloadSelectedObjects,
+          onBatchDelete: _loading ? null : _deleteSelectedObjects,
+          onClearSelection: _clearSelection,
         ),
       ],
     );
@@ -360,11 +400,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Widget _buildBucketView(ShadThemeData theme) {
     if (_buckets == null) return const SizedBox();
-    if (_buckets!.isEmpty) {
-      return _empty(theme, LucideIcons.database, '没有可用的存储桶');
+    final buckets = _filteredBuckets;
+    if (buckets.isEmpty) {
+      return _empty(
+        theme,
+        LucideIcons.database,
+        _hasSearchQuery ? '没有匹配的存储桶' : '没有可用的存储桶',
+      );
     }
     return FileManagerBucketBrowser(
-      buckets: _buckets!,
+      buckets: buckets,
       isGrid: _isGrid,
       gridIconSize: _bucketGridIconSize,
       listIconSize: _listIconSize,
@@ -391,7 +436,14 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
-    final visibleObjects = _visibleSelectableObjects;
+    final visibleObjects = _filteredVisibleObjects;
+    if (visibleObjects.isEmpty) {
+      return _empty(
+        theme,
+        LucideIcons.folderSearch,
+        _hasSearchQuery ? '当前搜索没有结果' : '此目录为空',
+      );
+    }
     return FileManagerObjectBrowser(
       objects: visibleObjects,
       prefix: _prefix,
