@@ -80,6 +80,7 @@ The initial setup page persists these S3-compatible settings:
 - The file manager header now uses a dedicated breadcrumb row plus a separate action row, so long paths can still collapse to `...` without truncating mount, trash, upload, or multi-select actions on the right.
 - The file manager action row now includes a left-side search box that filters the current bucket list, object list, or bucket-trash list in place, and table-header select-all follows the filtered results.
 - File lists, bucket-trash lists, and the global recycle-bin page now use paged loading plus infinite scroll, which keeps large directories and recycle bins responsive instead of blocking on a full initial scan.
+- New recycle-bin entries now store their list metadata in dedicated index keys, so trash pages can render full item details from listing results alone; older trash entries are repaired into that indexed form automatically after they are accessed.
 - Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
 - Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, an active-task badge, and a hover task list.
 - WhiteSur SVG resources are also vendored as an optional backup icon library.

@@ -2,7 +2,6 @@
 package s3
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"sort"
@@ -70,7 +69,7 @@ func MoveObjectToTrashContext(
 		estimateTrashSize(ctx, cfg, bucket, sourceKey, isDirectory, len(keys)),
 		len(keys),
 	)
-	return putTrashMetadata(ctx, client, cfg, bucket, metadata)
+	return persistTrashMetadata(ctx, client, cfg, bucket, metadata)
 }
 
 // ListTrash returns all current trash entries for the bucket after optional retention cleanup.
@@ -120,7 +119,7 @@ func RestoreTrashItemContext(
 		ctx = Ctx()
 	}
 
-	metadata, err := loadTrashMetadata(ctx, client, cfg, bucket, trashID)
+	entry, err := loadTrashEntry(ctx, client, cfg, bucket, trashID)
 	if err != nil {
 		return err
 	}
@@ -128,13 +127,13 @@ func RestoreTrashItemContext(
 		ctx,
 		cfg,
 		bucket,
-		metadata.TrashKey,
-		metadata.OriginalKey,
-		metadata.IsDir,
+		entry.item.TrashKey,
+		entry.item.OriginalKey,
+		entry.item.IsDir,
 	); err != nil {
 		return err
 	}
-	return deleteObjectKey(ctx, client, bucket, trashMetadataKey(cfg, trashID))
+	return deleteTrashEntryMetadata(ctx, client, bucket, entry)
 }
 
 // DeleteTrashItem permanently removes a trash entry and its metadata.
@@ -162,6 +161,49 @@ func listTrashMetadata(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) ([]TrashItem, error) {
+	indexedItems, err := listAllIndexedTrashMetadata(ctx, client, cfg, bucket)
+	if err != nil {
+		return nil, err
+	}
+	legacyItems, err := listAllLegacyTrashMetadata(ctx, client, cfg, bucket)
+	if err != nil {
+		return nil, err
+	}
+	items := mergeTrashItems(indexedItems, legacyItems)
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].DeletedAt > items[j].DeletedAt
+	})
+	return items, nil
+}
+
+func listAllIndexedTrashMetadata(
+	ctx context.Context,
+	client *s3.Client,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+) ([]TrashItem, error) {
+	nextToken := ""
+	items := make([]TrashItem, 0)
+	for {
+		pageItems, next, err := listIndexedTrashPage(ctx, client, cfg, bucket, nextToken, 1000)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, pageItems...)
+		if next == "" {
+			break
+		}
+		nextToken = next
+	}
+	return items, nil
+}
+
+func listAllLegacyTrashMetadata(
+	ctx context.Context,
+	client *s3.Client,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+) ([]TrashItem, error) {
 	prefix := trashMetadataPrefix(cfg)
 	pager := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: &bucket,
@@ -174,16 +216,18 @@ func listTrashMetadata(
 		if err != nil {
 			return nil, err
 		}
+		metadataKeys := make([]string, 0, len(page.Contents))
 		for _, obj := range page.Contents {
 			if obj.Key == nil || !strings.HasSuffix(*obj.Key, trashMetadataSuffix) {
 				continue
 			}
-			metadata, err := loadTrashMetadataByKey(ctx, client, bucket, *obj.Key)
-			if err != nil {
-				return nil, err
-			}
-			items = append(items, trashItemFromMetadata(metadata))
+			metadataKeys = append(metadataKeys, *obj.Key)
 		}
+		pageItems, _, err := loadTrashItemsPage(ctx, client, bucket, metadataKeys)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, pageItems...)
 	}
 	return items, nil
 }
@@ -195,7 +239,20 @@ func loadTrashMetadata(
 	bucket string,
 	trashID string,
 ) (trashMetadata, error) {
-	return loadTrashMetadataByKey(ctx, client, bucket, trashMetadataKey(cfg, trashID))
+	entry, err := loadTrashEntry(ctx, client, cfg, bucket, trashID)
+	if err != nil {
+		return trashMetadata{}, err
+	}
+	return trashMetadata{
+		ID:          entry.item.ID,
+		Name:        entry.item.Name,
+		OriginalKey: entry.item.OriginalKey,
+		TrashKey:    entry.item.TrashKey,
+		DeletedAt:   entry.item.DeletedAt,
+		IsDir:       entry.item.IsDir,
+		Size:        entry.item.Size,
+		ObjectCount: entry.item.ObjectCount,
+	}, nil
 }
 
 func loadTrashMetadataByKey(
@@ -227,17 +284,7 @@ func putTrashMetadata(
 	bucket string,
 	metadata trashMetadata,
 ) error {
-	body, err := encodeTrashMetadata(metadata)
-	if err != nil {
-		return err
-	}
-	_, err = client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      &bucket,
-		Key:         aws.String(trashMetadataKey(cfg, metadata.ID)),
-		Body:        bytes.NewReader(body),
-		ContentType: aws.String("application/json"),
-	})
-	return err
+	return persistTrashMetadata(ctx, client, cfg, bucket, metadata)
 }
 
 func purgeExpiredTrash(
@@ -274,14 +321,14 @@ func deleteTrashByID(
 	bucket string,
 	trashID string,
 ) error {
-	metadata, err := loadTrashMetadata(ctx, client, cfg, bucket, trashID)
+	entry, err := loadTrashEntry(ctx, client, cfg, bucket, trashID)
 	if err != nil {
 		return err
 	}
-	if err := DeleteObjectHardContext(ctx, cfg, bucket, metadata.TrashKey, metadata.IsDir); err != nil {
+	if err := DeleteObjectHardContext(ctx, cfg, bucket, entry.item.TrashKey, entry.item.IsDir); err != nil {
 		return err
 	}
-	return deleteObjectKey(ctx, client, bucket, trashMetadataKey(cfg, trashID))
+	return deleteTrashEntryMetadata(ctx, client, bucket, entry)
 }
 
 func deleteObjectKey(
