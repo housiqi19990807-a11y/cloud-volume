@@ -30,9 +30,8 @@
 - Clicking a file now first sends a `HEAD` request to validate the SQLite-tracked local cache against the remote file size and last-modified time; stale cache entries are discarded and re-downloaded before opening, while the context menu keeps an explicit download-to-path action.
 - List mode now adds a fixed header and aligned Name, Size, and Modified columns so file metadata occupies the right side cleanly.
 - File item context menus now open faster, ensure only one menu stays visible, and close first when the user clicks another file or folder.
-- Settings now support single-click vs double-click open behavior; the default is Finder-style double-click open, where clicking a row selects it for multi-select while clicking the item name still opens it directly, and selected files can be batch-downloaded or batch-deleted from the action bar.
+- File and folder items now always open on single click, and multi-selection stays available through explicit checkmarks plus batch download and batch delete actions in the file action bar.
 - Closing the main macOS window now asks whether to minimize to tray or quit, while the tray menu's `退出云卷` action still exits immediately.
-- In double-click open mode, multi-selection now uses explicit checkmarks: a left-side checkbox in list view and a top-right checkbox in grid view.
 - List view now adds a header checkbox that can select or clear all visible items in the current directory, with partial-selection feedback.
 - The desktop project now includes macOS, Linux, and Windows host shells, and the local build scripts support native bridge/build flows on all three platforms.
 - Added a tag-triggered GitHub Actions desktop release workflow that now publishes 7 release lanes on tags such as `v0.0.1`: macOS `amd64`, macOS `arm64`, macOS `universal`, Windows `amd64`, Windows `arm64`, Linux `amd64`, and Linux `arm64`, with macOS `zip + dmg`, Windows `zip + installer.exe`, and Linux `AppImage` outputs.

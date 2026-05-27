@@ -1,7 +1,6 @@
-// 设置页分区组件：下载目录、显示选项、文件打开方式与主题色选项。
+// 设置页分区组件：下载目录、显示选项与主题色选项。
 
 import 'package:flutter/material.dart';
-import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -170,61 +169,6 @@ class VisibilitySection extends StatelessWidget {
   }
 }
 
-class FileOpenModeSection extends StatelessWidget {
-  const FileOpenModeSection({
-    super.key,
-    required this.theme,
-    required this.fileOpenMode,
-    required this.saving,
-    required this.errorText,
-    required this.onChanged,
-  });
-
-  final ShadThemeData theme;
-  final FileOpenMode fileOpenMode;
-  final bool saving;
-  final String? errorText;
-  final ValueChanged<FileOpenMode> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '默认使用双击打开。双击模式下，单击项目会先进入选中状态，而单击名称仍可直接打开。',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.6,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 14),
-        for (final mode in FileOpenMode.values) ...[
-          _OpenModeOption(
-            theme: theme,
-            mode: mode,
-            selected: fileOpenMode == mode,
-            enabled: !saving,
-            onTap: () => onChanged(mode),
-          ),
-          if (mode != FileOpenMode.values.last) const SizedBox(height: 10),
-        ],
-        if (errorText != null) ...[
-          const SizedBox(height: 10),
-          Text(
-            errorText!,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.destructive,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 class ThemePicker extends StatelessWidget {
   const ThemePicker({super.key});
 
@@ -312,81 +256,6 @@ class ThemeOption extends StatelessWidget {
             Text(
               preset.label,
               style: TextStyle(fontSize: 12, color: preset.color),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OpenModeOption extends StatelessWidget {
-  const _OpenModeOption({
-    required this.theme,
-    required this.mode,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final FileOpenMode mode;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = theme.colorScheme.primary;
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? accent.withValues(alpha: 0.08)
-              : theme.colorScheme.secondary,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected
-                ? accent.withValues(alpha: 0.28)
-                : theme.colorScheme.border.withValues(alpha: 0.65),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              size: 16,
-              color: selected ? accent : theme.colorScheme.mutedForeground,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    mode == FileOpenMode.doubleClick ? '双击打开' : '单击打开',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.foreground,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    mode == FileOpenMode.doubleClick
-                        ? '单击项目用于选中，名称可直接打开，适合多选操作。'
-                        : '单击整个项目立即打开，更接近传统文件浏览器。',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: theme.colorScheme.mutedForeground,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),

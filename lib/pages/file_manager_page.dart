@@ -84,9 +84,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
   @override
   void didUpdateWidget(covariant FileManagerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.config.fileOpenMode != widget.config.fileOpenMode) {
-      _clearSelection();
-    }
     if (oldWidget.config != widget.config) {
       unawaited(_refreshVisibleMountStatuses());
     }
@@ -345,7 +342,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
       objects: visibleObjects,
       prefix: _prefix,
       isGrid: _isGrid,
-      fileOpenMode: widget.config.fileOpenMode,
       selectedKeys: _selectedObjectKeys,
       deletingKeys: _deletingObjectKeys,
       gridIconSize: _gridIconSize,

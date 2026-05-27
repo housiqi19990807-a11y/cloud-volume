@@ -76,7 +76,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       defaultDownloadDirectory:
           widget.initialState.config.defaultDownloadDirectory,
       hideDotFiles: widget.initialState.config.hideDotFiles,
-      fileOpenMode: widget.initialState.config.fileOpenMode,
+      // 文件浏览固定为单击打开，配置阶段不再暴露这个开关。
+      fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: widget.initialState.config.trashDirectoryName,
       trashRetentionDays: widget.initialState.config.trashRetentionDays,
       usePathStyle: _usePathStyle,

@@ -1,7 +1,6 @@
 // 文件对象区：负责列表/网格渲染、非根目录的 ".." 返回项，以及对象交互分发。
 
 import 'package:flutter/material.dart';
-import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
@@ -19,7 +18,6 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.objects,
     required this.prefix,
     required this.isGrid,
-    required this.fileOpenMode,
     required this.selectedKeys,
     required this.deletingKeys,
     required this.gridIconSize,
@@ -43,7 +41,6 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final List<ObjectInfo> objects;
   final String prefix;
   final bool isGrid;
-  final FileOpenMode fileOpenMode;
   final Set<String> selectedKeys;
   final Set<String> deletingKeys;
   final double gridIconSize;
@@ -140,7 +137,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
         children: [
           FileManagerObjectHeader(
             theme: theme,
-            showSelectionControl: fileOpenMode == FileOpenMode.doubleClick,
+            showSelectionControl: true,
             allSelected: totalCount > 0 && selectedCount == totalCount,
             partiallySelected: selectedCount > 0 && selectedCount < totalCount,
             onToggleSelectAll: onToggleSelectAll,
@@ -229,50 +226,15 @@ class FileManagerObjectBrowser extends StatelessWidget {
       if (_dismissActiveContextMenu()) {
         return;
       }
-      if (_isSelectionMode) {
-        if (_isParentDirectory(object)) {
-          return;
-        }
-        onToggleSelection(object);
-        return;
-      }
-      if (_isParentDirectory(object) ||
-          fileOpenMode == FileOpenMode.singleClick) {
-        _openObject(object);
-        return;
-      }
-      onToggleSelection(object);
-    };
-  }
-
-  VoidCallback? _doubleTapHandler(ObjectInfo object) {
-    if (_isSelectionMode ||
-        _isParentDirectory(object) ||
-        _isDeleting(object) ||
-        fileOpenMode == FileOpenMode.singleClick) {
-      return null;
-    }
-    return () {
-      if (_isDeleting(object)) {
-        return;
-      }
-      if (_dismissActiveContextMenu()) {
-        return;
-      }
       _openObject(object);
     };
   }
 
+  VoidCallback? _doubleTapHandler(ObjectInfo object) => null;
+
   VoidCallback _titleTapHandler(ObjectInfo object) {
     return () {
       if (_dismissActiveContextMenu()) {
-        return;
-      }
-      if (_isSelectionMode) {
-        if (_isParentDirectory(object)) {
-          return;
-        }
-        onToggleSelection(object);
         return;
       }
       _openObject(object);
@@ -360,12 +322,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   }
 
   bool _showsSelectionControl(ObjectInfo object) {
-    return !_isParentDirectory(object) &&
-        fileOpenMode == FileOpenMode.doubleClick;
-  }
-
-  bool get _isSelectionMode {
-    return fileOpenMode == FileOpenMode.doubleClick && selectedKeys.isNotEmpty;
+    return !_isParentDirectory(object);
   }
 
   bool _isParentDirectory(ObjectInfo object) {

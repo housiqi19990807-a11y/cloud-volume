@@ -33,8 +33,6 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _downloadDirectoryError;
   bool _savingVisibility = false;
   String? _visibilityError;
-  bool _savingOpenMode = false;
-  String? _openModeError;
   bool _savingTrashSettings = false;
   String? _trashSettingsError;
 
@@ -77,18 +75,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 errorText: _downloadDirectoryError,
                 onPickDirectory: () => _pickDownloadDirectory(config),
                 onResetDirectory: () => _resetDownloadDirectory(config),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildCard(
-              theme,
-              '文件打开',
-              FileOpenModeSection(
-                theme: theme,
-                fileOpenMode: config.fileOpenMode,
-                saving: _savingOpenMode,
-                errorText: _openModeError,
-                onChanged: (mode) => _saveFileOpenMode(config, mode),
               ),
             ),
             const SizedBox(height: 20),
@@ -234,31 +220,6 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _savingVisibility = false);
-      }
-    }
-  }
-
-  Future<void> _saveFileOpenMode(
-    RemoteStorageConfig config,
-    FileOpenMode mode,
-  ) async {
-    if (config.fileOpenMode == mode) {
-      return;
-    }
-    setState(() {
-      _savingOpenMode = true;
-      _openModeError = null;
-    });
-    try {
-      await widget.api.saveConfig(config.copyWith(fileOpenMode: mode));
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _openModeError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _savingOpenMode = false);
       }
     }
   }

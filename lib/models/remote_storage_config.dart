@@ -12,7 +12,7 @@ enum FileOpenMode {
     final normalized = (value ?? '').toString().trim().toLowerCase();
     return switch (normalized) {
       'single_click' => FileOpenMode.singleClick,
-      _ => FileOpenMode.doubleClick,
+      _ => FileOpenMode.singleClick,
     };
   }
 }
@@ -43,7 +43,7 @@ class RemoteStorageConfig {
       rootPrefix: '',
       defaultDownloadDirectory: '',
       hideDotFiles: true,
-      fileOpenMode: FileOpenMode.doubleClick,
+      fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: '.trash',
       trashRetentionDays: 30,
       usePathStyle: true,
