@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+type unmountCommand struct {
+	name string
+	args []string
+}
+
 func (s *mountSession) start() error {
 	server, serverURL, port, err := startWebDAVServer(s.access, s.mountName)
 	if err != nil {
@@ -81,17 +86,24 @@ func mountWebDAV(serverURL string) (string, error) {
 }
 
 func unmountWebDAV(mountPath string) error {
-	cmd := exec.Command("/sbin/umount", mountPath)
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		return nil
-	}
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() != 0 {
+	var lastErr error
+	var lastOutput string
+	for _, candidate := range unmountCommands(mountPath) {
+		cmd := exec.Command(candidate.name, candidate.args...)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			return nil
+		}
 		if _, statErr := os.Stat(mountPath); statErr != nil && os.IsNotExist(statErr) {
 			return nil
 		}
+		lastErr = err
+		lastOutput = strings.TrimSpace(string(output))
 	}
-	return fmt.Errorf("unmount bucket: %w: %s", err, string(output))
+	if lastErr == nil {
+		return nil
+	}
+	return fmt.Errorf("unmount bucket: %w: %s", lastErr, lastOutput)
 }
 
 func openMountPath(mountPath string) error {
@@ -107,4 +119,13 @@ func appleScriptStringLiteral(value string) string {
 	escaped := strings.ReplaceAll(value, "\\", "\\\\")
 	escaped = strings.ReplaceAll(escaped, "\"", "\\\"")
 	return fmt.Sprintf("\"%s\"", escaped)
+}
+
+// unmountCommands prefers plain umount first, then diskutil fallbacks for busy Finder-held volumes.
+func unmountCommands(mountPath string) []unmountCommand {
+	return []unmountCommand{
+		{name: "/sbin/umount", args: []string{mountPath}},
+		{name: "/usr/sbin/diskutil", args: []string{"unmount", mountPath}},
+		{name: "/usr/sbin/diskutil", args: []string{"unmount", "force", mountPath}},
+	}
 }
