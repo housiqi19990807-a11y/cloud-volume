@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/widgets/global_trash_browser.dart';
 import 'package:remote_storage/widgets/global_trash_controls.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
@@ -280,6 +281,15 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     }
   }
 
+  void _showPageSnack(String message) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _restoreEntry(GlobalTrashBrowserEntry entry) async {
     await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.restoreTrashItem(
@@ -287,7 +297,9 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         entry.bucket,
         entry.item.id,
       );
+      ObjectListingNotifier.instance.markRestored(entry.bucket, [entry.item]);
       await _switchBucket(entry.bucket);
+      _showPageSnack('已恢复 ${entry.item.name}');
     });
   }
 
@@ -321,9 +333,16 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
           entry.item.id,
         );
       }
+      if (targets.isNotEmpty) {
+        ObjectListingNotifier.instance.markRestored(
+          targets.first.bucket,
+          targets.map((entry) => entry.item),
+        );
+      }
       if (_activeBucket != null) {
         await _switchBucket(_activeBucket!);
       }
+      _showPageSnack('已恢复 ${targets.length} 个项目');
     });
   }
 

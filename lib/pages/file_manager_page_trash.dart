@@ -69,8 +69,10 @@ extension _FileManagerPageTrash on _FileManagerPageState {
     }
     try {
       await widget.api.restoreTrashItem(widget.config, _activeBucket!, item.id);
+      ObjectListingNotifier.instance.markRestored(_activeBucket!, [item]);
       if (!mounted) return;
       await _openBucketTrash(_activeBucket!);
+      _showPageSnack('已恢复 ${item.name}');
     } catch (error) {
       _showPageError(error);
     }

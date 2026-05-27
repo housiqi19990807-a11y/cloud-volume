@@ -10,6 +10,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/services/file_access_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
@@ -28,6 +29,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 part 'file_manager_page_actions.dart';
 part 'file_manager_page_mount.dart';
 part 'file_manager_page_paging.dart';
+part 'file_manager_page_restore_sync.dart';
 part 'file_manager_page_state.dart';
 part 'file_manager_page_selection.dart';
 part 'file_manager_page_trash.dart';
@@ -85,6 +87,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   String _trashNextToken = '';
   bool _trashHasMore = false;
   bool _pagingTrash = false;
+  int _seenObjectListingMutationVersion = 0;
 
   @override
   void initState() {
@@ -93,6 +96,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       setState(() => _searchText = _searchController.text.trim().toLowerCase());
     });
     _contentScrollController.addListener(_maybeLoadMoreContent);
+    ObjectListingNotifier.instance.addListener(_handleObjectListingMutation);
     _startMountStatusRefreshTimer();
     _loadBuckets();
   }
@@ -100,6 +104,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   @override
   void dispose() {
     _mountStatusRefreshTimer?.cancel();
+    ObjectListingNotifier.instance.removeListener(_handleObjectListingMutation);
     _contentScrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -234,6 +239,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   void _startMountStatusRefreshTimer() {
     _mountStatusRefreshTimer?.cancel();
+    ObjectListingNotifier.instance.removeListener(_handleObjectListingMutation);
     _mountStatusRefreshTimer = Timer.periodic(
       _mountStatusRefreshInterval,
       (_) => unawaited(_refreshVisibleMountStatuses()),

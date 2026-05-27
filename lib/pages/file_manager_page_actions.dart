@@ -243,6 +243,15 @@ extension _FileManagerPageActions on _FileManagerPageState {
     }
   }
 
+  void _showPageSnack(String message) {
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _showPageError(Object error) {
     if (!mounted) {
       return;
