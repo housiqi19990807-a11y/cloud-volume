@@ -5,41 +5,19 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 const String allBucketsFilter = '__all_buckets__';
 
-enum TrashTypeFilter {
-  all('全部类型'),
-  files('仅文件'),
-  directories('仅目录');
-
-  const TrashTypeFilter(this.label);
-
-  final String label;
-}
-
 class GlobalTrashFilters extends StatelessWidget {
   const GlobalTrashFilters({
     super.key,
     required this.searchController,
     required this.bucketFilter,
     required this.bucketOptions,
-    required this.typeFilter,
-    required this.allFilteredSelected,
-    required this.partiallySelected,
-    required this.loading,
     required this.onBucketChanged,
-    required this.onTypeChanged,
-    required this.onToggleSelectAll,
   });
 
   final TextEditingController searchController;
   final String bucketFilter;
   final List<String> bucketOptions;
-  final TrashTypeFilter typeFilter;
-  final bool allFilteredSelected;
-  final bool partiallySelected;
-  final bool loading;
   final ValueChanged<String?> onBucketChanged;
-  final ValueChanged<TrashTypeFilter?> onTypeChanged;
-  final ValueChanged<bool> onToggleSelectAll;
 
   @override
   Widget build(BuildContext context) {
@@ -58,24 +36,6 @@ class GlobalTrashFilters extends StatelessWidget {
           labelBuilder: (value) => value == allBucketsFilter ? '全部存储桶' : value,
           onChanged: onBucketChanged,
           width: 170,
-        ),
-        const SizedBox(width: 12),
-        _dropdown<TrashTypeFilter>(
-          value: typeFilter,
-          items: TrashTypeFilter.values,
-          labelBuilder: (value) => value.label,
-          onChanged: onTypeChanged,
-          width: 130,
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 132,
-          child: ShadCheckbox(
-            value: allFilteredSelected,
-            enabled: !loading,
-            onChanged: loading ? null : onToggleSelectAll,
-            label: Text(partiallySelected ? '部分已选' : '全选结果'),
-          ),
         ),
       ],
     );

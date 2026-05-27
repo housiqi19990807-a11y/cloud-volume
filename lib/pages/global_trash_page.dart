@@ -4,8 +4,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
-import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/widgets/global_trash_browser.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:remote_storage/widgets/global_trash_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -24,10 +24,10 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _busyEntries = <String>{};
   final Set<String> _selectedIds = <String>{};
-  List<_GlobalTrashEntry> _entries = const <_GlobalTrashEntry>[];
+  List<GlobalTrashBrowserEntry> _entries = const <GlobalTrashBrowserEntry>[];
+  List<String> _bucketOptions = const <String>[allBucketsFilter];
   String _searchText = '';
   String _bucketFilter = allBucketsFilter;
-  TrashTypeFilter _typeFilter = TrashTypeFilter.all;
   bool _loading = false;
   String? _error;
 
@@ -54,20 +54,12 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     super.dispose();
   }
 
-  List<_GlobalTrashEntry> get _filteredEntries {
+  List<GlobalTrashBrowserEntry> get _filteredEntries {
     return _entries
         .where((entry) {
           if (_bucketFilter != allBucketsFilter &&
               entry.bucket != _bucketFilter) {
             return false;
-          }
-          switch (_typeFilter) {
-            case TrashTypeFilter.files:
-              if (entry.item.isDir) return false;
-            case TrashTypeFilter.directories:
-              if (!entry.item.isDir) return false;
-            case TrashTypeFilter.all:
-              break;
           }
           if (_searchText.isEmpty) {
             return true;
@@ -82,17 +74,36 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         .toList(growable: false);
   }
 
-  List<String> get _bucketOptions {
-    final buckets =
-        _entries.map((entry) => entry.bucket).toSet().toList(growable: false)
-          ..sort();
-    return <String>[allBucketsFilter, ...buckets];
-  }
-
   int get _selectedFilteredCount {
     return _filteredEntries
         .where((entry) => _selectedIds.contains(entry.id))
         .length;
+  }
+
+  void _toggleSelection(GlobalTrashBrowserEntry entry) {
+    setState(() {
+      if (_selectedIds.contains(entry.id)) {
+        _selectedIds.remove(entry.id);
+      } else {
+        _selectedIds.add(entry.id);
+      }
+    });
+  }
+
+  void _toggleSelectAllFiltered() {
+    final selectableIds = _filteredEntries
+        .where((entry) => !_busyEntries.contains(entry.id))
+        .map((entry) => entry.id)
+        .toList(growable: false);
+    final allSelected =
+        selectableIds.isNotEmpty && selectableIds.every(_selectedIds.contains);
+    setState(() {
+      if (allSelected) {
+        _selectedIds.removeAll(selectableIds);
+      } else {
+        _selectedIds.addAll(selectableIds);
+      }
+    });
   }
 
   Future<void> _loadEntries() async {
@@ -102,11 +113,18 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     });
     try {
       final buckets = await widget.api.listBuckets(widget.config);
+      final bucketOptions = <String>[
+        allBucketsFilter,
+        ...buckets.map((bucket) => bucket.name),
+      ];
       final itemsPerBucket = await Future.wait(
         buckets.map((bucket) async {
           final items = await widget.api.listTrash(widget.config, bucket.name);
           return items
-              .map((item) => _GlobalTrashEntry(bucket: bucket.name, item: item))
+              .map(
+                (item) =>
+                    GlobalTrashBrowserEntry(bucket: bucket.name, item: item),
+              )
               .toList(growable: false);
         }),
       );
@@ -124,11 +142,12 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       if (!mounted) return;
       setState(() {
         _entries = merged;
+        _bucketOptions = bucketOptions;
         _selectedIds.removeWhere(
           (id) => !_entries.any((entry) => entry.id == id),
         );
         if (_bucketFilter != allBucketsFilter &&
-            !_entries.any((entry) => entry.bucket == _bucketFilter)) {
+            !_bucketOptions.contains(_bucketFilter)) {
           _bucketFilter = allBucketsFilter;
         }
         _loading = false;
@@ -142,8 +161,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     }
   }
 
-  Future<void> _restoreEntry(_GlobalTrashEntry entry) async {
-    await _runBusy(<_GlobalTrashEntry>[entry], () async {
+  Future<void> _restoreEntry(GlobalTrashBrowserEntry entry) async {
+    await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.restoreTrashItem(
         widget.config,
         entry.bucket,
@@ -153,10 +172,10 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     });
   }
 
-  Future<void> _deleteEntry(_GlobalTrashEntry entry) async {
+  Future<void> _deleteEntry(GlobalTrashBrowserEntry entry) async {
     final confirmed = await showDeleteTrashItemDialog(context, entry.item);
     if (!confirmed) return;
-    await _runBusy(<_GlobalTrashEntry>[entry], () async {
+    await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.deleteTrashItem(
         widget.config,
         entry.bucket,
@@ -203,7 +222,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   }
 
   Future<void> _runBusy(
-    List<_GlobalTrashEntry> entries,
+    List<GlobalTrashBrowserEntry> entries,
     Future<void> Function() action,
   ) async {
     setState(() {
@@ -230,29 +249,11 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     }
   }
 
-  void _toggleSelectAllFiltered(bool nextValue) {
-    final shouldSelect = nextValue;
-    setState(() {
-      for (final entry in _filteredEntries) {
-        if (_busyEntries.contains(entry.id)) continue;
-        if (shouldSelect) {
-          _selectedIds.add(entry.id);
-        } else {
-          _selectedIds.remove(entry.id);
-        }
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final filteredEntries = _filteredEntries;
     final selectedFilteredCount = _selectedFilteredCount;
-    final allFilteredSelected =
-        filteredEntries.isNotEmpty &&
-        selectedFilteredCount == filteredEntries.length;
-    final partiallySelected = selectedFilteredCount > 0 && !allFilteredSelected;
 
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
@@ -294,19 +295,10 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
             searchController: _searchController,
             bucketFilter: _bucketFilter,
             bucketOptions: _bucketOptions,
-            typeFilter: _typeFilter,
-            allFilteredSelected: allFilteredSelected,
-            partiallySelected: partiallySelected,
-            loading: _loading,
             onBucketChanged: (value) {
               if (value == null) return;
               setState(() => _bucketFilter = value);
             },
-            onTypeChanged: (value) {
-              if (value == null) return;
-              setState(() => _typeFilter = value);
-            },
-            onToggleSelectAll: _toggleSelectAllFiltered,
           ),
           const SizedBox(height: 16),
           if (selectedFilteredCount > 0) ...[
@@ -326,7 +318,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
 
   Widget _buildBody(
     ShadThemeData theme,
-    List<_GlobalTrashEntry> filteredEntries,
+    List<GlobalTrashBrowserEntry> filteredEntries,
   ) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
@@ -354,113 +346,14 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         ),
       );
     }
-    return ListView.separated(
-      itemCount: filteredEntries.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) =>
-          _buildEntryCard(theme, filteredEntries[index]),
+    return GlobalTrashBrowser(
+      entries: filteredEntries,
+      selectedIds: _selectedIds,
+      busyIds: _busyEntries,
+      onToggleSelection: _toggleSelection,
+      onToggleSelectAll: _toggleSelectAllFiltered,
+      onRestore: (entry) => unawaited(_restoreEntry(entry)),
+      onDeletePermanently: (entry) => unawaited(_deleteEntry(entry)),
     );
   }
-
-  Widget _buildEntryCard(ShadThemeData theme, _GlobalTrashEntry entry) {
-    final busy = _busyEntries.contains(entry.id);
-    final selected = _selectedIds.contains(entry.id);
-    return ShadCard(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ShadCheckbox(
-                value: selected,
-                enabled: !busy,
-                onChanged: busy
-                    ? null
-                    : (value) {
-                        setState(() {
-                          if (value) {
-                            _selectedIds.add(entry.id);
-                          } else {
-                            _selectedIds.remove(entry.id);
-                          }
-                        });
-                      },
-              ),
-              Icon(
-                entry.item.isDir
-                    ? LucideIcons.folderArchive
-                    : LucideIcons.fileX2,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  entry.item.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Text(
-                entry.item.deletedAt,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.mutedForeground,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              Text('存储桶 ${entry.bucket}'),
-              Text(entry.item.isDir ? '目录' : '文件'),
-              Text(entry.item.sizeText),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            entry.item.originalKey,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: busy ? null : () => unawaited(_restoreEntry(entry)),
-                child: Text(busy ? '处理中...' : '恢复'),
-              ),
-              const SizedBox(width: 8),
-              ShadButton.destructive(
-                size: ShadButtonSize.sm,
-                onPressed: busy ? null : () => unawaited(_deleteEntry(entry)),
-                child: const Text('彻底删除'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GlobalTrashEntry {
-  const _GlobalTrashEntry({required this.bucket, required this.item});
-
-  final String bucket;
-  final TrashItem item;
-
-  String get id => '$bucket:${item.id}';
-
-  DateTime? get deletedAtDateTime =>
-      DateTime.tryParse(item.deletedAt)?.toLocal();
 }

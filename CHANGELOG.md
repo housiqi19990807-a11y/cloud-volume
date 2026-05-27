@@ -5,7 +5,8 @@
 - Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.
 - The recycle-bin page now hides mount, upload, and new-folder actions so its action bar only shows controls relevant to trash browsing.
 - The sidebar now exposes a dedicated global recycle-bin page that aggregates deleted items across all accessible buckets for unified restore and purge management.
-- The global recycle-bin page now supports keyword, bucket, and file-type filters plus batch restore and batch permanent delete.
+- The global recycle-bin page now supports keyword and bucket filters plus batch restore and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
+- The global recycle-bin results now render with the same fixed-header file list layout as the main file manager, including per-row original-path subtitles, bucket columns, header select-all, and right-click restore/delete actions.
 - Files now expose a `创建分享` context-menu action that generates a presigned download link with a configurable lifetime, and the sidebar now includes a share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and share records can open their links directly in the default browser.
 - The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.

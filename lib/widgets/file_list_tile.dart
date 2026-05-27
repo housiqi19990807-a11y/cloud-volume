@@ -9,6 +9,7 @@ class FileListTile extends StatelessWidget {
     super.key,
     required this.leading,
     required this.title,
+    this.subtitleLabel = '',
     this.sizeLabel = '',
     this.modifiedLabel = '',
     required this.onTap,
@@ -28,6 +29,7 @@ class FileListTile extends StatelessWidget {
 
   final Widget leading;
   final String title;
+  final String subtitleLabel;
   final String sizeLabel;
   final String modifiedLabel;
   final VoidCallback onTap;
@@ -78,17 +80,35 @@ class FileListTile extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: GestureDetector(
                     onTap: onTitleTap,
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: deleting
-                            ? theme.colorScheme.mutedForeground
-                            : theme.colorScheme.foreground,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: deleting
+                                ? theme.colorScheme.mutedForeground
+                                : theme.colorScheme.foreground,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (subtitleLabel.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitleLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.mutedForeground,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
