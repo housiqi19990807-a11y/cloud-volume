@@ -1,4 +1,4 @@
-// Global trash controls keep filtering and batch-action UI out of the page file.
+// Global trash controls keep filtering and fixed header actions out of the page file.
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -74,16 +74,20 @@ class GlobalTrashFilters extends StatelessWidget {
   }
 }
 
-class GlobalTrashSelectionBar extends StatelessWidget {
-  const GlobalTrashSelectionBar({
+class GlobalTrashHeaderActions extends StatelessWidget {
+  const GlobalTrashHeaderActions({
     super.key,
     required this.selectedCount,
+    required this.loading,
+    required this.onRefresh,
     required this.onRestoreSelected,
     required this.onDeleteSelected,
     required this.onClearSelection,
   });
 
   final int selectedCount;
+  final bool loading;
+  final VoidCallback onRefresh;
   final VoidCallback onRestoreSelected;
   final VoidCallback onDeleteSelected;
   final VoidCallback onClearSelection;
@@ -91,42 +95,53 @@ class GlobalTrashSelectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Text(
+    final hasSelection = selectedCount > 0;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: hasSelection
+                ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                : theme.colorScheme.secondary.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
             '已选 $selectedCount 项',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: theme.colorScheme.primary,
+              color: hasSelection
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.mutedForeground,
             ),
           ),
-          const SizedBox(width: 12),
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onRestoreSelected,
-            child: const Text('批量恢复'),
-          ),
-          const SizedBox(width: 8),
-          ShadButton.destructive(
-            size: ShadButtonSize.sm,
-            onPressed: onDeleteSelected,
-            child: const Text('批量彻底删除'),
-          ),
-          const Spacer(),
-          ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: onClearSelection,
-            child: const Text('清空选择'),
-          ),
-        ],
-      ),
+        ),
+        ShadButton.ghost(
+          size: ShadButtonSize.sm,
+          onPressed: hasSelection ? onRestoreSelected : null,
+          child: const Text('批量恢复'),
+        ),
+        ShadButton.destructive(
+          size: ShadButtonSize.sm,
+          onPressed: hasSelection ? onDeleteSelected : null,
+          child: const Text('批量彻底删除'),
+        ),
+        ShadButton.ghost(
+          size: ShadButtonSize.sm,
+          onPressed: hasSelection ? onClearSelection : null,
+          child: const Text('清空选择'),
+        ),
+        ShadButton.outline(
+          onPressed: loading ? null : onRefresh,
+          child: const Text('刷新'),
+        ),
+      ],
     );
   }
 }

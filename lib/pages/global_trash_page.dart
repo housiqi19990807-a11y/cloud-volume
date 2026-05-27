@@ -261,6 +261,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -284,9 +285,14 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
                   ],
                 ),
               ),
-              ShadButton.outline(
-                onPressed: _loading ? null : () => unawaited(_loadEntries()),
-                child: const Text('刷新'),
+              const SizedBox(width: 16),
+              GlobalTrashHeaderActions(
+                selectedCount: selectedFilteredCount,
+                loading: _loading,
+                onRefresh: () => unawaited(_loadEntries()),
+                onRestoreSelected: () => unawaited(_restoreSelected()),
+                onDeleteSelected: () => unawaited(_deleteSelected()),
+                onClearSelection: () => setState(() => _selectedIds.clear()),
               ),
             ],
           ),
@@ -301,15 +307,6 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
             },
           ),
           const SizedBox(height: 16),
-          if (selectedFilteredCount > 0) ...[
-            GlobalTrashSelectionBar(
-              selectedCount: selectedFilteredCount,
-              onRestoreSelected: () => unawaited(_restoreSelected()),
-              onDeleteSelected: () => unawaited(_deleteSelected()),
-              onClearSelection: () => setState(() => _selectedIds.clear()),
-            ),
-            const SizedBox(height: 16),
-          ],
           Expanded(child: _buildBody(theme, filteredEntries)),
         ],
       ),
