@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.
 - Bootstrap a Flutter desktop shell with a Go FFI bridge and first-run remote storage configuration flow.
 - Transparent macOS titlebar with content extending behind traffic lights.
 - Left-right split config page: dark brand panel + form.

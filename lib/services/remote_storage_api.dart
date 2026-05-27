@@ -287,9 +287,12 @@ class RemoteStorageApi implements RemoteStorageGateway {
     RemoteStorageConfig config,
     String bucket,
   ) async {
-    final result = _bridge.call('list_trash', <String, dynamic>{
-      'config': config.toJson(),
-      'bucket': bucket,
+    final result = await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      return bridge.call('list_trash', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+      });
     });
     return _parseList(result, (m) => TrashItem.fromJson(m));
   }
@@ -300,10 +303,13 @@ class RemoteStorageApi implements RemoteStorageGateway {
     String bucket,
     String trashId,
   ) async {
-    _bridge.call('restore_trash_item', <String, dynamic>{
-      'config': config.toJson(),
-      'bucket': bucket,
-      'trashId': trashId,
+    await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      bridge.call('restore_trash_item', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+        'trashId': trashId,
+      });
     });
   }
 
@@ -313,10 +319,13 @@ class RemoteStorageApi implements RemoteStorageGateway {
     String bucket,
     String trashId,
   ) async {
-    _bridge.call('delete_trash_item', <String, dynamic>{
-      'config': config.toJson(),
-      'bucket': bucket,
-      'trashId': trashId,
+    await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      bridge.call('delete_trash_item', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+        'trashId': trashId,
+      });
     });
   }
 
