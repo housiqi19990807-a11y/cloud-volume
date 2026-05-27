@@ -144,10 +144,6 @@ class GlobalTrashHeaderActions extends StatelessWidget {
           onPressed: hasSelection ? onClearSelection : null,
           child: const Text('清空选择'),
         ),
-        ShadButton.outline(
-          onPressed: loading ? null : onRefresh,
-          child: const Text('刷新'),
-        ),
       ],
     );
   }
