@@ -271,6 +271,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
         onDownload: object.isDir
             ? null
             : () => _runMenuAction(() => onDownloadFile(object)),
+        onShare: () => _runMenuAction(
+          () => onObjectAction(object, FileObjectAction.share),
+        ),
         onCopy: () =>
             _runMenuAction(() => onObjectAction(object, FileObjectAction.copy)),
         onMove: () =>

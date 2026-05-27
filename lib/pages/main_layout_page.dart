@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
+import 'package:remote_storage/pages/share_management_page.dart';
 import 'package:remote_storage/pages/settings_page.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -15,7 +16,7 @@ import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 侧边栏菜单项。
-enum SidebarItem { fileManager, trash, transfers, settings }
+enum SidebarItem { fileManager, trash, shares, transfers, settings }
 
 class MainLayoutPage extends StatefulWidget {
   const MainLayoutPage({
@@ -160,6 +161,17 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   ac,
                   muted,
                 ),
+                _navItemWidget(
+                  Icon(
+                    LucideIcons.share2,
+                    size: 18,
+                    color: _selected == SidebarItem.shares ? ac : muted,
+                  ),
+                  '分享管理',
+                  SidebarItem.shares,
+                  ac,
+                  muted,
+                ),
                 _navItem(
                   FluentSystemGlyph.transfers,
                   '任务队列',
@@ -298,8 +310,9 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     final index = switch (_selected) {
       SidebarItem.fileManager => 0,
       SidebarItem.trash => 1,
-      SidebarItem.transfers => 2,
-      SidebarItem.settings => 3,
+      SidebarItem.shares => 2,
+      SidebarItem.transfers => 3,
+      SidebarItem.settings => 4,
     };
 
     return IndexedStack(
@@ -311,6 +324,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           config: widget.state.config,
           homeView: FileManagerHomeView.trash,
         ),
+        ShareManagementPage(api: widget.api, config: widget.state.config),
         TransfersPage(api: widget.api, config: widget.state.config),
         SettingsPage(
           state: widget.state,

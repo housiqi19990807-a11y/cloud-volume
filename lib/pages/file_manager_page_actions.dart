@@ -136,6 +136,30 @@ extension _FileManagerPageActions on _FileManagerPageState {
         await _downloadObject(object);
         return;
       }
+      if (action == FileObjectAction.share) {
+        final durationSec = await showShareDurationDialog(
+          context,
+          title: '创建分享',
+          description: '为当前文件生成一个可复制的分享链接。',
+          confirmLabel: '创建分享',
+        );
+        if (durationSec == null) {
+          return;
+        }
+        final shareRecord = await widget.api.createShare(
+          widget.config,
+          _activeBucket!,
+          object.key,
+          object.displayName,
+          durationSec,
+        );
+        ShareRecordsNotifier.instance.markChanged();
+        if (!mounted) {
+          return;
+        }
+        await showShareLinkDialog(context, record: shareRecord);
+        return;
+      }
       if (action == FileObjectAction.copy || action == FileObjectAction.move) {
         final targetPath = await showObjectTargetPathDialog(
           context,

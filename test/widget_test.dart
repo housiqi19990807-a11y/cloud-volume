@@ -9,6 +9,7 @@ import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
@@ -145,6 +146,49 @@ class _FakeApi implements RemoteStorageGateway {
     bool isDirectory,
     String taskId,
   ) async {}
+
+  @override
+  Future<ShareRecord> createShare(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String name,
+    int durationSec,
+  ) async => const ShareRecord(
+    id: 'share-id',
+    bucket: 'bucket',
+    key: 'file.txt',
+    name: 'file.txt',
+    url: 'https://example.com/share',
+    expiresAt: '2026-05-27T12:00:00Z',
+    durationSec: 3600,
+    createdAt: '2026-05-27T11:00:00Z',
+    updatedAt: '2026-05-27T11:00:00Z',
+  );
+
+  @override
+  Future<List<ShareRecord>> listShares(RemoteStorageConfig config) async =>
+      const [];
+
+  @override
+  Future<ShareRecord> refreshShare(
+    RemoteStorageConfig config,
+    String id,
+    int durationSec,
+  ) async => const ShareRecord(
+    id: 'share-id',
+    bucket: 'bucket',
+    key: 'file.txt',
+    name: 'file.txt',
+    url: 'https://example.com/share',
+    expiresAt: '2026-05-27T12:00:00Z',
+    durationSec: 3600,
+    createdAt: '2026-05-27T11:00:00Z',
+    updatedAt: '2026-05-27T11:00:00Z',
+  );
+
+  @override
+  Future<void> deleteShare(RemoteStorageConfig config, String id) async {}
 
   @override
   Future<List<TrashItem>> listTrash(

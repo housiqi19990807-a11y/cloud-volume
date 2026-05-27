@@ -5,7 +5,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-enum FileObjectAction { open, download, copy, move, rename, delete }
+enum FileObjectAction { open, download, share, copy, move, rename, delete }
 
 List<Widget> buildObjectActionMenuItems({
   required ObjectInfo object,
@@ -14,12 +14,15 @@ List<Widget> buildObjectActionMenuItems({
   required VoidCallback onMove,
   required VoidCallback onRename,
   required VoidCallback onDelete,
+  required VoidCallback onShare,
   VoidCallback? onDownload,
 }) {
   return <Widget>[
     ShadContextMenuItem(onPressed: onOpen, child: const Text('打开')),
     if (!object.isDir && onDownload != null)
       ShadContextMenuItem(onPressed: onDownload, child: const Text('下载')),
+    if (!object.isDir)
+      ShadContextMenuItem(onPressed: onShare, child: const Text('创建分享')),
     ShadContextMenuItem(onPressed: onCopy, child: const Text('复制到...')),
     ShadContextMenuItem(onPressed: onMove, child: const Text('移动到...')),
     ShadContextMenuItem(onPressed: onRename, child: const Text('重命名')),

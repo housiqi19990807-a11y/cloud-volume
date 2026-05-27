@@ -7,8 +7,11 @@ import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
+
+part 'remote_storage_api_shares.dart';
 
 abstract class RemoteStorageGateway {
   Future<BootstrapState> loadBootstrapState();
@@ -62,6 +65,20 @@ abstract class RemoteStorageGateway {
     bool isDirectory,
     String taskId,
   );
+  Future<ShareRecord> createShare(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    String name,
+    int durationSec,
+  );
+  Future<List<ShareRecord>> listShares(RemoteStorageConfig config);
+  Future<ShareRecord> refreshShare(
+    RemoteStorageConfig config,
+    String id,
+    int durationSec,
+  );
+  Future<void> deleteShare(RemoteStorageConfig config, String id);
   Future<List<TrashItem>> listTrash(RemoteStorageConfig config, String bucket);
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
@@ -105,7 +122,9 @@ Future<RemoteStorageGateway> defaultRemoteStorageApiFactory() {
   return RemoteStorageApi.bootstrap();
 }
 
-class RemoteStorageApi implements RemoteStorageGateway {
+class RemoteStorageApi
+    with _RemoteStorageShareApiMixin
+    implements RemoteStorageGateway {
   RemoteStorageApi(this._bridge);
 
   static Future<RemoteStorageApi> bootstrap() async {
@@ -114,6 +133,9 @@ class RemoteStorageApi implements RemoteStorageGateway {
   }
 
   final RemoteStorageBridge _bridge;
+
+  @override
+  RemoteStorageBridge get bridgeHandle => _bridge;
 
   @override
   Future<BootstrapState> loadBootstrapState() async {
@@ -158,7 +180,7 @@ class RemoteStorageApi implements RemoteStorageGateway {
     final result = _bridge.call('list_buckets', <String, dynamic>{
       'config': config.toJson(),
     });
-    return _parseList(result, (m) => BucketInfo.fromJson(m));
+    return parseBridgeList(result, (m) => BucketInfo.fromJson(m));
   }
 
   @override
@@ -172,7 +194,7 @@ class RemoteStorageApi implements RemoteStorageGateway {
       'bucket': bucket,
       'prefix': prefix,
     });
-    return _parseList(result, (m) => ObjectInfo.fromJson(m));
+    return parseBridgeList(result, (m) => ObjectInfo.fromJson(m));
   }
 
   @override
@@ -294,7 +316,7 @@ class RemoteStorageApi implements RemoteStorageGateway {
         'bucket': bucket,
       });
     });
-    return _parseList(result, (m) => TrashItem.fromJson(m));
+    return parseBridgeList(result, (m) => TrashItem.fromJson(m));
   }
 
   @override
@@ -388,7 +410,7 @@ class RemoteStorageApi implements RemoteStorageGateway {
   @override
   Future<List<TransferSnapshot>> listTransferJobs() async {
     final result = _bridge.call('list_transfer_jobs');
-    return _parseList(result, (m) => TransferSnapshot.fromJson(m));
+    return parseBridgeList(result, (m) => TransferSnapshot.fromJson(m));
   }
 
   @override
@@ -427,7 +449,8 @@ class RemoteStorageApi implements RemoteStorageGateway {
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }
 
-  List<T> _parseList<T>(
+  @override
+  List<T> parseBridgeList<T>(
     dynamic result,
     T Function(Map<String, dynamic>) fromJson,
   ) {
