@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
+import 'package:remote_storage/pages/global_trash_page.dart';
 import 'package:remote_storage/pages/share_management_page.dart';
 import 'package:remote_storage/pages/settings_page.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
@@ -319,11 +320,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
       index: index,
       children: [
         FileManagerPage(api: widget.api, config: widget.state.config),
-        FileManagerPage(
-          api: widget.api,
-          config: widget.state.config,
-          homeView: FileManagerHomeView.trash,
-        ),
+        GlobalTrashPage(api: widget.api, config: widget.state.config),
         ShareManagementPage(api: widget.api, config: widget.state.config),
         TransfersPage(api: widget.api, config: widget.state.config),
         SettingsPage(

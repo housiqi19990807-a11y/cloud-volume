@@ -4,8 +4,9 @@
 
 - Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.
 - The recycle-bin page now hides mount, upload, and new-folder actions so its action bar only shows controls relevant to trash browsing.
-- The sidebar now exposes a dedicated recycle-bin entry that opens bucket-level trash browsing directly, with bucket clicks entering trash instead of the normal file list.
+- The sidebar now exposes a dedicated global recycle-bin page that aggregates deleted items across all accessible buckets for unified restore and purge management.
 - Files now expose a `创建分享` context-menu action that generates a presigned download link with a configurable lifetime, and the sidebar now includes a share-management page for copying, renewing, and deleting saved share records.
+- Share creation and renewal dialogs now include common duration presets, and share records can open their links directly in the default browser.
 - Bootstrap a Flutter desktop shell with a Go FFI bridge and first-run remote storage configuration flow.
 - Transparent macOS titlebar with content extending behind traffic lights.
 - Left-right split config page: dark brand panel + form.

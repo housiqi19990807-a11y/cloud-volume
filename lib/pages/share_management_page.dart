@@ -99,6 +99,19 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     ).showSnackBar(const SnackBar(content: Text('分享链接已复制')));
   }
 
+  Future<void> _openLink(ShareRecord record) async {
+    try {
+      await openShareUrl(record.url);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   Future<void> _refreshRecord(ShareRecord record) async {
     final durationSec = await showShareDurationDialog(
       context,
@@ -283,6 +296,12 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
                 size: ShadButtonSize.sm,
                 onPressed: busy ? null : () => unawaited(_copyLink(record)),
                 child: const Text('复制链接'),
+              ),
+              const SizedBox(width: 8),
+              ShadButton.ghost(
+                size: ShadButtonSize.sm,
+                onPressed: busy ? null : () => unawaited(_openLink(record)),
+                child: const Text('打开链接'),
               ),
               const SizedBox(width: 8),
               ShadButton.ghost(

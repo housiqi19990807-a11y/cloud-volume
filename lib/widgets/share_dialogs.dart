@@ -4,6 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:remote_storage/models/share_record.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+const List<_DurationPreset> _durationPresets = <_DurationPreset>[
+  _DurationPreset(label: '1小时', hours: 1),
+  _DurationPreset(label: '24小时', hours: 24),
+  _DurationPreset(label: '3天', hours: 72),
+  _DurationPreset(label: '7天', hours: 168),
+];
 
 Future<int?> showShareDurationDialog(
   BuildContext context, {
@@ -34,6 +42,22 @@ Future<int?> showShareDurationDialog(
                   controller: controller,
                   keyboardType: TextInputType.number,
                   placeholder: const Text('1 - 168'),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final preset in _durationPresets)
+                      ShadButton.outline(
+                        size: ShadButtonSize.sm,
+                        onPressed: () {
+                          controller.text = preset.hours.toString();
+                          setDialogState(() => errorText = null);
+                        },
+                        child: Text(preset.label),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -138,6 +162,22 @@ Future<void> showShareLinkDialog(
                   child: const Text('关闭'),
                 ),
                 const SizedBox(width: 10),
+                ShadButton.outline(
+                  onPressed: () async {
+                    try {
+                      await openShareUrl(record.url);
+                    } catch (error) {
+                      if (!dialogContext.mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(
+                        dialogContext,
+                      ).showSnackBar(SnackBar(content: Text(error.toString())));
+                    }
+                  },
+                  child: const Text('打开链接'),
+                ),
+                const SizedBox(width: 10),
                 ShadButton(
                   onPressed: () async {
                     await Clipboard.setData(ClipboardData(text: record.url));
@@ -209,4 +249,22 @@ String _formatDateTime(DateTime? value) {
   String two(int number) => number.toString().padLeft(2, '0');
   return '${local.year}-${two(local.month)}-${two(local.day)} '
       '${two(local.hour)}:${two(local.minute)}';
+}
+
+Future<void> openShareUrl(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) {
+    throw Exception('分享链接无效');
+  }
+  final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!launched) {
+    throw Exception('无法打开分享链接');
+  }
+}
+
+class _DurationPreset {
+  const _DurationPreset({required this.label, required this.hours});
+
+  final String label;
+  final int hours;
 }
