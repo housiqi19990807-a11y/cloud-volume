@@ -16,9 +16,10 @@ import (
 )
 
 type windowsPathState struct {
-	mu      sync.Mutex
-	ignored map[string]time.Time
-	kinds   map[string]bool
+	mu        sync.Mutex
+	ignored   map[string]time.Time
+	hydrating map[string]bool
+	kinds     map[string]bool
 }
 
 type windowsSyncWatcher struct {
@@ -40,8 +41,9 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 		access: access,
 		raw:    rawWatcher,
 		state: &windowsPathState{
-			ignored: map[string]time.Time{},
-			kinds:   map[string]bool{},
+			ignored:   map[string]time.Time{},
+			hydrating: map[string]bool{},
+			kinds:     map[string]bool{},
 		},
 		done: make(chan struct{}),
 	}, nil
@@ -72,11 +74,11 @@ func (w *windowsSyncWatcher) RememberPlaceholders(baseDir string, items []cloudP
 }
 
 func (w *windowsSyncWatcher) MarkHydrating(localPath string) {
-	w.state.ignore(localPath, windowsCFHydrationIgnore)
+	w.state.markHydrating(localPath)
 }
 
 func (w *windowsSyncWatcher) MarkHydrated(localPath string) {
-	w.state.ignore(localPath, windowsCFHydrationIgnore)
+	w.state.markHydrated(localPath)
 }
 
 func (w *windowsSyncWatcher) IsDir(localPath string) bool {
@@ -148,12 +150,20 @@ func (w *windowsSyncWatcher) rescanDirectories() error {
 func (w *windowsSyncWatcher) handleEvent(event fsnotify.Event) {
 	localPath := filepath.Clean(event.Name)
 	if w.state.shouldIgnore(localPath) {
+		log.Printf("[mount/cloud-files] watcher-ignore event=%s path=%q", event.Op.String(), localPath)
 		return
 	}
 	virtualPath := cloudFilesLocalPathToVirtual(w.root, localPath)
 	if isWindowsLocalOnlyPath(virtualPath) {
+		log.Printf("[mount/cloud-files] watcher-local-only event=%s path=%q", event.Op.String(), localPath)
 		return
 	}
+	log.Printf(
+		"[mount/cloud-files] watcher-event event=%s path=%q virtual=%q",
+		event.Op.String(),
+		localPath,
+		virtualPath,
+	)
 
 	if event.Has(fsnotify.Create) {
 		w.handleCreate(localPath, virtualPath)
@@ -193,6 +203,12 @@ func (w *windowsSyncWatcher) scheduleUpload(localPath, virtualPath string) {
 	if clean == "" || strings.HasSuffix(clean, "/") {
 		return
 	}
+	log.Printf(
+		"[mount/cloud-files] queue-upload virtual=%q local=%q size=%d",
+		clean,
+		localPath,
+		fileSize(localPath),
+	)
 	w.access.registerLocalWrite(clean, localPath, fileSize(localPath))
 	w.access.scheduleUpload(clean, localPath)
 }
@@ -209,6 +225,11 @@ func (s *windowsPathState) shouldIgnore(localPath string) bool {
 
 	now := time.Now()
 	clean := filepath.Clean(localPath)
+	for path := range s.hydrating {
+		if clean == path || strings.HasPrefix(clean, path+string(os.PathSeparator)) {
+			return true
+		}
+	}
 	for path, until := range s.ignored {
 		if now.After(until) {
 			delete(s.ignored, path)
@@ -219,6 +240,18 @@ func (s *windowsPathState) shouldIgnore(localPath string) bool {
 		}
 	}
 	return false
+}
+
+func (s *windowsPathState) markHydrating(localPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hydrating[filepath.Clean(localPath)] = true
+}
+
+func (s *windowsPathState) markHydrated(localPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.hydrating, filepath.Clean(localPath))
 }
 
 func (s *windowsPathState) remember(localPath string, isDir bool) {
@@ -238,6 +271,11 @@ func (s *windowsPathState) forget(localPath string) {
 	defer s.mu.Unlock()
 
 	clean := filepath.Clean(localPath)
+	for current := range s.hydrating {
+		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
+			delete(s.hydrating, current)
+		}
+	}
 	for current := range s.kinds {
 		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
 			delete(s.kinds, current)
@@ -252,6 +290,14 @@ func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
 	oldClean := filepath.Clean(oldPath)
 	newClean := filepath.Clean(newPath)
 	updates := map[string]bool{}
+	hydratingUpdates := map[string]bool{}
+	for current := range s.hydrating {
+		if current == oldClean || strings.HasPrefix(current, oldClean+string(os.PathSeparator)) {
+			replacement := strings.Replace(current, oldClean, newClean, 1)
+			hydratingUpdates[replacement] = true
+			delete(s.hydrating, current)
+		}
+	}
 	for current, currentIsDir := range s.kinds {
 		if current == oldClean || strings.HasPrefix(current, oldClean+string(os.PathSeparator)) {
 			replacement := strings.Replace(current, oldClean, newClean, 1)
@@ -264,5 +310,8 @@ func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
 	}
 	for current, currentIsDir := range updates {
 		s.kinds[current] = currentIsDir
+	}
+	for current := range hydratingUpdates {
+		s.hydrating[current] = true
 	}
 }
