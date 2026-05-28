@@ -42,7 +42,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final config = widget.state.config;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 56, left: 36, right: 36),
+      padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,6 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 40),
           ],
         ),
       ),

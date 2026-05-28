@@ -1,16 +1,40 @@
-# remote-storage
+# 云卷 / Cloud Volume
 
-`remote-storage` is a Flutter desktop app for managing S3-compatible remote storage across macOS, Linux, and Windows.
-The end-user product branding is `云卷`.
+`云卷` 是一个面向 macOS、Windows、Linux 的 Flutter 桌面客户端，用来管理 S3 兼容对象存储，并把对象存储以更接近桌面文件管理器的方式呈现出来。
 
-## Bootstrap flow
+它不只是一个“桶列表 + 上传下载”工具，还包含本地缓存、可挂载 WebDAV 视图、应用级回收站、分享链接管理、任务队列，以及针对 Finder / Archive Utility 一类桌面工作流做过的本地优先优化。
 
-- On startup, the app loads `~/.remote-storage/config.toml` through the Go FFI bridge.
-- If the configuration is missing or incomplete, the app opens the initialization page (left-right split layout).
-- Saving the form writes the config file and switches the app to a placeholder connected state.
-- Theme accent color is persisted via `shared_preferences` and defaults to tech-blue.
+## 仓库截图
 
-## Local development
+![云卷主界面](docs/screenshots/main-page.png)
+
+## 核心能力
+
+- 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
+- 挂载访问：把当前桶挂载成 macOS 可见的 WebDAV 卷，支持在 Finder 里直接读写。
+- 本地优先：挂载写入、删除、改名、移动先落本地缓存与 overlay，再异步回写远端。
+- 断点续传：大文件挂载上传支持可恢复 multipart writeback，挂载下载支持复用完整缓存与 `.downloading` 分片续传。
+- 回收站：应用级软删除、全局回收站 / 桶级回收站、恢复、彻底删除、分页与无限滚动。
+- 分享管理：为文件创建预签名下载链接，集中管理分享记录、续期、复制与删除。
+- 任务队列：统一展示上传、下载、复制、移动、删除、挂载写回，支持筛选、取消、持久化恢复。
+- 桌面体验：托盘图标、透明标题栏、统一中文字体、面向桌面鼠标操作的上下文菜单和固定表头列表。
+
+## 界面设计
+
+- 品牌名为 `云卷`，使用统一的侧边栏、列表和弹窗风格。
+- 内嵌 `Source Han Sans CN`，减少不同平台的中文显示漂移。
+- UI 基于 `shadcn_ui`，避免混用多套桌面/Material 风格控件。
+- 主界面围绕“文件管理、任务队列、回收站、分享管理、系统设置”五类核心页面展开。
+
+## 运行方式
+
+### 首次启动
+
+- 应用通过 Go FFI bridge 读取 `~/.remote-storage/config.toml`。
+- 如果配置缺失或不完整，会先进入初始化配置页。
+- 保存后进入主界面，后续设置页可以再次修改下载目录、显示选项、回收站策略等内容。
+
+### 本地开发
 
 ```bash
 flutter pub get
@@ -18,111 +42,55 @@ go mod tidy
 make run
 ```
 
-`make run` is the canonical startup flow on the current host desktop platform.
-On macOS it preserves the required bridge-first startup and launches Flutter
-with the required `DEVELOPER_DIR` binding.
+`make run` 是本仓库的标准启动方式：
 
-Platform-specific targets:
+- 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`
+- 再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
+
+平台相关命令：
 
 - macOS: `make bridge-macos`, `make run-macos`, `make build-macos`
 - Linux: `make bridge-linux`, `make run-linux`, `make build-linux`
 - Windows: `make bridge-windows`, `make build-windows`
 
-Linux and Windows desktop shells are now checked into the repository alongside
-the existing macOS host app so the project can be built natively on all three
-desktop platforms.
+## 配置项
 
-## Tagged releases
+初始化页会保存这些 S3 兼容存储配置：
 
-Pushing a tag such as `v0.0.1` now triggers a GitHub Actions release workflow
-that:
+- `endpoint`：S3 兼容端点地址
+- `region`：区域
+- `bucket`：默认桶名
+- `access_key_id`：访问密钥 ID
+- `secret_access_key`：访问密钥 Secret
+- `root_prefix`：可选的根前缀
+- `use_path_style`：是否启用 path-style URL
 
-- builds 7 native desktop release lanes:
-  macOS `amd64`, macOS `arm64`, macOS `universal`, Windows `amd64`,
-  Windows `arm64`, Linux `amd64`, and Linux `arm64`
-- builds the Go FFI bridge in the native library format for each platform
-- bundles that bridge into the packaged desktop output
-- publishes these assets to the matching GitHub Release:
-  macOS `zip + dmg`, Windows `zip + installer.exe`, and Linux `AppImage`
+其他应用级设置包括：
 
-## Configuration fields
+- 默认下载目录
+- 是否隐藏 `.` 开头文件
+- 回收站目录名
+- 回收站自动清理保留天数
+- 主题强调色
 
-The initial setup page persists these S3-compatible settings:
+## 架构概览
 
-- `endpoint` — S3-compatible endpoint URL
-- `region` — storage region
-- `bucket` — target bucket name
-- `access_key_id` — access key
-- `secret_access_key` — secret key
-- `root_prefix` — optional key prefix
-- `use_path_style` — use path-style URLs (recommended for most compatible stores)
+- Flutter：桌面 UI、页面状态、任务展示、配置与交互层
+- Go bridge：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照
+- WebDAV mount：给 Finder / 桌面应用提供可读写挂载入口
+- 本地缓存与 overlay：保证挂载场景下的本地优先可见性与恢复能力
 
-## UI design
+## 发布
 
-- macOS transparent titlebar with Flutter content extending behind traffic lights.
-- Left-right split config page: dark brand panel on the left, form on the right.
-- User-switchable accent color (5 presets: tech-blue, violet, green, orange, rose).
-- Custom SVG app branding now ships as `云卷` and is reused across the sidebar and macOS Dock icon.
-- macOS now exposes a menu bar status icon that can reopen the main `云卷` window after it is closed.
-- Choosing `退出云卷` from the macOS tray now exits the app immediately.
-- The macOS tray now uses a dedicated logo-only template icon asset, and the default main window opens at a smaller size.
-- On macOS launch, the main window now resets to the default centered size instead of restoring the previous session's dimensions.
-- Finder-inspired file manager using the Local-cloudPan SVG file-type icon set.
-- Sidebar navigation, transfer status, and bucket entries now use Fluent System Icons for a more app-like system UI style.
-- The desktop UI now embeds Source Han Sans CN directly in the app bundle, so macOS, Windows, and Linux keep the same Chinese-heavy typography instead of drifting with each platform's system fonts.
-- Sidebar navigation now includes a dedicated recycle-bin entry that opens one bucket at a time, defaulting to the first bucket that currently has deleted items and falling back to the first configured bucket when all bins are empty.
-- The global recycle-bin page now supports keyword search, bucket switching, batch restore, and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
-- Successful recycle-bin restores now show inline feedback and also invalidate the matching cached file-list view, so switching back to the file manager does not leave the restored object missing from a preserved bucket page.
-- Transient success and error feedback is now unified on the shadcn_ui toast layer, avoiding mixed Material `SnackBar` behavior inside the desktop shell.
-- Loading indicators, tooltips, breadcrumb overflow menus, transfer task actions, and sidebar hover-task controls now share the same shadcn_ui-aligned wrappers, so the desktop shell no longer mixes in leftover Material-style interaction chrome.
-- The global recycle-bin list now reuses the same fixed-header file list style as the main file manager, with per-row original-path subtitles, header select-all, and right-click restore or permanent delete actions.
-- File context menus now support creating presigned sharing links with a user-controlled expiry, and the sidebar includes a dedicated share-management page that uses the same standard list layout as file browsing, supports checkbox multi-select for batch deletion, exposes inline `详情 / 删除` actions per row, and keeps the full link itself inside the details dialog for copying or renewing the saved share record.
-- Share creation and renewal dialogs now include common duration presets, and saved share records can open their links directly in the default browser.
-- The transfer queue now supports keyword, status, and task-type filters for faster troubleshooting of long-running or failed jobs.
-- The transfer queue now also persists its recent task list locally and restores it on the next launch, so sudden app exits no longer wipe task history; tasks that were still pending or running in the previous session come back as interrupted failed entries instead of silently disappearing.
-- The file manager header now uses a dedicated breadcrumb row plus a separate action row, so long paths can still collapse to `...` without truncating mount, trash, upload, or multi-select actions on the right.
-- The file manager action row now includes a left-side search box that filters the current bucket list, object list, or bucket-trash list in place, and table-header select-all follows the filtered results.
-- File lists, bucket-trash lists, and the global recycle-bin page now use paged loading plus infinite scroll, which keeps large directories and recycle bins responsive instead of blocking on a full initial scan.
-- New recycle-bin entries now store their list metadata in dedicated index keys, so trash pages can render full item details from listing results alone; older trash entries are repaired into that indexed form automatically after they are accessed.
-- Switching between sidebar pages now preserves recent page state instead of recreating the file manager view.
-- Sidebar footer shows a live upload/download status entry with animated activity, aggregate speeds, an active-task badge, and a hover task list.
-- WhiteSur SVG resources are also vendored as an optional backup icon library.
-- Internal folder grids stay borderless and use larger document-style icons.
-- New folder creation uses a MinIO-compatible placeholder upload path so S3-compatible endpoints can create directories reliably.
-- Settings now allow configuring a default download directory; the save dialog falls back to the system Downloads folder when none is set.
-- File and folder items now expose a desktop-style right-click menu for rename and delete actions in both list and grid views.
-- File and folder items now always open on single click, while multi-selection stays available through explicit checkmarks: a checkbox on the left in list view and a checkbox at the top-right in grid view.
-- Selected items can be batch-downloaded or batch-deleted directly from the file action bar.
-- In list view, the table header now includes a select-all checkbox that can select or clear all visible items in the current directory.
-- Upload now supports multi-file selection, and in-flight upload/download tasks can be canceled from both the transfers page and the sidebar hover list.
-- Breadcrumbs now stay fully expanded when space allows, and only collapse the oldest left-side path segments into `...` when the header becomes tight.
-- Settings now default to hiding files and directories whose names start with `.`, with a switch to reveal them when needed.
-- Clicking a file now opens it directly: before opening, the app first sends a `HEAD` request to compare the remote file size and last-modified time with the local SQLite-tracked cache record; mismatches invalidate the cache and trigger a fresh download before opening, while the right-click menu still exposes an explicit download action for choosing a save path.
-- List mode now uses a fixed table header with aligned Name, Size, and Modified columns so metadata sits on the right instead of leaving a large empty area.
-- The current bucket can now be mounted on macOS as a Finder-visible system volume through an anonymous local WebDAV server plus the system mount flow, with quick actions for mount, unmount, and opening the mounted directory directly from the file manager action bar.
-- The bucket list now also exposes per-bucket mount actions directly, so buckets can be mounted, opened, or unmounted before entering the bucket view.
-- The bucket browser now supports a right-click menu in both list and grid modes for opening, mounting, unmounting, and opening mounted buckets; list mode still keeps the fixed header row plus visible mount actions, while grid mode stays visually clean with only the bucket icon and name on each tile.
-- Mounted-volume reads and writes are now bridged into the existing transfer queue: first reads trigger tracked background downloads into a reusable local cache, while writes land in a local staging area first and then upload asynchronously as cancelable transfer jobs.
-- Mounted-volume writes now use a delayed writeback model: Finder/WebDAV edits first settle into a local cache plus local metadata overlay, then upload after a 1-minute quiet period, while rename/move/delete operations update that local mount view first and carry pending writebacks along.
-- Archive Utility, Finder moves, and other app-driven directory operations now also follow the same local-first model: new directories and temp-folder-to-final-folder moves become visible in the mounted view immediately, then the mount layer backfills remote directory placeholders and delayed file uploads asynchronously.
-- Delayed mounted uploads now appear in the in-app task queue immediately as `等待同步` items, and users can cancel them or manually trigger `立即同步` before the quiet period expires.
-- Object copy and move operations now also feed the same transfer pipeline from the Go backend hook layer, so explicit bucket-level copy/move actions and mount-triggered remote moves show up in transfer management with progress and cancel support instead of bypassing the task system.
-- The transfer queue now keeps a low-frequency background sync even while the UI is otherwise idle, so WebDAV-triggered copy, paste, read, and upload activity shows up in the transfers page without requiring a Flutter-initiated task first.
-- The macOS mount layer now adds short-lived metadata caching, next-level directory prefetch, request timeouts, and duplicate-request coalescing to keep Finder/WebDAV probing from exploding remote round-trips on slower storage backends.
-- The mount layer now uses separate timeouts for metadata probes versus real file transfers, so large mounted reads and delayed writeback uploads are allowed to run much longer than `PROPFIND`/`HEAD` checks instead of being cut off by the same short deadline.
-- Large delayed mounted uploads now switch to resumable multipart writeback instead of a single timeout-bound `PutObject`, and canceling a queued or running mounted upload from the task list now also drops its local staged/cache copy plus resumable upload state so Finder/WebDAV extraction jobs do not restart stale data later.
-- Mounted reads now also validate full local cache files against the latest remote size/last-modified metadata, resume interrupted `.downloading` fragments with ranged downloads when the remote object is unchanged, and automatically discard stale full or partial cache artifacts after remote updates.
-- Mounted deletes are now local-first too: Finder/WebDAV delete requests tombstone files and folders immediately in the mounted view, continue the real bucket delete asynchronously in the background, and surface those background deletes in the shared task list as `删除` tasks instead of blocking the mounted UI on each remote delete.
-- The mount cache now also keeps a local metadata overlay for staged files, locally created directories, tombstoned deletes, and pending renames, so Finder lists stay consistent during delayed upload windows instead of snapping back to stale remote metadata.
-- The macOS bucket mount now lets the system mount the anonymous local WebDAV endpoint as a real `/Volumes/...` WebDAV volume, which matches Finder's normal network-volume semantics more closely than the older Desktop directory mount.
-- The macOS mount overlay still keeps local-only system dot paths such as `.TemporaryItems` and `.fseventsd` writable, and now also catches nested Archive Utility / Finder temp paths such as `.AU.*`, `.ArchiveServiceTemp*`, and `.DS_Store` inside child directories so extract-and-move workflows stay local-first instead of probing S3 for every temp artifact.
-- The mount layer now supports full-path file and directory moves instead of only same-directory renames, which keeps macOS Archive Utility and similar extract/copy flows working when they create temporary writable folders and then move results into place.
-- On macOS app termination, the host now proactively unmounts any active bucket mount before exit so Finder does not keep a stale desktop mount entry that hangs on later access.
-- On startup and before remounting the same bucket, the macOS mount manager now also clears stale `云卷-*` WebDAV volume entries left behind by earlier crashed or orphaned sessions, which avoids Finder creating `-1`, `-2`, ... duplicate mount names that time out on access.
-- In list mode, the bucket browser now also uses a fixed header row so bucket names, types, and mount actions align with the same structured table feel as the object browser.
-- Deletes now use an app-level recycle bin per bucket instead of Finder trash on the mounted WebDAV volume, so files and directories are soft-deleted into a hidden bucket directory such as `.trash`; for compatibility, the mount layer also treats both `.trash` and Finder-style `.Trash` as reserved trash roots.
-- Mounted deletes now also handle MinIO-style directory placeholder objects, macOS `._*` sidecar metadata files, and just-written file timing races, so real Finder or shell recursive deletes can remove freshly created directories without leaving phantom entries behind.
-- The bucket list now exposes a recycle-bin entry per bucket through the visible action area in list mode and the right-click menu in both list and grid modes, which keeps recycle-bin browsing scoped to the current bucket instead of a global page.
-- Settings now expose the recycle-bin directory name and retention days, and the mounted WebDAV view hides that configured recycle-bin directory from Finder so the special trash area stays app-managed.
-- Full Chinese interface.
-- Built with `shadcn_ui`.
+推送标签如 `v0.0.1` 后，会触发 GitHub Actions 构建桌面发行版：
+
+- macOS `amd64` / `arm64` / `universal`
+- Windows `amd64` / `arm64`
+- Linux `amd64` / `arm64`
+
+产物包含各平台对应的 Flutter 桌面壳与 Go bridge。
+
+## 当前状态
+
+这是一个明显偏“桌面工作流优先”的对象存储客户端，而不是简单的 Web 面板移植版。
+如果你希望在对象存储上获得更接近 Finder / 资源管理器的体验，这个仓库就是围绕这个目标持续演进的。

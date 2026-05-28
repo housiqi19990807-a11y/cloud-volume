@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The settings page now keeps extra bottom breathing room below the final action row, so the lower section no longer feels visually stuck to the window edge when scrolled to the bottom.
 - Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.
 - The recycle-bin page now hides mount, upload, and new-folder actions so its action bar only shows controls relevant to trash browsing.
 - The sidebar now exposes a dedicated global recycle-bin page that works one bucket at a time: it automatically opens the first bucket that actually has deleted items, falls back to the first configured bucket when all are empty, and still lets users switch buckets manually for restore and purge management.
