@@ -188,6 +188,10 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     if (_activeBucket == bucket || _loading) {
       return;
     }
+    await _reloadBucket(bucket, resetScroll: true);
+  }
+
+  Future<void> _reloadBucket(String bucket, {required bool resetScroll}) async {
     setState(() {
       _loading = true;
       _error = null;
@@ -208,7 +212,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         _hasMore = result.page.hasMore;
         _loading = false;
       });
-      if (_scrollController.hasClients) {
+      if (resetScroll && _scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
     } catch (error) {
@@ -296,7 +300,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         entry.item.id,
       );
       ObjectListingNotifier.instance.markRestored(entry.bucket, [entry.item]);
-      await _switchBucket(entry.bucket);
+      await _reloadBucket(entry.bucket, resetScroll: false);
       _showPageSnack('已恢复 ${entry.item.name}');
     });
   }
@@ -312,7 +316,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         entry.bucket,
         entry.item.id,
       );
-      await _switchBucket(entry.bucket);
+      await _reloadBucket(entry.bucket, resetScroll: false);
     });
   }
 
@@ -338,7 +342,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         );
       }
       if (_activeBucket != null) {
-        await _switchBucket(_activeBucket!);
+        await _reloadBucket(_activeBucket!, resetScroll: false);
       }
       _showPageSnack('已恢复 ${targets.length} 个项目');
     });
@@ -364,7 +368,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         );
       }
       if (_activeBucket != null) {
-        await _switchBucket(_activeBucket!);
+        await _reloadBucket(_activeBucket!, resetScroll: false);
       }
     });
   }
