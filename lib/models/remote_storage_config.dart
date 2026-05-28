@@ -17,6 +17,25 @@ enum FileOpenMode {
   }
 }
 
+enum WindowsMountMode {
+  cloudFilesCached('cloud_files_cached'),
+  cloudFilesDirect('cloud_files_direct'),
+  webdav('webdav');
+
+  const WindowsMountMode(this.storageValue);
+
+  final String storageValue;
+
+  static WindowsMountMode fromStorage(Object? value) {
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    return switch (normalized) {
+      'cloud_files_direct' => WindowsMountMode.cloudFilesDirect,
+      'webdav' => WindowsMountMode.webdav,
+      _ => WindowsMountMode.cloudFilesCached,
+    };
+  }
+}
+
 class RemoteStorageConfig {
   const RemoteStorageConfig({
     required this.endpoint,
@@ -31,6 +50,7 @@ class RemoteStorageConfig {
     required this.trashDirectoryName,
     required this.trashRetentionDays,
     required this.usePathStyle,
+    required this.windowsMountMode,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -47,6 +67,7 @@ class RemoteStorageConfig {
       trashDirectoryName: '.trash',
       trashRetentionDays: 30,
       usePathStyle: true,
+      windowsMountMode: WindowsMountMode.cloudFilesCached,
     );
   }
 
@@ -85,6 +106,9 @@ class RemoteStorageConfig {
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
+      windowsMountMode: WindowsMountMode.fromStorage(
+        json['windowsMountMode'] ?? json['windows_mount_mode'],
+      ),
     );
   }
 
@@ -100,6 +124,7 @@ class RemoteStorageConfig {
   final String trashDirectoryName;
   final int trashRetentionDays;
   final bool usePathStyle;
+  final WindowsMountMode windowsMountMode;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
@@ -122,6 +147,7 @@ class RemoteStorageConfig {
       'trashDirectoryName': trashDirectoryName.trim(),
       'trashRetentionDays': trashRetentionDays,
       'usePathStyle': usePathStyle,
+      'windowsMountMode': windowsMountMode.storageValue,
     };
   }
 
@@ -138,6 +164,7 @@ class RemoteStorageConfig {
     String? trashDirectoryName,
     int? trashRetentionDays,
     bool? usePathStyle,
+    WindowsMountMode? windowsMountMode,
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
@@ -153,6 +180,7 @@ class RemoteStorageConfig {
       trashDirectoryName: trashDirectoryName ?? this.trashDirectoryName,
       trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
       usePathStyle: usePathStyle ?? this.usePathStyle,
+      windowsMountMode: windowsMountMode ?? this.windowsMountMode,
     );
   }
 

@@ -1,4 +1,6 @@
-// 设置页：展示连接信息、主题色、下载目录和文件浏览交互偏好。
+// 设置页集中管理主题、下载目录、可见性和 Windows 挂载模式等偏好。
+
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -35,6 +37,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _visibilityError;
   bool _savingTrashSettings = false;
   String? _trashSettingsError;
+  bool _savingWindowsMountMode = false;
+  String? _windowsMountModeError;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +60,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 6),
             Text(
-              '管理远程存储的连接配置、下载位置和外观。',
+              '管理远程存储的连接配置、下载目录、界面偏好和挂载行为。',
               style: TextStyle(
                 color: theme.colorScheme.mutedForeground,
                 fontSize: 13,
@@ -89,6 +93,20 @@ class _SettingsPageState extends State<SettingsPage> {
                 onChanged: (value) => _saveHideDotFiles(config, value),
               ),
             ),
+            if (Platform.isWindows) ...[
+              const SizedBox(height: 20),
+              _buildCard(
+                theme,
+                'Windows 挂载模式',
+                WindowsMountModeSection(
+                  theme: theme,
+                  mode: config.windowsMountMode,
+                  saving: _savingWindowsMountMode,
+                  errorText: _windowsMountModeError,
+                  onChanged: (value) => _saveWindowsMountMode(config, value),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             _buildCard(
               theme,
@@ -249,6 +267,31 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _savingTrashSettings = false);
+      }
+    }
+  }
+
+  Future<void> _saveWindowsMountMode(
+    RemoteStorageConfig config,
+    WindowsMountMode? mode,
+  ) async {
+    if (mode == null || mode == config.windowsMountMode) {
+      return;
+    }
+    setState(() {
+      _savingWindowsMountMode = true;
+      _windowsMountModeError = null;
+    });
+    try {
+      await widget.api.saveConfig(config.copyWith(windowsMountMode: mode));
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _windowsMountModeError = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _savingWindowsMountMode = false);
       }
     }
   }

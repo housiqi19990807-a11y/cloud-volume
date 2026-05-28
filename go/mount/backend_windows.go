@@ -1,94 +1,42 @@
 //go:build windows
 
-// Windows now defaults to the same WebDAV-backed mount model used on macOS.
+// Windows mount selection keeps Cloud Files variants and WebDAV fallback side by side.
 package mount
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
 
-type windowsWebDAVBackend struct{}
+	storageconfig "remote-storage/go/config"
+)
 
-func newPlatformMountBackend() (mountBackend, error) {
-	return &windowsWebDAVBackend{}, nil
-}
-
-func (b *windowsWebDAVBackend) Initialize(session *mountSession) error {
-	session.mountName = managedMountPrefix + session.bucket
-	session.mountPath = ""
-	session.mountTarget = ""
-	return nil
-}
-
-func (b *windowsWebDAVBackend) Start(session *mountSession) error {
-	server, serverURL, port, err := startWebDAVServer(session.access, session.mountName)
-	if err != nil {
-		return err
-	}
-	session.server = server
-	session.serverURL = serverURL
-	session.port = port
-
-	mountPath, err := mountWebDAVOnWindows(serverURL)
-	if err != nil {
-		session.lastError = err.Error()
-		return err
-	}
-	session.mountPath = mountPath
-	session.mountTarget = mountPath
-	session.mounted = true
-	return nil
-}
-
-func (b *windowsWebDAVBackend) Stop(session *mountSession) error {
-	var mountErr error
-	if session.mounted && session.mountTarget != "" {
-		if active, err := isWindowsWebDAVMountActive(session.mountTarget); err != nil {
-			mountErr = err
-		} else if active {
-			mountErr = unmountWebDAVOnWindows(session.mountTarget)
-		}
-		session.mounted = false
-	}
-
-	serverErr := error(nil)
-	if session.server != nil {
-		serverErr = session.server.stop()
-	}
-	accessErr := error(nil)
-	if session.access != nil {
-		accessErr = session.access.close()
-	}
-
-	switch {
-	case mountErr != nil:
-		session.lastError = mountErr.Error()
-		return mountErr
-	case serverErr != nil:
-		session.lastError = serverErr.Error()
-		return serverErr
-	case accessErr != nil:
-		session.lastError = accessErr.Error()
-		return accessErr
+func newPlatformMountBackend(cfg storageconfig.RemoteStorageConfig) (mountBackend, error) {
+	switch normalizeWindowsMountMode(cfg.WindowsMountMode) {
+	case storageconfig.WindowsMountModeWebDAV:
+		return &windowsWebDAVBackend{}, nil
+	case storageconfig.WindowsMountModeCloudFilesCached:
+		return newWindowsCloudFilesBackend(storageconfig.WindowsMountModeCloudFilesCached)
+	case storageconfig.WindowsMountModeCloudFilesDirect:
+		return newWindowsCloudFilesBackend(storageconfig.WindowsMountModeCloudFilesDirect)
 	default:
-		return nil
+		return nil, fmt.Errorf("unsupported Windows mount mode %q", cfg.WindowsMountMode)
 	}
-}
-
-func (b *windowsWebDAVBackend) IsActive(session *mountSession) (bool, error) {
-	return isWindowsWebDAVMountActive(session.mountTarget)
-}
-
-func (b *windowsWebDAVBackend) CleanupStale(session *mountSession) error {
-	_ = session
-	return cleanupManagedWindowsWebDAVMounts()
 }
 
 func cleanupAllManagedMounts() error {
+	if err := cleanupManagedWindowsCloudFilesArtifacts(); err != nil {
+		return err
+	}
 	return cleanupManagedWindowsWebDAVMounts()
 }
 
-func ensureWindowsMountPath(path string) error {
-	if path == "" {
-		return fmt.Errorf("mount path is required")
+func normalizeWindowsMountMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case storageconfig.WindowsMountModeCloudFilesDirect:
+		return storageconfig.WindowsMountModeCloudFilesDirect
+	case storageconfig.WindowsMountModeWebDAV:
+		return storageconfig.WindowsMountModeWebDAV
+	default:
+		return storageconfig.WindowsMountModeCloudFilesCached
 	}
-	return nil
 }

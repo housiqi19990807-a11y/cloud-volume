@@ -1,6 +1,7 @@
 // 设置页分区组件：下载目录、显示选项与主题色选项。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -166,6 +167,102 @@ class VisibilitySection extends StatelessWidget {
         ],
       ],
     );
+  }
+}
+
+class WindowsMountModeSection extends StatelessWidget {
+  const WindowsMountModeSection({
+    super.key,
+    required this.theme,
+    required this.mode,
+    required this.saving,
+    required this.errorText,
+    required this.onChanged,
+  });
+
+  final ShadThemeData theme;
+  final WindowsMountMode mode;
+  final bool saving;
+  final String? errorText;
+  final ValueChanged<WindowsMountMode?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Windows 可以在两种 Cloud Files 读取链路和一个纯 WebDAV 回退模式之间切换。切换后请重新挂载 bucket 再验证效果。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.6,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: ShadSelect<WindowsMountMode>(
+            key: ValueKey<WindowsMountMode>(mode),
+            minWidth: 320,
+            initialValue: mode,
+            placeholder: Text(_mountModeLabel(mode)),
+            selectedOptionBuilder: (context, selected) =>
+                Text(_mountModeLabel(selected)),
+            options: WindowsMountMode.values
+                .map(
+                  (item) => ShadOption<WindowsMountMode>(
+                    value: item,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_mountModeLabel(item)),
+                        const SizedBox(height: 2),
+                        Text(
+                          _mountModeDescription(item),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: theme.colorScheme.mutedForeground,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: saving ? null : onChanged,
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  static String _mountModeLabel(WindowsMountMode mode) {
+    return switch (mode) {
+      WindowsMountMode.cloudFilesCached => 'Cloud Files + 本地缓存/异步同步',
+      WindowsMountMode.cloudFilesDirect => 'Cloud Files + 直连 S3',
+      WindowsMountMode.webdav => '纯 WebDAV 映射盘',
+    };
+  }
+
+  static String _mountModeDescription(WindowsMountMode mode) {
+    return switch (mode) {
+      WindowsMountMode.cloudFilesCached =>
+        '使用 Cloud Files 外壳，但文件读取回到现有缓存、下载任务和异步写回链路。',
+      WindowsMountMode.cloudFilesDirect =>
+        '使用 Cloud Files 外壳，按需读取时直接请求远端对象，便于对比直连效果。',
+      WindowsMountMode.webdav => '保留旧的映射盘回退模式，便于兼容性排查。',
+    };
   }
 }
 

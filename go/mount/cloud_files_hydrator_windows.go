@@ -15,6 +15,7 @@ type cloudFilesHydrator struct {
 	access   *bucketAccess
 	provider *cloudFilesProvider
 	watcher  *windowsSyncWatcher
+	reader   cloudFilesReader
 
 	cancelMu sync.Mutex
 	cancels  map[string]context.CancelFunc
@@ -25,12 +26,14 @@ func newCloudFilesHydrator(
 	access *bucketAccess,
 	provider *cloudFilesProvider,
 	watcher *windowsSyncWatcher,
+	reader cloudFilesReader,
 ) *cloudFilesHydrator {
 	return &cloudFilesHydrator{
 		syncRoot: syncRoot,
 		access:   access,
 		provider: provider,
 		watcher:  watcher,
+		reader:   reader,
 		cancels:  map[string]context.CancelFunc{},
 	}
 }
@@ -53,7 +56,7 @@ func (h *cloudFilesHydrator) OnFetchData(req cloudFilesFetchRequest) error {
 	}
 	h.watcher.MarkHydrating(req.LocalPath)
 
-	data, err := h.access.readRemoteRange(ctx, virtualPath, req.Offset, req.Length)
+	data, err := h.reader.Read(ctx, virtualPath, req.Offset, req.Length)
 	if err != nil {
 		_ = h.provider.ReportError(req, err)
 		return fmt.Errorf("read remote range %q: %w", virtualPath, err)
@@ -94,9 +97,6 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 		placeholder.RelativePath = relativeName
 		placeholders = append(placeholders, placeholder)
 	}
-	if err := h.provider.CreatePlaceholders(localPath, placeholders); err != nil {
-		return err
-	}
 	h.watcher.RememberPlaceholders(localPath, placeholders)
-	return nil
+	return h.provider.CreatePlaceholders(localPath, placeholders)
 }

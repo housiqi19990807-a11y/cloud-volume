@@ -190,7 +190,7 @@ func newMountSession(
 	if err != nil {
 		return nil, err
 	}
-	backend, err := newPlatformMountBackend()
+	backend, err := newPlatformMountBackend(cfg)
 	if err != nil {
 		_ = access.close()
 		return nil, err

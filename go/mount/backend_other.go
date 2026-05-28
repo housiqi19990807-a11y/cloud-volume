@@ -3,11 +3,15 @@
 // Unsupported platforms keep the manager API intact but return a clear error on mount.
 package mount
 
-import "fmt"
+import (
+	"fmt"
+
+	storageconfig "remote-storage/go/config"
+)
 
 type unsupportedMountBackend struct{}
 
-func newPlatformMountBackend() (mountBackend, error) {
+func newPlatformMountBackend(_ storageconfig.RemoteStorageConfig) (mountBackend, error) {
 	return nil, fmt.Errorf("bucket mount is not supported on this platform")
 }
 

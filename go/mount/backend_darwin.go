@@ -6,13 +6,15 @@ package mount
 import (
 	"path/filepath"
 	"strings"
+
+	storageconfig "remote-storage/go/config"
 )
 
 const managedMountPrefix = "云卷-"
 
 type macOSWebDAVBackend struct{}
 
-func newPlatformMountBackend() (mountBackend, error) {
+func newPlatformMountBackend(_ storageconfig.RemoteStorageConfig) (mountBackend, error) {
 	return &macOSWebDAVBackend{}, nil
 }
 

@@ -73,6 +73,7 @@ class _FakeApi implements RemoteStorageGateway {
             trashDirectoryName: '.trash',
             trashRetentionDays: 30,
             usePathStyle: true,
+            windowsMountMode: WindowsMountMode.cloudFilesCached,
           )
         : RemoteStorageConfig.empty(),
   );

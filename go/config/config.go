@@ -16,7 +16,14 @@ type RemoteStorageConfig struct {
 	TrashDirectoryName       string `json:"trashDirectoryName" toml:"trash_directory_name"`
 	TrashRetentionDays       int    `json:"trashRetentionDays" toml:"trash_retention_days"`
 	UsePathStyle             bool   `json:"usePathStyle" toml:"use_path_style"`
+	WindowsMountMode         string `json:"windowsMountMode" toml:"windows_mount_mode"`
 }
+
+const (
+	WindowsMountModeCloudFilesCached = "cloud_files_cached"
+	WindowsMountModeCloudFilesDirect = "cloud_files_direct"
+	WindowsMountModeWebDAV           = "webdav"
+)
 
 // BootstrapState is the typed payload returned to Flutter during startup.
 type BootstrapState struct {
@@ -34,6 +41,7 @@ func DefaultConfig() RemoteStorageConfig {
 		TrashDirectoryName: ".trash",
 		TrashRetentionDays: 30,
 		UsePathStyle:       true,
+		WindowsMountMode:   WindowsMountModeCloudFilesCached,
 	}
 }
 
@@ -52,6 +60,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		TrashDirectoryName:       normalizeTrashDirectoryName(c.TrashDirectoryName),
 		TrashRetentionDays:       normalizeTrashRetentionDays(c.TrashRetentionDays),
 		UsePathStyle:             c.UsePathStyle,
+		WindowsMountMode:         normalizeWindowsMountMode(c.WindowsMountMode),
 	}
 }
 
@@ -92,6 +101,17 @@ func normalizeTrashDirectoryName(value string) string {
 		return "." + trimmed
 	}
 	return trimmed
+}
+
+func normalizeWindowsMountMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case WindowsMountModeCloudFilesDirect:
+		return WindowsMountModeCloudFilesDirect
+	case WindowsMountModeWebDAV:
+		return WindowsMountModeWebDAV
+	default:
+		return WindowsMountModeCloudFilesCached
+	}
 }
 
 // TrashDirectoryAliases returns all reserved bucket-trash roots that should be hidden and protected.

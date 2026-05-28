@@ -81,6 +81,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       trashDirectoryName: widget.initialState.config.trashDirectoryName,
       trashRetentionDays: widget.initialState.config.trashRetentionDays,
       usePathStyle: _usePathStyle,
+      windowsMountMode: widget.initialState.config.windowsMountMode,
     );
 
     if (!config.isConfigured) {

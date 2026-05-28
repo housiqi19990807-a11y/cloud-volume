@@ -105,3 +105,12 @@ Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间�
 
 这是一个明显偏“桌面工作流优先”的对象存储客户端，而不是简单的 Web 面板移植版。
 如果你希望在对象存储上获得更接近 Finder / 资源管理器的体验，这个仓库就是围绕这个目标持续演进的。
+## Windows Mount Modes
+
+Windows now keeps three mount modes available side by side so behavior can be compared without reverting code:
+
+- `cloud_files_cached`: uses the native Cloud Files shell, but hydration goes through the existing cached-download, transfer-queue, and async writeback flow used by the mature mount layer.
+- `cloud_files_direct`: uses the native Cloud Files shell and reads placeholder data directly from S3 for direct-path testing.
+- `webdav`: keeps the mapped-drive fallback that mounts the local WebDAV server into Explorer as a network drive.
+
+The active mode is stored in config as `windows_mount_mode` and can be changed from Settings. Remount the bucket after switching modes.

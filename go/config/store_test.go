@@ -37,6 +37,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		DefaultDownloadDirectory: " /Users/demo/Downloads/remote-storage ",
 		HideDotFiles:             true,
 		UsePathStyle:             true,
+		WindowsMountMode:         WindowsMountModeCloudFilesDirect,
 	}
 
 	if err := store.Save(input); err != nil {
@@ -59,6 +60,9 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 	if !loaded.HideDotFiles {
 		t.Fatalf("expected hide dot files to stay enabled")
+	}
+	if loaded.WindowsMountMode != WindowsMountModeCloudFilesDirect {
+		t.Fatalf("unexpected windows mount mode %q", loaded.WindowsMountMode)
 	}
 	if !loaded.IsConfigured() {
 		t.Fatalf("expected saved config to be configured")
