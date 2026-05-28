@@ -8,6 +8,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+enum ShareRecordDetailAction { copyLink, openLink, refresh, delete }
+
 const List<_DurationPreset> _durationPresets = <_DurationPreset>[
   _DurationPreset(label: '1小时', hours: 1),
   _DurationPreset(label: '24小时', hours: 24),
@@ -199,6 +201,136 @@ Future<void> showShareLinkDialog(
   );
 }
 
+Future<ShareRecordDetailAction?> showShareRecordDetailsDialog(
+  BuildContext context, {
+  required ShareRecord record,
+  required bool busy,
+}) async {
+  return showShadDialog<ShareRecordDetailAction?>(
+    context: context,
+    builder: (dialogContext) => ShadDialog(
+      title: const Text('分享详情'),
+      description: const Text('查看链接、有效期和来源路径。'),
+      child: SizedBox(
+        width: 560,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text(
+              record.name,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            _ShareDetailField(label: '存储桶', value: record.bucket),
+            const SizedBox(height: 8),
+            _ShareDetailField(label: '对象路径', value: record.key),
+            const SizedBox(height: 8),
+            _ShareDetailField(
+              label: '有效至',
+              value: _formatDateTime(record.expiresAtDateTime),
+            ),
+            const SizedBox(height: 8),
+            _ShareDetailField(
+              label: '有效时长',
+              value: _formatDuration(record.durationSec),
+            ),
+            const SizedBox(height: 8),
+            _ShareDetailField(
+              label: '创建时间',
+              value: _formatDateTime(
+                DateTime.tryParse(record.createdAt)?.toLocal(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _ShareDetailField(
+              label: '更新时间',
+              value: _formatDateTime(
+                DateTime.tryParse(record.updatedAt)?.toLocal(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '分享链接',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: ShadTheme.of(context).colorScheme.mutedForeground,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: ShadTheme.of(context).colorScheme.secondary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: SelectableText(
+                record.url,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (busy) ...[
+              Text(
+                '当前记录正在处理中，请稍后再试。',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ShadTheme.of(context).colorScheme.mutedForeground,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ShadButton.outline(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('关闭'),
+                ),
+                const SizedBox(width: 10),
+                ShadButton.outline(
+                  onPressed: () => Navigator.of(
+                    dialogContext,
+                  ).pop(ShareRecordDetailAction.openLink),
+                  child: const Text('打开链接'),
+                ),
+                const SizedBox(width: 10),
+                ShadButton.outline(
+                  onPressed: () => Navigator.of(
+                    dialogContext,
+                  ).pop(ShareRecordDetailAction.copyLink),
+                  child: const Text('复制链接'),
+                ),
+                const SizedBox(width: 10),
+                ShadButton.outline(
+                  onPressed: busy
+                      ? null
+                      : () => Navigator.of(
+                          dialogContext,
+                        ).pop(ShareRecordDetailAction.refresh),
+                  child: const Text('更新有效时间'),
+                ),
+                const SizedBox(width: 10),
+                ShadButton.destructive(
+                  onPressed: busy
+                      ? null
+                      : () => Navigator.of(
+                          dialogContext,
+                        ).pop(ShareRecordDetailAction.delete),
+                  child: const Text('删除记录'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 Future<bool> showDeleteShareRecordDialog(
   BuildContext context,
   ShareRecord record,
@@ -252,6 +384,14 @@ String _formatDateTime(DateTime? value) {
       '${two(local.hour)}:${two(local.minute)}';
 }
 
+String _formatDuration(int durationSec) {
+  final hours = durationSec ~/ 3600;
+  if (hours >= 24 && hours % 24 == 0) {
+    return '${hours ~/ 24} 天';
+  }
+  return '$hours 小时';
+}
+
 Future<void> openShareUrl(String url) async {
   final uri = Uri.tryParse(url);
   if (uri == null) {
@@ -260,6 +400,33 @@ Future<void> openShareUrl(String url) async {
   final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!launched) {
     throw Exception('无法打开分享链接');
+  }
+}
+
+class _ShareDetailField extends StatelessWidget {
+  const _ShareDetailField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = ShadTheme.of(context).colorScheme.mutedForeground;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: muted,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(value, style: const TextStyle(fontSize: 12.5)),
+      ],
+    );
   }
 }
 

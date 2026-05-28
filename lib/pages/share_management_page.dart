@@ -1,4 +1,4 @@
-// 分享管理页：展示本地分享记录，并支持复制、续期和删除。
+// 分享管理页：展示本地分享记录，并通过详情弹窗管理链接。
 
 import 'dart:async';
 
@@ -8,11 +8,11 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/share_dialogs.dart';
+import 'package:remote_storage/widgets/share_management_browser.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-
-import 'package:remote_storage/widgets/app_loading_indicator.dart';
 
 class ShareManagementPage extends StatefulWidget {
   const ShareManagementPage({
@@ -65,6 +65,15 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
 
   void _reloadFromNotifier() {
     unawaited(_loadShares());
+  }
+
+  ShareRecord? _recordById(String id) {
+    for (final record in _records) {
+      if (record.id == id) {
+        return record;
+      }
+    }
+    return null;
   }
 
   Future<void> _loadShares() async {
@@ -141,6 +150,32 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     });
   }
 
+  Future<void> _showRecordDetails(ShareRecord record) async {
+    final latest = _recordById(record.id) ?? record;
+    final action = await showShareRecordDetailsDialog(
+      context,
+      record: latest,
+      busy: _busyIds.contains(latest.id),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case ShareRecordDetailAction.copyLink:
+        await _copyLink(latest);
+        return;
+      case ShareRecordDetailAction.openLink:
+        await _openLink(latest);
+        return;
+      case ShareRecordDetailAction.refresh:
+        await _refreshRecord(latest);
+        return;
+      case ShareRecordDetailAction.delete:
+        await _deleteRecord(latest);
+        return;
+    }
+  }
+
   Future<void> _runBusy(String id, Future<void> Function() action) async {
     setState(() => _busyIds.add(id));
     try {
@@ -180,7 +215,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '管理已经创建的预签名分享链接，可复制、续期或删除记录。',
+                      '集中管理已经创建的分享记录，链接内容在详情中查看。',
                       style: TextStyle(
                         color: theme.colorScheme.mutedForeground,
                         fontSize: 13,
@@ -230,137 +265,14 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
         ),
       );
     }
-    return ListView.separated(
-      itemCount: _records.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => _buildRecordCard(theme, _records[index]),
+    return ShareManagementBrowser(
+      records: _records,
+      busyIds: _busyIds,
+      onOpenRecord: (record) => unawaited(_showRecordDetails(record)),
+      onCopyLink: (record) => unawaited(_copyLink(record)),
+      onOpenLink: (record) => unawaited(_openLink(record)),
+      onRefreshRecord: (record) => unawaited(_refreshRecord(record)),
+      onDeleteRecord: (record) => unawaited(_deleteRecord(record)),
     );
-  }
-
-  Widget _buildRecordCard(ShadThemeData theme, ShareRecord record) {
-    final busy = _busyIds.contains(record.id);
-    return ShadCard(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  record.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              Text(
-                _remainingText(record),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _isExpired(record)
-                      ? theme.colorScheme.destructive
-                      : theme.colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${record.bucket} / ${record.key}',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 10),
-          SelectableText(record.url, style: const TextStyle(fontSize: 12)),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              Text('有效至 ${_formatDateTime(record.expiresAtDateTime)}'),
-              Text('时长 ${_formatDuration(record.durationSec)}'),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: busy ? null : () => unawaited(_copyLink(record)),
-                child: const Text('复制链接'),
-              ),
-              const SizedBox(width: 8),
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: busy ? null : () => unawaited(_openLink(record)),
-                child: const Text('打开链接'),
-              ),
-              const SizedBox(width: 8),
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: busy
-                    ? null
-                    : () => unawaited(_refreshRecord(record)),
-                child: Text(busy ? '处理中...' : '更新有效时间'),
-              ),
-              const SizedBox(width: 8),
-              ShadButton.destructive(
-                size: ShadButtonSize.sm,
-                onPressed: busy ? null : () => unawaited(_deleteRecord(record)),
-                child: const Text('删除记录'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  bool _isExpired(ShareRecord record) {
-    final expiresAt = record.expiresAtDateTime;
-    return expiresAt == null || !expiresAt.isAfter(DateTime.now());
-  }
-
-  String _remainingText(ShareRecord record) {
-    final expiresAt = record.expiresAtDateTime;
-    if (expiresAt == null) {
-      return '有效期未知';
-    }
-    final remaining = expiresAt.difference(DateTime.now());
-    if (remaining.isNegative) {
-      return '已过期';
-    }
-    if (remaining.inDays >= 1) {
-      return '剩余 ${remaining.inDays} 天';
-    }
-    if (remaining.inHours >= 1) {
-      return '剩余 ${remaining.inHours} 小时';
-    }
-    if (remaining.inMinutes >= 1) {
-      return '剩余 ${remaining.inMinutes} 分钟';
-    }
-    return '即将过期';
-  }
-
-  String _formatDateTime(DateTime? value) {
-    if (value == null) {
-      return '--';
-    }
-    String two(int number) => number.toString().padLeft(2, '0');
-    return '${value.year}-${two(value.month)}-${two(value.day)} '
-        '${two(value.hour)}:${two(value.minute)}';
-  }
-
-  String _formatDuration(int durationSec) {
-    final hours = durationSec ~/ 3600;
-    if (hours % 24 == 0) {
-      return '${hours ~/ 24} 天';
-    }
-    return '$hours 小时';
   }
 }
