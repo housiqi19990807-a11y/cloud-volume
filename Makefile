@@ -17,6 +17,15 @@ BRIDGE_DIR := bin/bridge
 MACOS_BRIDGE_OUT := $(BRIDGE_DIR)/libremote_storage_bridge.dylib
 LINUX_BRIDGE_OUT := $(BRIDGE_DIR)/libremote_storage_bridge.so
 WINDOWS_BRIDGE_OUT := $(BRIDGE_DIR)/remote_storage_bridge.dll
+BRIDGE_GO_ENV := CGO_ENABLED=1
+
+ifneq ($(BRIDGE_CC),)
+BRIDGE_GO_ENV += CC=$(BRIDGE_CC)
+endif
+
+ifneq ($(BRIDGE_CXX),)
+BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
+endif
 
 .PHONY: bridge bridge-macos bridge-linux bridge-windows run run-macos run-linux build build-macos build-linux build-windows test analyze clean
 
@@ -34,16 +43,16 @@ endif
 
 bridge-macos:
 	@mkdir -p $(BRIDGE_DIR)
-	go build -buildmode=c-shared -o $(MACOS_BRIDGE_OUT) ./bridge
+	$(BRIDGE_GO_ENV) go build -buildmode=c-shared -o $(MACOS_BRIDGE_OUT) ./bridge
 
 bridge-linux:
 	@mkdir -p $(BRIDGE_DIR)
-	go build -buildmode=c-shared -o $(LINUX_BRIDGE_OUT) ./bridge
+	$(BRIDGE_GO_ENV) go build -buildmode=c-shared -o $(LINUX_BRIDGE_OUT) ./bridge
 
 bridge-windows:
 ifeq ($(HOST_PLATFORM),windows)
 	@mkdir -p $(BRIDGE_DIR)
-	go build -buildmode=c-shared -o $(WINDOWS_BRIDGE_OUT) ./bridge
+	$(BRIDGE_GO_ENV) go build -buildmode=c-shared -o $(WINDOWS_BRIDGE_OUT) ./bridge
 else
 	@echo "bridge-windows must be run on a Windows host."
 	@exit 1

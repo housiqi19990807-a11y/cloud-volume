@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Windows desktop startup now builds the Go FFI bridge with CGO enabled, compiles the shared mount package without macOS-only xattr code, and stages `remote_storage_bridge.dll` next to the runner so both `flutter run -d windows` and built executables can launch.
 - The settings page now keeps extra bottom breathing room below the final action row, so the lower section no longer feels visually stuck to the window edge when scrolled to the bottom.
 - Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.
 - The recycle-bin page now hides mount, upload, and new-folder actions so its action bar only shows controls relevant to trash browsing.

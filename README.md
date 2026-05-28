@@ -51,7 +51,15 @@ make run
 
 - macOS: `make bridge-macos`, `make run-macos`, `make build-macos`
 - Linux: `make bridge-linux`, `make run-linux`, `make build-linux`
-- Windows: `make bridge-windows`, `make build-windows`
+- Windows: `make bridge-windows`, `make run-windows`, `make build-windows`
+
+Windows 本地启动前提：
+
+- 需要可用的 Flutter Windows Desktop 环境。
+- 需要可用的 MinGW-style C toolchain 供 Go `c-shared` bridge 使用，推荐 `MSYS2 UCRT64` 的 `gcc/g++`。
+- 如未把 `flutter` / `gcc` 放进 `PATH`，可以直接运行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_windows.ps1`。
+
+Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，避免构建后 exe 因缺少 bridge 而无法启动。
 
 ## 配置项
 
