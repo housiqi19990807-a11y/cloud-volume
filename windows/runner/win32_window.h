@@ -55,6 +55,9 @@ class Win32Window {
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
+  // Returns the reserved top inset used for the transparent drag/title strip.
+  int GetTitleBarHeight() const;
+
  protected:
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
@@ -72,6 +75,10 @@ class Win32Window {
   virtual void OnDestroy();
 
  private:
+  // Hit testing keeps resize borders and caption-button space working while
+  // the left title area is replaced with a transparent draggable strip.
+  LRESULT HitTestNonClientArea(HWND window, LPARAM lparam) const noexcept;
+
   friend class WindowClassRegistrar;
 
   // OS callback called by message pump. Handles the WM_NCCREATE message which
@@ -89,6 +96,10 @@ class Win32Window {
 
   // Update the window frame's theme to match the system theme.
   static void UpdateTheme(HWND const window);
+
+  // Extends the DWM frame into the top strip so the title area stays
+  // transparent while the system caption buttons remain available.
+  void UpdateFrame();
 
   bool quit_on_close_ = false;
 

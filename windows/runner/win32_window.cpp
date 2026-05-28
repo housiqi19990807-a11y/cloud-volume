@@ -2,6 +2,7 @@
 
 #include <dwmapi.h>
 #include <flutter_windows.h>
+#include <windowsx.h>
 
 #include "resource.h"
 
@@ -17,6 +18,7 @@ namespace {
 #endif
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+constexpr int kCustomTitleBarHeight = 44;
 
 /// Registry key for app theme preference.
 ///
@@ -145,6 +147,7 @@ bool Win32Window::Create(const std::wstring& title,
   }
 
   UpdateTheme(window);
+  UpdateFrame();
 
   return OnCreate();
 }
@@ -178,7 +181,35 @@ Win32Window::MessageHandler(HWND hwnd,
                             UINT const message,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
+  LRESULT result = 0;
+  if (DwmDefWindowProc(hwnd, message, wparam, lparam, &result)) {
+    return result;
+  }
+
   switch (message) {
+    case WM_NCCALCSIZE:
+      if (wparam == TRUE) {
+        auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+        if (params != nullptr && IsZoomed(hwnd)) {
+          const UINT dpi = GetDpiForWindow(hwnd);
+          const int frame_x = GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
+                              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+          const int frame_y = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
+                              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+          params->rgrc[0].left += frame_x;
+          params->rgrc[0].right -= frame_x;
+          params->rgrc[0].bottom -= frame_y;
+        }
+        return 0;
+      }
+      break;
+
+    case WM_NCHITTEST:
+      return HitTestNonClientArea(hwnd, lparam);
+
+    case WM_NCACTIVATE:
+      return TRUE;
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();
@@ -204,6 +235,7 @@ Win32Window::MessageHandler(HWND hwnd,
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
       }
+      UpdateFrame();
       return 0;
     }
 
@@ -215,6 +247,7 @@ Win32Window::MessageHandler(HWND hwnd,
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
+      UpdateFrame();
       return 0;
   }
 
@@ -252,7 +285,13 @@ void Win32Window::SetChildContent(HWND content) {
 RECT Win32Window::GetClientArea() {
   RECT frame;
   GetClientRect(window_handle_, &frame);
+  frame.top += GetTitleBarHeight();
   return frame;
+}
+
+int Win32Window::GetTitleBarHeight() const {
+  const UINT dpi = window_handle_ ? GetDpiForWindow(window_handle_) : 96;
+  return MulDiv(kCustomTitleBarHeight, dpi, 96);
 }
 
 HWND Win32Window::GetHandle() {
@@ -285,4 +324,72 @@ void Win32Window::UpdateTheme(HWND const window) {
     DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
                           &enable_dark_mode, sizeof(enable_dark_mode));
   }
+}
+
+void Win32Window::UpdateFrame() {
+  if (!window_handle_) {
+    return;
+  }
+
+  MARGINS margins = {0, 0, GetTitleBarHeight(), 0};
+  DwmExtendFrameIntoClientArea(window_handle_, &margins);
+}
+
+LRESULT Win32Window::HitTestNonClientArea(HWND hwnd,
+                                          LPARAM lparam) const noexcept {
+  POINT cursor_point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+  ScreenToClient(hwnd, &cursor_point);
+
+  RECT window_rect;
+  GetClientRect(hwnd, &window_rect);
+
+  const UINT dpi = GetDpiForWindow(hwnd);
+  const int frame_x = GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
+                      GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+  const int frame_y = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
+                      GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+  const int button_band_width =
+      (GetSystemMetricsForDpi(SM_CXSIZE, dpi) * 3) + frame_x;
+  const int title_bar_height = GetTitleBarHeight();
+
+  const bool resize_left = cursor_point.x >= window_rect.left &&
+                           cursor_point.x < window_rect.left + frame_x;
+  const bool resize_right = cursor_point.x < window_rect.right &&
+                            cursor_point.x >= window_rect.right - frame_x;
+  const bool resize_top = cursor_point.y >= window_rect.top &&
+                          cursor_point.y < window_rect.top + frame_y;
+  const bool resize_bottom = cursor_point.y < window_rect.bottom &&
+                             cursor_point.y >= window_rect.bottom - frame_y;
+
+  if (resize_top && resize_left) {
+    return HTTOPLEFT;
+  }
+  if (resize_top && resize_right) {
+    return HTTOPRIGHT;
+  }
+  if (resize_bottom && resize_left) {
+    return HTBOTTOMLEFT;
+  }
+  if (resize_bottom && resize_right) {
+    return HTBOTTOMRIGHT;
+  }
+  if (resize_left) {
+    return HTLEFT;
+  }
+  if (resize_right) {
+    return HTRIGHT;
+  }
+  if (resize_top) {
+    return HTTOP;
+  }
+  if (resize_bottom) {
+    return HTBOTTOM;
+  }
+
+  if (cursor_point.y < title_bar_height &&
+      cursor_point.x < window_rect.right - button_band_width) {
+    return HTCAPTION;
+  }
+
+  return HTCLIENT;
 }
