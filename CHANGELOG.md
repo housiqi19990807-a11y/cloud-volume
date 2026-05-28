@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Windows bucket mounts now expose the active bucket as a native Cloud Files Files-On-Demand sync root, hydrate file content directly from S3 on demand, and map Explorer-side create/write/delete/rename actions back into the existing Go-side writeback, delete, and move queues without changing the macOS WebDAV async path.
+- Windows bucket mounts now expose the active bucket as a native Cloud Files Files-On-Demand sync root, show that sync root inside Explorer's `This PC`, hydrate file content directly from S3 on demand, and map Explorer-side create/write/delete/rename actions back into the existing Go-side writeback, delete, and move queues without changing the macOS WebDAV async path.
 - The Windows desktop shell now keeps a native tray icon with show/exit actions, and the custom close button prompts to hide to tray or quit instead of exiting immediately.
 - Windows list rows now show hover and press feedback on click, and the bootstrap config-check card is smaller and less visually heavy during startup.
 - The Windows host shell now uses the same `云卷` app icon as macOS, drops the native title bar, and replaces it with app-owned top-right window controls plus a native bridge for drag/minimize/maximize/close actions.

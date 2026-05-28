@@ -13,9 +13,10 @@ import (
 const windowsMountFolderName = "Cloud Volume"
 
 type windowsCloudFilesBackend struct {
-	provider *cloudFilesProvider
-	hydrator *cloudFilesHydrator
-	watcher  *windowsSyncWatcher
+	provider  *cloudFilesProvider
+	hydrator  *cloudFilesHydrator
+	watcher   *windowsSyncWatcher
+	namespace *windowsShellNamespace
 }
 
 type windowsCloudMount = windowsCloudFilesBackend
@@ -79,10 +80,18 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 		_ = provider.Deregister()
 		return err
 	}
+	namespace := newWindowsShellNamespace(session.bucket, session.mountPath)
+	if err := namespace.Register(); err != nil {
+		_ = watcher.Close()
+		_ = provider.Disconnect()
+		_ = provider.Deregister()
+		return err
+	}
 
 	b.provider = provider
 	b.hydrator = hydrator
 	b.watcher = watcher
+	b.namespace = namespace
 	session.mounted = true
 	return nil
 }
@@ -104,6 +113,11 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 			firstErr = err
 		}
 	}
+	if b.namespace != nil {
+		if err := b.namespace.Unregister(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 	if session.access != nil {
 		if err := session.access.close(); err != nil && firstErr == nil {
 			firstErr = err
@@ -113,6 +127,7 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 	b.provider = nil
 	b.hydrator = nil
 	b.watcher = nil
+	b.namespace = nil
 	return firstErr
 }
 

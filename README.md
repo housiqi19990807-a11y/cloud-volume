@@ -12,7 +12,7 @@
 
 - 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
 - 挂载访问：把当前桶挂载成 macOS 可见的 WebDAV 卷，支持在 Finder 里直接读写。
-- Windows Files On-Demand：把当前桶挂成 Windows Cloud Files sync root，目录先以 placeholder 呈现，按需从 S3 hydrate 文件内容。
+- Windows Files On-Demand：把当前桶挂成 Windows Cloud Files sync root，目录先以 placeholder 呈现，按需从 S3 hydrate 文件内容，并在 Explorer 的“此电脑”里显示挂载入口。
 - 本地优先：挂载写入、删除、改名、移动先落本地缓存与 overlay，再异步回写远端。
 - 断点续传：大文件挂载上传支持可恢复 multipart writeback，挂载下载支持复用完整缓存与 `.downloading` 分片续传。
 - 回收站：应用级软删除、全局回收站 / 桶级回收站、恢复、彻底删除、分页与无限滚动。
