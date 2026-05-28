@@ -112,29 +112,35 @@ class _BootstrapMessageView extends StatelessWidget {
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
       body: Padding(
-        padding: const EdgeInsets.only(top: 40),
+        padding: const EdgeInsets.only(top: 24),
         child: Center(
           child: ShadCard(
-            width: 480,
-            padding: const EdgeInsets.all(32),
+            width: 360,
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
             title: Text(title),
             description: Text(
               description,
               style: TextStyle(
-                color: theme.colorScheme.mutedForeground,
-                fontSize: 14,
-                height: 1.5,
+                color: theme.colorScheme.mutedForeground.withValues(alpha: 0.9),
+                fontSize: 12.5,
+                height: 1.45,
               ),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (loading)
                   const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: AppLoadingIndicator(),
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: AppLoadingIndicator(strokeWidth: 2),
+                    ),
                   ),
                 if (actionLabel != null && onAction != null) ...[
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: ShadButton(

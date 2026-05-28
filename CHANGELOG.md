@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Windows list rows now show hover and press feedback on click, and the bootstrap config-check card is smaller and less visually heavy during startup.
 - The Windows host shell now uses the same `云卷` app icon as macOS, drops the native title bar, and replaces it with app-owned top-right window controls plus a native bridge for drag/minimize/maximize/close actions.
 - Windows desktop startup now builds the Go FFI bridge with CGO enabled, compiles the shared mount package without macOS-only xattr code, and stages `remote_storage_bridge.dll` next to the runner so both `flutter run -d windows` and built executables can launch.
 - The settings page now keeps extra bottom breathing room below the final action row, so the lower section no longer feels visually stuck to the window edge when scrolled to the bottom.
