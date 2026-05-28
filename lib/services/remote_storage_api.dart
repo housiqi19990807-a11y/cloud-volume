@@ -404,17 +404,21 @@ class RemoteStorageApi
     RemoteStorageConfig config,
     String bucket,
   ) async {
-    final result = _bridge.call('mount_bucket', <String, dynamic>{
-      'config': config.toJson(),
-      'bucket': bucket,
+    final result = await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      return bridge.call('mount_bucket', <String, dynamic>{
+        'config': config.toJson(),
+        'bucket': bucket,
+      });
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }
 
   @override
   Future<BucketMountStatus> unmountBucket(String bucket) async {
-    final result = _bridge.call('unmount_bucket', <String, dynamic>{
-      'bucket': bucket,
+    final result = await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      return bridge.call('unmount_bucket', <String, dynamic>{'bucket': bucket});
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }
@@ -429,8 +433,11 @@ class RemoteStorageApi
 
   @override
   Future<BucketMountStatus> openBucketMount(String bucket) async {
-    final result = _bridge.call('open_bucket_mount', <String, dynamic>{
-      'bucket': bucket,
+    final result = await Isolate.run(() {
+      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
+      return bridge.call('open_bucket_mount', <String, dynamic>{
+        'bucket': bucket,
+      });
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }

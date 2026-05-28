@@ -5,6 +5,66 @@ part of 'file_manager_page.dart';
 // 文件管理页挂载逻辑：刷新状态，并暴露挂载、卸载和打开挂载目录动作。
 
 extension _FileManagerPageMount on _FileManagerPageState {
+  Widget _buildContentWithMountLoading(ShadThemeData theme) {
+    final content = _buildContent(theme);
+    if (_mountBusyBuckets.isEmpty) {
+      return content;
+    }
+    final color = theme.colorScheme.primary;
+    return Stack(
+      children: [
+        content,
+        Positioned.fill(
+          child: AbsorbPointer(
+            absorbing: true,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.background.withValues(alpha: 0.42),
+              ),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.background,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: theme.colorScheme.border.withValues(alpha: 0.82),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: AppLoadingIndicator(
+                          strokeWidth: 1.8,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '正在处理挂载，请稍候…',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _refreshVisibleMountStatuses() async {
     if (_mountStatusRefreshInFlight || _mountBusyBuckets.isNotEmpty) {
       return;

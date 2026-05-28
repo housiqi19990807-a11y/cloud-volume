@@ -258,7 +258,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         children: [
           _buildHeader(theme),
           const SizedBox(height: 16),
-          Expanded(child: _buildContent(theme)),
+          Expanded(child: _buildContentWithMountLoading(theme)),
         ],
       ),
     );

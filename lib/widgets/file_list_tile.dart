@@ -55,8 +55,8 @@ class _FileListTileState extends State<FileListTile> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
-    final hoverColor = theme.colorScheme.secondary.withValues(alpha: 0.72);
-    final pressedColor = theme.colorScheme.secondary.withValues(alpha: 0.95);
+    final hoverColor = theme.colorScheme.secondary.withValues(alpha: 0.5);
+    final pressedColor = theme.colorScheme.secondary.withValues(alpha: 0.72);
     final backgroundColor = widget.isSelected
         ? theme.colorScheme.primary.withValues(alpha: _pressed ? 0.2 : 0.12)
         : _pressed

@@ -65,9 +65,7 @@ func (h *cloudFilesHydrator) OnFetchData(req cloudFilesFetchRequest) error {
 		_ = h.provider.ReportError(req, err)
 		return fmt.Errorf("execute Cloud Files transfer %q: %w", virtualPath, err)
 	}
-	_ = h.provider.ReportProgress(req, req.Length, int64(len(data)))
 	h.watcher.MarkHydrated(req.LocalPath)
-	_ = h.provider.SetInSync(req.LocalPath, true)
 	return nil
 }
 
