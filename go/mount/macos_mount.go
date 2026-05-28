@@ -1,3 +1,5 @@
+//go:build darwin
+
 // macOS mount helpers wrap system WebDAV mounting, unmounting, and Finder opening.
 package mount
 

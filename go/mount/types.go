@@ -26,6 +26,15 @@ type BucketMountStatus struct {
 	LastError string `json:"lastError,omitempty"`
 }
 
+// mountBackend keeps lifecycle differences out of the cross-platform manager.
+type mountBackend interface {
+	Initialize(*mountSession) error
+	Start(*mountSession) error
+	Stop(*mountSession) error
+	IsActive(*mountSession) (bool, error)
+	CleanupStale(*mountSession) error
+}
+
 type mountSession struct {
 	config      storageconfig.RemoteStorageConfig
 	bucket      string
@@ -38,6 +47,7 @@ type mountSession struct {
 	mounted     bool
 	server      *webDAVServer
 	access      *bucketAccess
+	backend     mountBackend
 	lastError   string
 }
 

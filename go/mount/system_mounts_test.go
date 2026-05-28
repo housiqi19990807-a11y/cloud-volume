@@ -1,3 +1,5 @@
+//go:build darwin
+
 // System mount parsing tests keep stale-session detection stable.
 package mount
 

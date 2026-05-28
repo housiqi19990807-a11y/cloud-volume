@@ -1,10 +1,8 @@
-// Mount manager coordinates one macOS system WebDAV bucket volume at a time for now.
+// Mount manager keeps the public lifecycle API stable while platform backends vary.
 package mount
 
 import (
 	"fmt"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
@@ -18,7 +16,7 @@ type manager struct {
 
 var globalManager = &manager{}
 
-// MountBucket starts the local WebDAV server and mounts the bucket as a system volume.
+// MountBucket starts the platform mount backend for one bucket at a time.
 func MountBucket(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
@@ -36,7 +34,7 @@ func GetBucketMountStatus(bucket string) (BucketMountStatus, error) {
 	return globalManager.getBucketMountStatus(bucket)
 }
 
-// OpenBucketMount opens the mounted directory in Finder.
+// OpenBucketMount opens the mounted directory in the host file manager.
 func OpenBucketMount(bucket string) (BucketMountStatus, error) {
 	return globalManager.openBucketMount(bucket)
 }
@@ -53,10 +51,6 @@ func (m *manager) mountBucket(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if runtime.GOOS != "darwin" {
-		return BucketMountStatus{}, fmt.Errorf("bucket mount currently only supports macOS")
-	}
-
 	trimmedBucket := normalizeBucketName(bucket)
 	if trimmedBucket == "" {
 		trimmedBucket = normalizeBucketName(cfg.Bucket)
@@ -68,10 +62,10 @@ func (m *manager) mountBucket(
 	if err := m.syncSessionLocked(); err != nil {
 		return BucketMountStatus{}, err
 	}
-	if m.session != nil && m.session.bucket == trimmedBucket && m.session.server != nil {
+	if m.session != nil && m.session.bucket == trimmedBucket {
 		return m.session.status(), nil
 	}
-	if m.session != nil && m.session.server != nil {
+	if m.session != nil {
 		if err := m.unmountCurrentLocked(); err != nil {
 			return BucketMountStatus{}, err
 		}
@@ -81,11 +75,11 @@ func (m *manager) mountBucket(
 	if err != nil {
 		return BucketMountStatus{}, err
 	}
-	if err := cleanupStaleBucketMounts(session.mountName); err != nil {
+	if err := session.backend.CleanupStale(session); err != nil {
 		return BucketMountStatus{}, err
 	}
-	if err := session.start(); err != nil {
-		_ = session.stop()
+	if err := session.backend.Start(session); err != nil {
+		_ = session.backend.Stop(session)
 		return BucketMountStatus{}, err
 	}
 
@@ -156,7 +150,7 @@ func (m *manager) syncSessionLocked() error {
 	if m.session == nil {
 		return nil
 	}
-	active, err := isWebDAVMountActive(m.session.mountTarget)
+	active, err := m.session.backend.IsActive(m.session)
 	if err != nil {
 		m.session.lastError = err.Error()
 		return err
@@ -165,7 +159,7 @@ func (m *manager) syncSessionLocked() error {
 		m.session.mounted = true
 		return nil
 	}
-	_ = m.session.stop()
+	_ = m.session.backend.Stop(m.session)
 	m.session = nil
 	return nil
 }
@@ -174,7 +168,7 @@ func (m *manager) unmountCurrentLocked() error {
 	if m.session == nil {
 		return nil
 	}
-	err := m.session.stop()
+	err := m.session.backend.Stop(m.session)
 	m.session = nil
 	return err
 }
@@ -192,72 +186,29 @@ func newMountSession(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) (*mountSession, error) {
-	mountName := "云卷-" + bucket
 	access, err := newBucketAccess(cfg, bucket)
 	if err != nil {
 		return nil, err
 	}
-	return &mountSession{
-		config:      cfg,
-		bucket:      bucket,
-		rootPrefix:  normalizeRootPrefix(cfg.RootPrefix),
-		mountName:   mountName,
-		mountPath:   filepath.Join("/Volumes", mountName),
-		mountTarget: filepath.Join("/Volumes", mountName),
-		access:      access,
-	}, nil
+	backend, err := newPlatformMountBackend()
+	if err != nil {
+		_ = access.close()
+		return nil, err
+	}
+	session := &mountSession{
+		config:     cfg,
+		bucket:     bucket,
+		rootPrefix: normalizeRootPrefix(cfg.RootPrefix),
+		access:     access,
+		backend:    backend,
+	}
+	if err := backend.Initialize(session); err != nil {
+		_ = access.close()
+		return nil, err
+	}
+	return session, nil
 }
 
 func normalizeBucketName(value string) string {
 	return strings.TrimSpace(value)
-}
-
-func cleanupStaleBucketMounts(mountName string) error {
-	paths, err := listWebDAVMountPaths()
-	if err != nil {
-		return err
-	}
-	for _, mountPath := range matchingBucketMountPaths(paths, mountName) {
-		if err := unmountWebDAV(mountPath); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func matchingBucketMountPaths(paths []string, mountName string) []string {
-	basePath := filepath.Join("/Volumes", mountName)
-	matches := make([]string, 0, len(paths))
-	for _, mountPath := range paths {
-		clean := filepath.Clean(strings.TrimSpace(mountPath))
-		if clean == basePath || strings.HasPrefix(clean, basePath+"-") {
-			matches = append(matches, clean)
-		}
-	}
-	return matches
-}
-
-func cleanupAllManagedMounts() error {
-	paths, err := listWebDAVMountPaths()
-	if err != nil {
-		return err
-	}
-	for _, mountPath := range matchingManagedMountPaths(paths) {
-		if err := unmountWebDAV(mountPath); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func matchingManagedMountPaths(paths []string) []string {
-	basePrefix := filepath.Join("/Volumes", "云卷-")
-	matches := make([]string, 0, len(paths))
-	for _, mountPath := range paths {
-		clean := filepath.Clean(strings.TrimSpace(mountPath))
-		if strings.HasPrefix(clean, basePrefix) {
-			matches = append(matches, clean)
-		}
-	}
-	return matches
 }

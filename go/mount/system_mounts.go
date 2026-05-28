@@ -1,3 +1,5 @@
+//go:build darwin
+
 // System mount probing keeps in-memory mount state aligned with macOS reality.
 package mount
 
