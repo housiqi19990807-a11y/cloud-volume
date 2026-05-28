@@ -294,13 +294,6 @@ Future<ShareRecordDetailAction?> showShareRecordDetailsDialog(
                 ShadButton.outline(
                   onPressed: () => Navigator.of(
                     dialogContext,
-                  ).pop(ShareRecordDetailAction.openLink),
-                  child: const Text('打开链接'),
-                ),
-                const SizedBox(width: 10),
-                ShadButton.outline(
-                  onPressed: () => Navigator.of(
-                    dialogContext,
                   ).pop(ShareRecordDetailAction.copyLink),
                   child: const Text('复制链接'),
                 ),
@@ -329,6 +322,46 @@ Future<ShareRecordDetailAction?> showShareRecordDetailsDialog(
       ),
     ),
   );
+}
+
+Future<bool> showDeleteShareRecordsDialog(
+  BuildContext context,
+  int count,
+) async {
+  return await showShadDialog<bool>(
+        context: context,
+        builder: (dialogContext) => ShadDialog(
+          title: const Text('删除分享记录'),
+          description: const Text('只会删除本地分享记录，不会删除远程文件。'),
+          child: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text('即将删除 $count 条分享记录。'),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ShadButton.outline(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 10),
+                    ShadButton.destructive(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: const Text('删除记录'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ) ??
+      false;
 }
 
 Future<bool> showDeleteShareRecordDialog(

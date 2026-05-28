@@ -33,6 +33,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
 
   List<ShareRecord> _records = const <ShareRecord>[];
   final Set<String> _busyIds = <String>{};
+  final Set<String> _selectedIds = <String>{};
   Timer? _ticker;
   bool _loading = false;
   String? _error;
@@ -76,6 +77,32 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     return null;
   }
 
+  void _toggleSelection(ShareRecord record) {
+    setState(() {
+      if (_selectedIds.contains(record.id)) {
+        _selectedIds.remove(record.id);
+      } else {
+        _selectedIds.add(record.id);
+      }
+    });
+  }
+
+  void _toggleSelectAll() {
+    final selectableIds = _records
+        .where((record) => !_busyIds.contains(record.id))
+        .map((record) => record.id)
+        .toList(growable: false);
+    final allSelected =
+        selectableIds.isNotEmpty && selectableIds.every(_selectedIds.contains);
+    setState(() {
+      if (allSelected) {
+        _selectedIds.removeAll(selectableIds);
+      } else {
+        _selectedIds.addAll(selectableIds);
+      }
+    });
+  }
+
   Future<void> _loadShares() async {
     setState(() {
       _loading = true;
@@ -88,6 +115,9 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
       }
       setState(() {
         _records = records;
+        _selectedIds.removeWhere(
+          (id) => !records.any((record) => record.id == id),
+        );
         _loading = false;
       });
     } catch (error) {
@@ -131,7 +161,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     if (durationSec == null) {
       return;
     }
-    await _runBusy(record.id, () async {
+    await _runBusy(<String>[record.id], () async {
       await widget.api.refreshShare(widget.config, record.id, durationSec);
       ShareRecordsNotifier.instance.markChanged();
       await _loadShares();
@@ -143,11 +173,41 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     if (!confirmed) {
       return;
     }
-    await _runBusy(record.id, () async {
+    await _runBusy(<String>[record.id], () async {
       await widget.api.deleteShare(widget.config, record.id);
       ShareRecordsNotifier.instance.markChanged();
       await _loadShares();
     });
+  }
+
+  Future<void> _deleteSelected() async {
+    final targets = _records
+        .where((record) => _selectedIds.contains(record.id))
+        .toList(growable: false);
+    if (targets.isEmpty) {
+      return;
+    }
+    final confirmed = await showDeleteShareRecordsDialog(
+      context,
+      targets.length,
+    );
+    if (!confirmed) {
+      return;
+    }
+    await _runBusy(
+      targets.map((record) => record.id).toList(growable: false),
+      () async {
+        for (final record in targets) {
+          await widget.api.deleteShare(widget.config, record.id);
+        }
+        ShareRecordsNotifier.instance.markChanged();
+        await _loadShares();
+        if (!mounted) {
+          return;
+        }
+        showAppToast(context, message: '已删除 ${targets.length} 条分享记录');
+      },
+    );
   }
 
   Future<void> _showRecordDetails(ShareRecord record) async {
@@ -176,8 +236,14 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     }
   }
 
-  Future<void> _runBusy(String id, Future<void> Function() action) async {
-    setState(() => _busyIds.add(id));
+  Future<void> _runBusy(
+    List<String> ids,
+    Future<void> Function() action,
+  ) async {
+    setState(() {
+      _busyIds.addAll(ids);
+      _selectedIds.removeAll(ids);
+    });
     try {
       await action();
     } catch (error) {
@@ -187,7 +253,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
       showAppErrorToast(context, message: error.toString());
     } finally {
       if (mounted) {
-        setState(() => _busyIds.remove(id));
+        setState(() => _busyIds.removeAll(ids));
       }
     }
   }
@@ -195,6 +261,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final selectedCount = _selectedIds.length;
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
       child: Column(
@@ -224,10 +291,32 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
                   ],
                 ),
               ),
-              ShadButton.outline(
-                onPressed: _loading ? null : () => unawaited(_loadShares()),
-                child: const Text('刷新'),
-              ),
+              if (selectedCount > 0) ...[
+                Text(
+                  '已选 $selectedCount 项',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ShadButton.outline(
+                  onPressed: () => setState(() => _selectedIds.clear()),
+                  child: const Text('取消选择'),
+                ),
+                const SizedBox(width: 10),
+                ShadButton.destructive(
+                  onPressed: _loading
+                      ? null
+                      : () => unawaited(_deleteSelected()),
+                  child: const Text('删除选中'),
+                ),
+              ] else
+                ShadButton.outline(
+                  onPressed: _loading ? null : () => unawaited(_loadShares()),
+                  child: const Text('刷新'),
+                ),
             ],
           ),
           const SizedBox(height: 20),
@@ -268,11 +357,14 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     return ShareManagementBrowser(
       records: _records,
       busyIds: _busyIds,
+      selectedIds: _selectedIds,
       onOpenRecord: (record) => unawaited(_showRecordDetails(record)),
       onCopyLink: (record) => unawaited(_copyLink(record)),
       onOpenLink: (record) => unawaited(_openLink(record)),
       onRefreshRecord: (record) => unawaited(_refreshRecord(record)),
       onDeleteRecord: (record) => unawaited(_deleteRecord(record)),
+      onToggleSelection: _toggleSelection,
+      onToggleSelectAll: _toggleSelectAll,
     );
   }
 }
