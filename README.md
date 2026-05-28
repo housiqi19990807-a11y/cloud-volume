@@ -73,6 +73,7 @@ The initial setup page persists these S3-compatible settings:
 - Sidebar navigation now includes a dedicated recycle-bin entry that opens one bucket at a time, defaulting to the first bucket that currently has deleted items and falling back to the first configured bucket when all bins are empty.
 - The global recycle-bin page now supports keyword search, bucket switching, batch restore, and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
 - Successful recycle-bin restores now show inline feedback and also invalidate the matching cached file-list view, so switching back to the file manager does not leave the restored object missing from a preserved bucket page.
+- Transient success and error feedback is now unified on the shadcn_ui toast layer, avoiding mixed Material `SnackBar` behavior inside the desktop shell.
 - The global recycle-bin list now reuses the same fixed-header file list style as the main file manager, with per-row original-path subtitles, header select-all, and right-click restore or permanent delete actions.
 - File context menus now support creating presigned sharing links with a user-controlled expiry, and the sidebar includes a dedicated share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and saved share records can open their links directly in the default browser.

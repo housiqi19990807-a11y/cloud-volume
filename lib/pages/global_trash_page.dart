@@ -7,6 +7,7 @@ import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/object_listing_notifier.dart';
+import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/global_trash_browser.dart';
 import 'package:remote_storage/widgets/global_trash_controls.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
@@ -269,9 +270,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       });
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        showAppErrorToast(context, message: error.toString());
       }
     } finally {
       _loadingMore = false;
@@ -285,9 +284,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     if (!mounted) {
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    showAppToast(context, message: message);
   }
 
   Future<void> _restoreEntry(GlobalTrashBrowserEntry entry) async {
@@ -387,9 +384,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      showAppErrorToast(context, message: error.toString());
     } finally {
       if (mounted) {
         setState(() {

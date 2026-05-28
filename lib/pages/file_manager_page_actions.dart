@@ -247,9 +247,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
     if (!mounted) {
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(content: Text(message)));
+    showAppToast(context, message: message);
   }
 
   void _showPageError(Object error) {

@@ -8,6 +8,7 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
+import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/share_dialogs.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -94,9 +95,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('分享链接已复制')));
+    showAppToast(context, message: '分享链接已复制');
   }
 
   Future<void> _openLink(ShareRecord record) async {
@@ -106,9 +105,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      showAppErrorToast(context, message: error.toString());
     }
   }
 
@@ -150,9 +147,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      showAppErrorToast(context, message: error.toString());
     } finally {
       if (mounted) {
         setState(() => _busyIds.remove(id));

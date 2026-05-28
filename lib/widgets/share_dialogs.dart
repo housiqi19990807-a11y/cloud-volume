@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:remote_storage/models/share_record.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const List<_DurationPreset> _durationPresets = <_DurationPreset>[
@@ -170,9 +172,10 @@ Future<void> showShareLinkDialog(
                       if (!dialogContext.mounted) {
                         return;
                       }
-                      ScaffoldMessenger.of(
+                      showAppErrorToast(
                         dialogContext,
-                      ).showSnackBar(SnackBar(content: Text(error.toString())));
+                        message: error.toString(),
+                      );
                     }
                   },
                   child: const Text('打开链接'),
@@ -183,9 +186,7 @@ Future<void> showShareLinkDialog(
                     await Clipboard.setData(ClipboardData(text: record.url));
                     if (!dialogContext.mounted) return;
                     Navigator.of(dialogContext).pop();
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text('分享链接已复制')));
+                    showAppToast(context, message: '分享链接已复制');
                   },
                   child: const Text('复制链接'),
                 ),
