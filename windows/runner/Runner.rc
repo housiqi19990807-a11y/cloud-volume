@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "3000y" "\0"
-            VALUE "FileDescription", "云卷" "\0"
+            VALUE "FileDescription", "Yunjuan" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "云卷" "\0"
+            VALUE "InternalName", "Yunjuan" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 3000y. All rights reserved." "\0"
             VALUE "OriginalFilename", "remote_storage.exe" "\0"
-            VALUE "ProductName", "云卷" "\0"
+            VALUE "ProductName", "Yunjuan" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

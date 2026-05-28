@@ -18,7 +18,6 @@ namespace {
 #endif
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
-constexpr int kCustomTitleBarHeight = 44;
 
 /// Registry key for app theme preference.
 ///
@@ -37,6 +36,11 @@ using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
 // scale factor
 int Scale(int source, double scale_factor) {
   return static_cast<int>(source * scale_factor);
+}
+
+DWORD GetBorderlessWindowStyle() {
+  return WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
+         WS_SYSMENU;
 }
 
 // Dynamically loads the |EnableNonClientDpiScaling| from the User32 module.
@@ -137,7 +141,7 @@ bool Win32Window::Create(const std::wstring& title,
   double scale_factor = dpi / 96.0;
 
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
+      window_class, title.c_str(), GetBorderlessWindowStyle(),
       Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);
@@ -147,7 +151,6 @@ bool Win32Window::Create(const std::wstring& title,
   }
 
   UpdateTheme(window);
-  UpdateFrame();
 
   return OnCreate();
 }
@@ -181,11 +184,6 @@ Win32Window::MessageHandler(HWND hwnd,
                             UINT const message,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
-  LRESULT result = 0;
-  if (DwmDefWindowProc(hwnd, message, wparam, lparam, &result)) {
-    return result;
-  }
-
   switch (message) {
     case WM_NCCALCSIZE:
       if (wparam == TRUE) {
@@ -235,7 +233,6 @@ Win32Window::MessageHandler(HWND hwnd,
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
       }
-      UpdateFrame();
       return 0;
     }
 
@@ -247,7 +244,6 @@ Win32Window::MessageHandler(HWND hwnd,
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
-      UpdateFrame();
       return 0;
   }
 
@@ -285,13 +281,7 @@ void Win32Window::SetChildContent(HWND content) {
 RECT Win32Window::GetClientArea() {
   RECT frame;
   GetClientRect(window_handle_, &frame);
-  frame.top += GetTitleBarHeight();
   return frame;
-}
-
-int Win32Window::GetTitleBarHeight() const {
-  const UINT dpi = window_handle_ ? GetDpiForWindow(window_handle_) : 96;
-  return MulDiv(kCustomTitleBarHeight, dpi, 96);
 }
 
 HWND Win32Window::GetHandle() {
@@ -300,6 +290,37 @@ HWND Win32Window::GetHandle() {
 
 void Win32Window::SetQuitOnClose(bool quit_on_close) {
   quit_on_close_ = quit_on_close;
+}
+
+void Win32Window::Minimize() {
+  if (window_handle_ != nullptr) {
+    ShowWindow(window_handle_, SW_MINIMIZE);
+  }
+}
+
+void Win32Window::MaximizeOrRestore() {
+  if (window_handle_ == nullptr) {
+    return;
+  }
+  ShowWindow(window_handle_, IsWindowMaximized() ? SW_RESTORE : SW_MAXIMIZE);
+}
+
+void Win32Window::Close() {
+  if (window_handle_ != nullptr) {
+    PostMessage(window_handle_, WM_CLOSE, 0, 0);
+  }
+}
+
+void Win32Window::StartDrag() {
+  if (window_handle_ == nullptr) {
+    return;
+  }
+  ReleaseCapture();
+  SendMessage(window_handle_, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+}
+
+bool Win32Window::IsWindowMaximized() const {
+  return window_handle_ != nullptr && ::IsZoomed(window_handle_);
 }
 
 bool Win32Window::OnCreate() {
@@ -326,15 +347,6 @@ void Win32Window::UpdateTheme(HWND const window) {
   }
 }
 
-void Win32Window::UpdateFrame() {
-  if (!window_handle_) {
-    return;
-  }
-
-  MARGINS margins = {0, 0, GetTitleBarHeight(), 0};
-  DwmExtendFrameIntoClientArea(window_handle_, &margins);
-}
-
 LRESULT Win32Window::HitTestNonClientArea(HWND hwnd,
                                           LPARAM lparam) const noexcept {
   POINT cursor_point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
@@ -348,9 +360,6 @@ LRESULT Win32Window::HitTestNonClientArea(HWND hwnd,
                       GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
   const int frame_y = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
                       GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-  const int button_band_width =
-      (GetSystemMetricsForDpi(SM_CXSIZE, dpi) * 3) + frame_x;
-  const int title_bar_height = GetTitleBarHeight();
 
   const bool resize_left = cursor_point.x >= window_rect.left &&
                            cursor_point.x < window_rect.left + frame_x;
@@ -384,11 +393,6 @@ LRESULT Win32Window::HitTestNonClientArea(HWND hwnd,
   }
   if (resize_bottom) {
     return HTBOTTOM;
-  }
-
-  if (cursor_point.y < title_bar_height &&
-      cursor_point.x < window_rect.right - button_band_width) {
-    return HTCAPTION;
   }
 
   return HTCLIENT;

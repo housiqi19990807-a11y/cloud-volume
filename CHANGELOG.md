@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- The Windows host shell now uses the same `云卷` app icon as macOS, and its custom transparent top strip keeps only the system caption buttons on the right for a more Mac-like desktop chrome.
+- The Windows host shell now uses the same `云卷` app icon as macOS, drops the native title bar, and replaces it with app-owned top-right window controls plus a native bridge for drag/minimize/maximize/close actions.
 - Windows desktop startup now builds the Go FFI bridge with CGO enabled, compiles the shared mount package without macOS-only xattr code, and stages `remote_storage_bridge.dll` next to the runner so both `flutter run -d windows` and built executables can launch.
 - The settings page now keeps extra bottom breathing room below the final action row, so the lower section no longer feels visually stuck to the window edge when scrolled to the bottom.
 - Trash listing, restore, and permanent delete bridge calls now run off the Flutter UI isolate so opening the recycle bin no longer freezes the app while S3 metadata is scanned or retention cleanup runs.

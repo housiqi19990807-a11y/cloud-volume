@@ -55,8 +55,13 @@ class Win32Window {
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
-  // Returns the reserved top inset used for the transparent drag/title strip.
-  int GetTitleBarHeight() const;
+  // Window-control helpers are exposed so the Flutter chrome can drive the
+  // borderless host window over a lightweight method channel.
+  void Minimize();
+  void MaximizeOrRestore();
+  void Close();
+  void StartDrag();
+  bool IsWindowMaximized() const;
 
  protected:
   // Processes and route salient window messages for mouse handling,
@@ -75,8 +80,8 @@ class Win32Window {
   virtual void OnDestroy();
 
  private:
-  // Hit testing keeps resize borders and caption-button space working while
-  // the left title area is replaced with a transparent draggable strip.
+  // Hit testing keeps resize borders working after the standard Windows title
+  // bar is removed.
   LRESULT HitTestNonClientArea(HWND window, LPARAM lparam) const noexcept;
 
   friend class WindowClassRegistrar;
@@ -96,10 +101,6 @@ class Win32Window {
 
   // Update the window frame's theme to match the system theme.
   static void UpdateTheme(HWND const window);
-
-  // Extends the DWM frame into the top strip so the title area stays
-  // transparent while the system caption buttons remain available.
-  void UpdateFrame();
 
   bool quit_on_close_ = false;
 

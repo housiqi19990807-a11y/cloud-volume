@@ -1,0 +1,167 @@
+// Windows custom chrome replaces the native title bar with app-owned controls
+// so the desktop shell can stay visually aligned with the Flutter layout.
+
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:remote_storage/services/window_controls.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+
+class WindowsWindowControls extends StatefulWidget {
+  const WindowsWindowControls({super.key});
+
+  @override
+  State<WindowsWindowControls> createState() => _WindowsWindowControlsState();
+}
+
+class _WindowsWindowControlsState extends State<WindowsWindowControls> {
+  bool _maximized = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshMaximized();
+  }
+
+  Future<void> _refreshMaximized() async {
+    if (!WindowControls.supported) return;
+    final maximized = await WindowControls.isMaximized();
+    if (!mounted) return;
+    setState(() => _maximized = maximized);
+  }
+
+  Future<void> _toggleMaximize() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final maximized = await WindowControls.toggleMaximize();
+      if (!mounted) return;
+      setState(() => _maximized = maximized);
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Platform.isWindows) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = ShadTheme.of(context);
+    final border = theme.colorScheme.border.withValues(alpha: 0.7);
+    final panel = theme.colorScheme.background.withValues(alpha: 0.82);
+
+    return Positioned(
+      top: 10,
+      left: 0,
+      right: 10,
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanStart: (_) => unawaited(WindowControls.startDrag()),
+              onDoubleTap: () => unawaited(_toggleMaximize()),
+              child: const SizedBox(height: 36),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: panel,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _WindowButton(
+                  tooltip: '最小化',
+                  icon: LucideIcons.minus,
+                  onPressed: () => unawaited(WindowControls.minimize()),
+                ),
+                _WindowButton(
+                  tooltip: _maximized ? '还原' : '最大化',
+                  icon: _maximized ? LucideIcons.copy : LucideIcons.square,
+                  onPressed: () => unawaited(_toggleMaximize()),
+                ),
+                _WindowButton(
+                  tooltip: '关闭',
+                  icon: LucideIcons.x,
+                  destructive: true,
+                  onPressed: () => unawaited(WindowControls.close()),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WindowButton extends StatefulWidget {
+  const _WindowButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    this.destructive = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool destructive;
+
+  @override
+  State<_WindowButton> createState() => _WindowButtonState();
+}
+
+class _WindowButtonState extends State<_WindowButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final foreground = widget.destructive
+        ? const Color(0xffb42318)
+        : theme.colorScheme.foreground;
+    final background = widget.destructive
+        ? const Color(0xfffef3f2)
+        : theme.colorScheme.secondary;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Tooltip(
+        message: widget.tooltip,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: 42,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _hovered ? background : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(widget.icon, size: 16, color: foreground),
+          ),
+        ),
+      ),
+    );
+  }
+}
