@@ -5,6 +5,19 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "resource.h"
+
+namespace {
+
+constexpr UINT kTrayIconId = 1;
+constexpr UINT kTrayIconMessage = WM_APP + 1;
+constexpr UINT kTrayCommandShow = 1001;
+constexpr UINT kTrayCommandExit = 1002;
+constexpr wchar_t kTrayTooltip[] = L"Yunjuan";
+constexpr wchar_t kTrayShowLabel[] = L"\u663E\u793A\u4E3B\u7A97\u53E3";
+constexpr wchar_t kTrayExitLabel[] = L"\u9000\u51FA\u4E91\u5377";
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -28,6 +41,7 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   RegisterWindowChannel();
+  InitializeTrayIcon();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -43,6 +57,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  RemoveTrayIcon();
   if (window_channel_) {
     window_channel_.reset();
   }
@@ -68,6 +83,25 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case kTrayIconMessage:
+      switch (lparam) {
+        case WM_LBUTTONUP:
+        case WM_LBUTTONDBLCLK:
+          RestoreFromTray();
+          return 0;
+        case WM_RBUTTONUP:
+        case WM_CONTEXTMENU:
+          ShowTrayContextMenu();
+          return 0;
+      }
+      break;
+
+    case WM_COMMAND:
+      if (HandleTrayCommand(LOWORD(wparam))) {
+        return 0;
+      }
+      break;
+
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
@@ -103,6 +137,11 @@ void FlutterWindow::RegisterWindowChannel() {
           result->Success();
           return;
         }
+        if (method == "hideToTray") {
+          HideToTray();
+          result->Success();
+          return;
+        }
         if (method == "startDrag") {
           StartDrag();
           result->Success();
@@ -114,4 +153,75 @@ void FlutterWindow::RegisterWindowChannel() {
         }
         result->NotImplemented();
       });
+}
+
+void FlutterWindow::InitializeTrayIcon() {
+  tray_icon_data_ = {};
+  tray_icon_data_.cbSize = sizeof(NOTIFYICONDATA);
+  tray_icon_data_.hWnd = GetHandle();
+  tray_icon_data_.uID = kTrayIconId;
+  tray_icon_data_.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+  tray_icon_data_.uCallbackMessage = kTrayIconMessage;
+  tray_icon_data_.hIcon =
+      LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_APP_ICON));
+  wcsncpy_s(tray_icon_data_.szTip, kTrayTooltip, _TRUNCATE);
+
+  if (Shell_NotifyIcon(NIM_ADD, &tray_icon_data_)) {
+    tray_icon_added_ = true;
+    tray_icon_data_.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIcon(NIM_SETVERSION, &tray_icon_data_);
+  }
+}
+
+void FlutterWindow::RemoveTrayIcon() {
+  if (tray_icon_added_) {
+    Shell_NotifyIcon(NIM_DELETE, &tray_icon_data_);
+    tray_icon_added_ = false;
+  }
+}
+
+void FlutterWindow::HideToTray() {
+  ShowWindow(GetHandle(), SW_HIDE);
+}
+
+void FlutterWindow::RestoreFromTray() {
+  const bool maximized = IsWindowMaximized();
+  ShowWindow(GetHandle(), maximized ? SW_MAXIMIZE : SW_RESTORE);
+  SetForegroundWindow(GetHandle());
+}
+
+void FlutterWindow::ShowTrayContextMenu() {
+  HMENU menu = CreatePopupMenu();
+  if (menu == nullptr) {
+    return;
+  }
+
+  AppendMenu(menu, MF_STRING, kTrayCommandShow, kTrayShowLabel);
+  AppendMenu(menu, MF_SEPARATOR, 0, nullptr);
+  AppendMenu(menu, MF_STRING, kTrayCommandExit, kTrayExitLabel);
+
+  POINT cursor;
+  GetCursorPos(&cursor);
+  SetForegroundWindow(GetHandle());
+  const UINT clicked = TrackPopupMenu(
+      menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON, cursor.x, cursor.y,
+      0, GetHandle(), nullptr);
+  DestroyMenu(menu);
+
+  if (clicked != 0) {
+    HandleTrayCommand(clicked);
+  }
+}
+
+bool FlutterWindow::HandleTrayCommand(UINT command_id) {
+  switch (command_id) {
+    case kTrayCommandShow:
+      RestoreFromTray();
+      return true;
+    case kTrayCommandExit:
+      Close();
+      return true;
+    default:
+      return false;
+  }
 }

@@ -46,6 +46,55 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
     }
   }
 
+  Future<void> _confirmClose() async {
+    if (_busy || !mounted) return;
+    final choice = await showShadDialog<_CloseAction>(
+      context: context,
+      builder: (dialogContext) => ShadDialog(
+        title: const Text('关闭云卷？'),
+        description: const Text('你可以隐藏到托盘，或者直接退出应用。'),
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ShadButton.outline(
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_CloseAction.tray),
+                    child: const Text('隐藏到托盘'),
+                  ),
+                  const SizedBox(width: 10),
+                  ShadButton(
+                    onPressed: () =>
+                        Navigator.of(dialogContext).pop(_CloseAction.exit),
+                    child: const Text('退出云卷'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    switch (choice) {
+      case _CloseAction.tray:
+        await WindowControls.hideToTray();
+        break;
+      case _CloseAction.exit:
+        await WindowControls.close();
+        break;
+      case null:
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!Platform.isWindows) {
@@ -100,7 +149,7 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
                   tooltip: '关闭',
                   icon: LucideIcons.x,
                   destructive: true,
-                  onPressed: () => unawaited(WindowControls.close()),
+                  onPressed: () => unawaited(_confirmClose()),
                 ),
               ],
             ),
@@ -110,6 +159,8 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
     );
   }
 }
+
+enum _CloseAction { tray, exit }
 
 class _WindowButton extends StatefulWidget {
   const _WindowButton({
