@@ -6,6 +6,7 @@ import 'package:remote_storage/app/app_brand.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:remote_storage/widgets/app_brand_mark.dart';
+import 'package:remote_storage/widgets/app_tooltip.dart';
 
 class ConfigLeftPanel extends StatelessWidget {
   const ConfigLeftPanel({super.key, required this.configPath});
@@ -203,7 +204,7 @@ class _AccentDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Tooltip(
+      child: AppTooltip(
         message: preset.label,
         child: Container(
           width: 22,

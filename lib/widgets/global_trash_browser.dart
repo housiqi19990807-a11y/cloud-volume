@@ -7,6 +7,8 @@ import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
+
 const String _globalTrashContextMenuGroup = 'global_trash_browser';
 
 class GlobalTrashBrowserEntry {
@@ -163,7 +165,7 @@ class GlobalTrashBrowser extends StatelessWidget {
         child: SizedBox(
           width: 18,
           height: 18,
-          child: CircularProgressIndicator(
+          child: AppLoadingIndicator(
             strokeWidth: 2,
             color: theme.colorScheme.primary,
           ),

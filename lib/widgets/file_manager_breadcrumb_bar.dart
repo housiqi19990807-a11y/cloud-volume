@@ -65,7 +65,7 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
                 ),
                 if (layout.hiddenCrumbs.isNotEmpty) ...[
                   _crumbChevron(theme),
-                  _hiddenCrumbMenu(layout.hiddenCrumbs),
+                  _hiddenCrumbMenu(context, layout.hiddenCrumbs),
                 ],
                 for (int i = 0; i < layout.visibleCrumbs.length; i++) ...[
                   _crumbChevron(theme),
@@ -156,33 +156,58 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     );
   }
 
-  Widget _hiddenCrumbMenu(List<_CrumbEntry> hiddenCrumbs) {
-    return PopupMenuButton<int>(
-      tooltip: '展开中间层级',
-      padding: EdgeInsets.zero,
-      offset: const Offset(0, 28),
-      itemBuilder: (context) => [
-        for (final crumb in hiddenCrumbs)
-          PopupMenuItem<int>(
-            value: crumb.index,
-            child: Text(crumb.label, overflow: TextOverflow.ellipsis),
-          ),
-      ],
-      onSelected: (index) {
-        if (index == -1) {
-          onOpenBucketRoot();
-          return;
-        }
-        onOpenCrumb(index);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-        child: Text(
-          '...',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.mutedForeground,
+  Widget _hiddenCrumbMenu(
+    BuildContext context,
+    List<_CrumbEntry> hiddenCrumbs,
+  ) {
+    return ShadButton.ghost(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      onPressed: () => _showHiddenCrumbDialog(context, hiddenCrumbs),
+      child: Text(
+        '...',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.mutedForeground,
+        ),
+      ),
+    );
+  }
+
+  void _showHiddenCrumbDialog(
+    BuildContext context,
+    List<_CrumbEntry> hiddenCrumbs,
+  ) {
+    showShadDialog<void>(
+      context: context,
+      builder: (dialogContext) => ShadDialog(
+        title: const Text('跳转到层级'),
+        description: const Text('选择要展开的中间路径层级。'),
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 10),
+              for (final crumb in hiddenCrumbs) ...[
+                ShadButton.ghost(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    if (crumb.index == -1) {
+                      onOpenBucketRoot();
+                      return;
+                    }
+                    onOpenCrumb(crumb.index);
+                  },
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(crumb.label, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
+            ],
           ),
         ),
       ),

@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
+
 /// 配置页右侧完整表单。
 class ConfigRightFormPanel extends StatelessWidget {
   const ConfigRightFormPanel({
@@ -119,7 +121,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                               SizedBox(
                                 width: 14,
                                 height: 14,
-                                child: CircularProgressIndicator(
+                                child: AppLoadingIndicator(
                                   strokeWidth: 2,
                                   color: theme.colorScheme.primaryForeground,
                                 ),

@@ -12,6 +12,8 @@ import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/share_dialogs.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
+
 class ShareManagementPage extends StatefulWidget {
   const ShareManagementPage({
     super.key,
@@ -202,7 +204,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
 
   Widget _buildBody(ShadThemeData theme) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: AppLoadingIndicator());
     }
     if (_error != null) {
       return Center(

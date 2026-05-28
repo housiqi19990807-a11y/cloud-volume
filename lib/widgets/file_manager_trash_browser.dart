@@ -7,6 +7,8 @@ import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
+
 const String _trashContextMenuGroup = 'file_manager_trash_browser';
 
 class FileManagerTrashBrowser extends StatelessWidget {
@@ -121,7 +123,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
         child: SizedBox(
           width: 22,
           height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2.2),
+          child: AppLoadingIndicator(strokeWidth: 2.2),
         ),
       ),
     );
@@ -217,7 +219,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
         child: SizedBox(
           width: 18,
           height: 18,
-          child: CircularProgressIndicator(
+          child: AppLoadingIndicator(
             strokeWidth: 2,
             color: theme.colorScheme.primary,
           ),

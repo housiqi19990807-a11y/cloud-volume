@@ -8,6 +8,7 @@
 - The global recycle-bin page now supports keyword search, per-bucket switching, batch restore, and batch permanent delete, while each entry keeps a direct checkbox for multi-select.
 - Successful recycle-bin restores now show immediate feedback, refresh the current trash view, and notify the cached file-manager page so matching bucket/prefix object lists are silently refreshed instead of staying stale after a restore.
 - Lightweight success and error feedback now consistently use the app's shadcn_ui toast layer instead of Material `SnackBar`/`ScaffoldMessenger`, so pages, dialogs, and restore flows no longer depend on a separate Material feedback stack.
+- Loading spinners, tooltips, breadcrumb overflow navigation, transfer-row actions, and sidebar task affordances now all use the same shadcn_ui-aligned component wrappers, which removes the last visible Material-style stragglers from the desktop shell.
 - The global recycle-bin results now reuse the same fixed-header file list style as the main file manager, with original-path subtitles, header select-all, and right-click restore/delete actions, while removing the cross-bucket aggregate layout.
 - Files now expose a `创建分享` context-menu action that generates a presigned download link with a configurable lifetime, and the sidebar now includes a share-management page for copying, renewing, and deleting saved share records.
 - Share creation and renewal dialogs now include common duration presets, and share records can open their links directly in the default browser.

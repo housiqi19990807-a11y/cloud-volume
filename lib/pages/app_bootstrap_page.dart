@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/config_setup_page.dart';
 import 'package:remote_storage/pages/main_layout_page.dart';
@@ -129,7 +131,7 @@ class _BootstrapMessageView extends StatelessWidget {
                 if (loading)
                   const Padding(
                     padding: EdgeInsets.only(bottom: 16),
-                    child: CircularProgressIndicator(),
+                    child: AppLoadingIndicator(),
                   ),
                 if (actionLabel != null && onAction != null) ...[
                   const SizedBox(height: 20),

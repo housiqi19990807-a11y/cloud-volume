@@ -10,6 +10,8 @@ import 'package:remote_storage/widgets/file_manager_object_header.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
+
 const String _objectContextMenuGroup = 'file_manager_object_browser';
 
 class FileManagerObjectBrowser extends StatelessWidget {
@@ -142,7 +144,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
         child: SizedBox(
           width: 22,
           height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2.2),
+          child: AppLoadingIndicator(strokeWidth: 2.2),
         ),
       ),
     );
@@ -209,7 +211,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
         child: SizedBox(
           width: 18,
           height: 18,
-          child: CircularProgressIndicator(
+          child: AppLoadingIndicator(
             strokeWidth: 2,
             color: theme.colorScheme.primary,
           ),

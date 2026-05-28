@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
+
 class FileManagerActionBar extends StatelessWidget {
   const FileManagerActionBar({
     super.key,
@@ -283,7 +285,7 @@ class _ActionButtons extends StatelessWidget {
             SizedBox(
               width: 12,
               height: 12,
-              child: CircularProgressIndicator(strokeWidth: 1.6, color: p),
+              child: AppLoadingIndicator(strokeWidth: 1.6, color: p),
             ),
             const SizedBox(width: 8),
           ] else

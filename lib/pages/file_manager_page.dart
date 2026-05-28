@@ -10,6 +10,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/services/file_access_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
@@ -357,7 +358,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Widget _buildContent(ShadThemeData theme) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return const Center(
+        child: AppLoadingIndicator(size: 22, strokeWidth: 2.4),
+      );
+    }
     if (_error != null) {
       return Center(
         child: Column(

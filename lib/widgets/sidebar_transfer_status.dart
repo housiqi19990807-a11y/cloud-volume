@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/widgets/app_tooltip.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SidebarTransferStatus extends StatefulWidget {
@@ -238,34 +239,64 @@ class _TransferHoverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tasks = TransferQueue.instance.tasks.take(6).toList();
-    return Material(
-      elevation: 14,
-      borderRadius: BorderRadius.circular(14),
-      color: Colors.transparent,
-      child: Container(
-        constraints: const BoxConstraints(maxHeight: 300),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: theme.colorScheme.border.withValues(alpha: 0.7),
-          ),
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 300),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.border.withValues(alpha: 0.7),
         ),
-        child: tasks.isEmpty
-            ? Text(
-                '暂无对象操作任务',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.mutedForeground,
-                ),
-              )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final task in tasks) _TransferHoverRow(task: task),
-                ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: tasks.isEmpty
+          ? Text(
+              '暂无对象操作任务',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.mutedForeground,
               ),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final task in tasks) _TransferHoverRow(task: task),
+              ],
+            ),
+    );
+  }
+}
+
+class _TransferTaskAction extends StatelessWidget {
+  const _TransferTaskAction({
+    required this.message,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String message;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppTooltip(
+      message: message,
+      child: ShadIconButton.ghost(
+        icon: Icon(icon, size: 13, color: color),
+        width: 22,
+        height: 22,
+        iconSize: 13,
+        onPressed: onPressed,
       ),
     );
   }
@@ -352,18 +383,12 @@ class _TransferHoverRow extends StatelessWidget {
               ),
               if (task.isCancelable) ...[
                 const SizedBox(width: 6),
-                InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: () =>
+                _TransferTaskAction(
+                  message: '取消任务',
+                  icon: LucideIcons.circleX,
+                  color: theme.colorScheme.mutedForeground,
+                  onPressed: () =>
                       unawaited(TransferQueue.instance.cancelTask(task.id)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: Icon(
-                      LucideIcons.circleX,
-                      size: 13,
-                      color: theme.colorScheme.mutedForeground,
-                    ),
-                  ),
                 ),
               ],
             ],

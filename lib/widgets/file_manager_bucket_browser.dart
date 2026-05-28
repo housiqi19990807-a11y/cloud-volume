@@ -9,6 +9,8 @@ import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/widgets/app_loading_indicator.dart';
+
 const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
@@ -298,10 +300,7 @@ class _BucketMountActions extends StatelessWidget {
           SizedBox(
             width: 12,
             height: 12,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.5,
-              color: foreground,
-            ),
+            child: AppLoadingIndicator(strokeWidth: 1.5, color: foreground),
           ),
           const SizedBox(width: 8),
           Text(

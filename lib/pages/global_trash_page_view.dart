@@ -96,7 +96,9 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
     List<GlobalTrashBrowserEntry> filteredEntries,
   ) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: AppLoadingIndicator(size: 22, strokeWidth: 2.4),
+      );
     }
     if (_error != null) {
       return Center(

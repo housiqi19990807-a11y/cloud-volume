@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/widgets/app_tooltip.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class TransfersPage extends StatefulWidget {
@@ -163,66 +164,92 @@ class _TransfersPageState extends State<TransfersPage> {
                   Divider(height: 1, color: theme.colorScheme.border),
               itemBuilder: (context, index) {
                 final task = filteredTasks[index];
-                return ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 6,
+                    vertical: 8,
                   ),
-                  leading: Icon(
-                    _iconFor(task),
-                    size: 18,
-                    color: _colorFor(task),
-                  ),
-                  title: Text(
-                    task.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: theme.colorScheme.foreground,
-                    ),
-                  ),
-                  subtitle: Text(
-                    _subtitleFor(task),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.colorScheme.mutedForeground,
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (task.isCancelable)
-                        IconButton(
-                          tooltip: '取消任务',
-                          iconSize: 16,
-                          splashRadius: 16,
-                          onPressed: () => unawaited(
-                            TransferQueue.instance.cancelTask(task.id),
-                          ),
-                          icon: Icon(
-                            LucideIcons.circleX,
-                            color: theme.colorScheme.mutedForeground,
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(
+                          _iconFor(task),
+                          size: 18,
+                          color: _colorFor(task),
                         ),
-                      if (task.status == TransferStatus.pending &&
-                          task.isUpload)
-                        IconButton(
-                          tooltip: '立即同步',
-                          iconSize: 16,
-                          splashRadius: 16,
-                          onPressed: () => unawaited(
-                            TransferQueue.instance.triggerTaskNow(task.id),
-                          ),
-                          icon: Icon(
-                            LucideIcons.play,
-                            color: theme.colorScheme.primary,
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: theme.colorScheme.foreground,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _subtitleFor(task),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: theme.colorScheme.mutedForeground,
+                              ),
+                            ),
+                          ],
                         ),
-                      _StatusBadge(task: task),
+                      ),
+                      const SizedBox(width: 12),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (task.isCancelable)
+                            AppTooltip(
+                              message: '取消任务',
+                              child: ShadIconButton.ghost(
+                                icon: Icon(
+                                  LucideIcons.circleX,
+                                  color: theme.colorScheme.mutedForeground,
+                                ),
+                                width: 28,
+                                height: 28,
+                                iconSize: 16,
+                                onPressed: () => unawaited(
+                                  TransferQueue.instance.cancelTask(task.id),
+                                ),
+                              ),
+                            ),
+                          if (task.status == TransferStatus.pending &&
+                              task.isUpload)
+                            AppTooltip(
+                              message: '立即同步',
+                              child: ShadIconButton.ghost(
+                                icon: Icon(
+                                  LucideIcons.play,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                width: 28,
+                                height: 28,
+                                iconSize: 16,
+                                onPressed: () => unawaited(
+                                  TransferQueue.instance.triggerTaskNow(
+                                    task.id,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          _StatusBadge(task: task),
+                        ],
+                      ),
                     ],
                   ),
                 );
