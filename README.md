@@ -12,7 +12,7 @@
 
 - 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
 - 挂载访问：把当前桶挂载成 macOS 可见的 WebDAV 卷，支持在 Finder 里直接读写。
-- Windows Files On-Demand：把当前桶挂成 Windows Cloud Files sync root，目录先以 placeholder 呈现，按需从 S3 hydrate 文件内容，并在 Explorer 的“此电脑”里显示挂载入口。
+- Windows WebDAV 挂载：把当前桶映射成 Windows WebDAV 网络驱动器，直接出现在 Explorer 的“此电脑”里，并复用现有本地优先读写与任务队列逻辑。
 - 本地优先：挂载写入、删除、改名、移动先落本地缓存与 overlay，再异步回写远端。
 - 断点续传：大文件挂载上传支持可恢复 multipart writeback，挂载下载支持复用完整缓存与 `.downloading` 分片续传。
 - 回收站：应用级软删除、全局回收站 / 桶级回收站、恢复、彻底删除、分页与无限滚动。
@@ -20,7 +20,7 @@
 - 任务队列：统一展示上传、下载、复制、移动、删除、挂载写回，支持筛选、取消、持久化恢复。
 - 桌面体验：托盘图标、透明标题栏、统一中文字体、面向桌面鼠标操作的上下文菜单和固定表头列表。
 - Windows 宿主壳：使用与 macOS 一致的 `云卷` 品牌图标，移除系统标题栏，在应用内右上角提供自定义最小化 / 最大化 / 关闭按钮，并常驻系统托盘以支持隐藏和恢复主窗口。
-- Windows 挂载同步：Explorer 内对 Cloud Files sync root 的新建、写入、删除、改名会回接到现有 Go 侧写回、删除和移动队列，不影响 macOS 的 WebDAV 异步链路。
+- Windows 挂载同步：Explorer 内对映射 WebDAV 盘的新建、写入、删除、改名会继续走现有 Go 侧本地缓存、写回、删除和移动队列，不影响 macOS 的 WebDAV 异步链路。
 
 ## 界面设计
 
@@ -88,7 +88,7 @@ Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间�
 
 - Flutter：桌面 UI、页面状态、任务展示、配置与交互层
 - Go bridge：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照
-- Desktop mount backends：macOS 继续使用 WebDAV + 本地优先异步回写，Windows 使用 Cloud Files API + S3 直连 hydration
+- Desktop mount backends：macOS 与 Windows 目前都默认使用 WebDAV 挂载；macOS 走系统卷挂载，Windows 走 `net use` 映射到“此电脑”的网络驱动器
 - 本地缓存与 overlay：保证挂载场景下的本地优先可见性与恢复能力
 
 ## 发布

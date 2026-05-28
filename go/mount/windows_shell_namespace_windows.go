@@ -29,6 +29,11 @@ type windowsShellNamespace struct {
 	path  string
 }
 
+type windowsShellNamespaceEntry struct {
+	clsid string
+	name  string
+}
+
 func newWindowsShellNamespace(bucket, mountPath string) *windowsShellNamespace {
 	namespaceID := uuid.NewSHA1(
 		uuid.NameSpaceURL,
@@ -144,6 +149,62 @@ func (n *windowsShellNamespace) registerNameSpace() error {
 		return fmt.Errorf("set This PC namespace name: %w", err)
 	}
 	return nil
+}
+
+func cleanupLegacyWindowsShellNamespaces() error {
+	entries, err := listWindowsShellNamespaces()
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, entry := range entries {
+		if !isManagedWindowsShellNamespace(entry.name) {
+			continue
+		}
+		if err := registry.DeleteKey(registry.CURRENT_USER, filepath.Join(thisPCNamespaceBase, entry.clsid)); err != nil && err != registry.ErrNotExist && firstErr == nil {
+			firstErr = fmt.Errorf("remove legacy This PC namespace key: %w", err)
+		}
+		if err := deleteRegistryTree(registry.CURRENT_USER, filepath.Join(classesCLSIDBase, entry.clsid)); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	notifyExplorerShellChanged()
+	return firstErr
+}
+
+func listWindowsShellNamespaces() ([]windowsShellNamespaceEntry, error) {
+	rootKey, err := registry.OpenKey(registry.CURRENT_USER, thisPCNamespaceBase, registry.ENUMERATE_SUB_KEYS)
+	if err != nil {
+		if err == registry.ErrNotExist {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("open This PC namespace root: %w", err)
+	}
+	defer rootKey.Close()
+
+	names, err := rootKey.ReadSubKeyNames(-1)
+	if err != nil {
+		return nil, fmt.Errorf("list This PC namespace keys: %w", err)
+	}
+	entries := make([]windowsShellNamespaceEntry, 0, len(names))
+	for _, name := range names {
+		itemKey, openErr := registry.OpenKey(registry.CURRENT_USER, filepath.Join(thisPCNamespaceBase, name), registry.QUERY_VALUE)
+		if openErr != nil {
+			continue
+		}
+		displayName, _, _ := itemKey.GetStringValue("")
+		_ = itemKey.Close()
+		entries = append(entries, windowsShellNamespaceEntry{
+			clsid: name,
+			name:  displayName,
+		})
+	}
+	return entries, nil
+}
+
+func isManagedWindowsShellNamespace(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	return strings.HasPrefix(trimmed, "云卷 - ") || strings.HasPrefix(trimmed, "Cloud Volume ")
 }
 
 func deleteRegistryTree(root registry.Key, path string) error {
