@@ -8,6 +8,7 @@ package mount
 import "C"
 
 import (
+	"log"
 	"path/filepath"
 	"strings"
 	"unsafe"
@@ -69,11 +70,14 @@ func rsOnFetchData(callbackInfoPtr uintptr, paramsPtr uintptr) {
 
 	req := cloudFilesFetchRequest{
 		LocalPath: cloudFilesResolvePath(info, provider.localPath),
+		FileSize:  int64(*(*C.LONGLONG)(unsafe.Pointer(&info.FileSize))),
 		Offset:    int64(C.rs_fetch_data_offset((*C.CF_CALLBACK_PARAMETERS)(unsafe.Pointer(paramsPtr)))),
 		Length:    int64(C.rs_fetch_data_length((*C.CF_CALLBACK_PARAMETERS)(unsafe.Pointer(paramsPtr)))),
 		opInfo:    callbackInfoPtr,
 	}
-	_ = provider.callbacks.OnFetchData(req)
+	if err := provider.callbacks.OnFetchData(req); err != nil {
+		log.Printf("[mount/cloud-files] fetch-data-callback local=%q error=%v", req.LocalPath, err)
+	}
 }
 
 //export rsOnCancelFetch
@@ -102,6 +106,9 @@ func rsOnFetchPlaceholders(callbackInfoPtr uintptr, _ uintptr) {
 		return
 	}
 	err := provider.callbacks.OnFetchPlaceholders(cloudFilesResolvePath(info, provider.localPath))
+	if err != nil {
+		log.Printf("[mount/cloud-files] fetch-placeholders-callback error=%v", err)
+	}
 	_ = provider.AckPlaceholders(callbackInfoPtr, err)
 }
 

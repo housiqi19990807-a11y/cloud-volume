@@ -51,3 +51,56 @@ func TestWindowsLocalOnlyPath(t *testing.T) {
 		t.Fatal("expected normal object paths to stay syncable")
 	}
 }
+
+func TestCloudFilesAlignedTransferRange(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		offset   int64
+		length   int64
+		fileSize int64
+		want     cloudFilesTransferRange
+	}{
+		{
+			name:     "aligns down and up within file",
+			offset:   123,
+			length:   2000,
+			fileSize: 20000,
+			want:     cloudFilesTransferRange{Offset: 0, Length: 4096},
+		},
+		{
+			name:     "preserves eof tail without extra padding",
+			offset:   5000,
+			length:   4096,
+			fileSize: 7000,
+			want:     cloudFilesTransferRange{Offset: 4096, Length: 2904},
+		},
+		{
+			name:     "caps oversized request at file size",
+			offset:   8192,
+			length:   8192,
+			fileSize: 9000,
+			want:     cloudFilesTransferRange{Offset: 8192, Length: 808},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := cloudFilesAlignedTransferRange(tc.offset, tc.length, tc.fileSize)
+			if got != tc.want {
+				t.Fatalf(
+					"cloudFilesAlignedTransferRange(%d, %d, %d) = %+v, want %+v",
+					tc.offset,
+					tc.length,
+					tc.fileSize,
+					got,
+					tc.want,
+				)
+			}
+		})
+	}
+}

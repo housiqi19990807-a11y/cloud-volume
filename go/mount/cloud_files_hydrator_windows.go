@@ -6,6 +6,7 @@ package mount
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 )
@@ -54,22 +55,53 @@ func (h *cloudFilesHydrator) OnFetchData(req cloudFilesFetchRequest) error {
 	if virtualPath == "" {
 		return fmt.Errorf("resolve Cloud Files fetch path")
 	}
+	log.Printf(
+		"[mount/cloud-files] fetch-data path=%q local=%q offset=%d length=%d",
+		virtualPath,
+		req.LocalPath,
+		req.Offset,
+		req.Length,
+	)
 	h.watcher.MarkHydrating(req.LocalPath)
 
-	data, err := h.reader.Read(ctx, virtualPath, req.Offset, req.Length)
+	transferRange := cloudFilesAlignedTransferRange(req.Offset, req.Length, req.FileSize)
+	log.Printf(
+		"[mount/cloud-files] fetch-data-plan path=%q fileSize=%d requestedOffset=%d requestedLength=%d transferOffset=%d transferLength=%d",
+		virtualPath,
+		req.FileSize,
+		req.Offset,
+		req.Length,
+		transferRange.Offset,
+		transferRange.Length,
+	)
+	data, err := h.reader.Read(
+		ctx,
+		virtualPath,
+		transferRange.Offset,
+		transferRange.Length,
+	)
 	if err != nil {
 		_ = h.provider.ReportError(req, err)
 		return fmt.Errorf("read remote range %q: %w", virtualPath, err)
 	}
-	if err := h.provider.ExecuteTransfer(req, data); err != nil {
+	if err := h.provider.ExecuteTransfer(transferRange.Offset, req, data); err != nil {
 		_ = h.provider.ReportError(req, err)
 		return fmt.Errorf("execute Cloud Files transfer %q: %w", virtualPath, err)
 	}
 	h.watcher.MarkHydrated(req.LocalPath)
+	log.Printf(
+		"[mount/cloud-files] fetch-data-done path=%q local=%q requested=%d transferred=%d transferOffset=%d",
+		virtualPath,
+		req.LocalPath,
+		req.Length,
+		len(data),
+		transferRange.Offset,
+	)
 	return nil
 }
 
 func (h *cloudFilesHydrator) OnCancelFetch(req cloudFilesFetchRequest) {
+	log.Printf("[mount/cloud-files] cancel-fetch local=%q", req.LocalPath)
 	h.cancelMu.Lock()
 	cancel := h.cancels[req.LocalPath]
 	h.cancelMu.Unlock()
@@ -80,6 +112,11 @@ func (h *cloudFilesHydrator) OnCancelFetch(req cloudFilesFetchRequest) {
 
 func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 	virtualPath := cloudFilesLocalPathToVirtual(h.syncRoot, localPath)
+	log.Printf(
+		"[mount/cloud-files] fetch-placeholders local=%q virtual=%q",
+		localPath,
+		virtualPath,
+	)
 	items, err := h.access.listRemoteDirectory(context.Background(), virtualPath)
 	if err != nil {
 		return fmt.Errorf("list remote directory %q: %w", virtualPath, err)
@@ -96,5 +133,11 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 		placeholders = append(placeholders, placeholder)
 	}
 	h.watcher.RememberPlaceholders(localPath, placeholders)
+	log.Printf(
+		"[mount/cloud-files] fetch-placeholders-done local=%q virtual=%q count=%d",
+		localPath,
+		virtualPath,
+		len(placeholders),
+	)
 	return h.provider.CreatePlaceholders(localPath, placeholders)
 }

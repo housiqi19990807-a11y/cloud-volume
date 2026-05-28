@@ -294,62 +294,68 @@ class _BucketMountActions extends StatelessWidget {
     final foreground = theme.colorScheme.primary;
 
     if (busy) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 12,
-            height: 12,
-            child: AppLoadingIndicator(strokeWidth: 1.5, color: foreground),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '处理中',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: foreground,
+      return SizedBox(
+        height: 32,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: AppLoadingIndicator(strokeWidth: 1.5, color: foreground),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text(
+              '处理中',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: foreground,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      alignment: WrapAlignment.start,
-      children: [
-        _miniButton(
-          label: '回收站',
-          icon: LucideIcons.trash2,
-          color: foreground,
-          onPressed: onOpenTrashBucket == null
-              ? null
-              : () => onOpenTrashBucket!(bucket),
-        ),
-        _miniButton(
-          label: mounted ? '卸载' : '挂载',
-          icon: mounted ? LucideIcons.x : LucideIcons.link,
-          color: foreground,
-          onPressed: mounted
-              ? (onUnmountBucket == null
-                    ? null
-                    : () => onUnmountBucket!(bucket))
-              : (onMountBucket == null ? null : () => onMountBucket!(bucket)),
-        ),
-        if (mounted) ...[
+    return SizedBox(
+      height: 32,
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.start,
+        children: [
           _miniButton(
-            label: '打开',
-            icon: LucideIcons.folderOpen,
+            label: '回收站',
+            icon: LucideIcons.trash2,
             color: foreground,
-            onPressed: onOpenMountedBucket == null
+            onPressed: onOpenTrashBucket == null
                 ? null
-                : () => onOpenMountedBucket!(bucket),
+                : () => onOpenTrashBucket!(bucket),
           ),
+          _miniButton(
+            label: mounted ? '卸载' : '挂载',
+            icon: mounted ? LucideIcons.x : LucideIcons.link,
+            color: foreground,
+            onPressed: mounted
+                ? (onUnmountBucket == null
+                      ? null
+                      : () => onUnmountBucket!(bucket))
+                : (onMountBucket == null ? null : () => onMountBucket!(bucket)),
+          ),
+          if (mounted) ...[
+            _miniButton(
+              label: '打开',
+              icon: LucideIcons.folderOpen,
+              color: foreground,
+              onPressed: onOpenMountedBucket == null
+                  ? null
+                  : () => onOpenMountedBucket!(bucket),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 

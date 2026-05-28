@@ -183,13 +183,17 @@ func (p *cloudFilesProvider) SetInSync(localPath string, inSync bool) error {
 	return nil
 }
 
-func (p *cloudFilesProvider) ExecuteTransfer(req cloudFilesFetchRequest, data []byte) error {
+func (p *cloudFilesProvider) ExecuteTransfer(
+	offsetValue int64,
+	req cloudFilesFetchRequest,
+	data []byte,
+) error {
 	if req.opInfo == 0 {
 		return fmt.Errorf("missing Cloud Files callback info")
 	}
 	var offset C.LARGE_INTEGER
 	var length C.LARGE_INTEGER
-	*(*C.LONGLONG)(unsafe.Pointer(&offset)) = C.LONGLONG(req.Offset)
+	*(*C.LONGLONG)(unsafe.Pointer(&offset)) = C.LONGLONG(offsetValue)
 	*(*C.LONGLONG)(unsafe.Pointer(&length)) = C.LONGLONG(len(data))
 
 	var dataPtr *C.BYTE

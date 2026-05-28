@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	windowsCFProviderID       = "{5C3F6D4D-FAE6-4A0D-9E49-5A3E5EDC7E71}"
-	windowsCFEventIgnoreTTL   = 3 * time.Second
-	windowsCFHydrationIgnore  = 5 * time.Second
-	windowsCFPlaceholderChunk = 4 * 1024 * 1024
+	windowsCFProviderID        = "{5C3F6D4D-FAE6-4A0D-9E49-5A3E5EDC7E71}"
+	windowsCFEventIgnoreTTL    = 3 * time.Second
+	windowsCFHydrationIgnore   = 5 * time.Second
+	windowsCFPlaceholderChunk  = 4 * 1024 * 1024
+	windowsCFTransferAlignment = 4 * 1024
 )
 
 type cloudPlaceholderInfo struct {
@@ -28,9 +29,15 @@ type cloudPlaceholderInfo struct {
 
 type cloudFilesFetchRequest struct {
 	LocalPath string
+	FileSize  int64
 	Offset    int64
 	Length    int64
 	opInfo    uintptr
+}
+
+type cloudFilesTransferRange struct {
+	Offset int64
+	Length int64
 }
 
 type cloudFilesCallbacks struct {
@@ -102,5 +109,47 @@ func isWindowsLocalOnlyPath(virtualPath string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func cloudFilesAlignedTransferRange(
+	offset,
+	length,
+	fileSize int64,
+) cloudFilesTransferRange {
+	if length <= 0 {
+		return cloudFilesTransferRange{Offset: offset, Length: 0}
+	}
+	if fileSize <= 0 {
+		return cloudFilesTransferRange{Offset: offset, Length: length}
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > fileSize {
+		offset = fileSize
+	}
+
+	end := offset + length
+	if end > fileSize {
+		end = fileSize
+	}
+	alignedOffset := offset - (offset % windowsCFTransferAlignment)
+	alignedEnd := end
+	if end < fileSize {
+		remainder := end % windowsCFTransferAlignment
+		if remainder != 0 {
+			alignedEnd += windowsCFTransferAlignment - remainder
+			if alignedEnd > fileSize {
+				alignedEnd = fileSize
+			}
+		}
+	}
+	if alignedEnd < alignedOffset {
+		alignedEnd = alignedOffset
+	}
+	return cloudFilesTransferRange{
+		Offset: alignedOffset,
+		Length: alignedEnd - alignedOffset,
 	}
 }

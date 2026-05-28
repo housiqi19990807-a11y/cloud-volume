@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The Go bridge now mirrors runtime diagnostics to `~/.remote-storage/runtime/logs/bridge.log`, and Windows Cloud Files hydration logs now include placeholder fetches plus aligned transfer ranges for mount-debugging.
 - Windows mount settings now expose three selectable modes: `cloud_files_cached` to keep the Cloud Files shell while reusing the existing cached-download and async writeback flow, `cloud_files_direct` to keep the earlier direct-S3 hydration path for side-by-side testing, and `webdav` as the mapped-drive fallback.
 - Windows bucket mounts now default to the same WebDAV-backed mount model as macOS, mapping the active bucket into Explorer's `This PC` as a network drive so file open/read/write flows reuse the existing local-cache, delayed-writeback, delete, move, and transfer-queue behavior instead of the unfinished Cloud Files path.
 - The Windows desktop shell now keeps a native tray icon with show/exit actions, and the custom close button prompts to hide to tray or quit instead of exiting immediately.
