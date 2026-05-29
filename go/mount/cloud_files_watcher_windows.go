@@ -17,9 +17,14 @@ import (
 
 type windowsPathState struct {
 	mu        sync.Mutex
-	ignored   map[string]time.Time
+	ignored   map[string]windowsIgnoredPath
 	hydrating map[string]bool
 	kinds     map[string]bool
+}
+
+type windowsIgnoredPath struct {
+	until             time.Time
+	ignoreDescendants bool
 }
 
 type windowsSyncWatcher struct {
@@ -41,7 +46,7 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 		access: access,
 		raw:    rawWatcher,
 		state: &windowsPathState{
-			ignored:   map[string]time.Time{},
+			ignored:   map[string]windowsIgnoredPath{},
 			hydrating: map[string]bool{},
 			kinds:     map[string]bool{},
 		},
@@ -69,7 +74,12 @@ func (w *windowsSyncWatcher) RememberPlaceholders(baseDir string, items []cloudP
 	for _, item := range items {
 		fullPath := filepath.Join(baseDir, filepath.FromSlash(item.RelativePath))
 		w.state.remember(fullPath, item.IsDirectory)
-		w.state.ignore(fullPath, windowsCFEventIgnoreTTL)
+		// Ignore only the placeholder path itself so a freshly opened child
+		// directory can still surface immediate user writes below it.
+		w.state.ignore(fullPath, windowsCFEventIgnoreTTL, false)
+		if item.IsDirectory {
+			_ = w.raw.Add(fullPath)
+		}
 	}
 }
 
@@ -188,6 +198,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 		if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
 			log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
 		}
+		w.harvestDirectoryTree(localPath)
 		return
 	}
 	w.state.remember(localPath, false)
@@ -217,10 +228,66 @@ func (w *windowsSyncWatcher) scheduleUpload(localPath, virtualPath string) {
 	w.access.scheduleUpload(clean, localPath)
 }
 
-func (s *windowsPathState) ignore(localPath string, ttl time.Duration) {
+func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
+	go func(root string) {
+		// Explorer often copies a directory tree before nested watches are in
+		// place. A short delayed walk recovers the files that already landed.
+		time.Sleep(250 * time.Millisecond)
+		if err := w.ingestDirectoryTree(root); err != nil {
+			log.Printf("[mount/cloud-files] harvest-directory path=%q error=%v", root, err)
+		}
+	}(filepath.Clean(localPath))
+}
+
+func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) error {
+	root := filepath.Clean(localRoot)
+	return filepath.WalkDir(root, func(current string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if current == root {
+			return nil
+		}
+
+		virtualPath := cloudFilesLocalPathToVirtual(w.root, current)
+		if virtualPath == "" || isResumableUploadStatePath(current) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if isWindowsLocalOnlyPath(virtualPath) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		w.state.remember(current, entry.IsDir())
+		if entry.IsDir() {
+			_ = w.raw.Add(current)
+			if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
+				log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
+			}
+			return nil
+		}
+
+		w.scheduleUpload(current, virtualPath)
+		return nil
+	})
+}
+
+func (s *windowsPathState) ignore(
+	localPath string,
+	ttl time.Duration,
+	ignoreDescendants bool,
+) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.ignored[filepath.Clean(localPath)] = time.Now().Add(ttl)
+	s.ignored[filepath.Clean(localPath)] = windowsIgnoredPath{
+		until:             time.Now().Add(ttl),
+		ignoreDescendants: ignoreDescendants,
+	}
 }
 
 func (s *windowsPathState) shouldIgnore(localPath string) bool {
@@ -234,12 +301,16 @@ func (s *windowsPathState) shouldIgnore(localPath string) bool {
 			return true
 		}
 	}
-	for path, until := range s.ignored {
-		if now.After(until) {
+	for path, ignored := range s.ignored {
+		if now.After(ignored.until) {
 			delete(s.ignored, path)
 			continue
 		}
-		if clean == path || strings.HasPrefix(clean, path+string(os.PathSeparator)) {
+		if clean == path {
+			return true
+		}
+		if ignored.ignoreDescendants &&
+			strings.HasPrefix(clean, path+string(os.PathSeparator)) {
 			return true
 		}
 	}

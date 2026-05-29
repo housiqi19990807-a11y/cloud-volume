@@ -20,6 +20,7 @@ import (
 
 const (
 	cloudFilesAlreadyExists = uint32(0x800700b7)
+	cloudFilesNotACloudFile = uint32(0x80070178)
 	cloudFilesUserMapped    = uint32(0x800704c8)
 )
 
@@ -188,6 +189,11 @@ func (p *cloudFilesProvider) SetInSync(localPath string, inSync bool) error {
 	}
 	hr := C.rs_cf_set_sync_state(wPath, state)
 	if hr != 0 {
+		if uint32(hr) == cloudFilesNotACloudFile {
+			// Local-first writes can temporarily stay as regular NTFS files, so
+			// native Cloud Files sync-state projection is best-effort here.
+			return nil
+		}
 		return fmt.Errorf("set Cloud Files sync state: HRESULT 0x%08x", uint32(hr))
 	}
 	return nil
