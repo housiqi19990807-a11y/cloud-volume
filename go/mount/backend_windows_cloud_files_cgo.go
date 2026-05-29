@@ -190,17 +190,6 @@ func (b *windowsCloudFilesBackend) IsActive(session *mountSession) (bool, error)
 	if !b.provider.IsConnected() {
 		return false, nil
 	}
-	if err := b.checkHealthy(session, false); err != nil {
-		log.Printf(
-			"[mount/cloud-files] inactive bucket=%q mode=%q path=%q error=%v",
-			session.bucket,
-			b.mode,
-			session.mountPath,
-			err,
-		)
-		session.lastError = err.Error()
-		return false, nil
-	}
 	return true, nil
 }
 
