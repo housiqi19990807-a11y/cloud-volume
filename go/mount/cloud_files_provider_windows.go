@@ -140,6 +140,7 @@ func (p *cloudFilesProvider) CreatePlaceholders(baseDir string, items []cloudPla
 		wRelativePath, freeRelativePath := cloudFilesWideString(item.RelativePath)
 		createInfo.RelativeFileName = C.LPCWSTR(wRelativePath)
 		*(*C.LONGLONG)(unsafe.Pointer(&createInfo.FsMetadata.FileSize)) = C.LONGLONG(item.FileSize)
+		createInfo.Flags = C.CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC
 		fileTime := cloudFilesTimeToFileTime(item.ModTime)
 		createInfo.FsMetadata.BasicInfo.CreationTime = fileTime
 		createInfo.FsMetadata.BasicInfo.LastWriteTime = fileTime
