@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Mounted bucket file lists now show a per-item sync badge in both list and grid mode, so files and directories can surface `已同步`, `等待同步`, and `同步中` state inline instead of only through the header badge or transfers page.
 - The file-manager header now surfaces per-bucket mounted writeback status directly in the mount badge, showing `等待同步 N` and `同步中 N` counts without making users switch to the transfers page to confirm whether desktop edits are still queued for remote sync.
 - Windows Cloud Files mount-status polling no longer re-runs the sync-root write probe on every periodic `get_bucket_mount_status`, which stops the app's own health check from mutating `.cloud-volume` inside the mounted root and retriggering repeated Explorer placeholder refreshes.
 - Windows Cloud Files browsing now suppresses cached/coalesced placeholder refresh logs and no longer prints every periodic mount-status probe, which keeps bridge logs focused on real placeholder and write-path failures such as unresolved-name copy errors.

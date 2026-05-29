@@ -459,6 +459,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
       deletingKeys: _deletingObjectKeys,
       gridIconSize: _gridIconSize,
       listIconSize: _listIconSize,
+      mountBucketName: (_activeMountStatus?.mounted ?? false) ? _activeBucket : null,
+      showSyncStatus: _activeMountStatus?.mounted ?? false,
       onOpenDirectory: (prefix) => unawaited(_navToPrefix(prefix)),
       onOpenFile: (object) => unawaited(_openObject(object)),
       onDownloadFile: (object) => unawaited(_downloadObject(object)),

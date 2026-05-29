@@ -11,6 +11,7 @@ class FileListTile extends StatefulWidget {
     required this.title,
     this.subtitleLabel = '',
     this.sizeLabel = '',
+    this.statusWidget,
     this.modifiedLabel = '',
     required this.onTap,
     this.onDoubleTap,
@@ -25,12 +26,14 @@ class FileListTile extends StatefulWidget {
   });
 
   static const double sizeColumnWidth = 96;
+  static const double statusColumnWidth = 112;
   static const double modifiedColumnWidth = 154;
 
   final Widget leading;
   final String title;
   final String subtitleLabel;
   final String sizeLabel;
+  final Widget? statusWidget;
   final String modifiedLabel;
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
@@ -161,6 +164,16 @@ class _FileListTileState extends State<FileListTile> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (widget.statusWidget != null) ...[
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: FileListTile.statusColumnWidth,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: widget.statusWidget!,
+                  ),
+                ),
+              ],
               const SizedBox(width: 16),
               if (widget.trailing != null)
                 widget.trailing!

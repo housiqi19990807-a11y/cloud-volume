@@ -2,11 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:remote_storage/widgets/file_manager_object_header.dart';
+import 'package:remote_storage/widgets/file_sync_status_badge.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -27,6 +29,8 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.deletingKeys,
     required this.gridIconSize,
     required this.listIconSize,
+    this.mountBucketName,
+    this.showSyncStatus = false,
     required this.onOpenDirectory,
     required this.onOpenFile,
     required this.onDownloadFile,
@@ -53,6 +57,8 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final Set<String> deletingKeys;
   final double gridIconSize;
   final double listIconSize;
+  final String? mountBucketName;
+  final bool showSyncStatus;
   final ValueChanged<String> onOpenDirectory;
   final ValueChanged<ObjectInfo> onOpenFile;
   final ValueChanged<ObjectInfo> onDownloadFile;
@@ -64,6 +70,16 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (showSyncStatus) {
+      return AnimatedBuilder(
+        animation: TransferQueue.instance,
+        builder: (context, _) => _buildBody(context),
+      );
+    }
+    return _buildBody(context);
+  }
+
+  Widget _buildBody(BuildContext context) {
     final theme = ShadTheme.of(context);
     final visibleObjects = prefix.isEmpty
         ? objects
@@ -115,6 +131,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                   leading: _leading(object, theme, gridIconSize),
                   title: _title(object),
                   subtitle: _subtitle(object, forGrid: true),
+                  bottomOverlay: _syncBadge(object),
                   onTap: _tapHandler(object),
                   onDoubleTap: _doubleTapHandler(object),
                   onTitleTap: _titleTapHandler(object),
@@ -169,6 +186,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
             allSelected: totalCount > 0 && selectedCount == totalCount,
             partiallySelected: selectedCount > 0 && selectedCount < totalCount,
             onToggleSelectAll: onToggleSelectAll,
+            showSyncStatus: showSyncStatus && mountBucketName != null,
           ),
           Expanded(
             child: ListView.builder(
@@ -184,7 +202,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
                   FileListTile(
                     leading: _leading(object, theme, listIconSize),
                     title: _title(object),
+                    subtitleLabel: _syncSubtitle(object),
                     sizeLabel: _sizeLabel(object),
+                    statusWidget: _syncBadge(object),
                     modifiedLabel: _modifiedLabel(object),
                     onTap: _tapHandler(object),
                     onDoubleTap: _doubleTapHandler(object),
@@ -253,6 +273,13 @@ class FileManagerObjectBrowser extends StatelessWidget {
         : '${object.sizeText}  ${object.lastModified}';
   }
 
+  String _syncSubtitle(ObjectInfo object) {
+    if (!showSyncStatus || _isParentDirectory(object) || _isDeleting(object)) {
+      return '';
+    }
+    return _syncStateFor(object).subtitle;
+  }
+
   String _sizeLabel(ObjectInfo object) {
     if (_isParentDirectory(object) || object.isDir || _isDeleting(object)) {
       return '';
@@ -264,6 +291,58 @@ class FileManagerObjectBrowser extends StatelessWidget {
     if (_isDeleting(object)) return '删除中';
     if (_isParentDirectory(object) || object.lastModified.isEmpty) return '';
     return object.lastModified;
+  }
+
+  Widget? _syncBadge(ObjectInfo object) {
+    if (!showSyncStatus || _isParentDirectory(object) || _isDeleting(object)) {
+      return null;
+    }
+    final state = _syncStateFor(object);
+    return FileSyncStatusBadge(state: state);
+  }
+
+  FileSyncState _syncStateFor(ObjectInfo object) {
+    if (mountBucketName == null || mountBucketName!.trim().isEmpty) {
+      return const FileSyncState.synced();
+    }
+
+    var pending = 0;
+    var running = 0;
+    final objectKey = object.key;
+    final directoryPrefix = object.isDir ? object.key : '';
+    for (final task in TransferQueue.instance.tasks) {
+      if (!task.id.startsWith('mount-writeback-')) {
+        continue;
+      }
+      if (!task.isUpload || task.bucket != mountBucketName) {
+        continue;
+      }
+      final matches = object.isDir
+          ? task.key.startsWith(directoryPrefix)
+          : task.key == objectKey;
+      if (!matches) {
+        continue;
+      }
+      switch (task.status) {
+        case TransferStatus.pending:
+          pending++;
+        case TransferStatus.running:
+          running++;
+        case TransferStatus.done:
+        case TransferStatus.failed:
+        case TransferStatus.canceled:
+          break;
+      }
+    }
+
+    if (running > 0 || pending > 0) {
+      return FileSyncState.pending(
+        pendingCount: pending,
+        runningCount: running,
+        isDirectory: object.isDir,
+      );
+    }
+    return const FileSyncState.synced();
   }
 
   VoidCallback _tapHandler(ObjectInfo object) {

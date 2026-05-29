@@ -12,6 +12,7 @@ class FileManagerObjectHeader extends StatelessWidget {
     required this.allSelected,
     required this.partiallySelected,
     required this.onToggleSelectAll,
+    this.showSyncStatus = false,
   });
 
   final ShadThemeData theme;
@@ -19,6 +20,7 @@ class FileManagerObjectHeader extends StatelessWidget {
   final bool allSelected;
   final bool partiallySelected;
   final VoidCallback onToggleSelectAll;
+  final bool showSyncStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +55,13 @@ class FileManagerObjectHeader extends StatelessWidget {
             width: FileListTile.sizeColumnWidth,
             child: Text('大小', textAlign: TextAlign.right, style: labelStyle),
           ),
+          if (showSyncStatus) ...[
+            const SizedBox(width: 16),
+            SizedBox(
+              width: FileListTile.statusColumnWidth,
+              child: Text('同步状态', textAlign: TextAlign.right, style: labelStyle),
+            ),
+          ],
           const SizedBox(width: 16),
           SizedBox(
             width: FileListTile.modifiedColumnWidth,
