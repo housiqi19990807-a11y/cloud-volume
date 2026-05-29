@@ -52,6 +52,17 @@ func TestWindowsLocalOnlyPath(t *testing.T) {
 	}
 }
 
+func TestResumableUploadStatePathIgnored(t *testing.T) {
+	t.Parallel()
+
+	if !isResumableUploadStatePath(filepath.Clean(`C:\root\dir\c.zip.uploading.json`)) {
+		t.Fatal("expected resumable upload state file to be ignored")
+	}
+	if isResumableUploadStatePath(filepath.Clean(`C:\root\dir\c.zip`)) {
+		t.Fatal("expected normal object path to stay syncable")
+	}
+}
+
 func TestCloudFilesAlignedTransferRange(t *testing.T) {
 	t.Parallel()
 

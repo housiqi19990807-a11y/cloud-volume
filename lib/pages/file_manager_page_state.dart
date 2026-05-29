@@ -6,9 +6,6 @@ extension _FileManagerPageDerivedState on _FileManagerPageState {
   BucketMountStatus? get _activeMountStatus =>
       _activeBucket == null ? null : _bucketMountStatuses[_activeBucket!];
 
-  bool get _activeMountBusy =>
-      _activeBucket != null && _mountBusyBuckets.contains(_activeBucket!);
-
   bool get _isTrashHome => widget.homeView == FileManagerHomeView.trash;
 
   bool get _hasSearchQuery => _searchText.isNotEmpty;

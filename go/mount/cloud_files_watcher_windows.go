@@ -149,6 +149,10 @@ func (w *windowsSyncWatcher) rescanDirectories() error {
 
 func (w *windowsSyncWatcher) handleEvent(event fsnotify.Event) {
 	localPath := filepath.Clean(event.Name)
+	if isResumableUploadStatePath(localPath) {
+		log.Printf("[mount/cloud-files] watcher-ignore-state path=%q", localPath)
+		return
+	}
 	if w.state.shouldIgnore(localPath) {
 		log.Printf("[mount/cloud-files] watcher-ignore event=%s path=%q", event.Op.String(), localPath)
 		return
@@ -314,4 +318,8 @@ func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
 	for current := range hydratingUpdates {
 		s.hydrating[current] = true
 	}
+}
+
+func isResumableUploadStatePath(localPath string) bool {
+	return strings.HasSuffix(strings.ToLower(filepath.Clean(localPath)), ".uploading.json")
 }

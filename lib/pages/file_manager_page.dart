@@ -308,9 +308,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
           selectedCount: _selectedObjectKeys.length,
           batchDownloadEnabled: _selectedObjects.any((object) => !object.isDir),
           showingTrash: _showTrash,
-          mounted: _showTrash ? false : (_activeMountStatus?.mounted ?? false),
-          mountBusy: _showTrash ? false : _activeMountBusy,
-          mountBucketName: _showTrash ? null : _activeBucket,
           onToggleView: () => setState(() => _isGrid = !_isGrid),
           trashCloseLabel: _isTrashHome ? '返回存储桶' : '返回文件',
           onOpenTrash:
@@ -320,30 +317,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
           onCloseTrash: _activeBucket == null || _loading || !_showTrash
               ? null
               : _closeBucketTrash,
-          onMount:
-              _showTrash ||
-                  _activeBucket == null ||
-                  _loading ||
-                  _activeMountBusy ||
-                  (_activeMountStatus?.mounted ?? false)
-              ? null
-              : _mountBucket,
-          onUnmount:
-              _showTrash ||
-                  _activeBucket == null ||
-                  _loading ||
-                  _activeMountBusy ||
-                  !(_activeMountStatus?.mounted ?? false)
-              ? null
-              : _unmountBucket,
-          onOpenMount:
-              _showTrash ||
-                  _activeBucket == null ||
-                  _loading ||
-                  _activeMountBusy ||
-                  !(_activeMountStatus?.mounted ?? false)
-              ? null
-              : _openMountedBucket,
           onCreateDirectory: _showTrash || _activeBucket == null || _loading
               ? null
               : _createDirectory,
