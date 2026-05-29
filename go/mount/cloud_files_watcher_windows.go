@@ -20,11 +20,17 @@ type windowsPathState struct {
 	ignored   map[string]windowsIgnoredPath
 	hydrating map[string]bool
 	kinds     map[string]bool
+	files     map[string]windowsObservedFile
 }
 
 type windowsIgnoredPath struct {
 	until             time.Time
 	ignoreDescendants bool
+}
+
+type windowsObservedFile struct {
+	size    int64
+	modTime int64
 }
 
 type windowsSyncWatcher struct {
@@ -34,6 +40,9 @@ type windowsSyncWatcher struct {
 	state  *windowsPathState
 	done   chan struct{}
 	wg     sync.WaitGroup
+
+	harvestMu      sync.Mutex
+	activeHarvests map[string]bool
 }
 
 func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatcher, error) {
@@ -49,8 +58,10 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 			ignored:   map[string]windowsIgnoredPath{},
 			hydrating: map[string]bool{},
 			kinds:     map[string]bool{},
+			files:     map[string]windowsObservedFile{},
 		},
-		done: make(chan struct{}),
+		done:           make(chan struct{}),
+		activeHarvests: map[string]bool{},
 	}, nil
 }
 
@@ -218,25 +229,60 @@ func (w *windowsSyncWatcher) scheduleUpload(localPath, virtualPath string) {
 	if clean == "" || strings.HasSuffix(clean, "/") {
 		return
 	}
+	info, err := os.Stat(localPath)
+	if err != nil || info.IsDir() {
+		return
+	}
+	if !w.state.observeFile(localPath, info.Size(), info.ModTime()) {
+		return
+	}
 	log.Printf(
 		"[mount/cloud-files] queue-upload virtual=%q local=%q size=%d",
 		clean,
 		localPath,
-		fileSize(localPath),
+		info.Size(),
 	)
-	w.access.registerLocalWrite(clean, localPath, fileSize(localPath))
+	w.access.registerLocalWrite(clean, localPath, info.Size())
 	w.access.scheduleUpload(clean, localPath)
 }
 
 func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
+	root := filepath.Clean(localPath)
+	w.harvestMu.Lock()
+	if w.activeHarvests[root] {
+		w.harvestMu.Unlock()
+		return
+	}
+	w.activeHarvests[root] = true
+	w.harvestMu.Unlock()
+
 	go func(root string) {
-		// Explorer often copies a directory tree before nested watches are in
-		// place. A short delayed walk recovers the files that already landed.
-		time.Sleep(250 * time.Millisecond)
-		if err := w.ingestDirectoryTree(root); err != nil {
-			log.Printf("[mount/cloud-files] harvest-directory path=%q error=%v", root, err)
+		defer func() {
+			w.harvestMu.Lock()
+			delete(w.activeHarvests, root)
+			w.harvestMu.Unlock()
+		}()
+
+		// Large Explorer directory copies can keep materializing files for
+		// several seconds after the parent directory CREATE event arrives.
+		ticker := time.NewTicker(windowsCFDirectoryHarvestInterval)
+		defer ticker.Stop()
+		deadline := time.NewTimer(windowsCFDirectoryHarvestWindow)
+		defer deadline.Stop()
+
+		for {
+			if err := w.ingestDirectoryTree(root); err != nil {
+				log.Printf("[mount/cloud-files] harvest-directory path=%q error=%v", root, err)
+			}
+			select {
+			case <-w.done:
+				return
+			case <-deadline.C:
+				return
+			case <-ticker.C:
+			}
 		}
-	}(filepath.Clean(localPath))
+	}(root)
 }
 
 func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) error {
@@ -335,6 +381,27 @@ func (s *windowsPathState) remember(localPath string, isDir bool) {
 	s.kinds[filepath.Clean(localPath)] = isDir
 }
 
+func (s *windowsPathState) observeFile(
+	localPath string,
+	size int64,
+	modTime time.Time,
+) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	clean := filepath.Clean(localPath)
+	next := windowsObservedFile{
+		size:    size,
+		modTime: modTime.UnixNano(),
+	}
+	current, ok := s.files[clean]
+	if ok && current == next {
+		return false
+	}
+	s.files[clean] = next
+	return true
+}
+
 func (s *windowsPathState) isDir(localPath string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -354,6 +421,11 @@ func (s *windowsPathState) forget(localPath string) {
 	for current := range s.kinds {
 		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
 			delete(s.kinds, current)
+		}
+	}
+	for current := range s.files {
+		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
+			delete(s.files, current)
 		}
 	}
 }
@@ -380,11 +452,22 @@ func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
 			delete(s.kinds, current)
 		}
 	}
+	fileUpdates := map[string]windowsObservedFile{}
+	for current, file := range s.files {
+		if current == oldClean || strings.HasPrefix(current, oldClean+string(os.PathSeparator)) {
+			replacement := strings.Replace(current, oldClean, newClean, 1)
+			fileUpdates[replacement] = file
+			delete(s.files, current)
+		}
+	}
 	if len(updates) == 0 {
 		updates[newClean] = isDir
 	}
 	for current, currentIsDir := range updates {
 		s.kinds[current] = currentIsDir
+	}
+	for current, file := range fileUpdates {
+		s.files[current] = file
 	}
 	for current := range hydratingUpdates {
 		s.hydrating[current] = true

@@ -19,6 +19,7 @@ func TestWindowsPathStatePlaceholderIgnoreDoesNotHideChildren(t *testing.T) {
 		ignored:   map[string]windowsIgnoredPath{},
 		hydrating: map[string]bool{},
 		kinds:     map[string]bool{},
+		files:     map[string]windowsObservedFile{},
 	}
 
 	placeholderDir := filepath.Join(`C:\sync-root`, `docs`)
@@ -40,6 +41,7 @@ func TestWindowsPathStateHydratingStillHidesChildren(t *testing.T) {
 		ignored:   map[string]windowsIgnoredPath{},
 		hydrating: map[string]bool{},
 		kinds:     map[string]bool{},
+		files:     map[string]windowsObservedFile{},
 	}
 
 	hydratingDir := filepath.Join(`C:\sync-root`, `docs`)
@@ -79,6 +81,7 @@ func TestIngestDirectoryTreeQueuesExistingNestedFiles(t *testing.T) {
 			ignored:   map[string]windowsIgnoredPath{},
 			hydrating: map[string]bool{},
 			kinds:     map[string]bool{},
+			files:     map[string]windowsObservedFile{},
 		},
 		done: make(chan struct{}),
 	}

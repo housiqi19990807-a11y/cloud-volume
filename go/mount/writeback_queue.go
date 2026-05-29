@@ -4,6 +4,7 @@ package mount
 import (
 	"context"
 	"errors"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -345,7 +346,21 @@ func (q *writebackQueue) shutdown() error {
 		if entry == nil {
 			continue
 		}
-		_ = q.flushNow(entry)
+		log.Printf(
+			"[mount/writeback] shutdown-flush bucket=%q path=%q local=%q size=%d",
+			q.access.bucket,
+			entry.virtualPath,
+			entry.localPath,
+			entry.size,
+		)
+		if err := q.flushNow(entry); err != nil {
+			log.Printf(
+				"[mount/writeback] shutdown-flush-error bucket=%q path=%q error=%v",
+				q.access.bucket,
+				entry.virtualPath,
+				err,
+			)
+		}
 	}
 	return nil
 }

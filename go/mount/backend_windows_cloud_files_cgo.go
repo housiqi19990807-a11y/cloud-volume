@@ -101,12 +101,15 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 		_ = provider.Deregister()
 		return err
 	}
-	namespace := newWindowsShellNamespace(session.bucket, session.mountPath)
-	if err := namespace.Register(); err != nil {
-		_ = watcher.Close()
-		_ = provider.Disconnect()
-		_ = provider.Deregister()
-		return err
+	if session.config.WindowsThisPcEntryEnabled {
+		namespace := newWindowsShellNamespace(session.bucket, session.mountPath)
+		if err := namespace.Register(); err != nil {
+			_ = watcher.Close()
+			_ = provider.Disconnect()
+			_ = provider.Deregister()
+			return err
+		}
+		b.namespace = namespace
 	}
 	session.access.syncState = newCloudFilesSyncStateProjector(
 		session.mountPath,
@@ -116,7 +119,6 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 	b.provider = provider
 	b.hydrator = hydrator
 	b.watcher = watcher
-	b.namespace = namespace
 	b.resetHealthState()
 	if err := b.checkHealthy(session, true); err != nil {
 		log.Printf(
@@ -148,28 +150,38 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 
 	var firstErr error
 	if b.watcher != nil {
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=watcher-close-start", session.bucket)
 		if err := b.watcher.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=watcher-close-done err=%v", session.bucket, firstErr)
 	}
 	if b.provider != nil {
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-disconnect-start", session.bucket)
 		if err := b.provider.Disconnect(); err != nil && firstErr == nil {
 			firstErr = err
 		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-disconnect-done err=%v", session.bucket, firstErr)
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-deregister-start", session.bucket)
 		if err := b.provider.Deregister(); err != nil && firstErr == nil {
 			firstErr = err
 		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-deregister-done err=%v", session.bucket, firstErr)
 	}
 	if b.namespace != nil {
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=namespace-unregister-start", session.bucket)
 		if err := b.namespace.Unregister(); err != nil && firstErr == nil {
 			firstErr = err
 		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=namespace-unregister-done err=%v", session.bucket, firstErr)
 	}
 	if session.access != nil {
 		session.access.syncState = nil
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-start", session.bucket)
 		if err := session.access.close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-done err=%v", session.bucket, firstErr)
 	}
 
 	b.provider = nil
