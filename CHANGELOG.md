@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Windows local run script now appends `127.0.0.1,localhost` to `NO_PROXY` when proxy variables are present, which prevents `flutter run` from sending local Dart VM service websocket traffic through an HTTP proxy and losing the debug connection while the app stays open.
 - Windows Cloud Files mount startup now runs its write probe in-process with short retries instead of spawning a separate PowerShell writer, which avoids false mount failures caused by slow probe startup.
 - Windows Settings now include a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer write flows.
 - Windows Cloud Files remounts now allocate a fresh sync-root directory and force a rebuild when the same bucket's mount configuration changes, which avoids reusing stale sync-root registration state across mount attempts.

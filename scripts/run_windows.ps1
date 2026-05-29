@@ -11,6 +11,22 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Add-NoProxyEntry {
+  param(
+    [string]$CurrentValue,
+    [string]$Entry
+  )
+
+  $items = @()
+  if ($CurrentValue) {
+    $items = $CurrentValue.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+  }
+  if ($items -contains $Entry) {
+    return ($items -join ',')
+  }
+  return (@($items) + $Entry) -join ','
+}
+
 function Resolve-Executable {
   param(
     [string]$Name,
@@ -79,6 +95,15 @@ $env:BRIDGE_CXX = $gxx
 $env:CC = (Split-Path -Leaf $gcc)
 $env:CXX = (Split-Path -Leaf $gxx)
 $env:PATH = "$(Split-Path -Parent $gcc);$env:PATH"
+
+if ($env:HTTP_PROXY -or $env:HTTPS_PROXY -or $env:ALL_PROXY) {
+  $noProxy = $env:NO_PROXY
+  $noProxy = Add-NoProxyEntry -CurrentValue $noProxy -Entry '127.0.0.1'
+  $noProxy = Add-NoProxyEntry -CurrentValue $noProxy -Entry 'localhost'
+  $env:NO_PROXY = $noProxy
+  $env:no_proxy = $noProxy
+  Write-Host "Using NO_PROXY=$noProxy for local Flutter VM service connections."
+}
 
 Push-Location $repoRoot
 try {
