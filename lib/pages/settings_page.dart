@@ -8,6 +8,7 @@ import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
+import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/settings_sections.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -39,6 +40,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _trashSettingsError;
   bool _savingWindowsMountMode = false;
   String? _windowsMountModeError;
+  bool _resettingWindowsMounts = false;
+  String? _windowsMountResetError;
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +107,17 @@ class _SettingsPageState extends State<SettingsPage> {
                   saving: _savingWindowsMountMode,
                   errorText: _windowsMountModeError,
                   onChanged: (value) => _saveWindowsMountMode(config, value),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildCard(
+                theme,
+                'Windows 挂载恢复',
+                WindowsMountRecoverySection(
+                  theme: theme,
+                  busy: _resettingWindowsMounts,
+                  errorText: _windowsMountResetError,
+                  onReset: _forceResetWindowsMounts,
                 ),
               ),
             ],
@@ -292,6 +306,31 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _savingWindowsMountMode = false);
+      }
+    }
+  }
+
+  Future<void> _forceResetWindowsMounts() async {
+    setState(() {
+      _resettingWindowsMounts = true;
+      _windowsMountResetError = null;
+    });
+    try {
+      await widget.api.cleanupMounts();
+      if (!mounted) return;
+      showAppToast(
+        context,
+        title: '挂载状态已重置',
+        message: '已强制清理 Windows 挂载与残留 sync root。',
+      );
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _windowsMountResetError = error.toString());
+      showAppErrorToast(context, title: '挂载重置失败', message: error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _resettingWindowsMounts = false);
       }
     }
   }

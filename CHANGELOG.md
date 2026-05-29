@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Windows Settings now include a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer write flows.
+- Windows Cloud Files remounts now allocate a fresh sync-root directory and force a rebuild when the same bucket's mount configuration changes, which avoids reusing stale sync-root registration state across mount attempts.
 - Flutter now runs synchronous Go bridge calls on a background isolate before touching the FFI layer, which keeps startup, bucket refresh, mount-status checks, and metadata probes from freezing the desktop UI while the bridge waits on network or mount work.
 - The Go bridge now mirrors runtime diagnostics to `~/.remote-storage/runtime/logs/bridge.log`, and Windows Cloud Files hydration logs now include placeholder fetches plus aligned transfer ranges for mount-debugging.
 - Windows mount settings now expose three selectable modes: `cloud_files_cached` to keep the Cloud Files shell while reusing the existing cached-download and async writeback flow, `cloud_files_direct` to keep the earlier direct-S3 hydration path for side-by-side testing, and `webdav` as the mapped-drive fallback.

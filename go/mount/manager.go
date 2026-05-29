@@ -63,7 +63,12 @@ func (m *manager) mountBucket(
 		return BucketMountStatus{}, err
 	}
 	if m.session != nil && m.session.bucket == trimmedBucket {
-		return m.session.status(), nil
+		if mountSessionMatches(m.session, cfg, trimmedBucket) {
+			return m.session.status(), nil
+		}
+		if err := m.unmountCurrentLocked(); err != nil {
+			return BucketMountStatus{}, err
+		}
 	}
 	if m.session != nil {
 		if err := m.unmountCurrentLocked(); err != nil {

@@ -114,6 +114,8 @@ Windows now keeps three mount modes available side by side so behavior can be co
 - `webdav`: keeps the mapped-drive fallback that mounts the local WebDAV server into Explorer as a network drive.
 
 The active mode is stored in config as `windows_mount_mode` and can be changed from Settings. Remount the bucket after switching modes.
+Cloud Files remounts now allocate a fresh sync-root directory and rebuild the mount session when the same bucket's mount config changes, which helps avoid stale sync-root reuse after an incomplete unmount.
+Settings also expose a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer writes.
 ## Runtime Logs
 
 Go bridge runtime logs are written to `~/.remote-storage/runtime/logs/bridge.log`, which now includes Windows Cloud Files fetch-data and placeholder diagnostics for mount failures.

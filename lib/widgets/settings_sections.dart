@@ -266,6 +266,83 @@ class WindowsMountModeSection extends StatelessWidget {
   }
 }
 
+class WindowsMountRecoverySection extends StatelessWidget {
+  const WindowsMountRecoverySection({
+    super.key,
+    required this.theme,
+    required this.busy,
+    required this.errorText,
+    required this.onReset,
+  });
+
+  final ShadThemeData theme;
+  final bool busy;
+  final String? errorText;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '当 Cloud Files 或 WebDAV 挂载状态卡住时，这个兜底操作会强制清理当前挂载、残留 sync root 和前端挂载状态，方便重新验证挂载与写入流程。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.6,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondary,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '强制卸载并重置挂载状态',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.foreground,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '会调用底层 cleanup_mounts，对当前 bucket 挂载、旧 sync root、This PC 入口和本地挂载状态做一次兜底清理。',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        ShadButton.destructive(
+          onPressed: busy ? null : onReset,
+          child: Text(busy ? '正在重置...' : '强制卸载并重置状态'),
+        ),
+      ],
+    );
+  }
+}
+
 class ThemePicker extends StatelessWidget {
   const ThemePicker({super.key});
 

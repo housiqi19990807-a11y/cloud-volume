@@ -1,0 +1,17 @@
+// Package mount keeps session reuse checks isolated so remount decisions stay explicit.
+package mount
+
+import storageconfig "remote-storage/go/config"
+
+func mountSessionMatches(
+	session *mountSession,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+) bool {
+	if session == nil {
+		return false
+	}
+	normalized := cfg.Normalized()
+	return session.bucket == normalizeBucketName(bucket) &&
+		session.config == normalized
+}
