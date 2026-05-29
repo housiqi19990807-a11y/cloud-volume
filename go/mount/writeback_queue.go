@@ -46,6 +46,7 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 		q.flush(clean)
 	})
 	q.entries[clean] = entry
+	q.access.projectSyncState(entry.virtualPath, false)
 }
 
 func (q *writebackQueue) flush(virtualPath string) {
@@ -95,6 +96,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		})
 	}
 	q.access.cache.invalidatePath(entry.virtualPath)
+	q.access.projectSyncState(entry.virtualPath, true)
 	return nil
 }
 
@@ -192,6 +194,7 @@ func (q *writebackQueue) rename(oldVirtualPath, newVirtualPath string, isDir boo
 			q.flush(newClean)
 		})
 		q.entries[newClean] = entry
+		q.access.projectSyncState(entry.virtualPath, false)
 		return true
 	}
 
@@ -211,6 +214,7 @@ func (q *writebackQueue) rename(oldVirtualPath, newVirtualPath string, isDir boo
 			q.flush(nextKey)
 		})
 		q.entries[nextKey] = entry
+		q.access.projectSyncState(entry.virtualPath, false)
 		renamed = true
 	}
 	return renamed

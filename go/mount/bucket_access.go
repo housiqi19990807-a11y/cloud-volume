@@ -30,6 +30,7 @@ type bucketAccess struct {
 	overlay   *localMountOverlay
 	writeback *writebackQueue
 	deletes   *deleteQueue
+	syncState syncStateProjector
 }
 
 func newBucketAccess(
@@ -111,4 +112,8 @@ func newWritebackQueue(access *bucketAccess) *writebackQueue {
 		entries: map[string]*pendingWriteback{},
 		running: map[string]*pendingWriteback{},
 	}
+}
+
+type syncStateProjector interface {
+	UpdateSyncState(virtualPath string, inSync bool) error
 }

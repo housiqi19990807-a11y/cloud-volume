@@ -7,6 +7,23 @@ import (
 	"testing"
 )
 
+type syncStateCall struct {
+	virtualPath string
+	inSync      bool
+}
+
+type recordingSyncStateProjector struct {
+	calls []syncStateCall
+}
+
+func (p *recordingSyncStateProjector) UpdateSyncState(virtualPath string, inSync bool) error {
+	p.calls = append(p.calls, syncStateCall{
+		virtualPath: cleanVirtualPath(virtualPath),
+		inSync:      inSync,
+	})
+	return nil
+}
+
 func TestCancelQueuedTransferRemovesLocalCacheState(t *testing.T) {
 	t.Parallel()
 
@@ -69,5 +86,53 @@ func TestCancelRunningTransferRemovesLocalCacheState(t *testing.T) {
 	}
 	if _, err := os.Stat(localPath); !os.IsNotExist(err) {
 		t.Fatalf("expected staged file removal, got %v", err)
+	}
+}
+
+func TestEnqueueProjectsNotInSyncState(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	projector := &recordingSyncStateProjector{}
+	access.syncState = projector
+
+	access.writeback.enqueue(
+		"archive/output.zip",
+		filepath.Join(access.cacheRoot, "archive", "output.zip"),
+		7,
+	)
+
+	if len(projector.calls) != 1 {
+		t.Fatalf("expected 1 sync-state call, got %d", len(projector.calls))
+	}
+	if projector.calls[0].virtualPath != "archive/output.zip" ||
+		projector.calls[0].inSync {
+		t.Fatalf("unexpected sync-state call: %+v", projector.calls[0])
+	}
+}
+
+func TestRenameQueuedTransferProjectsNewPathNotInSync(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	projector := &recordingSyncStateProjector{}
+	access.syncState = projector
+
+	access.writeback.enqueue(
+		"archive/output.zip",
+		filepath.Join(access.cacheRoot, "archive", "output.zip"),
+		7,
+	)
+	projector.calls = nil
+
+	if ok := access.writeback.rename("archive/output.zip", "archive/final.zip", false); !ok {
+		t.Fatal("expected queued writeback rename to succeed")
+	}
+	if len(projector.calls) != 1 {
+		t.Fatalf("expected 1 sync-state call after rename, got %d", len(projector.calls))
+	}
+	if projector.calls[0].virtualPath != "archive/final.zip" ||
+		projector.calls[0].inSync {
+		t.Fatalf("unexpected sync-state call after rename: %+v", projector.calls[0])
 	}
 }

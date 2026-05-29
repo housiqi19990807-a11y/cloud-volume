@@ -108,6 +108,10 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 		_ = provider.Deregister()
 		return err
 	}
+	session.access.syncState = newCloudFilesSyncStateProjector(
+		session.mountPath,
+		provider,
+	)
 
 	b.provider = provider
 	b.hydrator = hydrator
@@ -162,6 +166,7 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 		}
 	}
 	if session.access != nil {
+		session.access.syncState = nil
 		if err := session.access.close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
