@@ -138,7 +138,7 @@ Future<RemoteStorageGateway> defaultRemoteStorageApiFactory() {
   return RemoteStorageApi.bootstrap();
 }
 
-Future<dynamic> _invokeBridgeCall(
+dynamic _invokeBridgeCall(
   String libraryPath,
   String method,
   Map<String, dynamic> payload,
