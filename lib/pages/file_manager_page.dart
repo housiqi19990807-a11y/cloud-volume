@@ -310,6 +310,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           showingTrash: _showTrash,
           mounted: _showTrash ? false : (_activeMountStatus?.mounted ?? false),
           mountBusy: _showTrash ? false : _activeMountBusy,
+          mountBucketName: _showTrash ? null : _activeBucket,
           onToggleView: () => setState(() => _isGrid = !_isGrid),
           trashCloseLabel: _isTrashHome ? '返回存储桶' : '返回文件',
           onOpenTrash:
