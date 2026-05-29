@@ -19,6 +19,14 @@ class FileSyncState {
         color: const Color(0xff15803d),
       );
 
+  const FileSyncState.unmounted()
+    : this(
+        label: '未挂载',
+        subtitle: '当前未使用桌面同步视图',
+        icon: LucideIcons.link2Off,
+        color: const Color(0xff6b7280),
+      );
+
   factory FileSyncState.pending({
     required int pendingCount,
     required int runningCount,

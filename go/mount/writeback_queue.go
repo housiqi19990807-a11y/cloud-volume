@@ -28,6 +28,7 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 		}
 		taskID = existing.taskID
 	}
+	q.supersedeRunningLocked(clean, localPath)
 	entry := &pendingWriteback{
 		taskID:      taskID,
 		virtualPath: clean,
@@ -47,6 +48,21 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 	})
 	q.entries[clean] = entry
 	q.access.projectSyncState(entry.virtualPath, false)
+}
+
+func (q *writebackQueue) supersedeRunningLocked(virtualPath, localPath string) {
+	for taskID, entry := range q.running {
+		if entry.virtualPath != virtualPath {
+			continue
+		}
+		entry.discard = true
+		s3ops.CancelTransfer(taskID)
+		s3ops.ForgetTransfer(taskID)
+		if entry.localPath != "" {
+			_ = s3ops.DiscardResumableUpload(q.access.config, entry.localPath)
+		}
+		break
+	}
 }
 
 func (q *writebackQueue) flush(virtualPath string) {

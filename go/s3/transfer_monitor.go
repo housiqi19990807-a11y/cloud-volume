@@ -235,6 +235,14 @@ func CancelTransfer(id string) bool {
 	return true
 }
 
+// ForgetTransfer drops a task snapshot immediately so superseded mount writes do not stack in the UI.
+func ForgetTransfer(id string) {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+	delete(globalTransferMonitor.tasks, id)
+	delete(globalTransferMonitor.pendingCancels, id)
+}
+
 // ListTransferSnapshots returns a recent-first list so the newest task stays visible.
 func ListTransferSnapshots() []TransferSnapshot {
 	globalTransferMonitor.mu.Lock()

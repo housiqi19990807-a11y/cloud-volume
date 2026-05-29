@@ -136,3 +136,30 @@ func TestRenameQueuedTransferProjectsNewPathNotInSync(t *testing.T) {
 		t.Fatalf("unexpected sync-state call after rename: %+v", projector.calls[0])
 	}
 }
+
+func TestEnqueueSupersedesRunningTransferForSamePath(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	localPath := filepath.Join(access.cacheRoot, "archive", "output.zip")
+	access.writeback.running["task-running"] = &pendingWriteback{
+		taskID:      "task-running",
+		virtualPath: "archive/output.zip",
+		localPath:   localPath,
+		size:        7,
+	}
+
+	access.writeback.enqueue("archive/output.zip", localPath, 9)
+
+	running := access.writeback.running["task-running"]
+	if running == nil || !running.discard {
+		t.Fatalf("expected running task to be marked discard, got %+v", running)
+	}
+	queued := access.writeback.entries["archive/output.zip"]
+	if queued == nil {
+		t.Fatal("expected replacement queued entry")
+	}
+	if queued.size != 9 {
+		t.Fatalf("expected replacement size 9, got %d", queued.size)
+	}
+}

@@ -29,6 +29,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.deletingKeys,
     required this.gridIconSize,
     required this.listIconSize,
+    this.mountedToDesktop = false,
     this.mountBucketName,
     this.showSyncStatus = false,
     required this.onOpenDirectory,
@@ -58,6 +59,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final double gridIconSize;
   final double listIconSize;
   final String? mountBucketName;
+  final bool mountedToDesktop;
   final bool showSyncStatus;
   final ValueChanged<String> onOpenDirectory;
   final ValueChanged<ObjectInfo> onOpenFile;
@@ -131,7 +133,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                   leading: _leading(object, theme, gridIconSize),
                   title: _title(object),
                   subtitle: _subtitle(object, forGrid: true),
-                  bottomOverlay: _syncBadge(object),
+                  bottomOverlay: mountedToDesktop ? _syncBadge(object) : null,
                   onTap: _tapHandler(object),
                   onDoubleTap: _doubleTapHandler(object),
                   onTitleTap: _titleTapHandler(object),
@@ -186,7 +188,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
             allSelected: totalCount > 0 && selectedCount == totalCount,
             partiallySelected: selectedCount > 0 && selectedCount < totalCount,
             onToggleSelectAll: onToggleSelectAll,
-            showSyncStatus: showSyncStatus && mountBucketName != null,
+            showSyncStatus: showSyncStatus,
           ),
           Expanded(
             child: ListView.builder(
@@ -202,7 +204,6 @@ class FileManagerObjectBrowser extends StatelessWidget {
                   FileListTile(
                     leading: _leading(object, theme, listIconSize),
                     title: _title(object),
-                    subtitleLabel: _syncSubtitle(object),
                     sizeLabel: _sizeLabel(object),
                     statusWidget: _syncBadge(object),
                     modifiedLabel: _modifiedLabel(object),
@@ -273,13 +274,6 @@ class FileManagerObjectBrowser extends StatelessWidget {
         : '${object.sizeText}  ${object.lastModified}';
   }
 
-  String _syncSubtitle(ObjectInfo object) {
-    if (!showSyncStatus || _isParentDirectory(object) || _isDeleting(object)) {
-      return '';
-    }
-    return _syncStateFor(object).subtitle;
-  }
-
   String _sizeLabel(ObjectInfo object) {
     if (_isParentDirectory(object) || object.isDir || _isDeleting(object)) {
       return '';
@@ -302,8 +296,11 @@ class FileManagerObjectBrowser extends StatelessWidget {
   }
 
   FileSyncState _syncStateFor(ObjectInfo object) {
+    if (!mountedToDesktop) {
+      return const FileSyncState.unmounted();
+    }
     if (mountBucketName == null || mountBucketName!.trim().isEmpty) {
-      return const FileSyncState.synced();
+      return const FileSyncState.unmounted();
     }
 
     var pending = 0;

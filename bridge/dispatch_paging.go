@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	storageconfig "remote-storage/go/config"
+	bucketmount "remote-storage/go/mount"
 	s3ops "remote-storage/go/s3"
 )
 
@@ -27,6 +28,15 @@ func listObjectPage(args json.RawMessage) (any, error) {
 	var input objectPageArgs
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
+	}
+	if page, handled, err := bucketmount.ListMountedObjectPage(
+		input.Config,
+		input.Bucket,
+		input.Prefix,
+		input.NextToken,
+		input.PageSize,
+	); handled || err != nil {
+		return page, err
 	}
 	return s3ops.ListObjectsPage(
 		input.Config,
