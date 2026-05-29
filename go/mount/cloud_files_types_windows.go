@@ -98,6 +98,10 @@ func isWindowsLocalOnlyPath(virtualPath string) bool {
 	switch {
 	case clean == "":
 		return false
+	case clean == ".cloud-volume":
+		return true
+	case strings.HasPrefix(clean, ".cloud-volume/"):
+		return true
 	case clean == "desktop.ini":
 		return true
 	case clean == "thumbs.db":

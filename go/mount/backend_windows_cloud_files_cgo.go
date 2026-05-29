@@ -6,13 +6,14 @@ package mount
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	storageconfig "remote-storage/go/config"
 )
-
-const windowsMountFolderName = "Cloud Volume"
 
 type windowsCloudFilesBackend struct {
 	mode      string
@@ -20,6 +21,9 @@ type windowsCloudFilesBackend struct {
 	hydrator  *cloudFilesHydrator
 	watcher   *windowsSyncWatcher
 	namespace *windowsShellNamespace
+	healthMu  sync.Mutex
+	lastCheck time.Time
+	lastError string
 }
 
 func newWindowsCloudFilesBackend(mode string) (mountBackend, error) {
@@ -27,17 +31,23 @@ func newWindowsCloudFilesBackend(mode string) (mountBackend, error) {
 }
 
 func (b *windowsCloudFilesBackend) Initialize(session *mountSession) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("resolve user home: %w", err)
-	}
 	session.mountName = session.bucket
-	session.mountPath = filepath.Join(homeDir, windowsMountFolderName, safeSegment(session.bucket))
+	mountPath, err := windowsCloudFilesMountPath(session.bucket)
+	if err != nil {
+		return err
+	}
+	session.mountPath = mountPath
 	session.mountTarget = session.mountPath
 	return nil
 }
 
 func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
+	log.Printf(
+		"[mount/cloud-files] start bucket=%q mode=%q path=%q",
+		session.bucket,
+		b.mode,
+		session.mountPath,
+	)
 	if err := os.MkdirAll(session.mountPath, 0o755); err != nil {
 		return fmt.Errorf("create sync-root directory: %w", err)
 	}
@@ -103,11 +113,33 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 	b.hydrator = hydrator
 	b.watcher = watcher
 	b.namespace = namespace
+	b.resetHealthState()
+	if err := b.checkHealthy(session, true); err != nil {
+		log.Printf(
+			"[mount/cloud-files] start-health-check bucket=%q mode=%q error=%v",
+			session.bucket,
+			b.mode,
+			err,
+		)
+		return err
+	}
 	session.mounted = true
+	log.Printf(
+		"[mount/cloud-files] start-done bucket=%q mode=%q path=%q",
+		session.bucket,
+		b.mode,
+		session.mountPath,
+	)
 	return nil
 }
 
 func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
+	log.Printf(
+		"[mount/cloud-files] stop bucket=%q mode=%q path=%q",
+		session.bucket,
+		b.mode,
+		session.mountPath,
+	)
 	session.mounted = false
 
 	var firstErr error
@@ -139,6 +171,12 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 	b.hydrator = nil
 	b.watcher = nil
 	b.namespace = nil
+	b.resetHealthState()
+	if firstErr != nil {
+		log.Printf("[mount/cloud-files] stop-error bucket=%q error=%v", session.bucket, firstErr)
+		return firstErr
+	}
+	log.Printf("[mount/cloud-files] stop-done bucket=%q", session.bucket)
 	return firstErr
 }
 
@@ -149,7 +187,21 @@ func (b *windowsCloudFilesBackend) IsActive(session *mountSession) (bool, error)
 	if _, err := os.Stat(session.mountPath); err != nil {
 		return false, nil
 	}
-	return b.provider.IsConnected(), nil
+	if !b.provider.IsConnected() {
+		return false, nil
+	}
+	if err := b.checkHealthy(session, false); err != nil {
+		log.Printf(
+			"[mount/cloud-files] inactive bucket=%q mode=%q path=%q error=%v",
+			session.bucket,
+			b.mode,
+			session.mountPath,
+			err,
+		)
+		session.lastError = err.Error()
+		return false, nil
+	}
+	return true, nil
 }
 
 func (b *windowsCloudFilesBackend) CleanupStale(session *mountSession) error {
@@ -161,7 +213,40 @@ func (b *windowsCloudFilesBackend) CleanupStale(session *mountSession) error {
 }
 
 func cleanupManagedWindowsCloudFilesArtifacts() error {
-	return cleanupLegacyWindowsShellNamespaces()
+	if err := cleanupLegacyWindowsShellNamespaces(); err != nil {
+		return err
+	}
+	rootPath, err := windowsCloudFilesRootPath()
+	if err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(rootPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("list Cloud Files root %q: %w", rootPath, err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		localPath := filepath.Join(rootPath, entry.Name())
+		provider := newCloudFilesProvider(localPath, windowsCFProviderID, "")
+		if err := provider.Deregister(); err != nil {
+			log.Printf("[mount/cloud-files] cleanup-deregister path=%q error=%v", localPath, err)
+		} else {
+			log.Printf("[mount/cloud-files] cleanup-deregister path=%q", localPath)
+		}
+		if err := os.RemoveAll(localPath); err != nil {
+			log.Printf("[mount/cloud-files] cleanup-remove path=%q error=%v", localPath, err)
+			continue
+		}
+		log.Printf("[mount/cloud-files] cleanup-remove path=%q", localPath)
+	}
+	_ = os.Remove(rootPath)
+	return nil
 }
 
 func (b *windowsCloudFilesBackend) handleDelete(
@@ -208,4 +293,41 @@ func windowsCloudFilesDisplayName(bucket, mode string) string {
 	default:
 		return "Cloud Volume " + bucket
 	}
+}
+
+func (b *windowsCloudFilesBackend) checkHealthy(
+	session *mountSession,
+	force bool,
+) error {
+	b.healthMu.Lock()
+	if !force && time.Since(b.lastCheck) < windowsCloudFilesHealthCacheTTL {
+		lastError := b.lastError
+		b.healthMu.Unlock()
+		if lastError != "" {
+			return fmt.Errorf("%s", lastError)
+		}
+		return nil
+	}
+	b.healthMu.Unlock()
+
+	if err := windowsCloudFilesWriteProbe(session.mountPath); err != nil {
+		b.healthMu.Lock()
+		b.lastCheck = time.Now()
+		b.lastError = err.Error()
+		b.healthMu.Unlock()
+		return err
+	}
+
+	b.healthMu.Lock()
+	b.lastCheck = time.Now()
+	b.lastError = ""
+	b.healthMu.Unlock()
+	return nil
+}
+
+func (b *windowsCloudFilesBackend) resetHealthState() {
+	b.healthMu.Lock()
+	defer b.healthMu.Unlock()
+	b.lastCheck = time.Time{}
+	b.lastError = ""
 }

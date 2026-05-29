@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 
 	storageconfig "remote-storage/go/config"
 	bucketmount "remote-storage/go/mount"
@@ -22,6 +23,7 @@ func mountBucket(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
+	log.Printf("[bridge/mount] mount bucket=%q", input.Bucket)
 	return bucketmount.MountBucket(input.Config, input.Bucket)
 }
 
@@ -30,6 +32,7 @@ func unmountBucket(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
+	log.Printf("[bridge/mount] unmount bucket=%q", input.Bucket)
 	return bucketmount.UnmountBucket(input.Bucket)
 }
 
@@ -38,6 +41,7 @@ func getBucketMountStatus(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
+	log.Printf("[bridge/mount] status bucket=%q", input.Bucket)
 	return bucketmount.GetBucketMountStatus(input.Bucket)
 }
 
@@ -46,10 +50,12 @@ func openBucketMount(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
+	log.Printf("[bridge/mount] open bucket=%q", input.Bucket)
 	return bucketmount.OpenBucketMount(input.Bucket)
 }
 
 func cleanupMounts() (any, error) {
+	log.Printf("[bridge/mount] cleanup")
 	if err := bucketmount.CleanupMounts(); err != nil {
 		return nil, err
 	}
