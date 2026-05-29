@@ -87,6 +87,9 @@ class _FakeApi implements RemoteStorageGateway {
       );
 
   @override
+  Future<void> cleanupMounts() async {}
+
+  @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async => [];
 
   @override

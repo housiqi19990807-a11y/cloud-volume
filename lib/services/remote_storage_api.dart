@@ -126,6 +126,7 @@ abstract class RemoteStorageGateway {
     RemoteStorageConfig config,
     String bucket,
   );
+  Future<void> cleanupMounts();
   Future<BucketMountStatus> unmountBucket(String bucket);
   Future<BucketMountStatus> getBucketMountStatus(String bucket);
   Future<BucketMountStatus> openBucketMount(String bucket);
@@ -135,6 +136,15 @@ typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
 
 Future<RemoteStorageGateway> defaultRemoteStorageApiFactory() {
   return RemoteStorageApi.bootstrap();
+}
+
+Future<dynamic> _invokeBridgeCall(
+  String libraryPath,
+  String method,
+  Map<String, dynamic> payload,
+) {
+  final bridge = RemoteStorageBridge.openAtPath(libraryPath);
+  return bridge.call(method, payload);
 }
 
 class RemoteStorageApi
@@ -153,9 +163,25 @@ class RemoteStorageApi
   RemoteStorageBridge get bridgeHandle => _bridge;
 
   @override
+  Future<dynamic> runBridgeCall(
+    String method, [
+    Map<String, dynamic> payload = const <String, dynamic>{},
+  ]) {
+    final libraryPath = _bridge.libraryPath;
+    final isolatePayload = payload.isEmpty
+        ? const <String, dynamic>{}
+        : Map<String, dynamic>.from(payload);
+    // Keep synchronous FFI work off the UI isolate so large bridge calls do not
+    // stall scrolling, hover states, or route transitions.
+    return Isolate.run(
+      () => _invokeBridgeCall(libraryPath, method, isolatePayload),
+    );
+  }
+
+  @override
   Future<BootstrapState> loadBootstrapState() async {
     final payload =
-        _bridge.call('load_bootstrap_state') as Map<String, dynamic>? ??
+        await runBridgeCall('load_bootstrap_state') as Map<String, dynamic>? ??
         const <String, dynamic>{};
     return BootstrapState.fromJson(payload);
   }
@@ -163,7 +189,7 @@ class RemoteStorageApi
   @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async {
     final payload =
-        _bridge.call('save_config', <String, dynamic>{
+        await runBridgeCall('save_config', <String, dynamic>{
               'config': config.toJson(),
             })
             as Map<String, dynamic>? ??
@@ -173,7 +199,7 @@ class RemoteStorageApi
 
   @override
   Future<RemoteStorageConfig> loadProfile(String name) async {
-    final result = _bridge.call('load_profile', <String, dynamic>{
+    final result = await runBridgeCall('load_profile', <String, dynamic>{
       'name': name,
     });
     return RemoteStorageConfig.fromJson(result as Map<String, dynamic>);
@@ -181,7 +207,7 @@ class RemoteStorageApi
 
   @override
   Future<List<ProfileInfo>> listProfiles() async {
-    final result = _bridge.call('list_profiles');
+    final result = await runBridgeCall('list_profiles');
     if (result is List) {
       return result
           .map((e) => ProfileInfo.fromJson(e as Map<String, dynamic>))
@@ -192,7 +218,7 @@ class RemoteStorageApi
 
   @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
-    final result = _bridge.call('list_buckets', <String, dynamic>{
+    final result = await runBridgeCall('list_buckets', <String, dynamic>{
       'config': config.toJson(),
     });
     return parseBridgeList(result, (m) => BucketInfo.fromJson(m));
@@ -204,7 +230,7 @@ class RemoteStorageApi
     String bucket,
     String key,
   ) async {
-    final result = _bridge.call('head_object', <String, dynamic>{
+    final result = await runBridgeCall('head_object', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'key': key,
@@ -219,7 +245,7 @@ class RemoteStorageApi
     String prefix,
     String name,
   ) async {
-    _bridge.call('create_directory', <String, dynamic>{
+    await runBridgeCall('create_directory', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'prefix': prefix,
@@ -235,7 +261,7 @@ class RemoteStorageApi
     bool isDirectory,
     String taskId,
   ) async {
-    _bridge.call('delete_object', <String, dynamic>{
+    await runBridgeCall('delete_object', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'key': key,
@@ -252,7 +278,7 @@ class RemoteStorageApi
     bool isDirectory,
     String newName,
   ) async {
-    _bridge.call('rename_object', <String, dynamic>{
+    await runBridgeCall('rename_object', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'key': key,
@@ -270,16 +296,13 @@ class RemoteStorageApi
     bool isDirectory,
     String taskId,
   ) async {
-    await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      bridge.call('copy_object', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-        'sourceKey': sourceKey,
-        'targetKey': targetKey,
-        'isDirectory': isDirectory,
-        'taskId': taskId,
-      });
+    await runBridgeCall('copy_object', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'sourceKey': sourceKey,
+      'targetKey': targetKey,
+      'isDirectory': isDirectory,
+      'taskId': taskId,
     });
   }
 
@@ -292,16 +315,13 @@ class RemoteStorageApi
     bool isDirectory,
     String taskId,
   ) async {
-    await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      bridge.call('move_object', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-        'sourceKey': sourceKey,
-        'targetKey': targetKey,
-        'isDirectory': isDirectory,
-        'taskId': taskId,
-      });
+    await runBridgeCall('move_object', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'sourceKey': sourceKey,
+      'targetKey': targetKey,
+      'isDirectory': isDirectory,
+      'taskId': taskId,
     });
   }
 
@@ -311,13 +331,10 @@ class RemoteStorageApi
     String bucket,
     String trashId,
   ) async {
-    await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      bridge.call('restore_trash_item', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-        'trashId': trashId,
-      });
+    await runBridgeCall('restore_trash_item', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'trashId': trashId,
     });
   }
 
@@ -327,13 +344,10 @@ class RemoteStorageApi
     String bucket,
     String trashId,
   ) async {
-    await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      bridge.call('delete_trash_item', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-        'trashId': trashId,
-      });
+    await runBridgeCall('delete_trash_item', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'trashId': trashId,
     });
   }
 
@@ -345,15 +359,12 @@ class RemoteStorageApi
     String localPath,
     String taskId,
   ) async {
-    await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      bridge.call('upload_file', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-        'key': key,
-        'localPath': localPath,
-        'taskId': taskId,
-      });
+    await runBridgeCall('upload_file', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': key,
+      'localPath': localPath,
+      'taskId': taskId,
     });
   }
 
@@ -365,26 +376,23 @@ class RemoteStorageApi
     String localPath,
     String taskId,
   ) async {
-    await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      bridge.call('download_file', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-        'key': key,
-        'localPath': localPath,
-        'taskId': taskId,
-      });
+    await runBridgeCall('download_file', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': key,
+      'localPath': localPath,
+      'taskId': taskId,
     });
   }
 
   @override
   Future<void> cancelTransfer(String taskId) async {
-    _bridge.call('cancel_transfer', <String, dynamic>{'taskId': taskId});
+    await runBridgeCall('cancel_transfer', <String, dynamic>{'taskId': taskId});
   }
 
   @override
   Future<bool> triggerTransfer(String taskId) async {
-    final result = _bridge.call('trigger_transfer', <String, dynamic>{
+    final result = await runBridgeCall('trigger_transfer', <String, dynamic>{
       'taskId': taskId,
     });
     if (result is Map<String, dynamic>) {
@@ -395,7 +403,7 @@ class RemoteStorageApi
 
   @override
   Future<List<TransferSnapshot>> listTransferJobs() async {
-    final result = _bridge.call('list_transfer_jobs');
+    final result = await runBridgeCall('list_transfer_jobs');
     return parseBridgeList(result, (m) => TransferSnapshot.fromJson(m));
   }
 
@@ -404,40 +412,39 @@ class RemoteStorageApi
     RemoteStorageConfig config,
     String bucket,
   ) async {
-    final result = await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      return bridge.call('mount_bucket', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-      });
-    });
-    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
-  }
-
-  @override
-  Future<BucketMountStatus> unmountBucket(String bucket) async {
-    final result = await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      return bridge.call('unmount_bucket', <String, dynamic>{'bucket': bucket});
-    });
-    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
-  }
-
-  @override
-  Future<BucketMountStatus> getBucketMountStatus(String bucket) async {
-    final result = _bridge.call('get_bucket_mount_status', <String, dynamic>{
+    final result = await runBridgeCall('mount_bucket', <String, dynamic>{
+      'config': config.toJson(),
       'bucket': bucket,
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }
 
   @override
+  Future<void> cleanupMounts() async {
+    await runBridgeCall('cleanup_mounts');
+  }
+
+  @override
+  Future<BucketMountStatus> unmountBucket(String bucket) async {
+    final result = await runBridgeCall('unmount_bucket', <String, dynamic>{
+      'bucket': bucket,
+    });
+    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<BucketMountStatus> getBucketMountStatus(String bucket) async {
+    final result = await runBridgeCall(
+      'get_bucket_mount_status',
+      <String, dynamic>{'bucket': bucket},
+    );
+    return BucketMountStatus.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
   Future<BucketMountStatus> openBucketMount(String bucket) async {
-    final result = await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(_bridge.libraryPath);
-      return bridge.call('open_bucket_mount', <String, dynamic>{
-        'bucket': bucket,
-      });
+    final result = await runBridgeCall('open_bucket_mount', <String, dynamic>{
+      'bucket': bucket,
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }

@@ -3,6 +3,10 @@ part of 'remote_storage_api.dart';
 // Paged bridge calls keep large directory and trash views incremental.
 mixin _RemoteStoragePagingApiMixin implements RemoteStorageGateway {
   RemoteStorageBridge get bridgeHandle;
+  Future<dynamic> runBridgeCall(
+    String method, [
+    Map<String, dynamic> payload = const <String, dynamic>{},
+  ]);
   List<T> parseBridgeList<T>(
     dynamic result,
     T Function(Map<String, dynamic>) fromJson,
@@ -32,7 +36,7 @@ mixin _RemoteStoragePagingApiMixin implements RemoteStorageGateway {
     String nextToken,
     int pageSize,
   ) async {
-    final result = _bridgeCall('list_object_page', <String, dynamic>{
+    final result = await runBridgeCall('list_object_page', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'prefix': prefix,
@@ -64,19 +68,12 @@ mixin _RemoteStoragePagingApiMixin implements RemoteStorageGateway {
     String nextToken,
     int pageSize,
   ) async {
-    final result = await Isolate.run(() {
-      final bridge = RemoteStorageBridge.openAtPath(bridgeHandle.libraryPath);
-      return bridge.call('list_trash_page', <String, dynamic>{
-        'config': config.toJson(),
-        'bucket': bucket,
-        'nextToken': nextToken,
-        'pageSize': pageSize,
-      });
+    final result = await runBridgeCall('list_trash_page', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'nextToken': nextToken,
+      'pageSize': pageSize,
     });
     return TrashListPage.fromJson(result as Map<String, dynamic>);
-  }
-
-  dynamic _bridgeCall(String method, Map<String, dynamic> payload) {
-    return bridgeHandle.call(method, payload);
   }
 }

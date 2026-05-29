@@ -117,3 +117,7 @@ The active mode is stored in config as `windows_mount_mode` and can be changed f
 ## Runtime Logs
 
 Go bridge runtime logs are written to `~/.remote-storage/runtime/logs/bridge.log`, which now includes Windows Cloud Files fetch-data and placeholder diagnostics for mount failures.
+
+## UI Responsiveness
+
+Flutter now dispatches synchronous Go bridge calls from a background isolate before entering the FFI layer. This keeps bootstrap loading, bucket refreshes, mount-status probes, and object metadata lookups from blocking the desktop UI thread when the bridge is waiting on network or mount work.
