@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Windows Cloud Files mount startup now runs its write probe in-process with short retries instead of spawning a separate PowerShell writer, which avoids false mount failures caused by slow probe startup.
 - Windows Settings now include a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer write flows.
 - Windows Cloud Files remounts now allocate a fresh sync-root directory and force a rebuild when the same bucket's mount configuration changes, which avoids reusing stale sync-root registration state across mount attempts.
 - Flutter now runs synchronous Go bridge calls on a background isolate before touching the FFI layer, which keeps startup, bucket refresh, mount-status checks, and metadata probes from freezing the desktop UI while the bridge waits on network or mount work.

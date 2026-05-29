@@ -6,9 +6,8 @@ package mount
 import (
 	"context"
 	"fmt"
-	"os/exec"
+	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -28,37 +27,35 @@ func windowsCloudFilesWriteProbe(rootPath string) error {
 	)
 	defer cancel()
 
-	script := fmt.Sprintf(
-		"$dir = %s; $file = %s; "+
-			"New-Item -ItemType Directory -Force -Path $dir | Out-Null; "+
-			"[System.IO.File]::WriteAllText($file, 'probe'); "+
-			"Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue; "+
-			"Remove-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue",
-		windowsPowerShellString(probeDir),
-		windowsPowerShellString(probeFile),
-	)
-	cmd := exec.CommandContext(
-		ctx,
-		"powershell.exe",
-		"-NoProfile",
-		"-NonInteractive",
-		"-Command",
-		script,
-	)
-	output, err := cmd.CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("write probe timed out after %s", windowsCloudFilesHealthTimeout)
-	}
-	if err != nil {
-		trimmed := strings.TrimSpace(string(output))
-		if trimmed == "" {
-			return fmt.Errorf("write probe failed: %w", err)
+	var lastErr error
+	for {
+		lastErr = windowsCloudFilesWriteProbeOnce(probeDir, probeFile)
+		if lastErr == nil {
+			return nil
 		}
-		return fmt.Errorf("write probe failed: %w: %s", err, trimmed)
+		select {
+		case <-ctx.Done():
+			if ctx.Err() == context.DeadlineExceeded {
+				return fmt.Errorf(
+					"write probe timed out after %s: %w",
+					windowsCloudFilesHealthTimeout,
+					lastErr,
+				)
+			}
+			return lastErr
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
-	return nil
 }
 
-func windowsPowerShellString(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+func windowsCloudFilesWriteProbeOnce(probeDir, probeFile string) error {
+	if err := os.MkdirAll(probeDir, 0o755); err != nil {
+		return fmt.Errorf("create probe dir: %w", err)
+	}
+	if err := os.WriteFile(probeFile, []byte("probe"), 0o644); err != nil {
+		return fmt.Errorf("write probe file: %w", err)
+	}
+	_ = os.Remove(probeFile)
+	_ = os.Remove(probeDir)
+	return nil
 }
