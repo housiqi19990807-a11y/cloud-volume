@@ -109,7 +109,7 @@ func rsOnFetchPlaceholders(callbackInfoPtr uintptr, _ uintptr) {
 	if err != nil {
 		log.Printf("[mount/cloud-files] fetch-placeholders-callback error=%v", err)
 	}
-	_ = provider.AckPlaceholders(callbackInfoPtr, err)
+	_ = provider.CompletePlaceholders(callbackInfoPtr, err, err == nil)
 }
 
 //export rsOnDeleteCompletion

@@ -228,6 +228,8 @@ typedef enum RS_CF_OPERATION_TRANSFER_DATA_FLAGS {
 
 typedef enum RS_CF_OPERATION_TRANSFER_PLACEHOLDERS_FLAGS {
     CF_OPERATION_TRANSFER_PLACEHOLDERS_FLAG_NONE = 0x00000000,
+    CF_OPERATION_TRANSFER_PLACEHOLDERS_FLAG_STOP_ON_ERROR = 0x00000001,
+    CF_OPERATION_TRANSFER_PLACEHOLDERS_FLAG_DISABLE_ON_DEMAND_POPULATION = 0x00000002,
 } CF_OPERATION_TRANSFER_PLACEHOLDERS_FLAGS;
 
 typedef struct RS_CF_OPERATION_PARAMETERS {
@@ -290,6 +292,7 @@ HRESULT rs_cf_execute_transfer(
     const BYTE* data);
 HRESULT rs_cf_report_error(uintptr_t callbackInfoPtr, HRESULT providerError);
 HRESULT rs_cf_ack_placeholders(uintptr_t callbackInfoPtr, HRESULT completionStatus);
+HRESULT rs_cf_complete_placeholders(uintptr_t callbackInfoPtr, HRESULT completionStatus, DWORD flags);
 HRESULT rs_cf_report_progress_cb(
     uintptr_t callbackInfoPtr,
     LARGE_INTEGER total,
