@@ -7,8 +7,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 type cloudFilesHydrator struct {
@@ -20,6 +22,10 @@ type cloudFilesHydrator struct {
 
 	cancelMu sync.Mutex
 	cancels  map[string]context.CancelFunc
+
+	placeholderMu       sync.Mutex
+	placeholderInflight map[string]chan struct{}
+	placeholderFetched  map[string]time.Time
 }
 
 func newCloudFilesHydrator(
@@ -30,12 +36,14 @@ func newCloudFilesHydrator(
 	reader cloudFilesReader,
 ) *cloudFilesHydrator {
 	return &cloudFilesHydrator{
-		syncRoot: syncRoot,
-		access:   access,
-		provider: provider,
-		watcher:  watcher,
-		reader:   reader,
-		cancels:  map[string]context.CancelFunc{},
+		syncRoot:            syncRoot,
+		access:              access,
+		provider:            provider,
+		watcher:             watcher,
+		reader:              reader,
+		cancels:             map[string]context.CancelFunc{},
+		placeholderInflight: map[string]chan struct{}{},
+		placeholderFetched:  map[string]time.Time{},
 	}
 }
 
@@ -111,6 +119,28 @@ func (h *cloudFilesHydrator) OnCancelFetch(req cloudFilesFetchRequest) {
 }
 
 func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
+	cleanLocalPath := filepath.Clean(localPath)
+	shouldFetch, wait := h.beginPlaceholderFetch(cleanLocalPath)
+	if wait != nil {
+		<-wait
+		log.Printf(
+			"[mount/cloud-files] fetch-placeholders-coalesced local=%q",
+			cleanLocalPath,
+		)
+		return nil
+	}
+	if !shouldFetch {
+		log.Printf(
+			"[mount/cloud-files] fetch-placeholders-cached local=%q",
+			cleanLocalPath,
+		)
+		return nil
+	}
+	success := false
+	defer func() {
+		h.finishPlaceholderFetch(cleanLocalPath, success)
+	}()
+
 	virtualPath := cloudFilesLocalPathToVirtual(h.syncRoot, localPath)
 	log.Printf(
 		"[mount/cloud-files] fetch-placeholders local=%q virtual=%q",
@@ -139,5 +169,9 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 		virtualPath,
 		len(placeholders),
 	)
-	return h.provider.CreatePlaceholders(localPath, placeholders)
+	if err := h.provider.CreatePlaceholders(localPath, placeholders); err != nil {
+		return err
+	}
+	success = true
+	return nil
 }

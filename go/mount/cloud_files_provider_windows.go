@@ -11,6 +11,8 @@ import "C"
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 	"unsafe"
@@ -126,6 +128,13 @@ func (p *cloudFilesProvider) CreatePlaceholders(baseDir string, items []cloudPla
 	defer freeBaseDir()
 
 	for _, item := range items {
+		localPath := filepath.Join(baseDir, filepath.FromSlash(item.RelativePath))
+		if _, err := os.Lstat(localPath); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("stat placeholder target %q: %w", item.RelativePath, err)
+		}
+
 		var createInfo C.CF_PLACEHOLDER_CREATE_INFO
 
 		wRelativePath, freeRelativePath := cloudFilesWideString(item.RelativePath)
