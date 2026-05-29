@@ -123,17 +123,9 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 	shouldFetch, wait := h.beginPlaceholderFetch(cleanLocalPath)
 	if wait != nil {
 		<-wait
-		log.Printf(
-			"[mount/cloud-files] fetch-placeholders-coalesced local=%q",
-			cleanLocalPath,
-		)
 		return nil
 	}
 	if !shouldFetch {
-		log.Printf(
-			"[mount/cloud-files] fetch-placeholders-cached local=%q",
-			cleanLocalPath,
-		)
 		return nil
 	}
 	success := false

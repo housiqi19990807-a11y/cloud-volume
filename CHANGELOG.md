@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Windows Cloud Files browsing now suppresses cached/coalesced placeholder refresh logs and no longer prints every periodic mount-status probe, which keeps bridge logs focused on real placeholder and write-path failures such as unresolved-name copy errors.
 - Windows Cloud Files placeholder population now coalesces repeated directory fetches and skips `CfCreatePlaceholders` for paths that already exist locally, which avoids Explorer placeholder refresh loops and reduces `The cloud operation is invalid` / `Access is denied` callback failures while browsing mounted folders.
 - Windows local run script now appends `127.0.0.1,localhost` to `NO_PROXY` when proxy variables are present, which prevents `flutter run` from sending local Dart VM service websocket traffic through an HTTP proxy and losing the debug connection while the app stays open.
 - Windows Cloud Files mount startup now runs its write probe in-process with short retries instead of spawning a separate PowerShell writer, which avoids false mount failures caused by slow probe startup.
