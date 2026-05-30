@@ -1,5 +1,4 @@
-// 设置页集中管理主题、下载目录、可见性和 Windows 挂载模式等偏好。
-
+// 设置页负责按“通用 / Windows”分组展示配置，避免平台专属选项把通用设置挤在同一长页里。
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -10,13 +9,13 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/settings_sections.dart'
-    hide
-        WindowsMountModeSection,
-        WindowsThisPcEntrySection,
-        WindowsMountRecoverySection;
+    show DownloadDirectorySection, ThemePicker, VisibilitySection;
+import 'package:remote_storage/widgets/settings_tab_selector.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:remote_storage/widgets/windows_settings_sections.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+enum _SettingsTab { general, windows }
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -37,6 +36,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  _SettingsTab _activeTab = _SettingsTab.general;
   bool _savingDownloadDirectory = false;
   String? _downloadDirectoryError;
   bool _savingVisibility = false;
@@ -52,10 +52,15 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
 
+  bool get _showsWindowsTab => Platform.isWindows;
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final config = widget.state.config;
+    final sections = _showsWindowsTab && _activeTab == _SettingsTab.windows
+        ? _buildWindowsSections(theme, config)
+        : _buildGeneralSections(theme, config);
 
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
@@ -78,137 +83,167 @@ class _SettingsPageState extends State<SettingsPage> {
                 fontSize: 13,
               ),
             ),
-            const SizedBox(height: 28),
-            _buildCard(theme, '外观', const ThemePicker()),
-            const SizedBox(height: 20),
-            _buildCard(
-              theme,
-              '下载设置',
-              DownloadDirectorySection(
-                theme: theme,
-                configuredPath: config.defaultDownloadDirectory,
-                saving: _savingDownloadDirectory,
-                errorText: _downloadDirectoryError,
-                onPickDirectory: () => _pickDownloadDirectory(config),
-                onResetDirectory: () => _resetDownloadDirectory(config),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildCard(
-              theme,
-              '显示设置',
-              VisibilitySection(
-                theme: theme,
-                hideDotFiles: config.hideDotFiles,
-                saving: _savingVisibility,
-                errorText: _visibilityError,
-                onChanged: (value) => _saveHideDotFiles(config, value),
-              ),
-            ),
-            if (Platform.isWindows) ...[
-              const SizedBox(height: 20),
-              _buildCard(
-                theme,
-                'Windows 挂载模式',
-                WindowsMountModeSection(
-                  theme: theme,
-                  mode: config.windowsMountMode,
-                  saving: _savingWindowsMountMode,
-                  errorText: _windowsMountModeError,
-                  onChanged: (value) => _saveWindowsMountMode(config, value),
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildCard(
-                theme,
-                'Windows 入口',
-                WindowsThisPcEntrySection(
-                  theme: theme,
-                  enabled: config.windowsThisPcEntryEnabled,
-                  saving: _savingWindowsThisPcEntry,
-                  errorText: _windowsThisPcEntryError,
-                  onChanged: (value) => _saveWindowsThisPcEntry(config, value),
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildCard(
-                theme,
-                'Windows 写回并发',
-                WindowsWritebackConcurrencySection(
-                  theme: theme,
-                  concurrency: config.windowsWritebackConcurrency,
-                  saving: _savingWindowsWritebackConcurrency,
-                  errorText: _windowsWritebackConcurrencyError,
-                  onChanged: (value) =>
-                      _saveWindowsWritebackConcurrency(config, value),
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildCard(
-                theme,
-                'Windows 挂载恢复',
-                WindowsMountRecoverySection(
-                  theme: theme,
-                  busy: _resettingWindowsMounts,
-                  errorText: _windowsMountResetError,
-                  onReset: _forceResetWindowsMounts,
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            _buildCard(
-              theme,
-              '回收站',
-              TrashSettingsSection(
-                theme: theme,
-                directoryName: config.trashDirectoryName,
-                retentionDays: config.trashRetentionDays,
-                saving: _savingTrashSettings,
-                errorText: _trashSettingsError,
-                onSave: (directoryName, retentionDays) =>
-                    _saveTrashSettings(config, directoryName, retentionDays),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildCard(
-              theme,
-              '连接信息',
-              Column(
-                children: [
-                  _infoRow(theme, '端点地址', config.endpoint),
-                  const SizedBox(height: 8),
-                  _infoRow(
-                    theme,
-                    '区域',
-                    config.region.isEmpty ? 'auto' : config.region,
-                  ),
-                  const SizedBox(height: 8),
-                  _infoRow(theme, '路径风格', config.usePathStyle ? '启用' : '禁用'),
-                  const SizedBox(height: 8),
-                  _infoRow(theme, '配置路径', widget.state.configPath),
-                  const SizedBox(height: 8),
-                  _infoRow(theme, '访问密钥 ID', _maskedKey(config.accessKeyId)),
-                ],
-              ),
-            ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                ShadButton(
-                  onPressed: widget.onEditConfig,
-                  child: const Text('重新配置'),
-                ),
-                const SizedBox(width: 10),
-                ShadButton.outline(
-                  onPressed: widget.onRefresh,
-                  child: const Text('刷新状态'),
-                ),
-              ],
-            ),
+            if (_showsWindowsTab) ...[
+              _buildTabSelector(theme),
+              const SizedBox(height: 20),
+            ],
+            ...sections,
+            const SizedBox(height: 24),
+            _buildFooterActions(),
             const SizedBox(height: 40),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTabSelector(ShadThemeData theme) {
+    return SettingsTabSelector<_SettingsTab>(
+      theme: theme,
+      value: _activeTab,
+      items: const [
+        SettingsTabItem<_SettingsTab>(
+          value: _SettingsTab.general,
+          label: '通用设置',
+        ),
+        SettingsTabItem<_SettingsTab>(
+          value: _SettingsTab.windows,
+          label: 'Windows 设置',
+        ),
+      ],
+      onChanged: (value) => setState(() => _activeTab = value),
+    );
+  }
+
+  List<Widget> _buildGeneralSections(ShadThemeData theme, RemoteStorageConfig config) {
+    return [
+      _buildCard(theme, '外观', const ThemePicker()),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '下载设置',
+        DownloadDirectorySection(
+          theme: theme,
+          configuredPath: config.defaultDownloadDirectory,
+          saving: _savingDownloadDirectory,
+          errorText: _downloadDirectoryError,
+          onPickDirectory: () => _pickDownloadDirectory(config),
+          onResetDirectory: () => _resetDownloadDirectory(config),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '显示设置',
+        VisibilitySection(
+          theme: theme,
+          hideDotFiles: config.hideDotFiles,
+          saving: _savingVisibility,
+          errorText: _visibilityError,
+          onChanged: (value) => _saveHideDotFiles(config, value),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '回收站',
+        TrashSettingsSection(
+          theme: theme,
+          directoryName: config.trashDirectoryName,
+          retentionDays: config.trashRetentionDays,
+          saving: _savingTrashSettings,
+          errorText: _trashSettingsError,
+          onSave: (directoryName, retentionDays) =>
+              _saveTrashSettings(config, directoryName, retentionDays),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(theme, '连接信息', _buildConnectionInfo(theme, config)),
+    ];
+  }
+
+  List<Widget> _buildWindowsSections(ShadThemeData theme, RemoteStorageConfig config) {
+    return [
+      _buildCard(
+        theme,
+        'Windows 挂载模式',
+        WindowsMountModeSection(
+          theme: theme,
+          mode: config.windowsMountMode,
+          saving: _savingWindowsMountMode,
+          errorText: _windowsMountModeError,
+          onChanged: (value) => _saveWindowsMountMode(config, value),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        'Windows 入口',
+        WindowsThisPcEntrySection(
+          theme: theme,
+          enabled: config.windowsThisPcEntryEnabled,
+          saving: _savingWindowsThisPcEntry,
+          errorText: _windowsThisPcEntryError,
+          onChanged: (value) => _saveWindowsThisPcEntry(config, value),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        'Windows 写回并发',
+        WindowsWritebackConcurrencySection(
+          theme: theme,
+          concurrency: config.windowsWritebackConcurrency,
+          saving: _savingWindowsWritebackConcurrency,
+          errorText: _windowsWritebackConcurrencyError,
+          onChanged: (value) =>
+              _saveWindowsWritebackConcurrency(config, value),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        'Windows 挂载恢复',
+        WindowsMountRecoverySection(
+          theme: theme,
+          busy: _resettingWindowsMounts,
+          errorText: _windowsMountResetError,
+          onReset: _forceResetWindowsMounts,
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildConnectionInfo(ShadThemeData theme, RemoteStorageConfig config) {
+    return Column(
+      children: [
+        _infoRow(theme, '端点地址', config.endpoint),
+        const SizedBox(height: 8),
+        _infoRow(theme, '区域', config.region.isEmpty ? 'auto' : config.region),
+        const SizedBox(height: 8),
+        _infoRow(theme, '路径风格', config.usePathStyle ? '启用' : '禁用'),
+        const SizedBox(height: 8),
+        _infoRow(theme, '配置路径', widget.state.configPath),
+        const SizedBox(height: 8),
+        _infoRow(theme, '访问密钥 ID', _maskedKey(config.accessKeyId)),
+      ],
+    );
+  }
+
+  Widget _buildFooterActions() {
+    return Row(
+      children: [
+        ShadButton(
+          onPressed: widget.onEditConfig,
+          child: const Text('重新配置'),
+        ),
+        const SizedBox(width: 10),
+        ShadButton.outline(
+          onPressed: widget.onRefresh,
+          child: const Text('刷新状态'),
+        ),
+      ],
     );
   }
 
@@ -245,10 +280,7 @@ class _SettingsPageState extends State<SettingsPage> {
     await _saveDownloadDirectory(config, '');
   }
 
-  Future<void> _saveDownloadDirectory(
-    RemoteStorageConfig config,
-    String path,
-  ) async {
+  Future<void> _saveDownloadDirectory(RemoteStorageConfig config, String path) async {
     setState(() {
       _savingDownloadDirectory = true;
       _downloadDirectoryError = null;
@@ -269,10 +301,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _saveHideDotFiles(
-    RemoteStorageConfig config,
-    bool hideDotFiles,
-  ) async {
+  Future<void> _saveHideDotFiles(RemoteStorageConfig config, bool hideDotFiles) async {
     setState(() {
       _savingVisibility = true;
       _visibilityError = null;
@@ -319,10 +348,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _saveWindowsMountMode(
-    RemoteStorageConfig config,
-    WindowsMountMode? mode,
-  ) async {
+  Future<void> _saveWindowsMountMode(RemoteStorageConfig config, WindowsMountMode? mode) async {
     if (mode == null || mode == config.windowsMountMode) {
       return;
     }
@@ -344,10 +370,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _saveWindowsThisPcEntry(
-    RemoteStorageConfig config,
-    bool enabled,
-  ) async {
+  Future<void> _saveWindowsThisPcEntry(RemoteStorageConfig config, bool enabled) async {
     if (enabled == config.windowsThisPcEntryEnabled) {
       return;
     }
@@ -415,7 +438,11 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _windowsMountResetError = error.toString());
-      showAppErrorToast(context, title: '挂载重置失败', message: error.toString());
+      showAppErrorToast(
+        context,
+        title: '挂载重置失败',
+        message: error.toString(),
+      );
     } finally {
       if (mounted) {
         setState(() => _resettingWindowsMounts = false);
@@ -452,9 +479,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   String _maskedKey(String key) {
-    if (key.length <= 6) {
-      return key;
-    }
+    if (key.length <= 6) return key;
     return '${key.substring(0, 4)}${'•' * (key.length - 6)}${key.substring(key.length - 2)}';
   }
 }
