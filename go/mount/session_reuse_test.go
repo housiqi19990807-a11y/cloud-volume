@@ -20,7 +20,7 @@ func TestMountSessionMatchesRequiresNormalizedConfigAndBucket(t *testing.T) {
 		Endpoint:         " https://example.com ",
 		Bucket:           "bucket-a",
 		WindowsMountMode: storageconfig.WindowsMountModeCloudFilesCached,
-	}, "bucket-a") {
+	}, "bucket-a", MountOptions{}) {
 		t.Fatalf("expected equivalent normalized config to reuse session")
 	}
 
@@ -28,7 +28,7 @@ func TestMountSessionMatchesRequiresNormalizedConfigAndBucket(t *testing.T) {
 		Endpoint:         "https://example.com",
 		Bucket:           "bucket-a",
 		WindowsMountMode: storageconfig.WindowsMountModeWebDAV,
-	}, "bucket-a") {
+	}, "bucket-a", MountOptions{}) {
 		t.Fatalf("expected mount-mode change to force remount")
 	}
 
@@ -36,7 +36,7 @@ func TestMountSessionMatchesRequiresNormalizedConfigAndBucket(t *testing.T) {
 		Endpoint:         "https://example.com",
 		Bucket:           "bucket-a",
 		WindowsMountMode: storageconfig.WindowsMountModeCloudFilesCached,
-	}, "bucket-b") {
+	}, "bucket-b", MountOptions{}) {
 		t.Fatalf("expected bucket change to force remount")
 	}
 }

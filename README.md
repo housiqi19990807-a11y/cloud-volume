@@ -77,6 +77,58 @@ Linux 本地启动前提：
 - 需要 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`、`fuse3` 以及可用的 Go CGO 编译链。
 - Linux runner 现在也会在 `flutter run -d linux` / `flutter build linux` 期间自动构建 `bin/bridge/libremote_storage_bridge.so`，并把它安装到 bundle 的 `lib/` 目录，避免打包后的可执行文件因缺少 bridge 而无法启动。
 - Linux 挂载现在使用用户态 FUSE mount，把 bucket 暴露到 `~/Cloud Volume/<bucket>`，目录读取、按需下载、本地暂存、延迟写回、删除和改名都继续复用现有 Go 侧本地优先逻辑。
+- 仅使用 CLI 挂载时，至少需要 `fuse3`、`fusermount3` 和可用的 `/dev/fuse` 设备；Ubuntu / Debian 可先执行 `sudo apt install -y fuse3`。
+
+### Linux CLI 挂载
+
+仓库现在额外提供 `cloud-volume-cli`，用于在没有桌面环境的 Linux 服务器上初始化配置并前台挂载 bucket。
+
+构建：
+
+```bash
+make build-cli
+```
+
+首次初始化：
+
+```bash
+./bin/cloud-volume-cli init
+```
+
+`init` 会交互式提示输入这些关键配置：
+
+- `endpoint`
+- `region`
+- `access key id`
+- `secret access key`
+- `bucket`
+- `root prefix`
+- `use_path_style`
+
+默认会立即校验 endpoint、凭证和 bucket 可访问性；如果当前账号没有 `ListBuckets` 权限，或者你只是想先保存配置，可以改用：
+
+```bash
+./bin/cloud-volume-cli init --skip-validate
+```
+
+挂载指定 bucket 到指定目录：
+
+```bash
+./bin/cloud-volume-cli mount --bucket media --mount-point /mnt/media
+```
+
+也支持位置参数：
+
+```bash
+./bin/cloud-volume-cli mount media /mnt/media
+```
+
+说明：
+
+- 不传 `--bucket` 时，会回退到 `~/.remote-storage/config.toml` 里的默认 `bucket`
+- 不传 `--mount-point` 时，仍使用默认目录 `~/Cloud Volume/<bucket>`
+- `mount` 会前台常驻，按 `Ctrl+C` 会触发卸载
+- 自定义挂载目录必须为空目录；CLI 不会删除你自定义目录里的已有内容
 
 ## 配置项
 
@@ -103,6 +155,7 @@ Linux 本地启动前提：
 
 - Flutter：桌面 UI、页面状态、任务展示、配置与交互层
 - Go bridge：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照
+- Go CLI：Linux 服务器上的交互式初始化和前台 FUSE 挂载入口
 - Desktop mount backends：macOS 走系统 WebDAV 卷挂载，Linux 走用户态 FUSE 挂载，Windows 同时保留 Cloud Files 与 WebDAV 映射盘方案
 - 本地缓存与 overlay：保证挂载场景下的本地优先可见性与恢复能力
 

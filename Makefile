@@ -14,6 +14,8 @@ endif
 endif
 
 BRIDGE_DIR := bin/bridge
+CLI_DIR := bin
+CLI_OUT := $(CLI_DIR)/cloud-volume-cli
 MACOS_BRIDGE_OUT := $(BRIDGE_DIR)/libremote_storage_bridge.dylib
 LINUX_BRIDGE_OUT := $(BRIDGE_DIR)/libremote_storage_bridge.so
 WINDOWS_BRIDGE_OUT := $(BRIDGE_DIR)/remote_storage_bridge.dll
@@ -27,7 +29,7 @@ ifneq ($(BRIDGE_CXX),)
 BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
 endif
 
-.PHONY: bridge bridge-macos bridge-linux bridge-windows run run-macos run-linux build build-macos build-linux build-windows test analyze clean
+.PHONY: bridge bridge-macos bridge-linux bridge-windows build-cli run run-macos run-linux build build-macos build-linux build-windows test analyze clean
 
 bridge:
 ifeq ($(HOST_PLATFORM),macos)
@@ -57,6 +59,10 @@ else
 	@echo "bridge-windows must be run on a Windows host."
 	@exit 1
 endif
+
+build-cli:
+	@mkdir -p $(CLI_DIR)
+	go build -o $(CLI_OUT) ./cmd/cloud-volume-cli
 
 run: bridge
 ifeq ($(HOST_PLATFORM),macos)

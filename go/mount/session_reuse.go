@@ -7,11 +7,13 @@ func mountSessionMatches(
 	session *mountSession,
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
+	options MountOptions,
 ) bool {
 	if session == nil {
 		return false
 	}
 	normalized := cfg.Normalized()
 	return session.bucket == normalizeBucketName(bucket) &&
-		session.config == normalized
+		session.config == normalized &&
+		session.requestedPath == normalizeMountPath(options.MountPath)
 }

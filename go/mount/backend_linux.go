@@ -6,6 +6,7 @@ package mount
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	gofusefs "github.com/hanwen/go-fuse/v2/fs"
@@ -26,9 +27,14 @@ func newPlatformMountBackend(_ storageconfig.RemoteStorageConfig) (mountBackend,
 
 func (b *linuxFUSEBackend) Initialize(session *mountSession) error {
 	session.mountName = safeSegment(session.bucket)
-	mountPath, err := linuxMountPath(session.bucket)
-	if err != nil {
-		return err
+	mountPath := normalizeMountPath(session.requestedPath)
+	if mountPath == "" {
+		defaultPath, err := linuxMountPath(session.bucket)
+		if err != nil {
+			return err
+		}
+		session.managedPath = true
+		mountPath = defaultPath
 	}
 	session.mountPath = mountPath
 	session.mountTarget = mountPath
@@ -36,10 +42,7 @@ func (b *linuxFUSEBackend) Initialize(session *mountSession) error {
 }
 
 func (b *linuxFUSEBackend) Start(session *mountSession) error {
-	if err := os.RemoveAll(session.mountPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("prepare linux mount path: %w", err)
-	}
-	if err := os.MkdirAll(session.mountPath, 0o755); err != nil {
+	if err := prepareLinuxMountPath(session.mountPath, session.managedPath); err != nil {
 		return fmt.Errorf("create linux mount path: %w", err)
 	}
 
@@ -80,7 +83,11 @@ func (b *linuxFUSEBackend) Stop(session *mountSession) error {
 	if err := session.access.close(); err != nil && firstErr == nil {
 		firstErr = err
 	}
-	if err := os.RemoveAll(session.mountPath); err != nil && !os.IsNotExist(err) && firstErr == nil {
+	if session.managedPath {
+		if err := os.RemoveAll(session.mountPath); err != nil && !os.IsNotExist(err) && firstErr == nil {
+			firstErr = err
+		}
+	} else if err := os.MkdirAll(filepath.Clean(session.mountPath), 0o755); err != nil && firstErr == nil {
 		firstErr = err
 	}
 	return firstErr
@@ -91,19 +98,19 @@ func (b *linuxFUSEBackend) IsActive(session *mountSession) (bool, error) {
 }
 
 func (b *linuxFUSEBackend) CleanupStale(session *mountSession) error {
-	paths, err := listLinuxManagedMountPaths()
+	active, err := linuxMountActive(session.mountPath)
 	if err != nil {
 		return err
 	}
-	for _, mountPath := range paths {
-		if mountPath == session.mountPath {
-			if err := linuxUnmountPath(mountPath); err != nil {
-				return err
-			}
+	if active {
+		if err := linuxUnmountPath(session.mountPath); err != nil {
+			return err
 		}
 	}
-	if err := os.RemoveAll(session.mountPath); err != nil && !os.IsNotExist(err) {
-		return err
+	if session.managedPath {
+		if err := os.RemoveAll(session.mountPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }
