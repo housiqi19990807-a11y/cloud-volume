@@ -254,7 +254,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
     if (!mounted) {
       return;
     }
-    _showPageMessage(title: '操作失败', message: error.toString());
+    _showPageMessage(title: '操作失败', message: describeBridgeError(error));
   }
 
   void _showPageMessage({required String title, required String message}) {

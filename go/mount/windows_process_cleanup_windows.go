@@ -7,6 +7,7 @@ package mount
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -20,19 +21,23 @@ func CleanupStaleWindowsProcesses() (int, error) {
 		return 0, fmt.Errorf("locate powershell: %w", err)
 	}
 
-	workspaceRoot, err := filepath.Abs(".")
+	workspaceRoot, err := locateWorkspaceRoot()
 	if err != nil {
 		return 0, fmt.Errorf("resolve workspace root: %w", err)
 	}
 	targetPrefix := strings.ToLower(filepath.Clean(
 		filepath.Join(workspaceRoot, "build", "windows", "x64", "runner"),
 	))
+	currentPID := os.Getpid()
+	escapedPrefix := strings.ReplaceAll(targetPrefix, "'", "''")
 
 	script := fmt.Sprintf(`
-$targetPrefix = %q
+$targetPrefix = '%s'
+$currentPid = %d
 $killed = 0
 $processes = Get-CimInstance Win32_Process -Filter "Name = 'remote_storage.exe'"
 foreach ($process in $processes) {
+  if ($process.ProcessId -eq $currentPid) { continue }
   $path = $process.ExecutablePath
   if (-not $path) { continue }
   $clean = [System.IO.Path]::GetFullPath($path).ToLowerInvariant()
@@ -41,7 +46,7 @@ foreach ($process in $processes) {
   $killed++
 }
 Write-Output $killed
-`, targetPrefix)
+`, escapedPrefix, currentPID)
 
 	cmd := exec.Command(exePath, "-NoProfile", "-Command", script)
 	var stdout bytes.Buffer
@@ -60,4 +65,46 @@ Write-Output $killed
 		return 0, fmt.Errorf("parse cleanup stale windows processes count %q: %w", countText, err)
 	}
 	return count, nil
+}
+
+func locateWorkspaceRoot() (string, error) {
+	candidates := []string{}
+	if wd, err := os.Getwd(); err == nil && wd != "" {
+		candidates = append(candidates, wd)
+	}
+	if exePath, err := os.Executable(); err == nil && exePath != "" {
+		candidates = append(candidates, filepath.Dir(exePath))
+	}
+
+	for _, candidate := range candidates {
+		if root, ok := searchWorkspaceRoot(candidate); ok {
+			return root, nil
+		}
+	}
+	return "", fmt.Errorf("could not locate repository root from cwd or executable path")
+}
+
+func searchWorkspaceRoot(start string) (string, bool) {
+	current := filepath.Clean(start)
+	for {
+		if fileExists(filepath.Join(current, "go.mod")) &&
+			dirExists(filepath.Join(current, "bridge")) {
+			return current, true
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		current = parent
+	}
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
