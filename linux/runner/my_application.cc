@@ -53,39 +53,18 @@ static void handle_window_method_call(MyApplication* self,
   } else if (g_strcmp0(method, "hideToTray") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else if (g_strcmp0(method, "startDrag") == 0) {
-    gint root_x = 0;
-    gint root_y = 0;
-    gboolean has_coordinates = FALSE;
-
-    FlValue* args = fl_method_call_get_args(method_call);
-    if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
-      FlValue* x_value = fl_value_lookup_string(args, "x");
-      FlValue* y_value = fl_value_lookup_string(args, "y");
-      if (x_value != nullptr && y_value != nullptr &&
-          fl_value_get_type(x_value) == FL_VALUE_TYPE_FLOAT &&
-          fl_value_get_type(y_value) == FL_VALUE_TYPE_FLOAT) {
-        root_x = static_cast<gint>(fl_value_get_float(x_value));
-        root_y = static_cast<gint>(fl_value_get_float(y_value));
-        has_coordinates = TRUE;
+    GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(self->window));
+    if (display != nullptr) {
+      GdkSeat* seat = gdk_display_get_default_seat(display);
+      GdkDevice* pointer =
+          seat == nullptr ? nullptr : gdk_seat_get_pointer(seat);
+      if (pointer != nullptr) {
+        gint root_x = 0;
+        gint root_y = 0;
+        gdk_device_get_position(pointer, nullptr, &root_x, &root_y);
+        gtk_window_begin_move_drag(self->window, 1, root_x, root_y,
+                                   GDK_CURRENT_TIME);
       }
-    }
-
-    if (!has_coordinates) {
-      GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(self->window));
-      if (display != nullptr) {
-        GdkSeat* seat = gdk_display_get_default_seat(display);
-        GdkDevice* pointer =
-            seat == nullptr ? nullptr : gdk_seat_get_pointer(seat);
-        if (pointer != nullptr) {
-          gdk_device_get_position(pointer, nullptr, &root_x, &root_y);
-          has_coordinates = TRUE;
-        }
-      }
-    }
-
-    if (has_coordinates) {
-      gtk_window_begin_move_drag(self->window, 1, root_x, root_y,
-                                 GDK_CURRENT_TIME);
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else {

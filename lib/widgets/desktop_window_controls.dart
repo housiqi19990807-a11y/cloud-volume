@@ -126,8 +126,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onPanDown: (details) =>
-                  unawaited(WindowControls.startDrag(details.globalPosition)),
+              onPanDown: (_) => unawaited(WindowControls.startDrag()),
               onDoubleTap: () => unawaited(_toggleMaximize()),
               child: const SizedBox(height: 48),
             ),
