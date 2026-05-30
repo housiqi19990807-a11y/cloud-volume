@@ -75,13 +75,13 @@ class FileManagerObjectBrowser extends StatelessWidget {
     if (showSyncStatus) {
       return AnimatedBuilder(
         animation: TransferQueue.instance,
-        builder: (context, _) => _buildBody(context),
+        builder: (context, _) => _buildBody(context, TransferQueue.instance),
       );
     }
-    return _buildBody(context);
+    return _buildBody(context, null);
   }
 
-  Widget _buildBody(BuildContext context) {
+  Widget _buildBody(BuildContext context, TransferQueue? queue) {
     final theme = ShadTheme.of(context);
     final visibleObjects = prefix.isEmpty
         ? objects
@@ -108,11 +108,15 @@ class FileManagerObjectBrowser extends StatelessWidget {
         ),
       );
     }
-    if (isGrid) return _buildGrid(visibleObjects, theme);
-    return _buildList(visibleObjects, theme);
+    if (isGrid) return _buildGrid(visibleObjects, theme, queue);
+    return _buildList(visibleObjects, theme, queue);
   }
 
-  Widget _buildGrid(List<ObjectInfo> objects, ShadThemeData theme) {
+  Widget _buildGrid(
+    List<ObjectInfo> objects,
+    ShadThemeData theme,
+    TransferQueue? queue,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossAxisCount = (constraints.maxWidth / 118).floor().clamp(
@@ -133,7 +137,9 @@ class FileManagerObjectBrowser extends StatelessWidget {
                   leading: _leading(object, theme, gridIconSize),
                   title: _title(object),
                   subtitle: _subtitle(object, forGrid: true),
-                  bottomOverlay: mountedToDesktop ? _syncBadge(object) : null,
+                  bottomOverlay: mountedToDesktop
+                      ? _syncBadge(object, queue)
+                      : null,
                   onTap: _tapHandler(object),
                   onDoubleTap: _doubleTapHandler(object),
                   onTitleTap: _titleTapHandler(object),
@@ -169,7 +175,11 @@ class FileManagerObjectBrowser extends StatelessWidget {
     );
   }
 
-  Widget _buildList(List<ObjectInfo> objects, ShadThemeData theme) {
+  Widget _buildList(
+    List<ObjectInfo> objects,
+    ShadThemeData theme,
+    TransferQueue? queue,
+  ) {
     final selectableObjects = objects.where(
       (object) => !_isParentDirectory(object),
     );
@@ -205,7 +215,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                     leading: _leading(object, theme, listIconSize),
                     title: _title(object),
                     sizeLabel: _sizeLabel(object),
-                    statusWidget: _syncBadge(object),
+                    statusWidget: _syncBadge(object, queue),
                     modifiedLabel: _modifiedLabel(object),
                     onTap: _tapHandler(object),
                     onDoubleTap: _doubleTapHandler(object),
@@ -287,59 +297,26 @@ class FileManagerObjectBrowser extends StatelessWidget {
     return object.lastModified;
   }
 
-  Widget? _syncBadge(ObjectInfo object) {
+  Widget? _syncBadge(ObjectInfo object, TransferQueue? queue) {
     if (!showSyncStatus || _isParentDirectory(object) || _isDeleting(object)) {
       return null;
     }
-    final state = _syncStateFor(object);
+    final state = _syncStateFor(object, queue);
     return FileSyncStatusBadge(state: state);
   }
 
-  FileSyncState _syncStateFor(ObjectInfo object) {
+  FileSyncState _syncStateFor(ObjectInfo object, TransferQueue? queue) {
     if (!mountedToDesktop) {
       return const FileSyncState.synced();
     }
     if (mountBucketName == null || mountBucketName!.trim().isEmpty) {
       return const FileSyncState.synced();
     }
-
-    var pending = 0;
-    var running = 0;
-    final objectKey = object.key;
-    final directoryPrefix = object.isDir ? object.key : '';
-    for (final task in TransferQueue.instance.tasks) {
-      if (!task.id.startsWith('mount-writeback-')) {
-        continue;
-      }
-      if (!task.isUpload || task.bucket != mountBucketName) {
-        continue;
-      }
-      final matches = object.isDir
-          ? task.key.startsWith(directoryPrefix)
-          : task.key == objectKey;
-      if (!matches) {
-        continue;
-      }
-      switch (task.status) {
-        case TransferStatus.pending:
-          pending++;
-        case TransferStatus.running:
-          running++;
-        case TransferStatus.done:
-        case TransferStatus.failed:
-        case TransferStatus.canceled:
-          break;
-      }
-    }
-
-    if (running > 0 || pending > 0) {
-      return FileSyncState.pending(
-        pendingCount: pending,
-        runningCount: running,
-        isDirectory: object.isDir,
-      );
-    }
-    return const FileSyncState.synced();
+    return (queue ?? TransferQueue.instance).syncStateForObject(
+      bucket: mountBucketName!,
+      objectKey: object.key,
+      isDirectory: object.isDir,
+    );
   }
 
   VoidCallback _tapHandler(ObjectInfo object) {

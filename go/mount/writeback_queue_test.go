@@ -171,7 +171,11 @@ func TestWritebackQueueUsesConfiguredConcurrency(t *testing.T) {
 	access := newTestBucketAccess(t)
 	_ = access.writeback.shutdown()
 	access.config.WindowsWritebackConcurrency = 2
-	access.writeback = newWritebackQueue(access)
+	writeback, err := newWritebackQueue(access)
+	if err != nil {
+		t.Fatalf("newWritebackQueue: %v", err)
+	}
+	access.writeback = writeback
 	defer func() {
 		_ = access.writeback.shutdown()
 	}()
@@ -205,7 +209,10 @@ func TestWritebackQueueRestoresPersistedEntries(t *testing.T) {
 		t.Fatalf("shutdown writeback queue: %v", err)
 	}
 
-	restored := newWritebackQueue(access)
+	restored, err := newWritebackQueue(access)
+	if err != nil {
+		t.Fatalf("restore writeback queue: %v", err)
+	}
 	t.Cleanup(func() {
 		_ = restored.shutdown()
 	})

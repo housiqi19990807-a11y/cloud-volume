@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	s3ops "remote-storage/go/s3"
 )
@@ -50,6 +52,11 @@ func (a *bucketAccess) readCachedRange(
 	if length <= 0 {
 		return nil, nil
 	}
+	if item, ok := a.cache.localFile(virtualPath); ok && a.isSyncRootLocalPath(item.localPath) {
+		// Cloud Files hydration must not read back from the sync-root placeholder
+		// itself, or the reader will recurse into the same CFAPI callback chain.
+		a.cache.clearLocalFileMarker(virtualPath)
+	}
 	localPath, info, err := a.ensureLocalFile(ctx, virtualPath)
 	if err != nil {
 		return nil, err
@@ -78,4 +85,18 @@ func (a *bucketAccess) readCachedRange(
 	default:
 		return nil, err
 	}
+}
+
+func (a *bucketAccess) isSyncRootLocalPath(localPath string) bool {
+	if a == nil || strings.TrimSpace(localPath) == "" {
+		return false
+	}
+	rootPath, err := windowsCloudFilesRootPath()
+	if err != nil {
+		return false
+	}
+	cleanLocal := filepath.Clean(localPath)
+	cleanRoot := filepath.Clean(rootPath)
+	return cleanLocal == cleanRoot ||
+		strings.HasPrefix(cleanLocal, cleanRoot+string(os.PathSeparator))
 }

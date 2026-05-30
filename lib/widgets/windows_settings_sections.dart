@@ -264,14 +264,18 @@ class WindowsMountRecoverySection extends StatelessWidget {
     super.key,
     required this.theme,
     required this.busy,
+    required this.cleaningProcesses,
     required this.errorText,
     required this.onReset,
+    required this.onCleanupProcesses,
   });
 
   final ShadThemeData theme;
   final bool busy;
+  final bool cleaningProcesses;
   final String? errorText;
   final VoidCallback onReset;
+  final VoidCallback onCleanupProcesses;
 
   @override
   Widget build(BuildContext context) {
@@ -327,6 +331,11 @@ class WindowsMountRecoverySection extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 12),
+        ShadButton.outline(
+          onPressed: cleaningProcesses ? null : onCleanupProcesses,
+          child: Text(cleaningProcesses ? '正在结束残留进程...' : '结束残留占用进程'),
+        ),
+        const SizedBox(height: 10),
         ShadButton.destructive(
           onPressed: busy ? null : onReset,
           child: Text(busy ? '正在重置...' : '强制卸载并重置状态'),

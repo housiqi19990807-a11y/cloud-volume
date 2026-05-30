@@ -55,6 +55,42 @@ func TestWindowsPathStateHydratingStillHidesChildren(t *testing.T) {
 	}
 }
 
+func TestMarkHydratedIgnoresImmediateSystemWritebackEvent(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	filePath := filepath.Join(root, "docs", "draft.txt")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		t.Fatalf("mkdir tree: %v", err)
+	}
+	if err := os.WriteFile(filePath, []byte("remote"), 0o644); err != nil {
+		t.Fatalf("write hydrated file: %v", err)
+	}
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("stat hydrated file: %v", err)
+	}
+
+	state := &windowsPathState{
+		ignored:      map[string]windowsIgnoredPath{},
+		hydrating:    map[string]bool{},
+		kinds:        map[string]bool{},
+		files:        map[string]windowsObservedFile{},
+		placeholders: map[string]bool{},
+	}
+	state.markHydrating(filePath)
+	state.markPlaceholder(filePath)
+
+	state.markHydrated(filePath)
+
+	if !state.shouldIgnore(filePath) {
+		t.Fatal("expected hydrated file write event to be ignored briefly")
+	}
+	if state.shouldQueueFile(filePath, info.Size(), info.ModTime(), false) {
+		t.Fatal("expected hydrated file metadata to be remembered without queueing upload")
+	}
+}
+
 func TestIngestDirectoryTreeQueuesExistingNestedFiles(t *testing.T) {
 	t.Parallel()
 

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Windows mount startup no longer panics when a leftover `remote_storage.exe` still holds `~/.remote-storage/runtime/mounts/<bucket>/writeback.db`; the bridge now returns a normal actionable error instead, and Windows Settings add an `结束残留占用进程` recovery action for cleaning those stale local runner processes before retrying the mount.
 - Windows Cloud Files cached-writeback now persists queued uploads in a per-bucket BoltDB store, merges repeated edits by virtual path, restores unfinished writeback tasks after remount, and releases unmount without synchronously flushing the whole queue first, so Explorer writes no longer have to wait for pending uploads before the mount disappears and background sync can continue while the app process stays alive.
 - Windows Cloud Files directory-copy recovery now refreshes parent harvest scans when descendant files and child directories keep appearing, and local directory writes clear stale placeholder markers under that subtree, which fixes interrupted large-folder copies that previously only surfaced the first discovered child tree or only queued first-level files while deeper subdirectories such as `.git` stayed missing from the transfers page and mounted file manager.
 - Windows Cloud Files unmount now disconnects the provider before closing the local watcher, and watcher shutdown waits for active harvest scans to stop scheduling new directory watches, which fixes mounts getting stuck at `watcher-close-start` during unmount after large copy operations.

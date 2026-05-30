@@ -77,7 +77,12 @@ func newBucketAccess(
 		overlay:         overlay,
 	}
 	access.dirSync = newDirSyncQueue(access)
-	access.writeback = newWritebackQueue(access)
+	writeback, err := newWritebackQueue(access)
+	if err != nil {
+		access.dirSync.shutdown()
+		return nil, err
+	}
+	access.writeback = writeback
 	access.deletes = newDeleteQueue(access)
 	return access, nil
 }
@@ -138,12 +143,12 @@ type pendingWriteback struct {
 	retryCount      int
 }
 
-func newWritebackQueue(access *bucketAccess) *writebackQueue {
+func newWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
 	q, err := acquireWritebackQueue(access)
 	if err != nil {
-		panic(fmt.Sprintf("create writeback queue: %v", err))
+		return nil, fmt.Errorf("create writeback queue: %w", err)
 	}
-	return q
+	return q, nil
 }
 
 type syncStateProjector interface {

@@ -12,10 +12,16 @@ import 'package:remote_storage/widgets/transfer_task_widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class TransfersPage extends StatefulWidget {
-  const TransfersPage({super.key, required this.api, required this.config});
+  const TransfersPage({
+    super.key,
+    required this.api,
+    required this.config,
+    this.active = false,
+  });
 
   final RemoteStorageGateway api;
   final RemoteStorageConfig config;
+  final bool active;
 
   @override
   State<TransfersPage> createState() => _TransfersPageState();
@@ -139,76 +145,78 @@ class _TransfersPageState extends State<TransfersPage> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final queue = TransferQueue.instance;
+    final body = widget.active
+        ? AnimatedBuilder(
+            animation: queue,
+            builder: (context, _) => _buildQueueBody(theme, queue),
+          )
+        : _buildQueueBody(theme, queue);
 
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
-      child: AnimatedBuilder(
-        animation: queue,
-        builder: (context, _) {
-          final selectedCount = _selectedTaskIds.length;
-          final visibleTasks = queue.tasks
-              .where(_matchesFilters)
-              .toList(growable: false);
-          final selectedVisibleCount = visibleTasks
-              .where((task) => _selectedTaskIds.contains(task.id))
-              .length;
-          final startableCount = queue.triggerableTaskCount(_selectedTaskIds);
-          final cancelableCount = queue.cancelableTaskCount(_selectedTaskIds);
+      child: body,
+    );
+  }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+  Widget _buildQueueBody(ShadThemeData theme, TransferQueue queue) {
+    final selectedCount = _selectedTaskIds.length;
+    final visibleTasks = _filteredTasks(queue);
+    final selectedVisibleCount = visibleTasks
+        .where((task) => _selectedTaskIds.contains(task.id))
+        .length;
+    final startableCount = queue.triggerableTaskCount(_selectedTaskIds);
+    final cancelableCount = queue.cancelableTaskCount(_selectedTaskIds);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '任务队列',
-                          style: theme.textTheme.h3.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 22,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '查看上传、下载、复制、移动、删除，以及等待同步到远端的挂载任务。',
-                          style: TextStyle(
-                            color: theme.colorScheme.mutedForeground,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
+                  Text(
+                    '任务队列',
+                    style: theme.textTheme.h3.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 22,
                     ),
                   ),
-                  if (selectedCount > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16),
-                      child: TransferTaskSelectionActions(
-                        selectedCount: selectedCount,
-                        selectedVisibleCount: selectedVisibleCount,
-                        startableCount: startableCount,
-                        cancelableCount: cancelableCount,
-                        runningBatchAction: _runningBatchAction,
-                        onStartSelected: () =>
-                            unawaited(_startSelectedTasks(queue)),
-                        onCancelSelected: () =>
-                            unawaited(_cancelSelectedTasks(queue)),
-                        onClearSelection: _clearSelection,
-                      ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '查看上传、下载、复制、移动、删除，以及等待同步到远端的挂载任务。',
+                    style: TextStyle(
+                      color: theme.colorScheme.mutedForeground,
+                      fontSize: 13,
                     ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _buildFilters(),
-              const SizedBox(height: 16),
-              Expanded(child: _buildList(theme, queue)),
-            ],
-          );
-        },
-      ),
+            ),
+            if (selectedCount > 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: TransferTaskSelectionActions(
+                  selectedCount: selectedCount,
+                  selectedVisibleCount: selectedVisibleCount,
+                  startableCount: startableCount,
+                  cancelableCount: cancelableCount,
+                  runningBatchAction: _runningBatchAction,
+                  onStartSelected: () => unawaited(_startSelectedTasks(queue)),
+                  onCancelSelected: () =>
+                      unawaited(_cancelSelectedTasks(queue)),
+                  onClearSelection: _clearSelection,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildFilters(),
+        const SizedBox(height: 16),
+        Expanded(child: _buildList(theme, queue, visibleTasks)),
+      ],
     );
   }
 
@@ -247,11 +255,11 @@ class _TransfersPageState extends State<TransfersPage> {
     );
   }
 
-  Widget _buildList(ShadThemeData theme, TransferQueue queue) {
-    final filteredTasks = queue.tasks
-        .where(_matchesFilters)
-        .toList(growable: false);
-
+  Widget _buildList(
+    ShadThemeData theme,
+    TransferQueue queue,
+    List<TransferTask> filteredTasks,
+  ) {
     if (queue.tasks.isEmpty) {
       return _buildEmptyState(
         theme,
@@ -327,6 +335,10 @@ class _TransfersPageState extends State<TransfersPage> {
       task.typeLabel,
     ].join('\n').toLowerCase();
     return haystack.contains(_searchText);
+  }
+
+  List<TransferTask> _filteredTasks(TransferQueue queue) {
+    return queue.taskView.where(_matchesFilters).toList(growable: false);
   }
 
   Widget _buildEmptyState(ShadThemeData theme, String title, String detail) {

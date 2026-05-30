@@ -264,7 +264,11 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
         FileManagerPage(api: widget.api, config: widget.state.config),
         GlobalTrashPage(api: widget.api, config: widget.state.config),
         ShareManagementPage(api: widget.api, config: widget.state.config),
-        TransfersPage(api: widget.api, config: widget.state.config),
+        TransfersPage(
+          api: widget.api,
+          config: widget.state.config,
+          active: _selected == SidebarItem.transfers,
+        ),
         SettingsPage(
           state: widget.state,
           api: widget.api,

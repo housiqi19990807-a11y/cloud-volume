@@ -50,6 +50,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _windowsWritebackConcurrencyError;
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
+  bool _cleaningStaleWindowsProcesses = false;
 
   bool get _showsWindowsTab => Platform.isWindows;
 
@@ -114,7 +115,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  List<Widget> _buildGeneralSections(ShadThemeData theme, RemoteStorageConfig config) {
+  List<Widget> _buildGeneralSections(
+    ShadThemeData theme,
+    RemoteStorageConfig config,
+  ) {
     return [
       _buildCard(theme, '外观', const ThemePicker()),
       const SizedBox(height: 20),
@@ -161,7 +165,10 @@ class _SettingsPageState extends State<SettingsPage> {
     ];
   }
 
-  List<Widget> _buildWindowsSections(ShadThemeData theme, RemoteStorageConfig config) {
+  List<Widget> _buildWindowsSections(
+    ShadThemeData theme,
+    RemoteStorageConfig config,
+  ) {
     return [
       _buildCard(
         theme,
@@ -195,8 +202,7 @@ class _SettingsPageState extends State<SettingsPage> {
           concurrency: config.windowsWritebackConcurrency,
           saving: _savingWindowsWritebackConcurrency,
           errorText: _windowsWritebackConcurrencyError,
-          onChanged: (value) =>
-              _saveWindowsWritebackConcurrency(config, value),
+          onChanged: (value) => _saveWindowsWritebackConcurrency(config, value),
         ),
       ),
       const SizedBox(height: 20),
@@ -206,8 +212,10 @@ class _SettingsPageState extends State<SettingsPage> {
         WindowsMountRecoverySection(
           theme: theme,
           busy: _resettingWindowsMounts,
+          cleaningProcesses: _cleaningStaleWindowsProcesses,
           errorText: _windowsMountResetError,
           onReset: _forceResetWindowsMounts,
+          onCleanupProcesses: _cleanupStaleWindowsProcesses,
         ),
       ),
     ];
@@ -232,10 +240,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildFooterActions() {
     return Row(
       children: [
-        ShadButton(
-          onPressed: widget.onEditConfig,
-          child: const Text('重新配置'),
-        ),
+        ShadButton(onPressed: widget.onEditConfig, child: const Text('重新配置')),
         const SizedBox(width: 10),
         ShadButton.outline(
           onPressed: widget.onRefresh,
@@ -278,7 +283,10 @@ class _SettingsPageState extends State<SettingsPage> {
     await _saveDownloadDirectory(config, '');
   }
 
-  Future<void> _saveDownloadDirectory(RemoteStorageConfig config, String path) async {
+  Future<void> _saveDownloadDirectory(
+    RemoteStorageConfig config,
+    String path,
+  ) async {
     setState(() {
       _savingDownloadDirectory = true;
       _downloadDirectoryError = null;
@@ -299,7 +307,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _saveHideDotFiles(RemoteStorageConfig config, bool hideDotFiles) async {
+  Future<void> _saveHideDotFiles(
+    RemoteStorageConfig config,
+    bool hideDotFiles,
+  ) async {
     setState(() {
       _savingVisibility = true;
       _visibilityError = null;
@@ -346,7 +357,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _saveWindowsMountMode(RemoteStorageConfig config, WindowsMountMode? mode) async {
+  Future<void> _saveWindowsMountMode(
+    RemoteStorageConfig config,
+    WindowsMountMode? mode,
+  ) async {
     if (mode == null || mode == config.windowsMountMode) {
       return;
     }
@@ -368,7 +382,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _saveWindowsThisPcEntry(RemoteStorageConfig config, bool enabled) async {
+  Future<void> _saveWindowsThisPcEntry(
+    RemoteStorageConfig config,
+    bool enabled,
+  ) async {
     if (enabled == config.windowsThisPcEntryEnabled) {
       return;
     }
@@ -436,14 +453,36 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _windowsMountResetError = error.toString());
-      showAppErrorToast(
-        context,
-        title: '挂载重置失败',
-        message: error.toString(),
-      );
+      showAppErrorToast(context, title: '挂载重置失败', message: error.toString());
     } finally {
       if (mounted) {
         setState(() => _resettingWindowsMounts = false);
+      }
+    }
+  }
+
+  Future<void> _cleanupStaleWindowsProcesses() async {
+    setState(() {
+      _cleaningStaleWindowsProcesses = true;
+      _windowsMountResetError = null;
+    });
+    try {
+      final count = await widget.api.cleanupStaleWindowsProcesses();
+      if (!mounted) return;
+      showAppToast(
+        context,
+        title: '残留进程已清理',
+        message: count > 0
+            ? '已结束 $count 个残留 remote_storage.exe 进程。'
+            : '没有发现需要清理的残留 remote_storage.exe 进程。',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _windowsMountResetError = error.toString());
+      showAppErrorToast(context, title: '清理残留进程失败', message: error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _cleaningStaleWindowsProcesses = false);
       }
     }
   }

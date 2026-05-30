@@ -128,15 +128,6 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 add_dependencies(${BINARY_NAME} remote_storage_bridge)
-add_custom_target(stage_remote_storage_bridge ALL
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${WINDOWS_BRIDGE_OUTPUT}"
-    "$<TARGET_FILE_DIR:${BINARY_NAME}>/remote_storage_bridge.dll"
-  DEPENDS
-    ${BINARY_NAME}
-    remote_storage_bridge
-  COMMENT "Staging Windows Go bridge next to the runner"
-  VERBATIM)
 
 
 # Generated plugin build rules, which manage building the plugins and adding
@@ -166,6 +157,7 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 install(FILES "${WINDOWS_BRIDGE_OUTPUT}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
 
 if(PLUGIN_BUNDLED_LIBRARIES)

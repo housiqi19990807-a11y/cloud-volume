@@ -3,6 +3,7 @@ package mount
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,7 +88,7 @@ func openWritebackStore(path string) (*writebackStore, error) {
 	}
 	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 2 * time.Second})
 	if err != nil {
-		return nil, fmt.Errorf("open writeback store %q: %w", path, err)
+		return nil, formatWritebackStoreOpenError(path, err)
 	}
 	store := &writebackStore{db: db}
 	if err := db.Update(func(tx *bolt.Tx) error {
@@ -98,6 +99,17 @@ func openWritebackStore(path string) (*writebackStore, error) {
 		return nil, fmt.Errorf("init writeback store %q: %w", path, err)
 	}
 	return store, nil
+}
+
+func formatWritebackStoreOpenError(path string, err error) error {
+	if errors.Is(err, bolt.ErrTimeout) {
+		return fmt.Errorf(
+			"open writeback store %q: %w (another remote_storage.exe likely still holds the file; use Settings > Windows > 结束残留占用进程 and try again)",
+			path,
+			err,
+		)
+	}
+	return fmt.Errorf("open writeback store %q: %w", path, err)
 }
 
 func (q *writebackQueue) attach(access *bucketAccess) {

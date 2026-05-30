@@ -256,6 +256,10 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<void> cleanupMounts() async => throw UnimplementedError();
 
   @override
+  Future<int> cleanupStaleWindowsProcesses() async =>
+      throw UnimplementedError();
+
+  @override
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
     String bucket,

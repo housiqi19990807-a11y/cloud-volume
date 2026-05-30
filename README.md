@@ -139,6 +139,7 @@ The cached Cloud Files writeback path now persists queued uploads in a per-bucke
 Unmount now releases the Cloud Files shell, watcher, and sync-root registration without waiting for the full writeback queue to flush first. As long as the app process stays alive, delayed uploads continue in the background after unmount and still honor the normal quiet-period debouncing.
 Cloud Files remounts now allocate a fresh sync-root directory and rebuild the mount session when the same bucket's mount config changes, which helps avoid stale sync-root reuse after an incomplete unmount.
 Settings also expose a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer writes.
+If a remount fails because `~/.remote-storage/runtime/mounts/<bucket>/writeback.db` is still locked by a leftover `remote_storage.exe`, the mount now returns a normal actionable error instead of panicking, and Windows Settings also expose an `结束残留占用进程` action to kill those stale local runner processes before retrying.
 The Cloud Files placeholder path now coalesces repeated directory fetch callbacks and skips placeholder creation for entries that already exist locally, which reduces Explorer browse loops and placeholder callback errors on busy folders.
 ## Runtime Logs
 

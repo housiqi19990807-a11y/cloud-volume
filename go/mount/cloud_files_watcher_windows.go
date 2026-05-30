@@ -424,7 +424,22 @@ func (s *windowsPathState) markHydrating(localPath string) {
 func (s *windowsPathState) markHydrated(localPath string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.hydrating, filepath.Clean(localPath))
+	clean := filepath.Clean(localPath)
+	delete(s.hydrating, clean)
+	// Cloud Files may emit local write/change events right after a successful
+	// hydration materializes bytes on disk. Those are system-owned reads, not
+	// user edits, and should not be fed back into the writeback queue.
+	s.ignored[clean] = windowsIgnoredPath{
+		until:             time.Now().Add(windowsCFEventIgnoreTTL),
+		ignoreDescendants: false,
+	}
+	delete(s.placeholders, clean)
+	if info, err := os.Stat(clean); err == nil && !info.IsDir() {
+		s.files[clean] = windowsObservedFile{
+			size:    info.Size(),
+			modTime: info.ModTime().UnixNano(),
+		}
+	}
 }
 
 func (s *windowsPathState) remember(localPath string, isDir bool) {

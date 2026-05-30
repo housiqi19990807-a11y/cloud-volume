@@ -127,6 +127,7 @@ abstract class RemoteStorageGateway {
     String bucket,
   );
   Future<void> cleanupMounts();
+  Future<int> cleanupStaleWindowsProcesses();
   Future<BucketMountStatus> unmountBucket(String bucket);
   Future<BucketMountStatus> getBucketMountStatus(String bucket);
   Future<BucketMountStatus> openBucketMount(String bucket);
@@ -422,6 +423,15 @@ class RemoteStorageApi
   @override
   Future<void> cleanupMounts() async {
     await runBridgeCall('cleanup_mounts');
+  }
+
+  @override
+  Future<int> cleanupStaleWindowsProcesses() async {
+    final result = await runBridgeCall('cleanup_stale_windows_processes');
+    if (result is Map<String, dynamic>) {
+      return (result['count'] ?? 0) as int;
+    }
+    return 0;
   }
 
   @override

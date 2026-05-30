@@ -301,27 +301,37 @@ class _BucketMountActions extends StatelessWidget {
     if (busy) {
       return SizedBox(
         height: 32,
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 12,
-                height: 12,
-                child: AppLoadingIndicator(strokeWidth: 1.5, color: foreground),
+        child: Row(
+          children: [
+            const SizedBox(width: _actionButtonWidth),
+            const SizedBox(width: 6),
+            _actionSlot(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: AppLoadingIndicator(
+                      strokeWidth: 1.5,
+                      color: foreground,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '处理中',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: foreground,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                '处理中',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: foreground,
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 6),
+            const SizedBox(width: _actionButtonWidth),
+          ],
         ),
       );
     }

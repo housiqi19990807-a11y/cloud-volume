@@ -60,3 +60,12 @@ func cleanupMounts() (any, error) {
 	}
 	return map[string]any{"ok": true}, nil
 }
+
+func cleanupStaleWindowsProcesses() (any, error) {
+	log.Printf("[bridge/mount] cleanup stale windows processes")
+	count, err := bucketmount.CleanupStaleWindowsProcesses()
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true, "count": count}, nil
+}

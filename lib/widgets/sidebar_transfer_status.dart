@@ -56,7 +56,6 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
       _controller.stop();
       _controller.value = 0;
     }
-    setState(() {});
   }
 
   @override
@@ -239,7 +238,7 @@ class _TransferHoverCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasks = TransferQueue.instance.tasks.take(6).toList();
+    final tasks = TransferQueue.instance.recentTasks();
     return Container(
       constraints: const BoxConstraints(maxHeight: 300),
       padding: const EdgeInsets.all(10),

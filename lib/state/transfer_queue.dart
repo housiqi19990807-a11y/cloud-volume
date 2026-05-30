@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
+import 'package:remote_storage/widgets/file_sync_status_badge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 part 'transfer_queue_storage.dart';
@@ -116,18 +117,24 @@ class TransferQueue extends ChangeNotifier {
   static final TransferQueue instance = TransferQueue._();
   static const Duration _activePollInterval = Duration(milliseconds: 700);
   static const Duration _idlePollInterval = Duration(seconds: 2);
+  static const Duration _notifyDebounce = Duration(milliseconds: 180);
 
   final List<TransferTask> _tasks = [];
+  final Map<String, TransferTask> _tasksById = <String, TransferTask>{};
+  final Map<String, _MountWritebackPathCounts> _mountWritebackCounts =
+      <String, _MountWritebackPathCounts>{};
   RemoteStorageGateway? _api;
   Timer? _pollTimer;
   Duration? _pollInterval;
   Timer? _persistTimer;
+  Timer? _notifyTimer;
   bool _polling = false;
   int _seed = 0;
   final Set<String> _cancelRequestedIds = <String>{};
   Future<void>? _restoreFuture;
 
   List<TransferTask> get tasks => List.unmodifiable(_tasks);
+  Iterable<TransferTask> get taskView => _tasks;
   bool get hasRunning => _tasks.any((task) => task.isRunning || task.isPending);
   int get runningCount =>
       _tasks.where((task) => task.isRunning || task.isPending).length;
@@ -154,8 +161,10 @@ class TransferQueue extends ChangeNotifier {
       targetPath: targetPath,
     );
     _tasks.insert(0, task);
+    _tasksById[task.id] = task;
+    _rebuildMountWritebackCounts();
     scheduleTransferQueuePersist(this);
-    notifyListeners();
+    _scheduleNotifyListeners();
     _ensurePolling();
     return task;
   }
@@ -171,8 +180,9 @@ class TransferQueue extends ChangeNotifier {
     task.status = TransferStatus.failed;
     task.error = error.toString();
     task.speedBytes = 0;
+    _rebuildMountWritebackCounts();
     scheduleTransferQueuePersist(this);
-    notifyListeners();
+    _scheduleNotifyListeners();
     _ensurePolling();
   }
 
@@ -185,8 +195,9 @@ class TransferQueue extends ChangeNotifier {
     task.bytesCompleted = task.totalBytes > 0
         ? task.totalBytes
         : task.bytesCompleted;
+    _rebuildMountWritebackCounts();
     scheduleTransferQueuePersist(this);
-    notifyListeners();
+    _scheduleNotifyListeners();
     _ensurePolling();
   }
 
@@ -197,8 +208,9 @@ class TransferQueue extends ChangeNotifier {
     task.status = TransferStatus.canceled;
     task.speedBytes = 0;
     task.error = null;
+    _rebuildMountWritebackCounts();
     scheduleTransferQueuePersist(this);
-    notifyListeners();
+    _scheduleNotifyListeners();
     _ensurePolling();
   }
 
@@ -220,8 +232,9 @@ class TransferQueue extends ChangeNotifier {
     task.status = TransferStatus.canceled;
     task.speedBytes = 0;
     task.error = null;
+    _rebuildMountWritebackCounts();
     scheduleTransferQueuePersist(this);
-    notifyListeners();
+    _scheduleNotifyListeners();
     if (_api != null) {
       await _api!.cancelTransfer(id);
     }
@@ -350,10 +363,11 @@ class TransferQueue extends ChangeNotifier {
       task.error = snapshot.error;
     }
     if (changed) {
+      _rebuildMountWritebackCounts();
       if (shouldPersist) {
         scheduleTransferQueuePersist(this);
       }
-      notifyListeners();
+      _scheduleNotifyListeners();
     }
     _ensurePolling();
   }
@@ -377,6 +391,14 @@ class TransferQueue extends ChangeNotifier {
     return parts.join('  ');
   }
 
+  List<TransferTask> recentTasks({int limit = 6}) {
+    if (limit <= 0 || _tasks.isEmpty) {
+      return const <TransferTask>[];
+    }
+    final end = limit < _tasks.length ? limit : _tasks.length;
+    return _tasks.sublist(0, end);
+  }
+
   @visibleForTesting
   void resetForTest() {
     _pollTimer?.cancel();
@@ -384,11 +406,15 @@ class TransferQueue extends ChangeNotifier {
     _pollInterval = null;
     _persistTimer?.cancel();
     _persistTimer = null;
+    _notifyTimer?.cancel();
+    _notifyTimer = null;
     _polling = false;
     _seed = 0;
     _api = null;
     _restoreFuture = null;
     _tasks.clear();
+    _tasksById.clear();
+    _mountWritebackCounts.clear();
     _cancelRequestedIds.clear();
     notifyListeners();
   }
@@ -423,10 +449,7 @@ class TransferQueue extends ChangeNotifier {
   }
 
   TransferTask? _taskById(String id) {
-    for (final task in _tasks) {
-      if (task.id == id) return task;
-    }
-    return null;
+    return _tasksById[id];
   }
 
   bool _canCancelTask(TransferTask? task) => task?.isCancelable ?? false;
@@ -460,15 +483,108 @@ class TransferQueue extends ChangeNotifier {
       targetPath: snapshot.targetPath,
     );
     _tasks.insert(0, task);
+    _tasksById[task.id] = task;
     return task;
   }
 
   Future<void> _restorePersistedTasks() async {
     await loadPersistedTransferQueueStateData(this);
     if (_tasks.isNotEmpty) {
+      _rebuildMountWritebackCounts();
       scheduleTransferQueuePersist(this);
-      notifyListeners();
+      _scheduleNotifyListeners();
     }
+  }
+
+  FileSyncState syncStateForObject({
+    required String bucket,
+    required String objectKey,
+    required bool isDirectory,
+  }) {
+    final cleanBucket = bucket.trim();
+    if (cleanBucket.isEmpty) {
+      return const FileSyncState.synced();
+    }
+
+    var pending = 0;
+    var running = 0;
+    final dirPrefix = isDirectory ? _ensureDirPrefix(objectKey) : '';
+    for (final entry in _mountWritebackCounts.entries) {
+      final bucketAndPath = entry.key;
+      final separator = bucketAndPath.indexOf('\n');
+      if (separator <= 0) {
+        continue;
+      }
+      if (bucketAndPath.substring(0, separator) != cleanBucket) {
+        continue;
+      }
+      final taskPath = bucketAndPath.substring(separator + 1);
+      final matches = isDirectory
+          ? taskPath.startsWith(dirPrefix)
+          : taskPath == objectKey;
+      if (!matches) {
+        continue;
+      }
+      pending += entry.value.pending;
+      running += entry.value.running;
+    }
+
+    if (running > 0 || pending > 0) {
+      return FileSyncState.pending(
+        pendingCount: pending,
+        runningCount: running,
+        isDirectory: isDirectory,
+      );
+    }
+    return const FileSyncState.synced();
+  }
+
+  void _scheduleNotifyListeners() {
+    _notifyTimer?.cancel();
+    _notifyTimer = Timer(_notifyDebounce, notifyListeners);
+  }
+
+  void _rebuildMountWritebackCounts() {
+    _mountWritebackCounts.clear();
+    for (final task in _tasks) {
+      if (!task.id.startsWith('mount-writeback-')) {
+        continue;
+      }
+      if (!task.isUpload) {
+        continue;
+      }
+      if (task.status != TransferStatus.pending &&
+          task.status != TransferStatus.running) {
+        continue;
+      }
+      final bucket = task.bucket.trim();
+      final key = task.key.trim();
+      if (bucket.isEmpty || key.isEmpty) {
+        continue;
+      }
+      final counts = _mountWritebackCounts.putIfAbsent(
+        '$bucket\n$key',
+        () => _MountWritebackPathCounts(),
+      );
+      switch (task.status) {
+        case TransferStatus.pending:
+          counts.pending++;
+        case TransferStatus.running:
+          counts.running++;
+        case TransferStatus.done:
+        case TransferStatus.failed:
+        case TransferStatus.canceled:
+          break;
+      }
+    }
+  }
+
+  String _ensureDirPrefix(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed.endsWith('/')) {
+      return trimmed;
+    }
+    return '$trimmed/';
   }
 
   TransferKind _kindFromWire(String value) {
@@ -517,6 +633,11 @@ class TransferQueue extends ChangeNotifier {
     if (total <= 0) return '';
     return '↔ ${formatBytesPerSecond(total)}';
   }
+}
+
+class _MountWritebackPathCounts {
+  int pending = 0;
+  int running = 0;
 }
 
 TransferKind _transferKindFromName(String value) {
