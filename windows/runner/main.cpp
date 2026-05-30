@@ -1,9 +1,56 @@
+#include <algorithm>
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
 #include "flutter_window.h"
 #include "utils.h"
+
+namespace {
+
+constexpr unsigned int kDefaultWindowWidth = 1280;
+constexpr unsigned int kDefaultWindowHeight = 720;
+constexpr unsigned int kMinimumWindowWidth = 960;
+constexpr unsigned int kMinimumWindowHeight = 600;
+constexpr unsigned int kCompactFallbackWindowWidth = 840;
+constexpr unsigned int kCompactFallbackWindowHeight = 560;
+
+// Shrink the initial borderless window on smaller displays so the first-run
+// layout does not feel cramped or fall behind taskbars on low-resolution PCs.
+Win32Window::Size ResolveInitialWindowSize() {
+  MONITORINFO monitor_info = {};
+  monitor_info.cbSize = sizeof(monitor_info);
+  const HMONITOR monitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
+  if (monitor == nullptr || !GetMonitorInfo(monitor, &monitor_info)) {
+    return Win32Window::Size(kDefaultWindowWidth, kDefaultWindowHeight);
+  }
+
+  const LONG work_width = monitor_info.rcWork.right - monitor_info.rcWork.left;
+  const LONG work_height = monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+  if (work_width <= 0 || work_height <= 0) {
+    return Win32Window::Size(kDefaultWindowWidth, kDefaultWindowHeight);
+  }
+
+  const unsigned int width_floor = std::min(
+      kMinimumWindowWidth,
+      std::max(
+          kCompactFallbackWindowWidth, static_cast<unsigned int>(work_width - 32)));
+  const unsigned int height_floor = std::min(
+      kMinimumWindowHeight,
+      std::max(kCompactFallbackWindowHeight,
+          static_cast<unsigned int>(work_height - 32)));
+  const unsigned int width_ceiling =
+      static_cast<unsigned int>(work_width * 72 / 100);
+  const unsigned int height_ceiling =
+      static_cast<unsigned int>(work_height * 66 / 100);
+  const unsigned int resolved_width = std::min(
+      kDefaultWindowWidth, std::max(width_floor, width_ceiling));
+  const unsigned int resolved_height = std::min(
+      kDefaultWindowHeight, std::max(height_floor, height_ceiling));
+  return Win32Window::Size(resolved_width, resolved_height);
+}
+
+}  // namespace
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
@@ -26,7 +73,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
+  Win32Window::Size size = ResolveInitialWindowSize();
   if (!window.Create(L"Yunjuan", origin, size)) {
     return EXIT_FAILURE;
   }

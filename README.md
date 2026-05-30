@@ -142,3 +142,11 @@ Go bridge runtime logs are written to `~/.remote-storage/runtime/logs/bridge.log
 ## UI Responsiveness
 
 Flutter now dispatches synchronous Go bridge calls from a background isolate before entering the FFI layer. This keeps bootstrap loading, bucket refreshes, mount-status probes, and object metadata lookups from blocking the desktop UI thread when the bridge is waiting on network or mount work.
+
+## Desktop Window Sizing
+
+The desktop runners now use adaptive startup sizing on all three platforms:
+
+- Linux keeps shrinking the first window based on the current monitor size so the setup form stays visible on smaller displays.
+- Windows now applies the same low-resolution startup sizing strategy in the native runner before the Flutter surface is shown.
+- macOS now resolves the initial centered frame from the visible screen area as well, and also lowers the minimum resizable size when the display is smaller than the normal default window.

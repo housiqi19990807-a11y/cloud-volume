@@ -3,6 +3,7 @@ import FlutterMacOS
 
 private let yunjuanDefaultWindowSize = NSSize(width: 1160, height: 740)
 private let yunjuanMinimumWindowSize = NSSize(width: 920, height: 620)
+private let yunjuanCompactFallbackSize = NSSize(width: 840, height: 560)
 
 func yunjuanMainWindow() -> NSWindow? {
   NSApp.windows.first { $0 is MainFlutterWindow } ?? NSApp.mainWindow ?? NSApp.windows.first
@@ -132,8 +133,46 @@ class MainFlutterWindow: NSWindow {
   }
 
   private func applyDefaultWindowLayout() {
-    let targetFrame = centeredWindowFrame(for: yunjuanDefaultWindowSize)
+    let targetSize = resolvedInitialWindowSize()
+    self.minSize = NSSize(
+      width: min(yunjuanMinimumWindowSize.width, targetSize.width),
+      height: min(yunjuanMinimumWindowSize.height, targetSize.height)
+    )
+    let targetFrame = centeredWindowFrame(for: targetSize)
     self.setFrame(targetFrame, display: true)
+  }
+
+  // macOS should follow the same small-screen behavior as Linux so the first
+  // window fits lower-resolution laptops without relying on manual resize.
+  private func resolvedInitialWindowSize() -> NSSize {
+    let visibleFrame = (self.screen ?? NSScreen.main)?.visibleFrame ?? self.frame
+    let width = resolvedDimension(
+      available: visibleFrame.width,
+      defaultValue: yunjuanDefaultWindowSize.width,
+      minimumValue: yunjuanMinimumWindowSize.width,
+      fallbackValue: yunjuanCompactFallbackSize.width,
+      scale: 0.72
+    )
+    let height = resolvedDimension(
+      available: visibleFrame.height,
+      defaultValue: yunjuanDefaultWindowSize.height,
+      minimumValue: yunjuanMinimumWindowSize.height,
+      fallbackValue: yunjuanCompactFallbackSize.height,
+      scale: 0.66
+    )
+    return NSSize(width: width, height: height)
+  }
+
+  private func resolvedDimension(
+    available: CGFloat,
+    defaultValue: CGFloat,
+    minimumValue: CGFloat,
+    fallbackValue: CGFloat,
+    scale: CGFloat
+  ) -> CGFloat {
+    let fittedMinimum = min(minimumValue, max(fallbackValue, available - 32))
+    let fittedMaximum = min(defaultValue, max(fittedMinimum, available * scale))
+    return max(fittedMinimum, fittedMaximum)
   }
 
   private func centeredWindowFrame(for size: NSSize) -> NSRect {
