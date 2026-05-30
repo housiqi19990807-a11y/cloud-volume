@@ -202,6 +202,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 
 func (w *windowsSyncWatcher) handleWrite(localPath, virtualPath string) {
 	if w.IsDir(localPath) {
+		w.harvestDirectoryTree(localPath)
 		return
 	}
 	w.state.remember(localPath, false)
