@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Linux 桌面宿主现在会隐藏系统标题栏，并使用与 Windows 一致的应用内右上角最小化 / 最大化 / 关闭控件。
+- Linux 启动窗口现在会按当前显示器尺寸自适应，首次登录页也改成顶部对齐布局，避免保存按钮在大窗口里被压得太靠下。
 - Linux bucket mounts now use a FUSE backend rooted at `~/Cloud Volume/<bucket>`, reusing the existing local cache, overlay visibility, delayed writeback queue, and mounted-object UI sync model instead of returning platform-unsupported errors.
 - Linux desktop startup now builds `bin/bridge/libremote_storage_bridge.so` as part of the runner build, installs it into the Linux bundle, and teaches the Dart loader to resolve the bundled `lib/` copy so packaged launches no longer depend on the repository layout.
 

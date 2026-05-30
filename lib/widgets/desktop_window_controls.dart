@@ -1,5 +1,5 @@
-// Windows custom chrome replaces the native title bar with app-owned controls
-// so the desktop shell can stay visually aligned with the Flutter layout.
+// Desktop chrome replaces the native title bar on Windows and Linux so the
+// app can keep one consistent top-right control strip across desktop shells.
 
 import 'dart:async';
 import 'dart:io';
@@ -8,14 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/services/window_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-class WindowsWindowControls extends StatefulWidget {
-  const WindowsWindowControls({super.key});
+class DesktopWindowControls extends StatefulWidget {
+  const DesktopWindowControls({super.key});
 
   @override
-  State<WindowsWindowControls> createState() => _WindowsWindowControlsState();
+  State<DesktopWindowControls> createState() => _DesktopWindowControlsState();
 }
 
-class _WindowsWindowControlsState extends State<WindowsWindowControls> {
+class _DesktopWindowControlsState extends State<DesktopWindowControls> {
   bool _maximized = false;
   bool _busy = false;
 
@@ -48,6 +48,11 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
 
   Future<void> _confirmClose() async {
     if (_busy || !mounted) return;
+    if (!WindowControls.supportsTray) {
+      await WindowControls.close();
+      return;
+    }
+
     final choice = await showShadDialog<_CloseAction>(
       context: context,
       builder: (dialogContext) => ShadDialog(
@@ -64,9 +69,8 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   ShadButton.outline(
-                    onPressed: () => Navigator.of(
-                      dialogContext,
-                    ).pop(_CloseAction.tray),
+                    onPressed: () =>
+                        Navigator.of(dialogContext).pop(_CloseAction.tray),
                     child: const Text('隐藏到托盘'),
                   ),
                   const SizedBox(width: 10),
@@ -97,7 +101,7 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
 
   @override
   Widget build(BuildContext context) {
-    if (!Platform.isWindows) {
+    if (!Platform.isWindows && !Platform.isLinux) {
       return const SizedBox.shrink();
     }
 

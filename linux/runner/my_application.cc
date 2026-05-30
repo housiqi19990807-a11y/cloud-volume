@@ -1,18 +1,95 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
-#ifdef GDK_WINDOWING_X11
-#include <gdk/gdkx.h>
-#endif
 
 #include "flutter/generated_plugin_registrant.h"
 
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  GtkWindow* window;
+  FlMethodChannel* window_channel;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+// Clears the cached window pointer once GTK destroys the native window.
+static void on_window_destroy(GtkWidget* widget, gpointer user_data) {
+  (void)widget;
+  MyApplication* self = MY_APPLICATION(user_data);
+  self->window = nullptr;
+}
+
+// Handles desktop chrome commands from Flutter.
+static void handle_window_method_call(MyApplication* self,
+                                      FlMethodCall* method_call) {
+  g_autoptr(FlMethodResponse) response = nullptr;
+  const gchar* method = fl_method_call_get_name(method_call);
+
+  if (self->window == nullptr) {
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  if (g_strcmp0(method, "minimize") == 0) {
+    gtk_window_iconify(self->window);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(method, "toggleMaximize") == 0) {
+    const gboolean maximized = gtk_window_is_maximized(self->window);
+    if (maximized) {
+      gtk_window_unmaximize(self->window);
+    } else {
+      gtk_window_maximize(self->window);
+    }
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(
+        fl_value_new_bool(!maximized)));
+  } else if (g_strcmp0(method, "isMaximized") == 0) {
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(
+        fl_value_new_bool(gtk_window_is_maximized(self->window))));
+  } else if (g_strcmp0(method, "close") == 0) {
+    gtk_window_close(self->window);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(method, "hideToTray") == 0) {
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(method, "startDrag") == 0) {
+    GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(self->window));
+    if (display != nullptr) {
+      GdkSeat* seat = gdk_display_get_default_seat(display);
+      GdkDevice* pointer =
+          seat == nullptr ? nullptr : gdk_seat_get_pointer(seat);
+      if (pointer != nullptr) {
+        gint root_x = 0;
+        gint root_y = 0;
+        gdk_device_get_position(pointer, nullptr, &root_x, &root_y);
+        gtk_window_begin_move_drag(self->window, 1, root_x, root_y,
+                                   GDK_CURRENT_TIME);
+      }
+    }
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else {
+    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  }
+
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
+static void method_call_cb(FlMethodChannel* channel, FlMethodCall* method_call,
+                           gpointer user_data) {
+  (void)channel;
+  MyApplication* self = MY_APPLICATION(user_data);
+  handle_window_method_call(self, method_call);
+}
+
+static void register_window_channel(MyApplication* self, FlView* view) {
+  FlBinaryMessenger* messenger =
+      fl_engine_get_binary_messenger(fl_view_get_engine(view));
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  self->window_channel = fl_method_channel_new(
+      messenger, "remote_storage/window_controls", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(self->window_channel,
+                                            method_call_cb, self, nullptr);
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -24,35 +101,24 @@ static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+  self->window = window;
+  // Linux uses app-owned chrome, so hide the system decorations entirely.
+  gtk_window_set_decorated(window, FALSE);
+  gtk_window_set_title(window, "remote_storage");
 
-  // Use a header bar when running in GNOME as this is the common style used
-  // by applications and is the setup most users will be using (e.g. Ubuntu
-  // desktop).
-  // If running on X and not using GNOME then just use a traditional title bar
-  // in case the window manager does more exotic layout, e.g. tiling.
-  // If running on Wayland assume the header bar will work (may need changing
-  // if future cases occur).
-  gboolean use_header_bar = TRUE;
-#ifdef GDK_WINDOWING_X11
-  GdkScreen* screen = gtk_window_get_screen(window);
-  if (GDK_IS_X11_SCREEN(screen)) {
-    const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
-    if (g_strcmp0(wm_name, "GNOME Shell") != 0) {
-      use_header_bar = FALSE;
+  gint default_width = 1180;
+  gint default_height = 760;
+  GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
+  if (display != nullptr) {
+    GdkMonitor* monitor = gdk_display_get_primary_monitor(display);
+    if (monitor != nullptr) {
+      GdkRectangle geometry = {};
+      gdk_monitor_get_geometry(monitor, &geometry);
+      default_width = CLAMP((geometry.width * 84) / 100, 960, 1280);
+      default_height = CLAMP((geometry.height * 78) / 100, 640, 720);
     }
   }
-#endif
-  if (use_header_bar) {
-    GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
-    gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "remote_storage");
-    gtk_header_bar_set_show_close_button(header_bar, TRUE);
-    gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
-  } else {
-    gtk_window_set_title(window, "remote_storage");
-  }
-
-  gtk_window_set_default_size(window, 1280, 720);
+  gtk_window_set_default_size(window, default_width, default_height);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
@@ -74,6 +140,8 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  register_window_channel(self, view);
+  g_signal_connect(window, "destroy", G_CALLBACK(on_window_destroy), self);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
@@ -120,6 +188,7 @@ static void my_application_shutdown(GApplication* application) {
 // Implements GObject::dispose.
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
+  g_clear_object(&self->window_channel);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }

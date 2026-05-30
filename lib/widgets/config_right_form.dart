@@ -1,5 +1,5 @@
-// 右侧表单面板：居中卡片式布局，认证字段为主，高级设置通过弹窗配置。
-// 标题固定顶部，按钮固定底部，中间字段区可滚动以防溢出。
+// 右侧表单面板：顶部对齐的登录卡片，认证字段为主，高级设置通过弹窗配置。
+// 表单整体可滚动，避免窄屏或小分辨率下把保存按钮压到窗口底部。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -34,82 +34,75 @@ class ConfigRightFormPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final topSpacing = MediaQuery.of(context).padding.top > 0
+        ? MediaQuery.of(context).padding.top + 24
+        : 32.0;
 
     return Container(
       color: theme.colorScheme.background,
-      child: Center(
+      child: Align(
+        alignment: Alignment.topCenter,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 380),
           padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 顶部留白（为 macOS 红绿灯让位）。
-              const SizedBox(height: 72),
-              // 标题。
-              Text(
-                '登录远程存储',
-                style: theme.textTheme.h3.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.foreground,
-                  fontSize: 22,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '输入你的认证信息以开始使用。',
-                style: TextStyle(
-                  color: theme.colorScheme.mutedForeground,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 32),
-              // 可滚动表单区。
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 分区标题。
-                      _sectionLabel(context, '认证信息'),
-                      const SizedBox(height: 16),
-                      // 访问密钥 ID。
-                      _fieldLabel(context, '访问密钥 ID'),
-                      const SizedBox(height: 6),
-                      ShadInput(
-                        controller: accessKeyController,
-                        placeholder: const Text('输入 Access Key ID'),
-                      ),
-                      const SizedBox(height: 18),
-                      // 访问密钥。
-                      _fieldLabel(context, '访问密钥'),
-                      const SizedBox(height: 6),
-                      ShadInput(
-                        controller: secretKeyController,
-                        placeholder: const Text('输入 Secret Access Key'),
-                        obscureText: true,
-                      ),
-                      // 高级设置入口。
-                      const SizedBox(height: 18),
-                      _AdvancedSettingsLink(
-                        onTap: isSaving
-                            ? null
-                            : () => _openAdvancedDialog(context),
-                      ),
-                      // 错误提示。
-                      if (errorText != null) ...[
-                        const SizedBox(height: 16),
-                        _errorBanner(context, errorText!),
-                      ],
-                    ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: topSpacing),
+                // 标题。
+                Text(
+                  '登录远程存储',
+                  style: theme.textTheme.h3.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.foreground,
+                    fontSize: 22,
                   ),
                 ),
-              ),
-              // 底部保存按钮。
-              Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 40),
-                child: SizedBox(
+                const SizedBox(height: 6),
+                Text(
+                  '输入你的认证信息以开始使用。',
+                  style: TextStyle(
+                    color: theme.colorScheme.mutedForeground,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                // 认证字段和操作入口都保持在同一段自然流布局里，避免按钮被
+                // 挤到窗口底部。
+                _sectionLabel(context, '认证信息'),
+                const SizedBox(height: 16),
+                // 访问密钥 ID。
+                _fieldLabel(context, '访问密钥 ID'),
+                const SizedBox(height: 6),
+                ShadInput(
+                  controller: accessKeyController,
+                  placeholder: const Text('输入 Access Key ID'),
+                ),
+                const SizedBox(height: 18),
+                // 访问密钥。
+                _fieldLabel(context, '访问密钥'),
+                const SizedBox(height: 6),
+                ShadInput(
+                  controller: secretKeyController,
+                  placeholder: const Text('输入 Secret Access Key'),
+                  obscureText: true,
+                ),
+                // 高级设置入口。
+                const SizedBox(height: 18),
+                _AdvancedSettingsLink(
+                  onTap: isSaving ? null : () => _openAdvancedDialog(context),
+                ),
+                // 错误提示。
+                if (errorText != null) ...[
+                  const SizedBox(height: 16),
+                  _errorBanner(context, errorText!),
+                ],
+                const SizedBox(height: 24),
+                // 底部保存按钮。
+                SizedBox(
                   width: double.infinity,
                   height: 44,
                   child: ShadButton(
@@ -139,8 +132,9 @@ class ConfigRightFormPanel extends StatelessWidget {
                           ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
