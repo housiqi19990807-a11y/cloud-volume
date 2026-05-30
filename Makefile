@@ -27,7 +27,7 @@ ifneq ($(BRIDGE_CXX),)
 BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
 endif
 
-.PHONY: bridge bridge-macos bridge-linux bridge-windows run run-macos run-linux build build-macos build-linux build-windows test analyze clean
+.PHONY: bridge bridge-macos bridge-linux bridge-windows run run-macos run-linux run-web build build-macos build-linux build-windows build-web test analyze clean
 
 bridge:
 ifeq ($(HOST_PLATFORM),macos)
@@ -89,6 +89,9 @@ else
 	@exit 1
 endif
 
+run-web: build-web
+	go run ./cmd/web --listen :8080 --static-root build/web
+
 build:
 ifeq ($(HOST_PLATFORM),macos)
 	$(MAKE) build-macos
@@ -119,6 +122,9 @@ else
 	@echo "build-windows must be run on a Windows host."
 	@exit 1
 endif
+
+build-web:
+	flutter build web
 
 test:
 	flutter test

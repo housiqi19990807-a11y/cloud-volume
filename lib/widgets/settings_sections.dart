@@ -1,7 +1,6 @@
 // 设置页分区组件：下载目录、显示选项与主题色选项。
 
 import 'package:flutter/material.dart';
-import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -170,199 +169,53 @@ class VisibilitySection extends StatelessWidget {
   }
 }
 
-class WindowsMountModeSection extends StatelessWidget {
-  const WindowsMountModeSection({
+class WebDavCredentialsSection extends StatefulWidget {
+  const WebDavCredentialsSection({
     super.key,
     required this.theme,
-    required this.mode,
+    required this.username,
+    required this.hasPassword,
     required this.saving,
     required this.errorText,
-    required this.onChanged,
+    required this.onSave,
   });
 
   final ShadThemeData theme;
-  final WindowsMountMode mode;
+  final String username;
+  final bool hasPassword;
   final bool saving;
   final String? errorText;
-  final ValueChanged<WindowsMountMode?> onChanged;
+  final Future<void> Function(String username, String password) onSave;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Windows 可以在两种 Cloud Files 读取链路和一个纯 WebDAV 回退模式之间切换。切换后请重新挂载 bucket 再验证效果。',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.6,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 14),
-        SizedBox(
-          width: double.infinity,
-          child: ShadSelect<WindowsMountMode>(
-            key: ValueKey<WindowsMountMode>(mode),
-            minWidth: 320,
-            initialValue: mode,
-            placeholder: Text(_mountModeLabel(mode)),
-            selectedOptionBuilder: (context, selected) =>
-                Text(_mountModeLabel(selected)),
-            options: WindowsMountMode.values
-                .map(
-                  (item) => ShadOption<WindowsMountMode>(
-                    value: item,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_mountModeLabel(item)),
-                        const SizedBox(height: 2),
-                        Text(
-                          _mountModeDescription(item),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: theme.colorScheme.mutedForeground,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                .toList(growable: false),
-            onChanged: saving ? null : onChanged,
-          ),
-        ),
-        if (errorText != null) ...[
-          const SizedBox(height: 10),
-          Text(
-            errorText!,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.destructive,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  static String _mountModeLabel(WindowsMountMode mode) {
-    return switch (mode) {
-      WindowsMountMode.cloudFilesCached => 'Cloud Files + 本地缓存/异步同步',
-      WindowsMountMode.cloudFilesDirect => 'Cloud Files + 直连 S3',
-      WindowsMountMode.webdav => '纯 WebDAV 映射盘',
-    };
-  }
-
-  static String _mountModeDescription(WindowsMountMode mode) {
-    return switch (mode) {
-      WindowsMountMode.cloudFilesCached =>
-        '使用 Cloud Files 外壳，但文件读取回到现有缓存、下载任务和异步写回链路。',
-      WindowsMountMode.cloudFilesDirect =>
-        '使用 Cloud Files 外壳，按需读取时直接请求远端对象，便于对比直连效果。',
-      WindowsMountMode.webdav => '保留旧的映射盘回退模式，便于兼容性排查。',
-    };
-  }
+  State<WebDavCredentialsSection> createState() => _WebDavCredentialsSectionState();
 }
 
-class WindowsThisPcEntrySection extends StatelessWidget {
-  const WindowsThisPcEntrySection({
-    super.key,
-    required this.theme,
-    required this.enabled,
-    required this.saving,
-    required this.errorText,
-    required this.onChanged,
-  });
-
-  final ShadThemeData theme;
-  final bool enabled;
-  final bool saving;
-  final String? errorText;
-  final ValueChanged<bool> onChanged;
+class _WebDavCredentialsSectionState extends State<WebDavCredentialsSection> {
+  late final TextEditingController _usernameController;
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '关闭后，Windows 不会再在“此电脑”里创建 `云卷-xxx` 的入口，但挂载本身仍然可用。下次重新挂载后生效。',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.6,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondary,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '在“此电脑”中显示云卷入口',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.foreground,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      enabled ? '当前会创建入口' : '当前不会创建入口',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: theme.colorScheme.mutedForeground,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              ShadSwitch(
-                value: enabled,
-                onChanged: saving ? null : onChanged,
-              ),
-            ],
-          ),
-        ),
-        if (errorText != null) ...[
-          const SizedBox(height: 10),
-          Text(
-            errorText!,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.destructive,
-            ),
-          ),
-        ],
-      ],
-    );
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController(text: widget.username);
   }
-}
 
-class WindowsMountRecoverySection extends StatelessWidget {
-  const WindowsMountRecoverySection({
-    super.key,
-    required this.theme,
-    required this.busy,
-    required this.errorText,
-    required this.onReset,
-  });
+  @override
+  void didUpdateWidget(covariant WebDavCredentialsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.username != widget.username &&
+        _usernameController.text != widget.username) {
+      _usernameController.text = widget.username;
+    }
+  }
 
-  final ShadThemeData theme;
-  final bool busy;
-  final String? errorText;
-  final VoidCallback onReset;
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -370,57 +223,63 @@ class WindowsMountRecoverySection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '当 Cloud Files 或 WebDAV 挂载状态卡住时，这个兜底操作会强制清理当前挂载、残留 sync root 和前端挂载状态，方便重新验证挂载与写入流程。',
+          'Web 端使用这组账号密码做浏览器登录，标准 WebDAV 客户端也使用同一组凭据连接服务端接口。',
           style: TextStyle(
             fontSize: 12,
             height: 1.6,
-            color: theme.colorScheme.mutedForeground,
+            color: widget.theme.colorScheme.mutedForeground,
           ),
         ),
         const SizedBox(height: 14),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondary,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '强制卸载并重置挂载状态',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.foreground,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '会调用底层 cleanup_mounts，对当前 bucket 挂载、旧 sync root、This PC 入口和本地挂载状态做一次兜底清理。',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: theme.colorScheme.mutedForeground,
-                ),
-              ),
-            ],
+        Text(
+          'WebDAV 账号',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.colorScheme.foreground,
           ),
         ),
-        if (errorText != null) ...[
+        const SizedBox(height: 6),
+        ShadInput(
+          controller: _usernameController,
+          placeholder: const Text('输入 WebDAV 登录账号'),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'WebDAV 密码',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: widget.theme.colorScheme.foreground,
+          ),
+        ),
+        const SizedBox(height: 6),
+        ShadInput(
+          controller: _passwordController,
+          obscureText: true,
+          placeholder: Text(
+            widget.hasPassword ? '留空则保留当前已保存的密码' : '输入 WebDAV 登录密码',
+          ),
+        ),
+        if (widget.errorText != null) ...[
           const SizedBox(height: 10),
           Text(
-            errorText!,
+            widget.errorText!,
             style: TextStyle(
               fontSize: 12,
-              color: theme.colorScheme.destructive,
+              color: widget.theme.colorScheme.destructive,
             ),
           ),
         ],
         const SizedBox(height: 12),
-        ShadButton.destructive(
-          onPressed: busy ? null : onReset,
-          child: Text(busy ? '正在重置...' : '强制卸载并重置状态'),
+        ShadButton(
+          onPressed: widget.saving
+              ? null
+              : () => widget.onSave(
+                    _usernameController.text.trim(),
+                    _passwordController.text,
+                  ),
+          child: Text(widget.saving ? '保存中...' : '保存 WebDAV 凭据'),
         ),
       ],
     );

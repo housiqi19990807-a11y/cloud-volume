@@ -1,8 +1,10 @@
 # 云卷 / Cloud Volume
 
-`云卷` 是一个面向 macOS、Windows、Linux 的 Flutter 桌面客户端，用来管理 S3 兼容对象存储，并把对象存储以更接近桌面文件管理器的方式呈现出来。
+`云卷` 是一个面向 macOS、Windows、Linux 的 Flutter 客户端，用来管理 S3 兼容对象存储，并把对象存储以更接近桌面文件管理器的方式呈现出来。
 
 它不只是一个“桶列表 + 上传下载”工具，还包含本地缓存、可挂载 WebDAV 视图、应用级回收站、分享链接管理、任务队列，以及针对 Finder / Archive Utility 一类桌面工作流做过的本地优先优化。
+
+桌面端继续保留原有 FFI + 本地挂载链路；Web 端则通过单独的 HTTP/API 服务暴露同一套对象管理能力，并额外提供每个 bucket 的 WebDAV 地址供浏览器外部客户端连接。
 
 ## 仓库截图
 
@@ -12,6 +14,7 @@
 
 - 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
 - 挂载访问：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV 与 Cloud Files 方案，三端都复用本地缓存、overlay 与异步写回链路。
+- Web 控制台：浏览器端不再尝试本地挂载，而是通过 Go HTTP 服务提供登录态、对象管理 API、浏览器上传/下载，以及按 bucket 暴露的 WebDAV 入口。
 - Windows WebDAV 挂载：把当前桶映射成 Windows WebDAV 网络驱动器，直接出现在 Explorer 的“此电脑”里，并复用现有本地优先读写与任务队列逻辑。
 - 本地优先：挂载写入、删除、改名、移动先落本地缓存与 overlay，再异步回写远端。
 - 文件管理同步提示：进入已挂载桶时，顶部挂载状态会直接显示 `等待同步 N` / `同步中 N`，便于判断桌面写入是否已经回传远端。
@@ -40,8 +43,10 @@
 
 - 应用通过 Go FFI bridge 读取 `~/.remote-storage/config.toml`。
 - 如果配置缺失或不完整，会先进入初始化配置页。
+- Web 端首次初始化除了 S3 `endpoint/region/bucket/access_key_id/secret_access_key` 之外，还要求配置一组 `webdav_username/webdav_password`，这组凭据同时用于浏览器登录和标准 WebDAV 客户端连接。
 - 如果访问密钥、签名或网络配置有误，初始化页会把常见 S3 / 网络错误转换成更友好的中文提示。
 - 保存后进入主界面，后续设置页可以再次修改下载目录、显示选项、回收站策略等内容。
+- Web 端后续每次打开会先检查浏览器 Cookie 里的会话 token；如果没有有效 token，会先进入登录页，校验通过后才允许访问文件管理、分享、回收站和系统设置。
 
 ### 本地开发
 
@@ -78,6 +83,30 @@ Linux 本地启动前提：
 - Linux runner 现在也会在 `flutter run -d linux` / `flutter build linux` 期间自动构建 `bin/bridge/libremote_storage_bridge.so`，并把它安装到 bundle 的 `lib/` 目录，避免打包后的可执行文件因缺少 bridge 而无法启动。
 - Linux 挂载现在使用用户态 FUSE mount，把 bucket 暴露到 `~/Cloud Volume/<bucket>`，目录读取、按需下载、本地暂存、延迟写回、删除和改名都继续复用现有 Go 侧本地优先逻辑。
 
+### Web 本地开发
+
+先构建 Flutter Web 静态资源，再启动 Go HTTP 服务：
+
+```bash
+flutter pub get
+make build-web
+make run-web
+```
+
+`make run-web` 会执行两件事：
+
+- 构建 Flutter Web 前端到 `build/web`
+- 启动 `go run ./cmd/web --listen :8080 --static-root build/web`
+
+然后打开 `http://127.0.0.1:8080`。
+
+Web 端行为和桌面端有几个关键差异：
+
+- 不走 FFI，也不做本地文件系统挂载。
+- 桶列表中的“挂载/打开挂载目录”会替换成查看 WebDAV 地址。
+- 上传使用浏览器选中的内存文件，下载使用浏览器地址或新标签页。
+- 浏览器登录依赖 Cookie 会话；标准 WebDAV 客户端则使用 HTTP Basic Auth，并复用同一组 WebDAV 账号密码。
+
 ## 配置项
 
 初始化页会保存这些 S3 兼容存储配置：
@@ -89,6 +118,8 @@ Linux 本地启动前提：
 - `secret_access_key`：访问密钥 Secret
 - `root_prefix`：可选的根前缀
 - `use_path_style`：是否启用 path-style URL
+- `webdav_username`：Web 端登录 / WebDAV 客户端共用账号
+- `webdav_password`：Web 端登录 / WebDAV 客户端共用密码
 
 其他应用级设置包括：
 
@@ -97,12 +128,13 @@ Linux 本地启动前提：
 - 回收站目录名
 - 回收站自动清理保留天数
 - 主题强调色
+- WebDAV 登录账号与密码
 - Windows 下的设置页会拆成“通用设置”和“Windows 设置”两个页内 Tab，专门承载挂载模式、此电脑入口、写回并发和挂载恢复这类平台专属项；非 Windows 构建不会显示 Windows 设置 Tab。
 
 ## 架构概览
 
 - Flutter：桌面 UI、页面状态、任务展示、配置与交互层
-- Go bridge：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照
+- Go bridge / web API：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照；Web 模式下同一套 Go 能力通过 HTTP/JSON + WebDAV 暴露给浏览器
 - Desktop mount backends：macOS 走系统 WebDAV 卷挂载，Linux 走用户态 FUSE 挂载，Windows 同时保留 Cloud Files 与 WebDAV 映射盘方案
 - 本地缓存与 overlay：保证挂载场景下的本地优先可见性与恢复能力
 

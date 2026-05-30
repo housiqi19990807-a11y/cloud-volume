@@ -66,6 +66,9 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshVisibleMountStatuses() async {
+    if (!widget.api.capabilities.supportsMounts) {
+      return;
+    }
     if (_mountStatusRefreshInFlight || _mountBusyBuckets.isNotEmpty) {
       return;
     }
@@ -78,6 +81,9 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshVisibleMountStatusesOnce() async {
+    if (!widget.api.capabilities.supportsMounts) {
+      return;
+    }
     if (_activeBucket != null) {
       await _refreshMountStatus(_activeBucket!);
       return;
@@ -86,12 +92,18 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshBucketMountStatuses(List<BucketInfo> buckets) async {
+    if (!widget.api.capabilities.supportsMounts) {
+      return;
+    }
     for (final bucket in buckets) {
       await _refreshMountStatus(bucket.name);
     }
   }
 
   Future<void> _refreshMountStatus(String bucket) async {
+    if (!widget.api.capabilities.supportsMounts) {
+      return;
+    }
     try {
       final status = await widget.api.getBucketMountStatus(bucket);
       if (!mounted) return;
@@ -152,6 +164,9 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   void _applyMountStatus(BucketMountStatus status) {
+    if (!widget.api.capabilities.supportsMounts) {
+      return;
+    }
     if (!mounted) return;
     setState(() {
       if (status.mounted) {

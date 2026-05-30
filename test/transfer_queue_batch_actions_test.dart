@@ -1,6 +1,10 @@
 // Transfer queue batch-action tests keep multi-select task controls in the queue layer.
 
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_storage/models/auth_session_state.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
@@ -116,6 +120,20 @@ class _FakeGateway extends Fake implements RemoteStorageGateway {
   final List<String> triggeredTaskIds = <String>[];
 
   @override
+  RemoteStorageCapabilities get capabilities =>
+      const RemoteStorageCapabilities.desktop();
+
+  @override
+  Future<AuthSessionState> loadAuthSession() async =>
+      const AuthSessionState.desktop();
+
+  @override
+  Future<void> login(String username, String password) async {}
+
+  @override
+  Future<void> logout() async {}
+
+  @override
   Future<void> cancelTransfer(String taskId) async {
     canceledTaskIds.add(taskId);
   }
@@ -125,6 +143,23 @@ class _FakeGateway extends Fake implements RemoteStorageGateway {
     triggeredTaskIds.add(taskId);
     return true;
   }
+
+  @override
+  Future<void> uploadBytes(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    Uint8List bytes,
+    String taskId, {
+    String fileName = '',
+  }) async {}
+
+  @override
+  Uri? objectDownloadUri(String bucket, String key, {bool inline = false}) =>
+      null;
+
+  @override
+  Uri? webDavUri(String bucket) => null;
 
   @override
   Future<List<TransferSnapshot>> listTransferJobs() async =>

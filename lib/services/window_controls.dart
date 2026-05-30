@@ -1,9 +1,8 @@
 // Desktop window-control channel keeps custom chrome in Flutter while the
 // native runner still owns the actual window state transitions.
 
-import 'dart:io';
-
 import 'package:flutter/services.dart';
+import 'package:remote_storage/platform/platform_info.dart';
 
 class WindowControls {
   WindowControls._();
@@ -12,9 +11,9 @@ class WindowControls {
     'remote_storage/window_controls',
   );
 
-  static bool get supported => Platform.isWindows || Platform.isLinux;
+  static bool get supported => isWindowsPlatform || isLinuxPlatform;
 
-  static bool get supportsTray => Platform.isWindows;
+  static bool get supportsTray => isWindowsPlatform;
 
   static Future<void> minimize() async {
     if (!supported) return;

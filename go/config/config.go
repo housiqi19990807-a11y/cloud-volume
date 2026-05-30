@@ -9,6 +9,10 @@ type RemoteStorageConfig struct {
 	Bucket                      string `json:"bucket" toml:"bucket"`
 	AccessKeyID                 string `json:"accessKeyId" toml:"access_key_id"`
 	SecretAccessKey             string `json:"secretAccessKey" toml:"secret_access_key"`
+	HasSecretAccessKey          bool   `json:"hasSecretAccessKey" toml:"-"`
+	WebDAVUsername              string `json:"webdavUsername" toml:"webdav_username"`
+	WebDAVPassword              string `json:"webdavPassword" toml:"webdav_password"`
+	HasWebDAVPassword           bool   `json:"hasWebdavPassword" toml:"-"`
 	RootPrefix                  string `json:"rootPrefix" toml:"root_prefix"`
 	DefaultDownloadDirectory    string `json:"defaultDownloadDirectory" toml:"default_download_directory"`
 	HideDotFiles                bool   `json:"hideDotFiles" toml:"hide_dot_files"`
@@ -59,6 +63,10 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		Bucket:                      strings.TrimSpace(c.Bucket),
 		AccessKeyID:                 strings.TrimSpace(c.AccessKeyID),
 		SecretAccessKey:             strings.TrimSpace(c.SecretAccessKey),
+		HasSecretAccessKey:          strings.TrimSpace(c.SecretAccessKey) != "" || c.HasSecretAccessKey,
+		WebDAVUsername:              strings.TrimSpace(c.WebDAVUsername),
+		WebDAVPassword:              strings.TrimSpace(c.WebDAVPassword),
+		HasWebDAVPassword:           strings.TrimSpace(c.WebDAVPassword) != "" || c.HasWebDAVPassword,
 		RootPrefix:                  strings.Trim(strings.TrimSpace(c.RootPrefix), "/"),
 		DefaultDownloadDirectory:    strings.TrimSpace(c.DefaultDownloadDirectory),
 		HideDotFiles:                c.HideDotFiles,
@@ -78,7 +86,41 @@ func (c RemoteStorageConfig) IsConfigured() bool {
 	normalized := c.Normalized()
 	return normalized.Endpoint != "" &&
 		normalized.AccessKeyID != "" &&
-		normalized.SecretAccessKey != ""
+		(normalized.SecretAccessKey != "" || normalized.HasSecretAccessKey)
+}
+
+// HasWebDAVCredentials reports whether web login credentials are complete.
+func (c RemoteStorageConfig) HasWebDAVCredentials() bool {
+	normalized := c.Normalized()
+	return normalized.WebDAVUsername != "" &&
+		(normalized.WebDAVPassword != "" || normalized.HasWebDAVPassword)
+}
+
+// MergeStoredSecrets keeps existing secrets when the client intentionally omits them.
+func (c RemoteStorageConfig) MergeStoredSecrets(existing RemoteStorageConfig) RemoteStorageConfig {
+	normalized := c.Normalized()
+	current := existing.Normalized()
+	if normalized.SecretAccessKey == "" &&
+		normalized.HasSecretAccessKey &&
+		current.SecretAccessKey != "" {
+		normalized.SecretAccessKey = current.SecretAccessKey
+	}
+	if normalized.WebDAVPassword == "" &&
+		normalized.HasWebDAVPassword &&
+		current.WebDAVPassword != "" {
+		normalized.WebDAVPassword = current.WebDAVPassword
+	}
+	normalized.HasSecretAccessKey = normalized.SecretAccessKey != "" || normalized.HasSecretAccessKey
+	normalized.HasWebDAVPassword = normalized.WebDAVPassword != "" || normalized.HasWebDAVPassword
+	return normalized
+}
+
+// PublicSanitized clears secrets while preserving whether stored secrets exist.
+func (c RemoteStorageConfig) PublicSanitized() RemoteStorageConfig {
+	normalized := c.Normalized()
+	normalized.SecretAccessKey = ""
+	normalized.WebDAVPassword = ""
+	return normalized
 }
 
 func normalizeFileOpenMode(value string) string {

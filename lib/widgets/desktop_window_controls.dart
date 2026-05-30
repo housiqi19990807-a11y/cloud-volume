@@ -2,9 +2,9 @@
 // app can keep one consistent top-right control strip across desktop shells.
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/services/window_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -109,7 +109,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
 
   @override
   Widget build(BuildContext context) {
-    if (!Platform.isWindows && !Platform.isLinux) {
+    if (!isWindowsPlatform && !isLinuxPlatform) {
       return const SizedBox.shrink();
     }
 

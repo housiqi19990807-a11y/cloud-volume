@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
+import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/config_setup_page.dart';
+import 'package:remote_storage/pages/login_page.dart';
 import 'package:remote_storage/pages/main_layout_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
@@ -31,8 +33,9 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
 
   Future<_BootstrapSession> _loadSession() async {
     final api = await widget.apiFactory();
+    final auth = await api.loadAuthSession();
     final state = await api.loadBootstrapState();
-    return _BootstrapSession(api: api, state: state);
+    return _BootstrapSession(api: api, state: state, auth: auth);
   }
 
   void _reload() {
@@ -74,6 +77,16 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
           );
         }
 
+        if (session.api.capabilities.supportsSessionLogin &&
+            session.auth.loginRequired &&
+            !session.auth.authenticated) {
+          return LoginPage(
+            api: session.api,
+            configPath: session.state.configPath,
+            onLoggedIn: _reload,
+          );
+        }
+
         return MainLayoutPage(
           state: session.state,
           api: session.api,
@@ -86,10 +99,15 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
 }
 
 class _BootstrapSession {
-  const _BootstrapSession({required this.api, required this.state});
+  const _BootstrapSession({
+    required this.api,
+    required this.state,
+    required this.auth,
+  });
 
   final RemoteStorageGateway api;
   final BootstrapState state;
+  final AuthSessionState auth;
 }
 
 class _BootstrapMessageView extends StatelessWidget {

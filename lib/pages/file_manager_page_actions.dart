@@ -7,22 +7,30 @@ part of 'file_manager_page.dart';
 extension _FileManagerPageActions on _FileManagerPageState {
   Future<void> _upload() async {
     if (_activeBucket == null) return;
-    final result = await FilePicker.pickFiles(allowMultiple: true);
+    final result = await FilePicker.pickFiles(
+      allowMultiple: true,
+      withData: widget.api.capabilities.supportsBrowserTransfers,
+    );
     if (result == null || result.files.isEmpty) return;
     final bucket = _activeBucket!;
     for (final file in result.files) {
+      final key = _prefix + file.name;
       final path = file.path;
-      if (path == null) {
+      final bytes = file.bytes;
+      if (path == null && bytes == null) {
         continue;
       }
-      final key = _prefix + file.name;
       final task = TransferQueue.instance.startTask(
         kind: TransferKind.upload,
         bucket: bucket,
         key: key,
-        localPath: path,
+        localPath: path ?? file.name,
       );
-      unawaited(_runUploadTask(task, bucket));
+      if (bytes != null) {
+        unawaited(_runBrowserUploadTask(task, bucket, bytes, file.name));
+      } else {
+        unawaited(_runUploadTask(task, bucket));
+      }
     }
   }
 
@@ -85,6 +93,29 @@ extension _FileManagerPageActions on _FileManagerPageState {
         task.key,
         task.localPath,
         task.id,
+      );
+      TransferQueue.instance.markTaskDone(task.id);
+      if (!mounted || _activeBucket != bucket) return;
+      await _loadObjects(bucket, _prefix);
+    } catch (error) {
+      TransferQueue.instance.markTaskFailed(task.id, error);
+    }
+  }
+
+  Future<void> _runBrowserUploadTask(
+    TransferTask task,
+    String bucket,
+    Uint8List bytes,
+    String fileName,
+  ) async {
+    try {
+      await widget.api.uploadBytes(
+        widget.config,
+        task.bucket,
+        task.key,
+        bytes,
+        task.id,
+        fileName: fileName,
       );
       TransferQueue.instance.markTaskDone(task.id);
       if (!mounted || _activeBucket != bucket) return;
@@ -283,6 +314,18 @@ extension _FileManagerPageActions on _FileManagerPageState {
           ),
         ),
       ),
+    );
+  }
+
+  void _showWebDavEntry(String bucket) {
+    final uri = widget.api.webDavUri(bucket);
+    if (uri == null) {
+      _showPageMessage(title: 'WebDAV 不可用', message: '当前客户端未提供 WebDAV 地址。');
+      return;
+    }
+    _showPageMessage(
+      title: 'WebDAV 地址',
+      message: '请使用初始化或系统设置中配置的 WebDAV 账号密码访问：\n$uri',
     );
   }
 

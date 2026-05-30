@@ -34,10 +34,14 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   late final TextEditingController _regionController;
   late final TextEditingController _accessKeyController;
   late final TextEditingController _secretKeyController;
+  late final TextEditingController _webdavUsernameController;
+  late final TextEditingController _webdavPasswordController;
 
   late bool _usePathStyle;
   bool _isSaving = false;
   String? _errorText;
+
+  bool get _requiresWebdavSetup => widget.api.capabilities.supportsSessionLogin;
 
   @override
   void initState() {
@@ -53,7 +57,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       text: config.region.trim().isNotEmpty ? config.region : _kDefaultRegion,
     );
     _accessKeyController = TextEditingController(text: config.accessKeyId);
-    _secretKeyController = TextEditingController(text: config.secretAccessKey);
+    _secretKeyController = TextEditingController();
+    _webdavUsernameController = TextEditingController(text: config.webdavUsername);
+    _webdavPasswordController = TextEditingController();
     _usePathStyle = config.usePathStyle;
   }
 
@@ -63,6 +69,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     _regionController.dispose();
     _accessKeyController.dispose();
     _secretKeyController.dispose();
+    _webdavUsernameController.dispose();
+    _webdavPasswordController.dispose();
     super.dispose();
   }
 
@@ -73,6 +81,10 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       bucket: widget.initialState.config.bucket,
       accessKeyId: _accessKeyController.text,
       secretAccessKey: _secretKeyController.text,
+      hasSecretAccessKey: widget.initialState.config.hasSecretAccessKey,
+      webdavUsername: _webdavUsernameController.text,
+      webdavPassword: _webdavPasswordController.text,
+      hasWebdavPassword: widget.initialState.config.hasWebdavPassword,
       rootPrefix: widget.initialState.config.rootPrefix,
       defaultDownloadDirectory:
           widget.initialState.config.defaultDownloadDirectory,
@@ -92,6 +104,12 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     if (!config.isConfigured) {
       setState(() {
         _errorText = '访问密钥 ID 和访问密钥为必填项。';
+      });
+      return;
+    }
+    if (_requiresWebdavSetup && !config.hasWebDavCredentials) {
+      setState(() {
+        _errorText = 'Web 端首次初始化还需要配置 WebDAV 账号和密码。';
       });
       return;
     }
@@ -134,6 +152,12 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
               regionController: _regionController,
               accessKeyController: _accessKeyController,
               secretKeyController: _secretKeyController,
+              hasStoredSecretKey: widget.initialState.config.hasSecretAccessKey,
+              showWebDavFields: _requiresWebdavSetup,
+              webdavUsernameController: _webdavUsernameController,
+              webdavPasswordController: _webdavPasswordController,
+              hasStoredWebdavPassword:
+                  widget.initialState.config.hasWebdavPassword,
               usePathStyle: _usePathStyle,
               onPathStyleChanged: (v) => setState(() => _usePathStyle = v),
               isSaving: _isSaving,

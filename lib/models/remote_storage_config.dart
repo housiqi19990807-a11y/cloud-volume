@@ -43,6 +43,10 @@ class RemoteStorageConfig {
     required this.bucket,
     required this.accessKeyId,
     required this.secretAccessKey,
+    required this.hasSecretAccessKey,
+    required this.webdavUsername,
+    required this.webdavPassword,
+    required this.hasWebdavPassword,
     required this.rootPrefix,
     required this.defaultDownloadDirectory,
     required this.hideDotFiles,
@@ -62,6 +66,10 @@ class RemoteStorageConfig {
       bucket: '',
       accessKeyId: '',
       secretAccessKey: '',
+      hasSecretAccessKey: false,
+      webdavUsername: '',
+      webdavPassword: '',
+      hasWebdavPassword: false,
       rootPrefix: '',
       defaultDownloadDirectory: '',
       hideDotFiles: true,
@@ -76,15 +84,30 @@ class RemoteStorageConfig {
   }
 
   factory RemoteStorageConfig.fromJson(Map<String, dynamic> json) {
+    final secretAccessKey =
+        (json['secretAccessKey'] ?? json['secret_access_key'] ?? '').toString();
+    final webdavPassword =
+        (json['webdavPassword'] ?? json['webdav_password'] ?? '').toString();
     return RemoteStorageConfig(
       endpoint: (json['endpoint'] ?? '').toString(),
       region: (json['region'] ?? '').toString(),
       bucket: (json['bucket'] ?? '').toString(),
       accessKeyId: (json['accessKeyId'] ?? json['access_key_id'] ?? '')
           .toString(),
-      secretAccessKey:
-          (json['secretAccessKey'] ?? json['secret_access_key'] ?? '')
-              .toString(),
+      secretAccessKey: secretAccessKey,
+      hasSecretAccessKey:
+          _boolFromDynamic(
+            json['hasSecretAccessKey'] ?? json['has_secret_access_key'],
+          ) ??
+          secretAccessKey.trim().isNotEmpty,
+      webdavUsername:
+          (json['webdavUsername'] ?? json['webdav_username'] ?? '').toString(),
+      webdavPassword: webdavPassword,
+      hasWebdavPassword:
+          _boolFromDynamic(
+            json['hasWebdavPassword'] ?? json['has_webdav_password'],
+          ) ??
+          webdavPassword.isNotEmpty,
       rootPrefix: (json['rootPrefix'] ?? json['root_prefix'] ?? '').toString(),
       defaultDownloadDirectory:
           (json['defaultDownloadDirectory'] ??
@@ -133,6 +156,10 @@ class RemoteStorageConfig {
   final String bucket;
   final String accessKeyId;
   final String secretAccessKey;
+  final bool hasSecretAccessKey;
+  final String webdavUsername;
+  final String webdavPassword;
+  final bool hasWebdavPassword;
   final String rootPrefix;
   final String defaultDownloadDirectory;
   final bool hideDotFiles;
@@ -148,7 +175,12 @@ class RemoteStorageConfig {
   bool get isConfigured {
     return endpoint.trim().isNotEmpty &&
         accessKeyId.trim().isNotEmpty &&
-        secretAccessKey.trim().isNotEmpty;
+        (secretAccessKey.trim().isNotEmpty || hasSecretAccessKey);
+  }
+
+  bool get hasWebDavCredentials {
+    return webdavUsername.trim().isNotEmpty &&
+        (webdavPassword.isNotEmpty || hasWebdavPassword);
   }
 
   Map<String, dynamic> toJson() {
@@ -158,6 +190,10 @@ class RemoteStorageConfig {
       'bucket': bucket.trim(),
       'accessKeyId': accessKeyId.trim(),
       'secretAccessKey': secretAccessKey.trim(),
+      'hasSecretAccessKey': hasSecretAccessKey || secretAccessKey.isNotEmpty,
+      'webdavUsername': webdavUsername.trim(),
+      'webdavPassword': webdavPassword,
+      'hasWebdavPassword': hasWebdavPassword || webdavPassword.isNotEmpty,
       'rootPrefix': rootPrefix.trim(),
       'defaultDownloadDirectory': defaultDownloadDirectory.trim(),
       'hideDotFiles': hideDotFiles,
@@ -177,6 +213,10 @@ class RemoteStorageConfig {
     String? bucket,
     String? accessKeyId,
     String? secretAccessKey,
+    bool? hasSecretAccessKey,
+    String? webdavUsername,
+    String? webdavPassword,
+    bool? hasWebdavPassword,
     String? rootPrefix,
     String? defaultDownloadDirectory,
     bool? hideDotFiles,
@@ -194,6 +234,10 @@ class RemoteStorageConfig {
       bucket: bucket ?? this.bucket,
       accessKeyId: accessKeyId ?? this.accessKeyId,
       secretAccessKey: secretAccessKey ?? this.secretAccessKey,
+      hasSecretAccessKey: hasSecretAccessKey ?? this.hasSecretAccessKey,
+      webdavUsername: webdavUsername ?? this.webdavUsername,
+      webdavPassword: webdavPassword ?? this.webdavPassword,
+      hasWebdavPassword: hasWebdavPassword ?? this.hasWebdavPassword,
       rootPrefix: rootPrefix ?? this.rootPrefix,
       defaultDownloadDirectory:
           defaultDownloadDirectory ?? this.defaultDownloadDirectory,
