@@ -75,6 +75,7 @@ class _FakeApi implements RemoteStorageGateway {
             usePathStyle: true,
             windowsMountMode: WindowsMountMode.cloudFilesCached,
             windowsThisPcEntryEnabled: true,
+            windowsWritebackConcurrency: 4,
           )
         : RemoteStorageConfig.empty(),
   );

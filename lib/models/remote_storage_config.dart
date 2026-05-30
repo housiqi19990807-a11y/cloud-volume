@@ -52,6 +52,7 @@ class RemoteStorageConfig {
     required this.usePathStyle,
     required this.windowsMountMode,
     required this.windowsThisPcEntryEnabled,
+    required this.windowsWritebackConcurrency,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -70,6 +71,7 @@ class RemoteStorageConfig {
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
       windowsThisPcEntryEnabled: true,
+      windowsWritebackConcurrency: 4,
     );
   }
 
@@ -117,6 +119,12 @@ class RemoteStorageConfig {
                 json['windows_this_pc_entry_enabled'],
           ) ??
           true,
+      windowsWritebackConcurrency:
+          _intFromDynamic(
+            json['windowsWritebackConcurrency'] ??
+                json['windows_writeback_concurrency'],
+          ) ??
+          4,
     );
   }
 
@@ -134,6 +142,7 @@ class RemoteStorageConfig {
   final bool usePathStyle;
   final WindowsMountMode windowsMountMode;
   final bool windowsThisPcEntryEnabled;
+  final int windowsWritebackConcurrency;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
@@ -158,6 +167,7 @@ class RemoteStorageConfig {
       'usePathStyle': usePathStyle,
       'windowsMountMode': windowsMountMode.storageValue,
       'windowsThisPcEntryEnabled': windowsThisPcEntryEnabled,
+      'windowsWritebackConcurrency': windowsWritebackConcurrency,
     };
   }
 
@@ -176,6 +186,7 @@ class RemoteStorageConfig {
     bool? usePathStyle,
     WindowsMountMode? windowsMountMode,
     bool? windowsThisPcEntryEnabled,
+    int? windowsWritebackConcurrency,
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
@@ -194,6 +205,8 @@ class RemoteStorageConfig {
       windowsMountMode: windowsMountMode ?? this.windowsMountMode,
       windowsThisPcEntryEnabled:
           windowsThisPcEntryEnabled ?? this.windowsThisPcEntryEnabled,
+      windowsWritebackConcurrency:
+          windowsWritebackConcurrency ?? this.windowsWritebackConcurrency,
     );
   }
 

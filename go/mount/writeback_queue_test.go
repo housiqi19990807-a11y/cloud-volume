@@ -163,3 +163,19 @@ func TestEnqueueSupersedesRunningTransferForSamePath(t *testing.T) {
 		t.Fatalf("expected replacement size 9, got %d", queued.size)
 	}
 }
+
+func TestWritebackQueueUsesConfiguredConcurrency(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	_ = access.writeback.shutdown()
+	access.config.WindowsWritebackConcurrency = 2
+	access.writeback = newWritebackQueue(access)
+	defer func() {
+		_ = access.writeback.shutdown()
+	}()
+
+	if got := access.writeback.pool.Cap(); got != 2 {
+		t.Fatalf("expected writeback pool capacity 2, got %d", got)
+	}
+}

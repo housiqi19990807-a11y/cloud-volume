@@ -82,3 +82,33 @@ func TestDefaultWindowsThisPcEntryEnabled(t *testing.T) {
 		t.Fatal("expected Windows This PC entry to be enabled by default")
 	}
 }
+
+func TestNormalizeWindowsWritebackConcurrency(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{name: "zero falls back to default", input: 0, want: 4},
+		{name: "negative falls back to default", input: -1, want: 4},
+		{name: "small positive stays unchanged", input: 2, want: 2},
+		{name: "large values are capped", input: 99, want: 32},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeWindowsWritebackConcurrency(tc.input); got != tc.want {
+				t.Fatalf(
+					"normalizeWindowsWritebackConcurrency(%d) = %d, want %d",
+					tc.input,
+					got,
+					tc.want,
+				)
+			}
+		})
+	}
+}

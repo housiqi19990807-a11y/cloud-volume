@@ -14,6 +14,11 @@ import (
 	s3ops "remote-storage/go/s3"
 )
 
+const (
+	writebackRetryBaseDelay = 15 * time.Second
+	writebackRetryMaxDelay  = 2 * time.Minute
+)
+
 func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -44,10 +49,8 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 		entry.localPath,
 		entry.size,
 	)
-	entry.timer = time.AfterFunc(writebackQuietPeriod, func() {
-		q.flush(clean)
-	})
 	q.entries[clean] = entry
+	q.armTimerLocked(entry, writebackQuietPeriod)
 	q.access.projectSyncState(entry.virtualPath, false)
 }
 
@@ -66,20 +69,78 @@ func (q *writebackQueue) supersedeRunningLocked(virtualPath, localPath string) {
 	}
 }
 
-func (q *writebackQueue) flush(virtualPath string) {
+func (q *writebackQueue) dispatch() {
+	defer q.wg.Done()
+	for entry := range q.queue {
+		if entry == nil {
+			continue
+		}
+		q.wg.Add(1)
+		err := q.pool.Submit(func() {
+			defer q.wg.Done()
+			q.flush(entry)
+		})
+		if err == nil {
+			continue
+		}
+		q.wg.Done()
+		log.Printf(
+			"[mount/writeback] pool-submit bucket=%q path=%q error=%v",
+			q.access.bucket,
+			entry.virtualPath,
+			err,
+		)
+		q.requeue(entry, writebackRetryBaseDelay)
+	}
+}
+
+func (q *writebackQueue) armTimerLocked(
+	entry *pendingWriteback,
+	delay time.Duration,
+) {
+	if entry.timer != nil {
+		entry.timer.Stop()
+	}
+	entry.timer = time.AfterFunc(delay, func() {
+		q.enqueueReady(entry.virtualPath)
+	})
+}
+
+func (q *writebackQueue) enqueueReady(virtualPath string) {
 	q.mu.Lock()
 	if q.closed {
 		q.mu.Unlock()
 		return
 	}
 	entry, ok := q.entries[cleanVirtualPath(virtualPath)]
-	if !ok {
+	if !ok || entry.queued {
 		q.mu.Unlock()
 		return
 	}
-	delete(q.entries, entry.virtualPath)
-	q.running[entry.taskID] = entry
+	entry.queued = true
+	queue := q.queue
 	q.mu.Unlock()
+	queue <- entry
+}
+
+func (q *writebackQueue) claim(entry *pendingWriteback) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	current, ok := q.entries[entry.virtualPath]
+	if !ok || current.taskID != entry.taskID || !current.queued {
+		return false
+	}
+	current.queued = false
+	delete(q.entries, current.virtualPath)
+	q.running[current.taskID] = current
+	return true
+}
+
+func (q *writebackQueue) flush(entry *pendingWriteback) {
+	if !q.claim(entry) {
+		return
+	}
 
 	err := q.flushNow(entry)
 	q.mu.Lock()
@@ -87,13 +148,38 @@ func (q *writebackQueue) flush(virtualPath string) {
 	discard := entry.discard
 	q.mu.Unlock()
 	if err != nil && !discard && !errors.Is(err, context.Canceled) {
-		q.enqueue(entry.virtualPath, entry.localPath, entry.size)
+		q.requeue(entry, nextWritebackRetryDelay(entry.retryCount+1))
 	}
 }
 
+func (q *writebackQueue) requeue(entry *pendingWriteback, delay time.Duration) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if q.closed || entry.discard {
+		return
+	}
+	entry.retryCount++
+	entry.queued = false
+	s3ops.QueueTransfer(
+		entry.taskID,
+		"upload",
+		q.access.bucket,
+		entry.virtualPath,
+		entry.localPath,
+		entry.size,
+	)
+	q.entries[entry.virtualPath] = entry
+	q.armTimerLocked(entry, delay)
+	q.access.projectSyncState(entry.virtualPath, false)
+}
+
 func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
+	ctx, cancel := q.access.withTransferTimeout(context.Background())
+	defer cancel()
+
 	err := s3ops.UploadFileContextResumable(
-		context.Background(),
+		ctx,
 		q.access.config,
 		q.access.bucket,
 		q.access.remoteKey(entry.virtualPath),
@@ -208,7 +294,7 @@ func (q *writebackQueue) rename(oldVirtualPath, newVirtualPath string, isDir boo
 		delete(q.entries, oldClean)
 		entry.virtualPath = newClean
 		entry.timer = time.AfterFunc(writebackQuietPeriod, func() {
-			q.flush(newClean)
+			q.enqueueReady(newClean)
 		})
 		q.entries[newClean] = entry
 		q.access.projectSyncState(entry.virtualPath, false)
@@ -228,7 +314,7 @@ func (q *writebackQueue) rename(oldVirtualPath, newVirtualPath string, isDir boo
 		entry.virtualPath = newPrefix + strings.TrimPrefix(key, oldPrefix)
 		nextKey := entry.virtualPath
 		entry.timer = time.AfterFunc(writebackQuietPeriod, func() {
-			q.flush(nextKey)
+			q.enqueueReady(nextKey)
 		})
 		q.entries[nextKey] = entry
 		q.access.projectSyncState(entry.virtualPath, false)
@@ -288,7 +374,7 @@ func (q *writebackQueue) triggerTask(taskID string) bool {
 		return false
 	}
 	var entry *pendingWriteback
-	for key, candidate := range q.entries {
+	for _, candidate := range q.entries {
 		if candidate.taskID != taskID {
 			continue
 		}
@@ -296,32 +382,15 @@ func (q *writebackQueue) triggerTask(taskID string) bool {
 		if entry.timer != nil {
 			entry.timer.Stop()
 		}
-		delete(q.entries, key)
+		entry.queued = true
 		break
 	}
+	queue := q.queue
 	q.mu.Unlock()
 	if entry == nil {
 		return false
 	}
-	q.mu.Lock()
-	q.running[entry.taskID] = entry
-	q.mu.Unlock()
-	go func(item *pendingWriteback) {
-		if err := q.flushNow(item); err != nil {
-			q.mu.Lock()
-			delete(q.running, item.taskID)
-			discard := item.discard
-			q.mu.Unlock()
-			if discard || errors.Is(err, context.Canceled) {
-				return
-			}
-			q.enqueue(item.virtualPath, item.localPath, item.size)
-			return
-		}
-		q.mu.Lock()
-		delete(q.running, item.taskID)
-		q.mu.Unlock()
-	}(entry)
+	queue <- entry
 	return true
 }
 
@@ -337,10 +406,16 @@ func (q *writebackQueue) shutdown() error {
 		if entry.timer != nil {
 			entry.timer.Stop()
 		}
+		entry.queued = false
 		entries = append(entries, entry)
 		delete(q.entries, key)
 	}
+	queue := q.queue
 	q.mu.Unlock()
+
+	close(queue)
+	q.wg.Wait()
+	q.pool.Release()
 
 	for _, entry := range entries {
 		if entry == nil {
@@ -363,6 +438,23 @@ func (q *writebackQueue) shutdown() error {
 		}
 	}
 	return nil
+}
+
+func nextWritebackRetryDelay(retryCount int) time.Duration {
+	if retryCount <= 0 {
+		return writebackRetryBaseDelay
+	}
+	delay := writebackRetryBaseDelay
+	for attempt := 1; attempt < retryCount; attempt++ {
+		if delay >= writebackRetryMaxDelay {
+			return writebackRetryMaxDelay
+		}
+		delay *= 2
+	}
+	if delay > writebackRetryMaxDelay {
+		return writebackRetryMaxDelay
+	}
+	return delay
 }
 
 func (q *writebackQueue) discardEntryLocalState(entry *pendingWriteback) {

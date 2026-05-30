@@ -85,6 +85,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       windowsMountMode: widget.initialState.config.windowsMountMode,
       windowsThisPcEntryEnabled:
           widget.initialState.config.windowsThisPcEntryEnabled,
+      windowsWritebackConcurrency:
+          widget.initialState.config.windowsWritebackConcurrency,
     );
 
     if (!config.isConfigured) {

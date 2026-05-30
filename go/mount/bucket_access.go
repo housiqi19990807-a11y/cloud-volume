@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/panjf2000/ants/v2"
 	"golang.org/x/sync/singleflight"
 
 	storageconfig "remote-storage/go/config"
@@ -95,6 +96,9 @@ type writebackQueue struct {
 	entries map[string]*pendingWriteback
 	running map[string]*pendingWriteback
 	closed  bool
+	queue   chan *pendingWriteback
+	pool    *ants.Pool
+	wg      sync.WaitGroup
 }
 
 type pendingWriteback struct {
@@ -104,14 +108,25 @@ type pendingWriteback struct {
 	size        int64
 	timer       *time.Timer
 	discard     bool
+	queued      bool
+	retryCount  int
 }
 
 func newWritebackQueue(access *bucketAccess) *writebackQueue {
-	return &writebackQueue{
+	pool, err := ants.NewPool(access.config.WindowsWritebackConcurrency)
+	if err != nil {
+		panic(fmt.Sprintf("create writeback worker pool: %v", err))
+	}
+	q := &writebackQueue{
 		access:  access,
 		entries: map[string]*pendingWriteback{},
 		running: map[string]*pendingWriteback{},
+		queue:   make(chan *pendingWriteback, 512),
+		pool:    pool,
 	}
+	q.wg.Add(1)
+	go q.dispatch()
+	return q
 }
 
 type syncStateProjector interface {

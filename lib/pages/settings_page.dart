@@ -9,8 +9,13 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
-import 'package:remote_storage/widgets/settings_sections.dart';
+import 'package:remote_storage/widgets/settings_sections.dart'
+    hide
+        WindowsMountModeSection,
+        WindowsThisPcEntrySection,
+        WindowsMountRecoverySection;
 import 'package:remote_storage/widgets/settings_trash_section.dart';
+import 'package:remote_storage/widgets/windows_settings_sections.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -42,6 +47,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _windowsMountModeError;
   bool _savingWindowsThisPcEntry = false;
   String? _windowsThisPcEntryError;
+  bool _savingWindowsWritebackConcurrency = false;
+  String? _windowsWritebackConcurrencyError;
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
 
@@ -120,8 +127,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   enabled: config.windowsThisPcEntryEnabled,
                   saving: _savingWindowsThisPcEntry,
                   errorText: _windowsThisPcEntryError,
+                  onChanged: (value) => _saveWindowsThisPcEntry(config, value),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildCard(
+                theme,
+                'Windows 写回并发',
+                WindowsWritebackConcurrencySection(
+                  theme: theme,
+                  concurrency: config.windowsWritebackConcurrency,
+                  saving: _savingWindowsWritebackConcurrency,
+                  errorText: _windowsWritebackConcurrencyError,
                   onChanged: (value) =>
-                      _saveWindowsThisPcEntry(config, value),
+                      _saveWindowsWritebackConcurrency(config, value),
                 ),
               ),
               const SizedBox(height: 20),
@@ -348,6 +367,33 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _savingWindowsThisPcEntry = false);
+      }
+    }
+  }
+
+  Future<void> _saveWindowsWritebackConcurrency(
+    RemoteStorageConfig config,
+    int value,
+  ) async {
+    if (value == config.windowsWritebackConcurrency) {
+      return;
+    }
+    setState(() {
+      _savingWindowsWritebackConcurrency = true;
+      _windowsWritebackConcurrencyError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(windowsWritebackConcurrency: value),
+      );
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _windowsWritebackConcurrencyError = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _savingWindowsWritebackConcurrency = false);
       }
     }
   }
