@@ -6,7 +6,6 @@ package mount
 import (
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestCloudFilesLocalPathToVirtual(t *testing.T) {
@@ -25,7 +24,7 @@ func TestWindowsPathStateRebase(t *testing.T) {
 	t.Parallel()
 
 	state := &windowsPathState{
-		ignored: map[string]time.Time{},
+		ignored: map[string]windowsIgnoredPath{},
 		kinds: map[string]bool{
 			filepath.Clean(`C:\root\old`):          true,
 			filepath.Clean(`C:\root\old\file.txt`): false,

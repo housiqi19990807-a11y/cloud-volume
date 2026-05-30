@@ -43,9 +43,11 @@ type windowsSyncWatcher struct {
 	done   chan struct{}
 	wg     sync.WaitGroup
 
-	rawMu     sync.Mutex
-	rawClosed bool
-	watched   map[string]bool
+	rawMu        sync.Mutex
+	rawClosed    bool
+	watched      map[string]bool
+	watchPending map[string]bool
+	watchWanted  map[string]bool
 
 	harvestMu      sync.Mutex
 	activeHarvests map[string]time.Time
@@ -70,16 +72,21 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 		},
 		done:           make(chan struct{}),
 		watched:        map[string]bool{},
+		watchPending:   map[string]bool{},
+		watchWanted:    map[string]bool{},
 		activeHarvests: map[string]time.Time{},
 	}, nil
 }
 
 func (w *windowsSyncWatcher) Start() error {
-	if err := w.rescanDirectories(); err != nil {
-		return err
-	}
 	w.wg.Add(1)
 	go w.run()
+	if err := w.rescanDirectories(); err != nil {
+		w.signalStop()
+		_ = w.closeRaw()
+		w.wg.Wait()
+		return err
+	}
 	return nil
 }
 
@@ -260,6 +267,9 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 	root := filepath.Clean(localPath)
 	now := time.Now()
 	w.harvestMu.Lock()
+	if w.activeHarvests == nil {
+		w.activeHarvests = map[string]time.Time{}
+	}
 	if _, ok := w.activeHarvests[root]; ok {
 		w.activeHarvests[root] = now
 		w.harvestMu.Unlock()
