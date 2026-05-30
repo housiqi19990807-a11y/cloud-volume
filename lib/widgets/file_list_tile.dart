@@ -1,6 +1,7 @@
 // Finder 风格文件列表行：左侧名称，右侧固定尺寸/修改时间列。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 文件管理页的列表项。
@@ -101,8 +102,8 @@ class _FileListTileState extends State<FileListTile> {
           child: Row(
             children: [
               if (widget.showSelectionControl) ...[
-                _SelectionIndicator(
-                  isSelected: widget.isSelected,
+                ListSelectionControl(
+                  selected: widget.isSelected,
                   onTap: widget.onSelectionTap,
                 ),
                 const SizedBox(width: 10),
@@ -196,41 +197,6 @@ class _FileListTileState extends State<FileListTile> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SelectionIndicator extends StatelessWidget {
-  const _SelectionIndicator({required this.isSelected, required this.onTap});
-
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final accent = theme.colorScheme.primary;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        width: 18,
-        height: 18,
-        decoration: BoxDecoration(
-          color: isSelected ? accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isSelected
-                ? accent
-                : theme.colorScheme.border.withValues(alpha: 0.9),
-            width: 1.2,
-          ),
-        ),
-        child: isSelected
-            ? const Icon(LucideIcons.check, size: 12, color: Colors.white)
-            : null,
       ),
     );
   }

@@ -282,12 +282,9 @@ class _TransfersPageState extends State<TransfersPage> {
             onToggleVisibleSelection: () =>
                 _toggleVisibleSelection(filteredTasks),
           ),
-          const Divider(height: 1),
           Expanded(
-            child: ListView.separated(
+            child: ListView.builder(
               itemCount: filteredTasks.length,
-              separatorBuilder: (context, index) =>
-                  Divider(height: 1, color: theme.colorScheme.border),
               itemBuilder: (context, index) {
                 final task = filteredTasks[index];
                 return TransferTaskRow(
@@ -295,6 +292,7 @@ class _TransfersPageState extends State<TransfersPage> {
                   subtitle: _subtitleFor(task),
                   selected: _selectedTaskIds.contains(task.id),
                   onToggleSelected: () => _toggleTaskSelection(task.id),
+                  showDivider: index != filteredTasks.length - 1,
                   onCancelPressed: queue.canCancelTask(task.id)
                       ? () => unawaited(queue.cancelTask(task.id))
                       : null,

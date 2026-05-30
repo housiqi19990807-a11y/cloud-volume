@@ -1,59 +1,11 @@
-// Transfer task widgets keep the transfers page focused on filtering and bulk actions.
+// Transfer task widgets share the same list-selection visual language as the file manager.
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
+import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-
-class TransferSelectionToggle extends StatelessWidget {
-  const TransferSelectionToggle({
-    super.key,
-    required this.selected,
-    required this.onTap,
-    this.partiallySelected = false,
-    this.enabled = true,
-  });
-
-  final bool selected;
-  final bool partiallySelected;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final activeColor = enabled
-        ? theme.colorScheme.primary
-        : theme.colorScheme.mutedForeground;
-    final borderColor = selected || partiallySelected
-        ? activeColor
-        : theme.colorScheme.border;
-    final background = selected || partiallySelected
-        ? activeColor.withValues(alpha: enabled ? 0.12 : 0.06)
-        : Colors.transparent;
-    final icon = selected
-        ? LucideIcons.check
-        : partiallySelected
-        ? LucideIcons.minus
-        : null;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: enabled ? onTap : null,
-      child: Container(
-        width: 18,
-        height: 18,
-        decoration: BoxDecoration(
-          color: background,
-          shape: BoxShape.circle,
-          border: Border.all(color: borderColor),
-        ),
-        child: icon == null ? null : Icon(icon, size: 12, color: activeColor),
-      ),
-    );
-  }
-}
 
 class TransferStatusBadge extends StatelessWidget {
   const TransferStatusBadge({super.key, required this.task});
@@ -99,13 +51,14 @@ class TransferStatusBadge extends StatelessWidget {
   }
 }
 
-class TransferTaskRow extends StatelessWidget {
+class TransferTaskRow extends StatefulWidget {
   const TransferTaskRow({
     super.key,
     required this.task,
     required this.subtitle,
     required this.selected,
     required this.onToggleSelected,
+    this.showDivider = true,
     this.onCancelPressed,
     this.onStartNowPressed,
   });
@@ -113,104 +66,143 @@ class TransferTaskRow extends StatelessWidget {
   final TransferTask task;
   final String subtitle;
   final bool selected;
+  final bool showDivider;
   final VoidCallback onToggleSelected;
   final VoidCallback? onCancelPressed;
   final VoidCallback? onStartNowPressed;
 
   @override
+  State<TransferTaskRow> createState() => _TransferTaskRowState();
+}
+
+class _TransferTaskRowState extends State<TransferTaskRow> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final accentColor = _colorFor(task);
+    final accentColor = _colorFor(widget.task);
+    final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
+    final hoverColor = theme.colorScheme.secondary.withValues(alpha: 0.5);
+    final pressedColor = theme.colorScheme.secondary.withValues(alpha: 0.72);
+    final backgroundColor = widget.selected
+        ? theme.colorScheme.primary.withValues(alpha: _pressed ? 0.2 : 0.12)
+        : _pressed
+        ? pressedColor
+        : _hovered
+        ? hoverColor
+        : Colors.transparent;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 140),
-      curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: selected
-            ? theme.colorScheme.primary.withValues(alpha: 0.05)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: TransferSelectionToggle(
-              selected: selected,
-              onTap: onToggleSelected,
-            ),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onToggleSelected,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: widget.showDivider
+                ? Border(bottom: BorderSide(color: dividerColor, width: 0.6))
+                : null,
           ),
-          const SizedBox(width: 12),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(_iconFor(task), size: 18, color: accentColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: theme.colorScheme.foreground,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (onCancelPressed != null)
-                AppTooltip(
-                  message: '取消任务',
-                  child: ShadIconButton.ghost(
-                    icon: Icon(
-                      LucideIcons.circleX,
-                      color: theme.colorScheme.mutedForeground,
-                    ),
-                    width: 28,
-                    height: 28,
-                    iconSize: 16,
-                    onPressed: onCancelPressed,
-                  ),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: ListSelectionControl(
+                  selected: widget.selected,
+                  onTap: widget.onToggleSelected,
                 ),
-              if (onStartNowPressed != null)
-                AppTooltip(
-                  message: '立即同步',
-                  child: ShadIconButton.ghost(
-                    icon: Icon(
-                      LucideIcons.play,
-                      color: theme.colorScheme.primary,
-                    ),
-                    width: 28,
-                    height: 28,
-                    iconSize: 16,
-                    onPressed: onStartNowPressed,
-                  ),
+              ),
+              const SizedBox(width: 10),
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  _iconFor(widget.task),
+                  size: 18,
+                  color: accentColor,
                 ),
-              const SizedBox(width: 8),
-              TransferStatusBadge(task: task),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.task.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.foreground,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.onCancelPressed != null)
+                    AppTooltip(
+                      message: '取消任务',
+                      child: ShadIconButton.ghost(
+                        icon: Icon(
+                          LucideIcons.circleX,
+                          color: theme.colorScheme.mutedForeground,
+                        ),
+                        width: 28,
+                        height: 28,
+                        iconSize: 16,
+                        onPressed: widget.onCancelPressed,
+                      ),
+                    ),
+                  if (widget.onStartNowPressed != null)
+                    AppTooltip(
+                      message: '立即同步',
+                      child: ShadIconButton.ghost(
+                        icon: Icon(
+                          LucideIcons.play,
+                          color: theme.colorScheme.primary,
+                        ),
+                        width: 28,
+                        height: 28,
+                        iconSize: 16,
+                        onPressed: widget.onStartNowPressed,
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  TransferStatusBadge(task: widget.task),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -274,7 +266,7 @@ class TransferTaskSelectionActions extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              '处理中…',
+              '处理中...',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -325,54 +317,40 @@ class TransferTaskListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final dividerColor = theme.colorScheme.border.withValues(alpha: 0.7);
+    final labelStyle = TextStyle(
+      fontSize: 10.5,
+      fontWeight: FontWeight.w600,
+      color: theme.colorScheme.mutedForeground,
+      letterSpacing: 0.2,
+    );
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: dividerColor, width: 0.6)),
+      ),
       child: Row(
         children: [
-          Text(
-            '共 $totalCount 条',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(width: 12),
-          InkWell(
-            borderRadius: BorderRadius.circular(999),
+          ListSelectionControl(
+            selected: allVisibleSelected,
+            partiallySelected: partiallySelected,
             onTap: onToggleVisibleSelection,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TransferSelectionToggle(
-                    selected: allVisibleSelected,
-                    partiallySelected: partiallySelected,
-                    onTap: onToggleVisibleSelection,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    allVisibleSelected ? '取消全选当前结果' : '全选当前结果',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.foreground,
-                    ),
-                  ),
-                ],
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              allVisibleSelected ? '取消全选当前结果' : '全选当前结果',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.foreground,
               ),
             ),
           ),
-          const Spacer(),
-          Text(
-            speedSummary,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
+          Text('共 $totalCount 项', style: labelStyle),
+          const SizedBox(width: 16),
+          Text(speedSummary, style: labelStyle),
         ],
       ),
     );

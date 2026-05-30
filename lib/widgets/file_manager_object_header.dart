@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
+import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class FileManagerObjectHeader extends StatelessWidget {
@@ -40,8 +41,8 @@ class FileManagerObjectHeader extends StatelessWidget {
       child: Row(
         children: [
           if (showSelectionControl) ...[
-            _HeaderSelectionIndicator(
-              allSelected: allSelected,
+            ListSelectionControl(
+              selected: allSelected,
               partiallySelected: partiallySelected,
               onTap: onToggleSelectAll,
             ),
@@ -59,7 +60,11 @@ class FileManagerObjectHeader extends StatelessWidget {
             const SizedBox(width: 16),
             SizedBox(
               width: FileListTile.statusColumnWidth,
-              child: Text('同步状态', textAlign: TextAlign.right, style: labelStyle),
+              child: Text(
+                '同步状态',
+                textAlign: TextAlign.right,
+                style: labelStyle,
+              ),
             ),
           ],
           const SizedBox(width: 16),
@@ -68,48 +73,6 @@ class FileManagerObjectHeader extends StatelessWidget {
             child: Text('修改时间', textAlign: TextAlign.right, style: labelStyle),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _HeaderSelectionIndicator extends StatelessWidget {
-  const _HeaderSelectionIndicator({
-    required this.allSelected,
-    required this.partiallySelected,
-    required this.onTap,
-  });
-
-  final bool allSelected;
-  final bool partiallySelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final accent = theme.colorScheme.primary;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        width: 18,
-        height: 18,
-        decoration: BoxDecoration(
-          color: allSelected || partiallySelected ? accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: allSelected || partiallySelected
-                ? accent
-                : theme.colorScheme.border.withValues(alpha: 0.9),
-            width: 1.2,
-          ),
-        ),
-        child: allSelected
-            ? const Icon(Icons.check, size: 12, color: Colors.white)
-            : partiallySelected
-            ? const Icon(Icons.remove, size: 12, color: Colors.white)
-            : null,
       ),
     );
   }
