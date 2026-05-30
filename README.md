@@ -130,6 +130,28 @@ make build-cli
 - `mount` 会前台常驻，按 `Ctrl+C` 会触发卸载
 - 自定义挂载目录必须为空目录；CLI 不会删除你自定义目录里的已有内容
 
+查询和卸载：
+
+```bash
+./bin/cloud-volume-cli status --bucket media
+./bin/cloud-volume-cli unmount --bucket media
+```
+
+如果你挂载时用了自定义目录，也可以直接按目录查询和卸载：
+
+```bash
+./bin/cloud-volume-cli status --mount-point /mnt/media
+./bin/cloud-volume-cli unmount --mount-point /mnt/media
+```
+
+当前 `mount` / `unmount` 真正的挂载能力仍然只在 Linux 上生效；但 CLI 本身会继续构建 Windows amd64、macOS amd64/arm64、Linux amd64/arm64 版本，便于统一分发 `init`、配置检查和后续扩展命令。
+
+CLI 发布产物命名：
+
+- Linux：`yunjuan-cli-linux-amd64.tar.gz`、`yunjuan-cli-linux-arm64.tar.gz`
+- macOS：`yunjuan-cli-darwin-amd64.tar.gz`、`yunjuan-cli-darwin-arm64.tar.gz`
+- Windows：`yunjuan-cli-windows-amd64.zip`
+
 ## 配置项
 
 初始化页会保存这些 S3 兼容存储配置：

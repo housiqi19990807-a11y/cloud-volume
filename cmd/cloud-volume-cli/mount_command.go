@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	storageconfig "remote-storage/go/config"
 	bucketmount "remote-storage/go/mount"
 	s3ops "remote-storage/go/s3"
 )
@@ -136,16 +135,4 @@ func waitForMountedBucket(bucket string) error {
 			}
 		}
 	}
-}
-
-func openConfigStore(explicitPath string) (storageconfig.Store, string, error) {
-	if strings.TrimSpace(explicitPath) != "" {
-		path := strings.TrimSpace(explicitPath)
-		return storageconfig.NewStore(path), path, nil
-	}
-	path, err := storageconfig.DefaultConfigPath()
-	if err != nil {
-		return storageconfig.Store{}, "", err
-	}
-	return storageconfig.NewStore(path), path, nil
 }
