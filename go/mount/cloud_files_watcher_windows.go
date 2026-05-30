@@ -80,8 +80,9 @@ func (w *windowsSyncWatcher) Start() error {
 
 func (w *windowsSyncWatcher) Close() error {
 	w.signalStop()
+	closeErr := w.raw.Close()
 	w.wg.Wait()
-	return w.raw.Close()
+	return closeErr
 }
 
 func (w *windowsSyncWatcher) RememberPlaceholders(baseDir string, items []cloudPlaceholderInfo) {
@@ -194,6 +195,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 	info, err := os.Stat(localPath)
 	if err == nil && info.IsDir() {
 		w.state.remember(localPath, true)
+		w.state.clearPlaceholdersUnder(localPath)
 		w.addWatch(localPath)
 		if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
 			log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
@@ -214,6 +216,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 func (w *windowsSyncWatcher) handleWrite(localPath, virtualPath string) {
 	w.touchActiveHarvestAncestors(localPath)
 	if w.IsDir(localPath) {
+		w.state.clearPlaceholdersUnder(localPath)
 		w.harvestDirectoryTree(localPath)
 		return
 	}
@@ -479,6 +482,18 @@ func (s *windowsPathState) forget(localPath string) {
 			delete(s.files, current)
 		}
 	}
+	for current := range s.placeholders {
+		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
+			delete(s.placeholders, current)
+		}
+	}
+}
+
+func (s *windowsPathState) clearPlaceholdersUnder(localPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	clean := filepath.Clean(localPath)
 	for current := range s.placeholders {
 		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
 			delete(s.placeholders, current)

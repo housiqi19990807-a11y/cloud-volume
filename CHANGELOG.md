@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Windows Cloud Files directory-copy recovery now refreshes parent harvest scans when descendant files and child directories keep appearing, which fixes interrupted large-folder copies that previously only surfaced the first discovered child tree in the transfers page and mounted file manager.
+- Windows Cloud Files directory-copy recovery now refreshes parent harvest scans when descendant files and child directories keep appearing, and local directory writes clear stale placeholder markers under that subtree, which fixes interrupted large-folder copies that previously only surfaced the first discovered child tree or only queued first-level files while deeper subdirectories such as `.git` stayed missing from the transfers page and mounted file manager.
 - Windows Cloud Files unmount now disconnects the provider before closing the local watcher, and watcher shutdown waits for active harvest scans to stop scheduling new directory watches, which fixes mounts getting stuck at `watcher-close-start` during unmount after large copy operations.
 - Windows and macOS desktop startup now shrink the initial window on smaller displays using the same adaptive sizing approach already used on Linux, so the first-run layout stays fully visible on lower-resolution laptops instead of opening oversized.
 - The transfer queue now supports row selection plus batch start and batch cancel actions, so waiting uploads and active jobs can be resumed or stopped in bulk from the transfers page instead of one by one.

@@ -200,6 +200,57 @@ func TestHarvestSkipsKnownPlaceholderFiles(t *testing.T) {
 	}
 }
 
+func TestDirectoryWriteClearsPlaceholderMarkersForDescendants(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	root := t.TempDir()
+	parentDir := filepath.Join(root, "flow2api")
+	childDir := filepath.Join(parentDir, ".git")
+	childFile := filepath.Join(childDir, "config")
+	if err := os.MkdirAll(childDir, 0o755); err != nil {
+		t.Fatalf("mkdir tree: %v", err)
+	}
+	if err := os.WriteFile(childFile, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write nested file: %v", err)
+	}
+
+	rawWatcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
+	}
+	defer rawWatcher.Close()
+
+	watcher := &windowsSyncWatcher{
+		root:   root,
+		access: access,
+		raw:    rawWatcher,
+		state: &windowsPathState{
+			ignored:      map[string]windowsIgnoredPath{},
+			hydrating:    map[string]bool{},
+			kinds:        map[string]bool{},
+			files:        map[string]windowsObservedFile{},
+			placeholders: map[string]bool{},
+		},
+		done:           make(chan struct{}),
+		activeHarvests: map[string]time.Time{},
+	}
+	watcher.state.markPlaceholder(childFile)
+
+	watcher.handleWrite(parentDir, "flow2api")
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, ok := access.cache.localFile("flow2api/.git/config"); ok &&
+			access.writeback.hasPendingAtOrBelow("flow2api", true) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Fatal("expected directory write to clear descendant placeholders and queue nested file")
+}
+
 func TestTouchActiveHarvestAncestorsRefreshesParentScans(t *testing.T) {
 	t.Parallel()
 
