@@ -8,15 +8,15 @@
 
 namespace {
 
-constexpr unsigned int kDefaultWindowWidth = 1280;
-constexpr unsigned int kDefaultWindowHeight = 720;
-constexpr unsigned int kMinimumWindowWidth = 960;
+constexpr unsigned int kDefaultWindowWidth = 1120;
+constexpr unsigned int kDefaultWindowHeight = 700;
+constexpr unsigned int kMinimumWindowWidth = 920;
 constexpr unsigned int kMinimumWindowHeight = 600;
-constexpr unsigned int kCompactFallbackWindowWidth = 840;
+constexpr unsigned int kCompactFallbackWindowWidth = 820;
 constexpr unsigned int kCompactFallbackWindowHeight = 560;
 
-// Shrink the initial borderless window on smaller displays so the first-run
-// layout does not feel cramped or fall behind taskbars on low-resolution PCs.
+// Keep the Windows startup window slightly tighter than before so large and
+// mid-sized displays do not open an overly wide first-run layout.
 Win32Window::Size ResolveInitialWindowSize() {
   MONITORINFO monitor_info = {};
   monitor_info.cbSize = sizeof(monitor_info);
@@ -40,9 +40,9 @@ Win32Window::Size ResolveInitialWindowSize() {
       std::max(kCompactFallbackWindowHeight,
           static_cast<unsigned int>(work_height - 32)));
   const unsigned int width_ceiling =
-      static_cast<unsigned int>(work_width * 72 / 100);
+      static_cast<unsigned int>(work_width * 68 / 100);
   const unsigned int height_ceiling =
-      static_cast<unsigned int>(work_height * 66 / 100);
+      static_cast<unsigned int>(work_height * 64 / 100);
   const unsigned int resolved_width = std::min(
       kDefaultWindowWidth, std::max(width_floor, width_ceiling));
   const unsigned int resolved_height = std::min(
