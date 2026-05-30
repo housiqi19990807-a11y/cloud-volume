@@ -5,6 +5,7 @@ package mount
 
 import (
 	"context"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -44,6 +45,7 @@ type windowsSyncWatcher struct {
 
 	harvestMu      sync.Mutex
 	activeHarvests map[string]time.Time
+	closeOnce      sync.Once
 }
 
 func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatcher, error) {
@@ -77,10 +79,9 @@ func (w *windowsSyncWatcher) Start() error {
 }
 
 func (w *windowsSyncWatcher) Close() error {
-	close(w.done)
-	closeErr := w.raw.Close()
+	w.signalStop()
 	w.wg.Wait()
-	return closeErr
+	return w.raw.Close()
 }
 
 func (w *windowsSyncWatcher) RememberPlaceholders(baseDir string, items []cloudPlaceholderInfo) {
@@ -92,7 +93,7 @@ func (w *windowsSyncWatcher) RememberPlaceholders(baseDir string, items []cloudP
 		// directory can still surface immediate user writes below it.
 		w.state.ignore(fullPath, windowsCFEventIgnoreTTL, false)
 		if item.IsDirectory {
-			_ = w.raw.Add(fullPath)
+			w.addWatch(fullPath)
 		}
 	}
 }
@@ -150,7 +151,7 @@ func (w *windowsSyncWatcher) rescanDirectories() error {
 			return nil
 		}
 		w.state.remember(current, true)
-		_ = w.raw.Add(current)
+		w.addWatch(current)
 		return nil
 	})
 }
@@ -193,7 +194,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 	info, err := os.Stat(localPath)
 	if err == nil && info.IsDir() {
 		w.state.remember(localPath, true)
-		_ = w.raw.Add(localPath)
+		w.addWatch(localPath)
 		if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
 			log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
 		}
@@ -248,6 +249,9 @@ func (w *windowsSyncWatcher) scheduleUpload(
 }
 
 func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
+	if w.shouldStop() {
+		return
+	}
 	root := filepath.Clean(localPath)
 	now := time.Now()
 	w.harvestMu.Lock()
@@ -259,7 +263,9 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 	w.activeHarvests[root] = now
 	w.harvestMu.Unlock()
 
+	w.wg.Add(1)
 	go func(root string) {
+		defer w.wg.Done()
 		log.Printf("[mount/cloud-files] harvest-start path=%q", root)
 		defer func() {
 			w.harvestMu.Lock()
@@ -274,6 +280,9 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 		defer ticker.Stop()
 
 		for {
+			if w.shouldStop() {
+				return
+			}
 			directoryCount, queuedFileCount, err := w.ingestDirectoryTree(root)
 			if err != nil {
 				log.Printf("[mount/cloud-files] harvest-directory path=%q error=%v", root, err)
@@ -300,37 +309,14 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 	}(root)
 }
 
-func (w *windowsSyncWatcher) touchActiveHarvestAncestors(localPath string) {
-	clean := filepath.Clean(localPath)
-	root := filepath.Clean(w.root)
-	if clean != root && !strings.HasPrefix(clean, root+string(os.PathSeparator)) {
-		return
-	}
-
-	now := time.Now()
-	w.harvestMu.Lock()
-	defer w.harvestMu.Unlock()
-
-	for {
-		if _, ok := w.activeHarvests[clean]; ok {
-			w.activeHarvests[clean] = now
-		}
-		if clean == root {
-			return
-		}
-		parent := filepath.Dir(clean)
-		if parent == clean {
-			return
-		}
-		clean = parent
-	}
-}
-
 func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, error) {
 	root := filepath.Clean(localRoot)
 	directoryCount := 0
 	queuedFileCount := 0
 	err := filepath.WalkDir(root, func(current string, entry os.DirEntry, walkErr error) error {
+		if w.shouldStop() {
+			return fs.SkipAll
+		}
 		if walkErr != nil {
 			return nil
 		}
@@ -355,7 +341,7 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, er
 		w.state.remember(current, entry.IsDir())
 		w.touchActiveHarvestAncestors(current)
 		if entry.IsDir() {
-			_ = w.raw.Add(current)
+			w.addWatch(current)
 			directoryCount++
 			// A copied subtree can keep expanding inside newly discovered child
 			// directories after the parent harvest has already started.
@@ -371,6 +357,9 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, er
 		}
 		return nil
 	})
+	if err == fs.SkipAll {
+		return directoryCount, queuedFileCount, nil
+	}
 	return directoryCount, queuedFileCount, err
 }
 
@@ -550,8 +539,4 @@ func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
 	for current := range hydratingUpdates {
 		s.hydrating[current] = true
 	}
-}
-
-func isResumableUploadStatePath(localPath string) bool {
-	return strings.HasSuffix(strings.ToLower(filepath.Clean(localPath)), ".uploading.json")
 }

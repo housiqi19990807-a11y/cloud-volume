@@ -149,6 +149,13 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 	session.mounted = false
 
 	var firstErr error
+	if b.provider != nil {
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-disconnect-start", session.bucket)
+		if err := b.provider.Disconnect(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-disconnect-done err=%v", session.bucket, firstErr)
+	}
 	if b.watcher != nil {
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=watcher-close-start", session.bucket)
 		if err := b.watcher.Close(); err != nil && firstErr == nil {
@@ -157,11 +164,6 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=watcher-close-done err=%v", session.bucket, firstErr)
 	}
 	if b.provider != nil {
-		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-disconnect-start", session.bucket)
-		if err := b.provider.Disconnect(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-disconnect-done err=%v", session.bucket, firstErr)
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-deregister-start", session.bucket)
 		if err := b.provider.Deregister(); err != nil && firstErr == nil {
 			firstErr = err

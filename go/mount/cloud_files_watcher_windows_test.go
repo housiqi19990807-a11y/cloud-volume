@@ -267,3 +267,43 @@ func TestHandleCreateRefreshesAncestorHarvestsForChildDirectory(t *testing.T) {
 		t.Fatal("expected child directory creation to refresh parent harvest")
 	}
 }
+
+func TestWindowsSyncWatcherCloseReturnsDuringHarvest(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	root := t.TempDir()
+	parentDir := filepath.Join(root, "backup")
+	childDir := filepath.Join(parentDir, "flow2api")
+	childFile := filepath.Join(childDir, "main.py")
+	if err := os.MkdirAll(childDir, 0o755); err != nil {
+		t.Fatalf("mkdir tree: %v", err)
+	}
+	if err := os.WriteFile(childFile, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write child file: %v", err)
+	}
+
+	watcher, err := newWindowsSyncWatcher(root, access)
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
+	}
+	if err := watcher.Start(); err != nil {
+		t.Fatalf("start watcher: %v", err)
+	}
+
+	watcher.harvestDirectoryTree(parentDir)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- watcher.Close()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("close watcher: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("expected watcher close to finish while harvest goroutines are active")
+	}
+}
