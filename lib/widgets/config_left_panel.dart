@@ -91,7 +91,7 @@ class ConfigLeftPanel extends StatelessWidget {
                 const AppBrandMark(height: 50, width: 188),
                 const SizedBox(height: 10),
                 Text(
-                  appBrandSubtitle,
+                  'Local Manager for Remote Volumes',
                   style: TextStyle(
                     color: muted,
                     fontSize: 12,
