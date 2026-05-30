@@ -180,9 +180,7 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 	if session.access != nil {
 		session.access.syncState = nil
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-start", session.bucket)
-		if err := session.access.close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
+		session.access.release()
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-done err=%v", session.bucket, firstErr)
 	}
 

@@ -163,16 +163,10 @@ func (a *bucketAccess) stageLocalDirectory(virtualPath string, modTime time.Time
 
 func (a *bucketAccess) queueRemoteDirectory(virtualPath string) {
 	clean := cleanVirtualPath(virtualPath)
-	if clean == "" {
+	if clean == "" || a.dirSync == nil {
 		return
 	}
-	go func(target string) {
-		ctx, cancel := context.WithTimeout(context.Background(), a.requestTimeout)
-		defer cancel()
-		if err := a.createRemoteDirectory(ctx, target); err != nil {
-			log.Printf("[mount/dir-sync] bucket=%q path=%q error=%v", a.bucket, target, err)
-		}
-	}(clean)
+	a.dirSync.enqueue(clean)
 }
 
 func (a *bucketAccess) createRemoteDirectory(

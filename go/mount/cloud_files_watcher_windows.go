@@ -301,7 +301,7 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 			directoryCount, queuedFileCount, err := w.ingestDirectoryTree(root)
 			if err != nil {
 				log.Printf("[mount/cloud-files] harvest-directory path=%q error=%v", root, err)
-			} else if directoryCount > 0 || queuedFileCount > 0 {
+			} else if queuedFileCount > 0 {
 				log.Printf(
 					"[mount/cloud-files] harvest-scan path=%q directories=%d queued_files=%d",
 					root,
@@ -358,9 +358,6 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, er
 		if entry.IsDir() {
 			w.addWatch(current)
 			directoryCount++
-			// A copied subtree can keep expanding inside newly discovered child
-			// directories after the parent harvest has already started.
-			w.harvestDirectoryTree(current)
 			if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
 				log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
 			}

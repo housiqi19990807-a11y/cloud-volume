@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type syncStateCall struct {
@@ -177,5 +178,85 @@ func TestWritebackQueueUsesConfiguredConcurrency(t *testing.T) {
 
 	if got := access.writeback.pool.Cap(); got != 2 {
 		t.Fatalf("expected writeback pool capacity 2, got %d", got)
+	}
+}
+
+func TestWritebackQueueRestoresPersistedEntries(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	virtualPath := "archive/output.zip"
+	localPath := filepath.Join(access.cacheRoot, "archive", "output.zip")
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		t.Fatalf("mkdir local path: %v", err)
+	}
+	if err := os.WriteFile(localPath, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write staged file: %v", err)
+	}
+
+	access.writeback.enqueue(virtualPath, localPath, 7)
+	entry := access.writeback.entries[virtualPath]
+	if entry == nil {
+		t.Fatal("expected queued writeback entry before restart")
+	}
+	originalTaskID := entry.taskID
+
+	if err := access.writeback.shutdown(); err != nil {
+		t.Fatalf("shutdown writeback queue: %v", err)
+	}
+
+	restored := newWritebackQueue(access)
+	t.Cleanup(func() {
+		_ = restored.shutdown()
+	})
+	access.writeback = restored
+
+	reloaded := access.writeback.entries[virtualPath]
+	if reloaded == nil {
+		t.Fatal("expected persisted writeback entry after restart")
+	}
+	if reloaded.taskID != originalTaskID {
+		t.Fatalf("expected task %q after restore, got %q", originalTaskID, reloaded.taskID)
+	}
+}
+
+func TestFlushNowReschedulesModifiedRunningEntry(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	virtualPath := "archive/output.zip"
+	localPath := filepath.Join(access.cacheRoot, "archive", "output.zip")
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		t.Fatalf("mkdir local path: %v", err)
+	}
+	if err := os.WriteFile(localPath, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write staged file: %v", err)
+	}
+	info, err := os.Stat(localPath)
+	if err != nil {
+		t.Fatalf("stat staged file: %v", err)
+	}
+	entry := &pendingWriteback{
+		taskID:          "task-running",
+		virtualPath:     virtualPath,
+		localPath:       localPath,
+		size:            info.Size(),
+		modTimeUnixNano: info.ModTime().UnixNano() - 1,
+	}
+	access.writeback.running[entry.taskID] = entry
+
+	if err := access.writeback.flushNow(entry); err != nil {
+		t.Fatalf("flushNow should reschedule modified entry before upload, got %v", err)
+	}
+
+	refreshed := access.writeback.entries[virtualPath]
+	if refreshed == nil {
+		t.Fatal("expected modified entry to be rescheduled")
+	}
+	if refreshed.modTimeUnixNano != info.ModTime().UnixNano() {
+		t.Fatalf("expected refreshed modtime %d, got %d", info.ModTime().UnixNano(), refreshed.modTimeUnixNano)
+	}
+	if refreshed.dueAt.Before(time.Now()) {
+		t.Fatalf("expected refreshed entry due in the future, got %v", refreshed.dueAt)
 	}
 }

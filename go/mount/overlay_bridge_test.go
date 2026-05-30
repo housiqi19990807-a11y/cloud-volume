@@ -65,6 +65,7 @@ func newTestBucketAccess(t *testing.T) *bucketAccess {
 	}
 	access := &bucketAccess{
 		bucket:         "test-bucket",
+		sessionRoot:    root,
 		cacheRoot:      filepath.Join(root, "cache"),
 		stageRoot:      filepath.Join(root, "staging"),
 		requestTimeout: time.Second,
@@ -80,5 +81,8 @@ func newTestBucketAccess(t *testing.T) *bucketAccess {
 		t.Fatalf("mkdir stage root: %v", err)
 	}
 	access.writeback = newWritebackQueue(access)
+	t.Cleanup(func() {
+		_ = access.close()
+	})
 	return access
 }

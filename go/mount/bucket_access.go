@@ -18,6 +18,7 @@ type bucketAccess struct {
 	config          storageconfig.RemoteStorageConfig
 	bucket          string
 	rootPrefix      string
+	sessionRoot     string
 	cacheRoot       string
 	stageRoot       string
 	requestTimeout  time.Duration
@@ -29,6 +30,7 @@ type bucketAccess struct {
 
 	cache     *bucketCache
 	overlay   *localMountOverlay
+	dirSync   *dirSyncQueue
 	writeback *writebackQueue
 	deletes   *deleteQueue
 	syncState syncStateProjector
@@ -46,6 +48,9 @@ func newBucketAccess(
 	cacheRoot := filepath.Join(sessionRoot, "cache")
 	stageRoot := filepath.Join(sessionRoot, "staging")
 	overlayRoot := filepath.Join(sessionRoot, "overlay")
+	if err := os.MkdirAll(sessionRoot, 0o755); err != nil {
+		return nil, fmt.Errorf("create mount session dir: %w", err)
+	}
 	if err := os.MkdirAll(cacheRoot, 0o755); err != nil {
 		return nil, fmt.Errorf("create mount cache dir: %w", err)
 	}
@@ -61,6 +66,7 @@ func newBucketAccess(
 		config:          cfg,
 		bucket:          bucket,
 		rootPrefix:      normalizeRootPrefix(cfg.RootPrefix),
+		sessionRoot:     sessionRoot,
 		cacheRoot:       cacheRoot,
 		stageRoot:       stageRoot,
 		requestTimeout:  defaultRequestTimeout * time.Second,
@@ -70,6 +76,7 @@ func newBucketAccess(
 		cache:           newBucketCache(defaultCacheTTL*time.Second, defaultPrefetchTTL*time.Second),
 		overlay:         overlay,
 	}
+	access.dirSync = newDirSyncQueue(access)
 	access.writeback = newWritebackQueue(access)
 	access.deletes = newDeleteQueue(access)
 	return access, nil
@@ -78,6 +85,9 @@ func newBucketAccess(
 func (a *bucketAccess) close() error {
 	if a == nil {
 		return nil
+	}
+	if a.dirSync != nil {
+		a.dirSync.shutdown()
 	}
 	if a.writeback != nil {
 		if err := a.writeback.shutdown(); err != nil {
@@ -90,42 +100,49 @@ func (a *bucketAccess) close() error {
 	return nil
 }
 
+func (a *bucketAccess) release() {
+	if a == nil {
+		return
+	}
+	a.syncState = nil
+	if a.dirSync != nil {
+		a.dirSync.shutdown()
+		a.dirSync = nil
+	}
+}
+
 type writebackQueue struct {
-	access  *bucketAccess
-	mu      sync.Mutex
-	entries map[string]*pendingWriteback
-	running map[string]*pendingWriteback
-	closed  bool
-	queue   chan *pendingWriteback
-	pool    *ants.Pool
-	wg      sync.WaitGroup
+	accessMu sync.RWMutex
+	access   *bucketAccess
+	store    *writebackStore
+	storeKey string
+	mu       sync.Mutex
+	entries  map[string]*pendingWriteback
+	running  map[string]*pendingWriteback
+	closed   bool
+	queue    chan *pendingWriteback
+	pool     *ants.Pool
+	wg       sync.WaitGroup
 }
 
 type pendingWriteback struct {
-	taskID      string
-	virtualPath string
-	localPath   string
-	size        int64
-	timer       *time.Timer
-	discard     bool
-	queued      bool
-	retryCount  int
+	taskID          string
+	virtualPath     string
+	localPath       string
+	size            int64
+	modTimeUnixNano int64
+	dueAt           time.Time
+	timer           *time.Timer
+	discard         bool
+	queued          bool
+	retryCount      int
 }
 
 func newWritebackQueue(access *bucketAccess) *writebackQueue {
-	pool, err := ants.NewPool(access.config.WindowsWritebackConcurrency)
+	q, err := acquireWritebackQueue(access)
 	if err != nil {
-		panic(fmt.Sprintf("create writeback worker pool: %v", err))
+		panic(fmt.Sprintf("create writeback queue: %v", err))
 	}
-	q := &writebackQueue{
-		access:  access,
-		entries: map[string]*pendingWriteback{},
-		running: map[string]*pendingWriteback{},
-		queue:   make(chan *pendingWriteback, 512),
-		pool:    pool,
-	}
-	q.wg.Add(1)
-	go q.dispatch()
 	return q
 }
 
