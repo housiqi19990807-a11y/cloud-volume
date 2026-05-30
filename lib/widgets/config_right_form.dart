@@ -35,8 +35,8 @@ class ConfigRightFormPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final topSpacing = MediaQuery.of(context).padding.top > 0
-        ? MediaQuery.of(context).padding.top + 24
-        : 32.0;
+        ? MediaQuery.of(context).padding.top + 40
+        : 48.0;
 
     return Container(
       color: theme.colorScheme.background,
