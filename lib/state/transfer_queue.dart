@@ -229,15 +229,17 @@ class TransferQueue extends ChangeNotifier {
   }
 
   Future<int> cancelTasks(Iterable<String> ids) async {
+    final cancellations = <Future<void>>[];
     var canceled = 0;
     for (final id in ids.toSet()) {
       final task = _taskById(id);
       if (!_canCancelTask(task)) {
         continue;
       }
-      await cancelTask(id);
+      cancellations.add(cancelTask(id));
       canceled++;
     }
+    await Future.wait(cancellations);
     return canceled;
   }
 

@@ -74,3 +74,11 @@ func TestNormalizeWindowsMountMode(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultWindowsThisPcEntryEnabled(t *testing.T) {
+	t.Parallel()
+
+	if !DefaultConfig().WindowsThisPcEntryEnabled {
+		t.Fatal("expected Windows This PC entry to be enabled by default")
+	}
+}

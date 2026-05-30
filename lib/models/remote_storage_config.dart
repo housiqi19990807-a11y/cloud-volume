@@ -51,6 +51,7 @@ class RemoteStorageConfig {
     required this.trashRetentionDays,
     required this.usePathStyle,
     required this.windowsMountMode,
+    required this.windowsThisPcEntryEnabled,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -68,6 +69,7 @@ class RemoteStorageConfig {
       trashRetentionDays: 30,
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
+      windowsThisPcEntryEnabled: true,
     );
   }
 
@@ -109,6 +111,12 @@ class RemoteStorageConfig {
       windowsMountMode: WindowsMountMode.fromStorage(
         json['windowsMountMode'] ?? json['windows_mount_mode'],
       ),
+      windowsThisPcEntryEnabled:
+          _boolFromDynamic(
+            json['windowsThisPcEntryEnabled'] ??
+                json['windows_this_pc_entry_enabled'],
+          ) ??
+          true,
     );
   }
 
@@ -125,6 +133,7 @@ class RemoteStorageConfig {
   final int trashRetentionDays;
   final bool usePathStyle;
   final WindowsMountMode windowsMountMode;
+  final bool windowsThisPcEntryEnabled;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
@@ -148,6 +157,7 @@ class RemoteStorageConfig {
       'trashRetentionDays': trashRetentionDays,
       'usePathStyle': usePathStyle,
       'windowsMountMode': windowsMountMode.storageValue,
+      'windowsThisPcEntryEnabled': windowsThisPcEntryEnabled,
     };
   }
 
@@ -165,6 +175,7 @@ class RemoteStorageConfig {
     int? trashRetentionDays,
     bool? usePathStyle,
     WindowsMountMode? windowsMountMode,
+    bool? windowsThisPcEntryEnabled,
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
@@ -181,6 +192,8 @@ class RemoteStorageConfig {
       trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
       usePathStyle: usePathStyle ?? this.usePathStyle,
       windowsMountMode: windowsMountMode ?? this.windowsMountMode,
+      windowsThisPcEntryEnabled:
+          windowsThisPcEntryEnabled ?? this.windowsThisPcEntryEnabled,
     );
   }
 

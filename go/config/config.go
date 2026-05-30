@@ -17,6 +17,7 @@ type RemoteStorageConfig struct {
 	TrashRetentionDays       int    `json:"trashRetentionDays" toml:"trash_retention_days"`
 	UsePathStyle             bool   `json:"usePathStyle" toml:"use_path_style"`
 	WindowsMountMode         string `json:"windowsMountMode" toml:"windows_mount_mode"`
+	WindowsThisPcEntryEnabled bool   `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
 }
 
 const (
@@ -42,6 +43,7 @@ func DefaultConfig() RemoteStorageConfig {
 		TrashRetentionDays: 30,
 		UsePathStyle:       true,
 		WindowsMountMode:   WindowsMountModeCloudFilesCached,
+		WindowsThisPcEntryEnabled: true,
 	}
 }
 
@@ -61,6 +63,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		TrashRetentionDays:       normalizeTrashRetentionDays(c.TrashRetentionDays),
 		UsePathStyle:             c.UsePathStyle,
 		WindowsMountMode:         normalizeWindowsMountMode(c.WindowsMountMode),
+		WindowsThisPcEntryEnabled: c.WindowsThisPcEntryEnabled,
 	}
 }
 

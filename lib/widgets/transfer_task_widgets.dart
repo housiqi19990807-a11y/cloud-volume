@@ -216,34 +216,24 @@ class TransferTaskRow extends StatelessWidget {
   }
 }
 
-class TransferTaskListHeader extends StatelessWidget {
-  const TransferTaskListHeader({
+class TransferTaskSelectionActions extends StatelessWidget {
+  const TransferTaskSelectionActions({
     super.key,
-    required this.totalCount,
-    required this.speedSummary,
-    required this.allVisibleSelected,
-    required this.partiallySelected,
     required this.selectedCount,
     required this.selectedVisibleCount,
     required this.startableCount,
     required this.cancelableCount,
     required this.runningBatchAction,
-    required this.onToggleVisibleSelection,
     required this.onStartSelected,
     required this.onCancelSelected,
     required this.onClearSelection,
   });
 
-  final int totalCount;
-  final String speedSummary;
-  final bool allVisibleSelected;
-  final bool partiallySelected;
   final int selectedCount;
   final int selectedVisibleCount;
   final int startableCount;
   final int cancelableCount;
   final bool runningBatchAction;
-  final VoidCallback onToggleVisibleSelection;
   final VoidCallback onStartSelected;
   final VoidCallback onCancelSelected;
   final VoidCallback onClearSelection;
@@ -252,131 +242,136 @@ class TransferTaskListHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            _selectionSummary(
+              selectedCount: selectedCount,
+              selectedVisibleCount: selectedVisibleCount,
+            ),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+        if (runningBatchAction)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondary.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '处理中…',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.mutedForeground,
+              ),
+            ),
+          ),
+        ShadButton.ghost(
+          size: ShadButtonSize.sm,
+          onPressed: runningBatchAction || startableCount == 0
+              ? null
+              : onStartSelected,
+          child: Text(startableCount > 0 ? '批量开始 $startableCount' : '批量开始'),
+        ),
+        ShadButton.destructive(
+          size: ShadButtonSize.sm,
+          onPressed: runningBatchAction || cancelableCount == 0
+              ? null
+              : onCancelSelected,
+          child: Text(cancelableCount > 0 ? '批量取消 $cancelableCount' : '批量取消'),
+        ),
+        ShadButton.ghost(
+          size: ShadButtonSize.sm,
+          onPressed: runningBatchAction ? null : onClearSelection,
+          child: const Text('清空选择'),
+        ),
+      ],
+    );
+  }
+}
+
+class TransferTaskListHeader extends StatelessWidget {
+  const TransferTaskListHeader({
+    super.key,
+    required this.totalCount,
+    required this.speedSummary,
+    required this.allVisibleSelected,
+    required this.partiallySelected,
+    required this.onToggleVisibleSelection,
+  });
+
+  final int totalCount;
+  final String speedSummary;
+  final bool allVisibleSelected;
+  final bool partiallySelected;
+  final VoidCallback onToggleVisibleSelection;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Text(
-                '共 $totalCount 条',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.mutedForeground,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                speedSummary,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.mutedForeground,
-                ),
-              ),
-            ],
+          Text(
+            '共 $totalCount 条',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: onToggleVisibleSelection,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 2,
-                    vertical: 2,
+          const SizedBox(width: 12),
+          InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: onToggleVisibleSelection,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TransferSelectionToggle(
+                    selected: allVisibleSelected,
+                    partiallySelected: partiallySelected,
+                    onTap: onToggleVisibleSelection,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TransferSelectionToggle(
-                        selected: allVisibleSelected,
-                        partiallySelected: partiallySelected,
-                        onTap: onToggleVisibleSelection,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        allVisibleSelected ? '取消全选当前结果' : '全选当前结果',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.foreground,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (selectedCount > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    _selectionSummary(
-                      selectedCount: selectedCount,
-                      selectedVisibleCount: selectedVisibleCount,
-                    ),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-              if (runningBatchAction)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.secondary.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '处理中…',
+                  const SizedBox(width: 8),
+                  Text(
+                    allVisibleSelected ? '取消全选当前结果' : '全选当前结果',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.mutedForeground,
+                      color: theme.colorScheme.foreground,
                     ),
                   ),
-                ),
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: selectedCount == 0 || startableCount == 0
-                    ? null
-                    : onStartSelected,
-                child: Text(
-                  startableCount > 0 ? '批量开始 $startableCount' : '批量开始',
-                ),
+                ],
               ),
-              ShadButton.destructive(
-                size: ShadButtonSize.sm,
-                onPressed: selectedCount == 0 || cancelableCount == 0
-                    ? null
-                    : onCancelSelected,
-                child: Text(
-                  cancelableCount > 0 ? '批量取消 $cancelableCount' : '批量取消',
-                ),
-              ),
-              ShadButton.ghost(
-                size: ShadButtonSize.sm,
-                onPressed: selectedCount == 0 ? null : onClearSelection,
-                child: const Text('清空选择'),
-              ),
-            ],
+            ),
+          ),
+          const Spacer(),
+          Text(
+            speedSummary,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
         ],
       ),

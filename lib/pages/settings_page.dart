@@ -40,6 +40,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _trashSettingsError;
   bool _savingWindowsMountMode = false;
   String? _windowsMountModeError;
+  bool _savingWindowsThisPcEntry = false;
+  String? _windowsThisPcEntryError;
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
 
@@ -107,6 +109,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   saving: _savingWindowsMountMode,
                   errorText: _windowsMountModeError,
                   onChanged: (value) => _saveWindowsMountMode(config, value),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildCard(
+                theme,
+                'Windows 入口',
+                WindowsThisPcEntrySection(
+                  theme: theme,
+                  enabled: config.windowsThisPcEntryEnabled,
+                  saving: _savingWindowsThisPcEntry,
+                  errorText: _windowsThisPcEntryError,
+                  onChanged: (value) =>
+                      _saveWindowsThisPcEntry(config, value),
                 ),
               ),
               const SizedBox(height: 20),
@@ -306,6 +321,33 @@ class _SettingsPageState extends State<SettingsPage> {
     } finally {
       if (mounted) {
         setState(() => _savingWindowsMountMode = false);
+      }
+    }
+  }
+
+  Future<void> _saveWindowsThisPcEntry(
+    RemoteStorageConfig config,
+    bool enabled,
+  ) async {
+    if (enabled == config.windowsThisPcEntryEnabled) {
+      return;
+    }
+    setState(() {
+      _savingWindowsThisPcEntry = true;
+      _windowsThisPcEntryError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(windowsThisPcEntryEnabled: enabled),
+      );
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _windowsThisPcEntryError = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _savingWindowsThisPcEntry = false);
       }
     }
   }

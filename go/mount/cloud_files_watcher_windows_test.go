@@ -16,10 +16,11 @@ func TestWindowsPathStatePlaceholderIgnoreDoesNotHideChildren(t *testing.T) {
 	t.Parallel()
 
 	state := &windowsPathState{
-		ignored:   map[string]windowsIgnoredPath{},
-		hydrating: map[string]bool{},
-		kinds:     map[string]bool{},
-		files:     map[string]windowsObservedFile{},
+		ignored:      map[string]windowsIgnoredPath{},
+		hydrating:    map[string]bool{},
+		kinds:        map[string]bool{},
+		files:        map[string]windowsObservedFile{},
+		placeholders: map[string]bool{},
 	}
 
 	placeholderDir := filepath.Join(`C:\sync-root`, `docs`)
@@ -38,10 +39,11 @@ func TestWindowsPathStateHydratingStillHidesChildren(t *testing.T) {
 	t.Parallel()
 
 	state := &windowsPathState{
-		ignored:   map[string]windowsIgnoredPath{},
-		hydrating: map[string]bool{},
-		kinds:     map[string]bool{},
-		files:     map[string]windowsObservedFile{},
+		ignored:      map[string]windowsIgnoredPath{},
+		hydrating:    map[string]bool{},
+		kinds:        map[string]bool{},
+		files:        map[string]windowsObservedFile{},
+		placeholders: map[string]bool{},
 	}
 
 	hydratingDir := filepath.Join(`C:\sync-root`, `docs`)
@@ -78,10 +80,11 @@ func TestIngestDirectoryTreeQueuesExistingNestedFiles(t *testing.T) {
 		access: access,
 		raw:    rawWatcher,
 		state: &windowsPathState{
-			ignored:   map[string]windowsIgnoredPath{},
-			hydrating: map[string]bool{},
-			kinds:     map[string]bool{},
-			files:     map[string]windowsObservedFile{},
+			ignored:      map[string]windowsIgnoredPath{},
+			hydrating:    map[string]bool{},
+			kinds:        map[string]bool{},
+			files:        map[string]windowsObservedFile{},
+			placeholders: map[string]bool{},
 		},
 		done: make(chan struct{}),
 	}
@@ -127,13 +130,14 @@ func TestDirectoryWriteTriggersHarvest(t *testing.T) {
 		access: access,
 		raw:    rawWatcher,
 		state: &windowsPathState{
-			ignored:   map[string]windowsIgnoredPath{},
-			hydrating: map[string]bool{},
-			kinds:     map[string]bool{},
-			files:     map[string]windowsObservedFile{},
+			ignored:      map[string]windowsIgnoredPath{},
+			hydrating:    map[string]bool{},
+			kinds:        map[string]bool{},
+			files:        map[string]windowsObservedFile{},
+			placeholders: map[string]bool{},
 		},
 		done:           make(chan struct{}),
-		activeHarvests: map[string]bool{},
+		activeHarvests: map[string]time.Time{},
 	}
 
 	watcher.handleWrite(parentDir, "parent")
@@ -148,4 +152,50 @@ func TestDirectoryWriteTriggersHarvest(t *testing.T) {
 	}
 
 	t.Fatal("expected directory write to trigger recursive harvest and queue nested file")
+}
+
+func TestHarvestSkipsKnownPlaceholderFiles(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	root := t.TempDir()
+	parentDir := filepath.Join(root, "test")
+	placeholderFile := filepath.Join(parentDir, "manifest.json")
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
+		t.Fatalf("mkdir tree: %v", err)
+	}
+	if err := os.WriteFile(placeholderFile, []byte("remote"), 0o644); err != nil {
+		t.Fatalf("write placeholder file: %v", err)
+	}
+
+	rawWatcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
+	}
+	defer rawWatcher.Close()
+
+	watcher := &windowsSyncWatcher{
+		root:   root,
+		access: access,
+		raw:    rawWatcher,
+		state: &windowsPathState{
+			ignored:      map[string]windowsIgnoredPath{},
+			hydrating:    map[string]bool{},
+			kinds:        map[string]bool{},
+			files:        map[string]windowsObservedFile{},
+			placeholders: map[string]bool{},
+		},
+		done:           make(chan struct{}),
+		activeHarvests: map[string]time.Time{},
+	}
+	watcher.state.markPlaceholder(placeholderFile)
+
+	if _, queuedFiles, err := watcher.ingestDirectoryTree(parentDir); err != nil {
+		t.Fatalf("ingest directory tree: %v", err)
+	} else if queuedFiles != 0 {
+		t.Fatalf("expected placeholder file to be skipped, queuedFiles=%d", queuedFiles)
+	}
+	if access.writeback.hasPendingAtOrBelow("test", true) {
+		t.Fatal("expected no writeback tasks for known placeholder file")
+	}
 }

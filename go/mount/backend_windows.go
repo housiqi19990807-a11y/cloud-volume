@@ -5,13 +5,16 @@ package mount
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	storageconfig "remote-storage/go/config"
 )
 
 func newPlatformMountBackend(cfg storageconfig.RemoteStorageConfig) (mountBackend, error) {
-	switch normalizeWindowsMountMode(cfg.WindowsMountMode) {
+	mode := normalizeWindowsMountMode(cfg.WindowsMountMode)
+	log.Printf("[mount/windows] select-backend mode=%q", mode)
+	switch mode {
 	case storageconfig.WindowsMountModeWebDAV:
 		return &windowsWebDAVBackend{}, nil
 	case storageconfig.WindowsMountModeCloudFilesCached:

@@ -142,34 +142,72 @@ class _TransfersPageState extends State<TransfersPage> {
 
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '任务队列',
-            style: theme.textTheme.h3.copyWith(
-              fontWeight: FontWeight.w700,
-              fontSize: 22,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '查看上传、下载、复制、移动、删除，以及等待同步到远端的挂载任务。',
-            style: TextStyle(
-              color: theme.colorScheme.mutedForeground,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildFilters(),
-          const SizedBox(height: 16),
-          Expanded(
-            child: AnimatedBuilder(
-              animation: queue,
-              builder: (context, _) => _buildList(theme, queue),
-            ),
-          ),
-        ],
+      child: AnimatedBuilder(
+        animation: queue,
+        builder: (context, _) {
+          final selectedCount = _selectedTaskIds.length;
+          final visibleTasks = queue.tasks
+              .where(_matchesFilters)
+              .toList(growable: false);
+          final selectedVisibleCount = visibleTasks
+              .where((task) => _selectedTaskIds.contains(task.id))
+              .length;
+          final startableCount = queue.triggerableTaskCount(_selectedTaskIds);
+          final cancelableCount = queue.cancelableTaskCount(_selectedTaskIds);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '任务队列',
+                          style: theme.textTheme.h3.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 22,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '查看上传、下载、复制、移动、删除，以及等待同步到远端的挂载任务。',
+                          style: TextStyle(
+                            color: theme.colorScheme.mutedForeground,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (selectedCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: TransferTaskSelectionActions(
+                        selectedCount: selectedCount,
+                        selectedVisibleCount: selectedVisibleCount,
+                        startableCount: startableCount,
+                        cancelableCount: cancelableCount,
+                        runningBatchAction: _runningBatchAction,
+                        onStartSelected: () =>
+                            unawaited(_startSelectedTasks(queue)),
+                        onCancelSelected: () =>
+                            unawaited(_cancelSelectedTasks(queue)),
+                        onClearSelection: _clearSelection,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildFilters(),
+              const SizedBox(height: 16),
+              Expanded(child: _buildList(theme, queue)),
+            ],
+          );
+        },
       ),
     );
   }
@@ -225,17 +263,12 @@ class _TransfersPageState extends State<TransfersPage> {
       return _buildEmptyState(theme, '没有匹配结果', '调整筛选条件后再试。');
     }
 
-    final selectedCount = _selectedTaskIds.length;
-    final selectedVisibleCount = filteredTasks
-        .where((task) => _selectedTaskIds.contains(task.id))
-        .length;
     final allVisibleSelected =
         filteredTasks.isNotEmpty &&
-        selectedVisibleCount == filteredTasks.length;
+        filteredTasks.every((task) => _selectedTaskIds.contains(task.id));
     final partiallySelected =
-        selectedVisibleCount > 0 && selectedVisibleCount < filteredTasks.length;
-    final startableCount = queue.triggerableTaskCount(_selectedTaskIds);
-    final cancelableCount = queue.cancelableTaskCount(_selectedTaskIds);
+        filteredTasks.any((task) => _selectedTaskIds.contains(task.id)) &&
+        !allVisibleSelected;
 
     return ShadCard(
       padding: const EdgeInsets.all(4),
@@ -246,16 +279,8 @@ class _TransfersPageState extends State<TransfersPage> {
             speedSummary: queue.speedSummary,
             allVisibleSelected: allVisibleSelected,
             partiallySelected: partiallySelected,
-            selectedCount: selectedCount,
-            selectedVisibleCount: selectedVisibleCount,
-            startableCount: startableCount,
-            cancelableCount: cancelableCount,
-            runningBatchAction: _runningBatchAction,
             onToggleVisibleSelection: () =>
                 _toggleVisibleSelection(filteredTasks),
-            onStartSelected: () => unawaited(_startSelectedTasks(queue)),
-            onCancelSelected: () => unawaited(_cancelSelectedTasks(queue)),
-            onClearSelection: _clearSelection,
           ),
           const Divider(height: 1),
           Expanded(
