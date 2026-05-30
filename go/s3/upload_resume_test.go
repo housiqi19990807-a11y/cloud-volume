@@ -4,6 +4,7 @@ package s3
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -48,12 +49,16 @@ func TestUploadFileContextResumableSkipsCompletedPartsOnRetry(t *testing.T) {
 				http.Error(w, "missing part number", http.StatusBadRequest)
 				return
 			}
+			// Drain the request body so Linux TCP stacks do not reset the
+			// connection while the client is still streaming the multipart part.
+			_, _ = io.Copy(io.Discard, r.Body)
 			mu.Lock()
 			partUploadHits[partNumber]++
 			mu.Unlock()
 			w.Header().Set("ETag", fmt.Sprintf(`"etag-%d"`, partNumber))
 			w.WriteHeader(http.StatusOK)
 		case r.Method == http.MethodPost && query.Get("uploadId") == "upload-1":
+			_, _ = io.Copy(io.Discard, r.Body)
 			mu.Lock()
 			completeCalls++
 			attempt := completeCalls

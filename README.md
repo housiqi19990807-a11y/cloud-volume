@@ -50,8 +50,8 @@ make run
 
 `make run` 是本仓库的标准启动方式：
 
-- 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`
-- 再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
+- macOS: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`，再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
+- Linux: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.so`，并把它随 Linux bundle 一起安装后再启动 Flutter Linux 应用
 
 平台相关命令：
 
@@ -67,6 +67,12 @@ Windows 本地启动前提：
 
 Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，避免构建后 exe 因缺少 bridge 而无法启动。
 如果本机配置了 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，请确保 `NO_PROXY` 包含 `127.0.0.1,localhost`；仓库自带的 `scripts/run_windows.ps1` 会自动补上这两个值，避免 `flutter run` 通过代理去连接本地 Dart VM service 而导致调试连接提前断开。
+
+Linux 本地启动前提：
+
+- 需要可用的 Flutter Linux Desktop 环境。
+- 需要 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev` 以及可用的 Go CGO 编译链。
+- Linux runner 现在也会在 `flutter run -d linux` / `flutter build linux` 期间自动构建 `bin/bridge/libremote_storage_bridge.so`，并把它安装到 bundle 的 `lib/` 目录，避免打包后的可执行文件因缺少 bridge 而无法启动。
 
 ## 配置项
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Linux desktop startup now builds `bin/bridge/libremote_storage_bridge.so` as part of the runner build, installs it into the Linux bundle, and teaches the Dart loader to resolve the bundled `lib/` copy so packaged launches no longer depend on the repository layout.
+
 - The file-manager object list now comes from the mounted local-first directory view when a bucket is mounted, so pending writeback items appear in the list and the sync status stays in a dedicated column instead of repeating under the name.
 - Windows Cloud Files sync roots now project mounted writeback queue state back into Explorer via `CfSetInSyncState`, so files queued by the cached/writeback path show native not-in-sync status until the delayed upload completes and then flip back to in-sync.
 - Mounted bucket file lists now show a per-item sync badge in both list and grid mode, so files and directories can surface `已同步`, `等待同步`, and `同步中` state inline instead of only through the header badge or transfers page.
