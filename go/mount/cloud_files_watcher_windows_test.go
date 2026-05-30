@@ -86,7 +86,7 @@ func TestIngestDirectoryTreeQueuesExistingNestedFiles(t *testing.T) {
 		done: make(chan struct{}),
 	}
 
-	if err := watcher.ingestDirectoryTree(filepath.Join(root, "parent")); err != nil {
+	if _, _, err := watcher.ingestDirectoryTree(filepath.Join(root, "parent")); err != nil {
 		t.Fatalf("ingest directory tree: %v", err)
 	}
 

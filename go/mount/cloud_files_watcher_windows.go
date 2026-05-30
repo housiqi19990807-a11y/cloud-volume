@@ -69,16 +69,16 @@ func (w *windowsSyncWatcher) Start() error {
 	if err := w.rescanDirectories(); err != nil {
 		return err
 	}
-	w.wg.Add(2)
+	w.wg.Add(1)
 	go w.run()
-	go w.rescanLoop()
 	return nil
 }
 
 func (w *windowsSyncWatcher) Close() error {
 	close(w.done)
+	closeErr := w.raw.Close()
 	w.wg.Wait()
-	return w.raw.Close()
+	return closeErr
 }
 
 func (w *windowsSyncWatcher) RememberPlaceholders(baseDir string, items []cloudPlaceholderInfo) {
@@ -134,22 +134,6 @@ func (w *windowsSyncWatcher) run() {
 				return
 			}
 			log.Printf("[mount/cloud-files] watcher error: %v", err)
-		}
-	}
-}
-
-func (w *windowsSyncWatcher) rescanLoop() {
-	defer w.wg.Done()
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-w.done:
-			return
-		case <-ticker.C:
-			if err := w.rescanDirectories(); err != nil {
-				log.Printf("[mount/cloud-files] watcher rescan error: %v", err)
-			}
 		}
 	}
 }
@@ -224,17 +208,17 @@ func (w *windowsSyncWatcher) handleWrite(localPath, virtualPath string) {
 	w.scheduleUpload(localPath, virtualPath)
 }
 
-func (w *windowsSyncWatcher) scheduleUpload(localPath, virtualPath string) {
+func (w *windowsSyncWatcher) scheduleUpload(localPath, virtualPath string) bool {
 	clean := cleanVirtualPath(virtualPath)
 	if clean == "" || strings.HasSuffix(clean, "/") {
-		return
+		return false
 	}
 	info, err := os.Stat(localPath)
 	if err != nil || info.IsDir() {
-		return
+		return false
 	}
 	if !w.state.observeFile(localPath, info.Size(), info.ModTime()) {
-		return
+		return false
 	}
 	log.Printf(
 		"[mount/cloud-files] queue-upload virtual=%q local=%q size=%d",
@@ -244,6 +228,7 @@ func (w *windowsSyncWatcher) scheduleUpload(localPath, virtualPath string) {
 	)
 	w.access.registerLocalWrite(clean, localPath, info.Size())
 	w.access.scheduleUpload(clean, localPath)
+	return true
 }
 
 func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
@@ -257,10 +242,12 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 	w.harvestMu.Unlock()
 
 	go func(root string) {
+		log.Printf("[mount/cloud-files] harvest-start path=%q", root)
 		defer func() {
 			w.harvestMu.Lock()
 			delete(w.activeHarvests, root)
 			w.harvestMu.Unlock()
+			log.Printf("[mount/cloud-files] harvest-stop path=%q", root)
 		}()
 
 		// Large Explorer directory copies can keep materializing files for
@@ -271,8 +258,16 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 		defer deadline.Stop()
 
 		for {
-			if err := w.ingestDirectoryTree(root); err != nil {
+			directoryCount, queuedFileCount, err := w.ingestDirectoryTree(root)
+			if err != nil {
 				log.Printf("[mount/cloud-files] harvest-directory path=%q error=%v", root, err)
+			} else if directoryCount > 0 || queuedFileCount > 0 {
+				log.Printf(
+					"[mount/cloud-files] harvest-scan path=%q directories=%d queued_files=%d",
+					root,
+					directoryCount,
+					queuedFileCount,
+				)
 			}
 			select {
 			case <-w.done:
@@ -285,9 +280,11 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 	}(root)
 }
 
-func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) error {
+func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, error) {
 	root := filepath.Clean(localRoot)
-	return filepath.WalkDir(root, func(current string, entry os.DirEntry, walkErr error) error {
+	directoryCount := 0
+	queuedFileCount := 0
+	err := filepath.WalkDir(root, func(current string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
 		}
@@ -312,15 +309,19 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) error {
 		w.state.remember(current, entry.IsDir())
 		if entry.IsDir() {
 			_ = w.raw.Add(current)
+			directoryCount++
 			if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
 				log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
 			}
 			return nil
 		}
 
-		w.scheduleUpload(current, virtualPath)
+		if w.scheduleUpload(current, virtualPath) {
+			queuedFileCount++
+		}
 		return nil
 	})
+	return directoryCount, queuedFileCount, err
 }
 
 func (s *windowsPathState) ignore(
