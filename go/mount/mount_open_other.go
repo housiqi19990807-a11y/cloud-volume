@@ -1,4 +1,4 @@
-//go:build !darwin && !windows
+//go:build !darwin && !windows && !linux
 
 // Unsupported platforms keep the open action explicit instead of silently succeeding.
 package mount

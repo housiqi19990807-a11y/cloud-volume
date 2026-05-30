@@ -217,6 +217,19 @@ package_macos_dmg() {
   rm -rf "$stage_dir"
 }
 
+package_linux_tarball() {
+  local bundle_dir="$1"
+  local archive_path="$2"
+  local root_name="$ARTIFACT_PREFIX-linux-$ARCH"
+  local stage_dir
+  stage_dir="$(mktemp -d)"
+  mkdir -p "$stage_dir/$root_name"
+  cp -R "$bundle_dir"/. "$stage_dir/$root_name/"
+  rm -f "$archive_path"
+  tar -C "$stage_dir" -czf "$archive_path" "$root_name"
+  rm -rf "$stage_dir"
+}
+
 build_macos() {
   require_cmd flutter
   require_cmd go
@@ -396,7 +409,7 @@ build_linux() {
   [[ -d "$bundle_dir" ]] || fail "Linux bundle directory not found: $bundle_dir"
   cp "$bridge_so" "$bundle_dir/libremote_storage_bridge.so"
 
-  local temp_dir app_dir tool_path appimage_path
+  local temp_dir app_dir tool_path appimage_path tarball_path
   temp_dir="$(mktemp -d)"
   app_dir="$temp_dir/${APP_NAME}.AppDir"
   mkdir -p "$app_dir"
@@ -404,6 +417,9 @@ build_linux() {
   cp "$ROOT_DIR/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_512.png" "$app_dir/yunjuan.png"
   write_linux_apprun "$app_dir/AppRun"
   write_linux_desktop_file "$app_dir/yunjuan.desktop"
+
+  tarball_path="$OUTPUT_DIR/$ARTIFACT_PREFIX-linux-$ARCH.tar.gz"
+  package_linux_tarball "$bundle_dir" "$tarball_path"
 
   tool_path="$temp_dir/appimagetool.AppImage"
   download_appimagetool "$ARCH" "$tool_path"

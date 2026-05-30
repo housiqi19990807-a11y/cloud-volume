@@ -1,5 +1,5 @@
-// Windows window-control channel keeps custom desktop chrome in Flutter while
-// the native runner still owns the actual window state transitions.
+// Desktop window-control channel keeps custom chrome in Flutter while the
+// native runner still owns the actual window state transitions.
 
 import 'dart:io';
 
@@ -12,7 +12,9 @@ class WindowControls {
     'remote_storage/window_controls',
   );
 
-  static bool get supported => Platform.isWindows;
+  static bool get supported => Platform.isWindows || Platform.isLinux;
+
+  static bool get supportsTray => Platform.isWindows;
 
   static Future<void> minimize() async {
     if (!supported) return;
@@ -35,7 +37,7 @@ class WindowControls {
   }
 
   static Future<void> hideToTray() async {
-    if (!supported) return;
+    if (!supportsTray) return;
     await _channel.invokeMethod<void>('hideToTray');
   }
 

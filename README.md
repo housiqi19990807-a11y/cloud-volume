@@ -11,7 +11,7 @@
 ## 核心能力
 
 - 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
-- 挂载访问：把当前桶挂载成 macOS 可见的 WebDAV 卷，支持在 Finder 里直接读写。
+- 挂载访问：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV 与 Cloud Files 方案，三端都复用本地缓存、overlay 与异步写回链路。
 - Windows WebDAV 挂载：把当前桶映射成 Windows WebDAV 网络驱动器，直接出现在 Explorer 的“此电脑”里，并复用现有本地优先读写与任务队列逻辑。
 - 本地优先：挂载写入、删除、改名、移动先落本地缓存与 overlay，再异步回写远端。
 - 文件管理同步提示：进入已挂载桶时，顶部挂载状态会直接显示 `等待同步 N` / `同步中 N`，便于判断桌面写入是否已经回传远端。
@@ -23,6 +23,7 @@
 - 任务队列：统一展示上传、下载、复制、移动、删除、挂载写回，支持筛选、多选、批量开始/取消，以及持久化恢复。
 - 桌面体验：托盘图标、透明标题栏、统一中文字体、面向桌面鼠标操作的上下文菜单和固定表头列表。
 - Windows 宿主壳：使用与 macOS 一致的 `云卷` 品牌图标，移除系统标题栏，在应用内右上角提供自定义最小化 / 最大化 / 关闭按钮，并常驻系统托盘以支持隐藏和恢复主窗口。
+- Linux 宿主壳：去掉 GTK 系统标题栏，使用与 Windows 相同的应用内右上角最小化 / 最大化 / 关闭控件，支持直接拖动自定义顶部区域移动窗口，关闭时会提示“最小化窗口”或“退出云卷”，并按当前屏幕分辨率收敛默认窗体大小。
 - Windows 挂载同步：Explorer 内对映射 WebDAV 盘的新建、写入、删除、改名会继续走现有 Go 侧本地缓存、写回、删除和移动队列，不影响 macOS 的 WebDAV 异步链路。
 
 ## 界面设计
@@ -38,6 +39,7 @@
 
 - 应用通过 Go FFI bridge 读取 `~/.remote-storage/config.toml`。
 - 如果配置缺失或不完整，会先进入初始化配置页。
+- 如果访问密钥、签名或网络配置有误，初始化页会把常见 S3 / 网络错误转换成更友好的中文提示。
 - 保存后进入主界面，后续设置页可以再次修改下载目录、显示选项、回收站策略等内容。
 
 ### 本地开发
@@ -50,8 +52,8 @@ make run
 
 `make run` 是本仓库的标准启动方式：
 
-- 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`
-- 再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
+- macOS: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`，再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
+- Linux: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.so`，并把它随 Linux bundle 一起安装后再启动 Flutter Linux 应用
 
 平台相关命令：
 
@@ -67,6 +69,13 @@ Windows 本地启动前提：
 
 Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，避免构建后 exe 因缺少 bridge 而无法启动。
 如果本机配置了 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，请确保 `NO_PROXY` 包含 `127.0.0.1,localhost`；仓库自带的 `scripts/run_windows.ps1` 会自动补上这两个值，避免 `flutter run` 通过代理去连接本地 Dart VM service 而导致调试连接提前断开。
+
+Linux 本地启动前提：
+
+- 需要可用的 Flutter Linux Desktop 环境。
+- 需要 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`、`fuse3` 以及可用的 Go CGO 编译链。
+- Linux runner 现在也会在 `flutter run -d linux` / `flutter build linux` 期间自动构建 `bin/bridge/libremote_storage_bridge.so`，并把它安装到 bundle 的 `lib/` 目录，避免打包后的可执行文件因缺少 bridge 而无法启动。
+- Linux 挂载现在使用用户态 FUSE mount，把 bucket 暴露到 `~/Cloud Volume/<bucket>`，目录读取、按需下载、本地暂存、延迟写回、删除和改名都继续复用现有 Go 侧本地优先逻辑。
 
 ## 配置项
 
@@ -92,18 +101,23 @@ Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间�
 
 - Flutter：桌面 UI、页面状态、任务展示、配置与交互层
 - Go bridge：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照
-- Desktop mount backends：macOS 与 Windows 目前都默认使用 WebDAV 挂载；macOS 走系统卷挂载，Windows 走 `net use` 映射到“此电脑”的网络驱动器
+- Desktop mount backends：macOS 走系统 WebDAV 卷挂载，Linux 走用户态 FUSE 挂载，Windows 同时保留 Cloud Files 与 WebDAV 映射盘方案
 - 本地缓存与 overlay：保证挂载场景下的本地优先可见性与恢复能力
 
 ## 发布
 
-推送标签如 `v0.0.1` 后，会触发 GitHub Actions 构建桌面发行版：
+推送形如 `v0.0.1` 的语义化版本标签后，会触发 GitHub Actions 构建桌面发行版并自动创建 / 更新对应 GitHub Release：
 
-- macOS `amd64` / `arm64` / `universal`
-- Windows `amd64` / `arm64`
-- Linux `amd64` / `arm64`
+- macOS `amd64` / `arm64`：`dmg`、`zip`
+- Windows `amd64`：`installer.exe`、`zip`
+- Linux `amd64` / `arm64`：`tar.gz`、`AppImage`
 
-产物包含各平台对应的 Flutter 桌面壳与 Go bridge。
+Linux 同时提供 `tar.gz` 和 `AppImage`：
+
+- `tar.gz` 更通用，适合手动解压部署和兼容性更保守的桌面环境。
+- `AppImage` 适合直接下载后单文件运行，不依赖目标机器的发行版包管理器。
+
+产物都包含对应平台的 Flutter 桌面壳和 Go bridge。
 
 ## 当前状态
 

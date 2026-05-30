@@ -4,6 +4,18 @@
 
 - The transfer queue now supports row selection plus batch start and batch cancel actions, so waiting uploads and active jobs can be resumed or stopped in bulk from the transfers page instead of one by one.
 - Windows Cloud Files watcher recovery now starts placeholder directory watches immediately and recursively harvests freshly copied local directory trees after their parent folder appears, which fixes the cases where opening a newly populated folder and pasting files or copying a whole directory tree produced no upload task, hid the new files from the local-first file manager, and left later unmounts stuck behind missing writeback state.
+
+- GitHub Actions 桌面发布流程现在只会在推送形如 `v0.0.1` 的标签时触发，并自动发布 macOS `amd64/arm64` 的 `dmg+zip`、Windows `amd64` 的 `installer.exe+zip`、Linux `amd64/arm64` 的 `tar.gz+AppImage`。
+- Linux 自定义标题栏现在会使用应用内右上角窗口控件；GTK 应用显示名也显式改成 `云卷`，避免任务栏继续显示 `remote_storage`。
+- Linux 首次启动窗口现在会按屏幕尺寸再缩小一档，关闭按钮会弹出“最小化窗口 / 退出云卷”确认，登录表单改为真正的垂直居中可滚动布局。
+- 初始化配置、启动检查和文件管理里的 Go bridge 错误现在会转换成更友好的中文文案，像 S3 `SignatureDoesNotMatch` 这类常见密钥/签名错误会直接提示检查 AK/SK 与签名配置。
+- 桶列表表头里的 `操作` 列和每一行的固定按钮槽位重新对齐，挂载、卸载、回收站和打开挂载目录操作不再左右参差。
+- Linux 桌面宿主现在会隐藏系统标题栏，并使用与 Windows 一致的应用内右上角最小化 / 最大化 / 关闭控件。
+- Linux 启动窗口现在会按当前显示器尺寸自适应，首次登录页也改成可滚动的垂直居中布局，避免保存按钮在大窗口里显得过低或在小窗口里被挤出可视区域。
+- 首次启动登录页现在包进了居中的圆角壳，左右两栏不再贴满窗口边缘，视觉上更接近桌面应用窗口。
+- Linux bucket mounts now use a FUSE backend rooted at `~/Cloud Volume/<bucket>`, reusing the existing local cache, overlay visibility, delayed writeback queue, and mounted-object UI sync model instead of returning platform-unsupported errors.
+- Linux desktop startup now builds `bin/bridge/libremote_storage_bridge.so` as part of the runner build, installs it into the Linux bundle, and teaches the Dart loader to resolve the bundled `lib/` copy so packaged launches no longer depend on the repository layout.
+
 - The file-manager object list now comes from the mounted local-first directory view when a bucket is mounted, so pending writeback items appear in the list and the sync status stays in a dedicated column instead of repeating under the name.
 - Windows Cloud Files sync roots now project mounted writeback queue state back into Explorer via `CfSetInSyncState`, so files queued by the cached/writeback path show native not-in-sync status until the delayed upload completes and then flip back to in-sync.
 - Mounted bucket file lists now show a per-item sync badge in both list and grid mode, so files and directories can surface `已同步`, `等待同步`, and `同步中` state inline instead of only through the header badge or transfers page.

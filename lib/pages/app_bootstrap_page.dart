@@ -8,6 +8,7 @@ import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/config_setup_page.dart';
 import 'package:remote_storage/pages/main_layout_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 
 class AppBootstrapPage extends StatefulWidget {
   const AppBootstrapPage({super.key, required this.apiFactory});
@@ -57,7 +58,7 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
         if (snapshot.hasError) {
           return _BootstrapMessageView(
             title: '启动失败',
-            description: snapshot.error.toString(),
+            description: describeBridgeError(snapshot.error!),
             actionLabel: '重试',
             onAction: _reload,
           );

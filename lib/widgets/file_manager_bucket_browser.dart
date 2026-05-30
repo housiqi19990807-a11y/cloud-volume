@@ -16,6 +16,7 @@ const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 class FileManagerBucketBrowser extends StatelessWidget {
   static const double _bucketActionColumnWidth = 244;
   static const double _bucketTypeColumnWidth = 72;
+  static const double _bucketActionHeaderInset = 14;
 
   const FileManagerBucketBrowser({
     super.key,
@@ -27,7 +28,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
     required this.mountStatuses,
     required this.busyBuckets,
     this.showActionColumn = true,
-    this.actionColumnLabel = '挂载操作',
+    this.actionColumnLabel = '操作',
     this.onOpenTrashBucket,
     this.onMountBucket,
     this.onUnmountBucket,
@@ -132,10 +133,15 @@ class FileManagerBucketBrowser extends StatelessWidget {
                   const SizedBox(width: 16),
                   SizedBox(
                     width: _bucketActionColumnWidth,
-                    child: Text(
-                      actionColumnLabel,
-                      textAlign: TextAlign.left,
-                      style: headerTextStyle,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        left: _bucketActionHeaderInset,
+                      ),
+                      child: Text(
+                        actionColumnLabel,
+                        textAlign: TextAlign.left,
+                        style: headerTextStyle,
+                      ),
                     ),
                   ),
                 ],
@@ -161,11 +167,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     onTap: () => _handleBucketTap(bucket.name),
                     showDivider: index != buckets.length - 1,
                     trailing: showActionColumn
-                        ? ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              minWidth: 160,
-                              maxWidth: _bucketActionColumnWidth,
-                            ),
+                        ? SizedBox(
+                            width: _bucketActionColumnWidth,
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: _BucketMountActions(
@@ -269,6 +272,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
 }
 
 class _BucketMountActions extends StatelessWidget {
+  static const double _actionButtonWidth = 76;
+
   const _BucketMountActions({
     required this.bucket,
     required this.status,
@@ -296,66 +301,82 @@ class _BucketMountActions extends StatelessWidget {
     if (busy) {
       return SizedBox(
         height: 32,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12,
-              height: 12,
-              child: AppLoadingIndicator(strokeWidth: 1.5, color: foreground),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '处理中',
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: foreground,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 12,
+                height: 12,
+                child: AppLoadingIndicator(strokeWidth: 1.5, color: foreground),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                '处理中',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return SizedBox(
       height: 32,
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        alignment: WrapAlignment.start,
+      child: Row(
         children: [
-          _miniButton(
-            label: '回收站',
-            icon: LucideIcons.trash2,
-            color: foreground,
-            onPressed: onOpenTrashBucket == null
-                ? null
-                : () => onOpenTrashBucket!(bucket),
-          ),
-          _miniButton(
-            label: mounted ? '卸载' : '挂载',
-            icon: mounted ? LucideIcons.x : LucideIcons.link,
-            color: foreground,
-            onPressed: mounted
-                ? (onUnmountBucket == null
-                      ? null
-                      : () => onUnmountBucket!(bucket))
-                : (onMountBucket == null ? null : () => onMountBucket!(bucket)),
-          ),
-          if (mounted) ...[
+          _actionSlot(
             _miniButton(
-              label: '打开',
-              icon: LucideIcons.folderOpen,
+              label: '回收站',
+              icon: LucideIcons.trash2,
               color: foreground,
-              onPressed: onOpenMountedBucket == null
+              onPressed: onOpenTrashBucket == null
                   ? null
-                  : () => onOpenMountedBucket!(bucket),
+                  : () => onOpenTrashBucket!(bucket),
             ),
-          ],
+          ),
+          const SizedBox(width: 6),
+          _actionSlot(
+            _miniButton(
+              label: mounted ? '卸载' : '挂载',
+              icon: mounted ? LucideIcons.x : LucideIcons.link,
+              color: foreground,
+              onPressed: mounted
+                  ? (onUnmountBucket == null
+                        ? null
+                        : () => onUnmountBucket!(bucket))
+                  : (onMountBucket == null
+                        ? null
+                        : () => onMountBucket!(bucket)),
+            ),
+          ),
+          const SizedBox(width: 6),
+          _actionSlot(
+            mounted
+                ? _miniButton(
+                    label: '打开',
+                    icon: LucideIcons.folderOpen,
+                    color: foreground,
+                    onPressed: onOpenMountedBucket == null
+                        ? null
+                        : () => onOpenMountedBucket!(bucket),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _actionSlot(Widget child) {
+    return SizedBox(
+      width: _actionButtonWidth,
+      child: Align(alignment: Alignment.centerLeft, child: child),
     );
   }
 

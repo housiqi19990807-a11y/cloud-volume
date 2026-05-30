@@ -1,5 +1,5 @@
-// 右侧表单面板：居中卡片式布局，认证字段为主，高级设置通过弹窗配置。
-// 标题固定顶部，按钮固定底部，中间字段区可滚动以防溢出。
+// 右侧表单面板：有空间时垂直居中，空间不足时回退为可滚动布局。
+// 这样大窗口不会显得偏上，小窗口也不会把提交按钮挤出可视区域。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -37,41 +37,44 @@ class ConfigRightFormPanel extends StatelessWidget {
 
     return Container(
       color: theme.colorScheme.background,
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 380),
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 顶部留白（为 macOS 红绿灯让位）。
-              const SizedBox(height: 72),
-              // 标题。
-              Text(
-                '登录远程存储',
-                style: theme.textTheme.h3.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.foreground,
-                  fontSize: 22,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '输入你的认证信息以开始使用。',
-                style: TextStyle(
-                  color: theme.colorScheme.mutedForeground,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 32),
-              // 可滚动表单区。
-              Expanded(
-                child: SingleChildScrollView(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportHeight = constraints.maxHeight;
+          final minContentHeight = viewportHeight > 64
+              ? viewportHeight - 64
+              : viewportHeight;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: minContentHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 分区标题。
+                      // 标题。
+                      Text(
+                        '登录远程存储',
+                        style: theme.textTheme.h3.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.foreground,
+                          fontSize: 22,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '输入你的认证信息以开始使用。',
+                        style: TextStyle(
+                          color: theme.colorScheme.mutedForeground,
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      // 认证字段和操作入口都保持在同一段自然流布局里，避免按钮被
+                      // 挤到窗口底部。
                       _sectionLabel(context, '认证信息'),
                       const SizedBox(height: 16),
                       // 访问密钥 ID。
@@ -102,47 +105,46 @@ class ConfigRightFormPanel extends StatelessWidget {
                         const SizedBox(height: 16),
                         _errorBanner(context, errorText!),
                       ],
+                      const SizedBox(height: 24),
+                      // 底部保存按钮。
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: ShadButton(
+                          onPressed: isSaving ? null : onSave,
+                          child: isSaving
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: AppLoadingIndicator(
+                                        strokeWidth: 2,
+                                        color:
+                                            theme.colorScheme.primaryForeground,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text('保存中...'),
+                                  ],
+                                )
+                              : const Text(
+                                  '保存并继续',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
-              // 底部保存按钮。
-              Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 40),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ShadButton(
-                    onPressed: isSaving ? null : onSave,
-                    child: isSaving
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: AppLoadingIndicator(
-                                  strokeWidth: 2,
-                                  color: theme.colorScheme.primaryForeground,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('保存中...'),
-                            ],
-                          )
-                        : const Text(
-                            '保存并继续',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

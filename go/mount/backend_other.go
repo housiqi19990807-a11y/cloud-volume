@@ -1,4 +1,4 @@
-//go:build !darwin && !windows
+//go:build !darwin && !windows && !linux
 
 // Unsupported platforms keep the manager API intact but return a clear error on mount.
 package mount

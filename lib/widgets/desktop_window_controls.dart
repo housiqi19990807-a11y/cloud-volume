@@ -1,5 +1,5 @@
-// Windows custom chrome replaces the native title bar with app-owned controls
-// so the desktop shell can stay visually aligned with the Flutter layout.
+// Desktop chrome replaces the native title bar on Windows and Linux so the
+// app can keep one consistent top-right control strip across desktop shells.
 
 import 'dart:async';
 import 'dart:io';
@@ -8,14 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/services/window_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-class WindowsWindowControls extends StatefulWidget {
-  const WindowsWindowControls({super.key});
+class DesktopWindowControls extends StatefulWidget {
+  const DesktopWindowControls({super.key});
 
   @override
-  State<WindowsWindowControls> createState() => _WindowsWindowControlsState();
+  State<DesktopWindowControls> createState() => _DesktopWindowControlsState();
 }
 
-class _WindowsWindowControlsState extends State<WindowsWindowControls> {
+class _DesktopWindowControlsState extends State<DesktopWindowControls> {
   bool _maximized = false;
   bool _busy = false;
 
@@ -48,11 +48,16 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
 
   Future<void> _confirmClose() async {
     if (_busy || !mounted) return;
+
     final choice = await showShadDialog<_CloseAction>(
       context: context,
       builder: (dialogContext) => ShadDialog(
         title: const Text('关闭云卷？'),
-        description: const Text('你可以隐藏到托盘，或者直接退出应用。'),
+        description: Text(
+          WindowControls.supportsTray
+              ? '你可以隐藏到托盘，或者直接退出应用。'
+              : '你可以先最小化窗口，或者直接退出应用。',
+        ),
         child: SizedBox(
           width: 360,
           child: Column(
@@ -64,10 +69,14 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   ShadButton.outline(
-                    onPressed: () => Navigator.of(
-                      dialogContext,
-                    ).pop(_CloseAction.tray),
-                    child: const Text('隐藏到托盘'),
+                    onPressed: () => Navigator.of(dialogContext).pop(
+                      WindowControls.supportsTray
+                          ? _CloseAction.tray
+                          : _CloseAction.minimize,
+                    ),
+                    child: Text(
+                      WindowControls.supportsTray ? '隐藏到托盘' : '最小化窗口',
+                    ),
                   ),
                   const SizedBox(width: 10),
                   ShadButton(
@@ -87,6 +96,9 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
       case _CloseAction.tray:
         await WindowControls.hideToTray();
         break;
+      case _CloseAction.minimize:
+        await WindowControls.minimize();
+        break;
       case _CloseAction.exit:
         await WindowControls.close();
         break;
@@ -97,7 +109,7 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
 
   @override
   Widget build(BuildContext context) {
-    if (!Platform.isWindows) {
+    if (!Platform.isWindows && !Platform.isLinux) {
       return const SizedBox.shrink();
     }
 
@@ -106,7 +118,7 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
     final panel = theme.colorScheme.background.withValues(alpha: 0.82);
 
     return Positioned(
-      top: 10,
+      top: 8,
       left: 0,
       right: 10,
       child: Row(
@@ -114,9 +126,9 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onPanStart: (_) => unawaited(WindowControls.startDrag()),
+              onPanDown: (_) => unawaited(WindowControls.startDrag()),
               onDoubleTap: () => unawaited(_toggleMaximize()),
-              child: const SizedBox(height: 36),
+              child: const SizedBox(height: 48),
             ),
           ),
           DecoratedBox(
@@ -160,7 +172,7 @@ class _WindowsWindowControlsState extends State<WindowsWindowControls> {
   }
 }
 
-enum _CloseAction { tray, exit }
+enum _CloseAction { tray, minimize, exit }
 
 class _WindowButton extends StatefulWidget {
   const _WindowButton({

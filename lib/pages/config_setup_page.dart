@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 
@@ -105,7 +106,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorText = error.toString();
+        _errorText = describeBridgeError(error);
       });
     } finally {
       if (mounted) {
