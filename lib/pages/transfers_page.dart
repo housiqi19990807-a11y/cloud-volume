@@ -141,7 +141,7 @@ class _TransfersPageState extends State<TransfersPage> {
     final queue = TransferQueue.instance;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 56, left: 36, right: 36),
+      padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
       child: AnimatedBuilder(
         animation: queue,
         builder: (context, _) {
