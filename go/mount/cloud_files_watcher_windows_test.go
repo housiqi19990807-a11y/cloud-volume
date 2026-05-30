@@ -199,3 +199,71 @@ func TestHarvestSkipsKnownPlaceholderFiles(t *testing.T) {
 		t.Fatal("expected no writeback tasks for known placeholder file")
 	}
 }
+
+func TestTouchActiveHarvestAncestorsRefreshesParentScans(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(`C:\sync-root`, `bucket`)
+	childDir := filepath.Join(root, `backup`, `flow2api`)
+	childFile := filepath.Join(childDir, `main.py`)
+	old := time.Now().Add(-time.Minute)
+
+	watcher := &windowsSyncWatcher{
+		root: root,
+		activeHarvests: map[string]time.Time{
+			root:     old,
+			childDir: old,
+		},
+	}
+
+	watcher.touchActiveHarvestAncestors(childFile)
+
+	if !watcher.activeHarvests[root].After(old) {
+		t.Fatal("expected descendant activity to refresh root harvest")
+	}
+	if !watcher.activeHarvests[childDir].After(old) {
+		t.Fatal("expected descendant activity to refresh child harvest")
+	}
+}
+
+func TestHandleCreateRefreshesAncestorHarvestsForChildDirectory(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	root := t.TempDir()
+	parentDir := filepath.Join(root, "backup")
+	childDir := filepath.Join(parentDir, "flow2api")
+	if err := os.MkdirAll(childDir, 0o755); err != nil {
+		t.Fatalf("mkdir child dir: %v", err)
+	}
+
+	rawWatcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
+	}
+	defer rawWatcher.Close()
+
+	old := time.Now().Add(-time.Minute)
+	watcher := &windowsSyncWatcher{
+		root:   root,
+		access: access,
+		raw:    rawWatcher,
+		state: &windowsPathState{
+			ignored:      map[string]windowsIgnoredPath{},
+			hydrating:    map[string]bool{},
+			kinds:        map[string]bool{},
+			files:        map[string]windowsObservedFile{},
+			placeholders: map[string]bool{},
+		},
+		done: make(chan struct{}),
+		activeHarvests: map[string]time.Time{
+			parentDir: old,
+		},
+	}
+
+	watcher.handleCreate(childDir, "backup/flow2api")
+
+	if !watcher.activeHarvests[parentDir].After(old) {
+		t.Fatal("expected child directory creation to refresh parent harvest")
+	}
+}

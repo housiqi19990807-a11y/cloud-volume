@@ -189,6 +189,7 @@ func (w *windowsSyncWatcher) handleEvent(event fsnotify.Event) {
 }
 
 func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
+	w.touchActiveHarvestAncestors(localPath)
 	info, err := os.Stat(localPath)
 	if err == nil && info.IsDir() {
 		w.state.remember(localPath, true)
@@ -196,6 +197,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 		if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
 			log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
 		}
+		w.harvestDirectoryTree(filepath.Dir(localPath))
 		w.harvestDirectoryTree(localPath)
 		return
 	}
@@ -209,6 +211,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 }
 
 func (w *windowsSyncWatcher) handleWrite(localPath, virtualPath string) {
+	w.touchActiveHarvestAncestors(localPath)
 	if w.IsDir(localPath) {
 		w.harvestDirectoryTree(localPath)
 		return
@@ -297,6 +300,32 @@ func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
 	}(root)
 }
 
+func (w *windowsSyncWatcher) touchActiveHarvestAncestors(localPath string) {
+	clean := filepath.Clean(localPath)
+	root := filepath.Clean(w.root)
+	if clean != root && !strings.HasPrefix(clean, root+string(os.PathSeparator)) {
+		return
+	}
+
+	now := time.Now()
+	w.harvestMu.Lock()
+	defer w.harvestMu.Unlock()
+
+	for {
+		if _, ok := w.activeHarvests[clean]; ok {
+			w.activeHarvests[clean] = now
+		}
+		if clean == root {
+			return
+		}
+		parent := filepath.Dir(clean)
+		if parent == clean {
+			return
+		}
+		clean = parent
+	}
+}
+
 func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, error) {
 	root := filepath.Clean(localRoot)
 	directoryCount := 0
@@ -324,6 +353,7 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, er
 		}
 
 		w.state.remember(current, entry.IsDir())
+		w.touchActiveHarvestAncestors(current)
 		if entry.IsDir() {
 			_ = w.raw.Add(current)
 			directoryCount++
