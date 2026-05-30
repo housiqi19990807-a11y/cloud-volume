@@ -1,5 +1,5 @@
-// 首次启动配置页：居中的圆角登录壳，左侧品牌面板，右侧表单。
-// 组件拆分至 widgets/ 目录，便于单独调整布局与滚动行为。
+// 首次启动配置页：左右等分布局，内容延伸至标题栏下方。
+// 左侧：品牌面板。右侧：表单。组件拆分至 widgets/ 目录。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -7,7 +7,6 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 
 // 首次运行预设默认值。
 const _kDefaultEndpoint = 'https://fgws3-ocloud.ihep.ac.cn';
@@ -117,77 +116,27 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final pageBackground = Color.lerp(
-      const Color(0xffeef2f8),
-      theme.colorScheme.background,
-      0.28,
-    )!;
-
     return Scaffold(
-      backgroundColor: pageBackground,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final shellWidth = constraints.maxWidth.isFinite
-              ? constraints.maxWidth - 40
-              : 1240.0;
-          final shellHeight = constraints.maxHeight.isFinite
-              ? constraints.maxHeight - 40
-              : 760.0;
-          final shell = ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: shellWidth.clamp(960.0, 1240.0).toDouble(),
-              maxHeight: shellHeight.clamp(640.0, 820.0).toDouble(),
+      body: Row(
+        children: [
+          // 左右等分，视觉更平衡。
+          Expanded(
+            child: ConfigLeftPanel(configPath: widget.initialState.configPath),
+          ),
+          Expanded(
+            child: ConfigRightFormPanel(
+              endpointController: _endpointController,
+              regionController: _regionController,
+              accessKeyController: _accessKeyController,
+              secretKeyController: _secretKeyController,
+              usePathStyle: _usePathStyle,
+              onPathStyleChanged: (v) => setState(() => _usePathStyle = v),
+              isSaving: _isSaving,
+              errorText: _errorText,
+              onSave: _save,
             ),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.background,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: theme.colorScheme.border.withValues(alpha: 0.6),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 32,
-                    offset: const Offset(0, 18),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: Row(
-                  children: [
-                    // 左右等分，视觉更平衡。
-                    Expanded(
-                      child: ConfigLeftPanel(
-                        configPath: widget.initialState.configPath,
-                      ),
-                    ),
-                    Expanded(
-                      child: ConfigRightFormPanel(
-                        endpointController: _endpointController,
-                        regionController: _regionController,
-                        accessKeyController: _accessKeyController,
-                        secretKeyController: _secretKeyController,
-                        usePathStyle: _usePathStyle,
-                        onPathStyleChanged: (v) =>
-                            setState(() => _usePathStyle = v),
-                        isSaving: _isSaving,
-                        errorText: _errorText,
-                        onSave: _save,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-
-          return Center(
-            child: Padding(padding: const EdgeInsets.all(20), child: shell),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
