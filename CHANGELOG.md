@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Linux bucket mounts now use a FUSE backend rooted at `~/Cloud Volume/<bucket>`, reusing the existing local cache, overlay visibility, delayed writeback queue, and mounted-object UI sync model instead of returning platform-unsupported errors.
 - Linux desktop startup now builds `bin/bridge/libremote_storage_bridge.so` as part of the runner build, installs it into the Linux bundle, and teaches the Dart loader to resolve the bundled `lib/` copy so packaged launches no longer depend on the repository layout.
 
 - The file-manager object list now comes from the mounted local-first directory view when a bucket is mounted, so pending writeback items appear in the list and the sync status stays in a dedicated column instead of repeating under the name.

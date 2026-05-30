@@ -11,7 +11,7 @@
 ## 核心能力
 
 - 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
-- 挂载访问：把当前桶挂载成 macOS 可见的 WebDAV 卷，支持在 Finder 里直接读写。
+- 挂载访问：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV 与 Cloud Files 方案，三端都复用本地缓存、overlay 与异步写回链路。
 - Windows WebDAV 挂载：把当前桶映射成 Windows WebDAV 网络驱动器，直接出现在 Explorer 的“此电脑”里，并复用现有本地优先读写与任务队列逻辑。
 - 本地优先：挂载写入、删除、改名、移动先落本地缓存与 overlay，再异步回写远端。
 - 文件管理同步提示：进入已挂载桶时，顶部挂载状态会直接显示 `等待同步 N` / `同步中 N`，便于判断桌面写入是否已经回传远端。
@@ -71,8 +71,9 @@ Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间�
 Linux 本地启动前提：
 
 - 需要可用的 Flutter Linux Desktop 环境。
-- 需要 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev` 以及可用的 Go CGO 编译链。
+- 需要 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`、`fuse3` 以及可用的 Go CGO 编译链。
 - Linux runner 现在也会在 `flutter run -d linux` / `flutter build linux` 期间自动构建 `bin/bridge/libremote_storage_bridge.so`，并把它安装到 bundle 的 `lib/` 目录，避免打包后的可执行文件因缺少 bridge 而无法启动。
+- Linux 挂载现在使用用户态 FUSE mount，把 bucket 暴露到 `~/Cloud Volume/<bucket>`，目录读取、按需下载、本地暂存、延迟写回、删除和改名都继续复用现有 Go 侧本地优先逻辑。
 
 ## 配置项
 
@@ -98,7 +99,7 @@ Linux 本地启动前提：
 
 - Flutter：桌面 UI、页面状态、任务展示、配置与交互层
 - Go bridge：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照
-- Desktop mount backends：macOS 与 Windows 目前都默认使用 WebDAV 挂载；macOS 走系统卷挂载，Windows 走 `net use` 映射到“此电脑”的网络驱动器
+- Desktop mount backends：macOS 走系统 WebDAV 卷挂载，Linux 走用户态 FUSE 挂载，Windows 同时保留 Cloud Files 与 WebDAV 映射盘方案
 - 本地缓存与 overlay：保证挂载场景下的本地优先可见性与恢复能力
 
 ## 发布
