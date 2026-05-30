@@ -16,6 +16,7 @@ import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/utils/object_visibility.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
@@ -156,7 +157,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
     } catch (e) {
       if (!mounted) return false;
       setState(() {
-        _error = e.toString();
+        _error = describeBridgeError(e);
         _loading = false;
       });
       return false;
@@ -203,7 +204,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
     } catch (e) {
       if (!mounted) return false;
       setState(() {
-        _error = e.toString();
+        _error = describeBridgeError(e);
         _loading = false;
       });
       return false;

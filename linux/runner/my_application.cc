@@ -53,18 +53,39 @@ static void handle_window_method_call(MyApplication* self,
   } else if (g_strcmp0(method, "hideToTray") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else if (g_strcmp0(method, "startDrag") == 0) {
-    GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(self->window));
-    if (display != nullptr) {
-      GdkSeat* seat = gdk_display_get_default_seat(display);
-      GdkDevice* pointer =
-          seat == nullptr ? nullptr : gdk_seat_get_pointer(seat);
-      if (pointer != nullptr) {
-        gint root_x = 0;
-        gint root_y = 0;
-        gdk_device_get_position(pointer, nullptr, &root_x, &root_y);
-        gtk_window_begin_move_drag(self->window, 1, root_x, root_y,
-                                   GDK_CURRENT_TIME);
+    gint root_x = 0;
+    gint root_y = 0;
+    gboolean has_coordinates = FALSE;
+
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* x_value = fl_value_lookup_string(args, "x");
+      FlValue* y_value = fl_value_lookup_string(args, "y");
+      if (x_value != nullptr && y_value != nullptr &&
+          fl_value_get_type(x_value) == FL_VALUE_TYPE_FLOAT &&
+          fl_value_get_type(y_value) == FL_VALUE_TYPE_FLOAT) {
+        root_x = static_cast<gint>(fl_value_get_float(x_value));
+        root_y = static_cast<gint>(fl_value_get_float(y_value));
+        has_coordinates = TRUE;
       }
+    }
+
+    if (!has_coordinates) {
+      GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(self->window));
+      if (display != nullptr) {
+        GdkSeat* seat = gdk_display_get_default_seat(display);
+        GdkDevice* pointer =
+            seat == nullptr ? nullptr : gdk_seat_get_pointer(seat);
+        if (pointer != nullptr) {
+          gdk_device_get_position(pointer, nullptr, &root_x, &root_y);
+          has_coordinates = TRUE;
+        }
+      }
+    }
+
+    if (has_coordinates) {
+      gtk_window_begin_move_drag(self->window, 1, root_x, root_y,
+                                 GDK_CURRENT_TIME);
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else {
@@ -104,18 +125,18 @@ static void my_application_activate(GApplication* application) {
   self->window = window;
   // Linux uses app-owned chrome, so hide the system decorations entirely.
   gtk_window_set_decorated(window, FALSE);
-  gtk_window_set_title(window, "remote_storage");
+  gtk_window_set_title(window, "云卷");
 
-  gint default_width = 1180;
-  gint default_height = 760;
+  gint default_width = 980;
+  gint default_height = 640;
   GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
   if (display != nullptr) {
     GdkMonitor* monitor = gdk_display_get_primary_monitor(display);
     if (monitor != nullptr) {
       GdkRectangle geometry = {};
       gdk_monitor_get_geometry(monitor, &geometry);
-      default_width = CLAMP((geometry.width * 84) / 100, 960, 1280);
-      default_height = CLAMP((geometry.height * 78) / 100, 640, 720);
+      default_width = CLAMP((geometry.width * 72) / 100, 860, 1080);
+      default_height = CLAMP((geometry.height * 66) / 100, 560, 640);
     }
   }
   gtk_window_set_default_size(window, default_width, default_height);
@@ -210,6 +231,7 @@ MyApplication* my_application_new() {
   // corresponding .desktop file. This ensures better integration by allowing
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
+  g_set_application_name("云卷");
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",

@@ -101,7 +101,7 @@ class ConfigLeftPanel extends StatelessWidget {
                 const Spacer(flex: 3),
                 // 标语。
                 Text(
-                  '$appBrandName\n$appBrandTagline',
+                  appBrandTagline,
                   style: TextStyle(
                     color: heading,
                     fontWeight: FontWeight.w800,

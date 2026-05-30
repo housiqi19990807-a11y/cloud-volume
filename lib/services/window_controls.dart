@@ -41,8 +41,11 @@ class WindowControls {
     await _channel.invokeMethod<void>('hideToTray');
   }
 
-  static Future<void> startDrag() async {
+  static Future<void> startDrag(Offset globalPosition) async {
     if (!supported) return;
-    await _channel.invokeMethod<void>('startDrag');
+    await _channel.invokeMethod<void>('startDrag', {
+      'x': globalPosition.dx,
+      'y': globalPosition.dy,
+    });
   }
 }

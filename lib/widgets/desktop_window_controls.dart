@@ -48,16 +48,16 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
 
   Future<void> _confirmClose() async {
     if (_busy || !mounted) return;
-    if (!WindowControls.supportsTray) {
-      await WindowControls.close();
-      return;
-    }
 
     final choice = await showShadDialog<_CloseAction>(
       context: context,
       builder: (dialogContext) => ShadDialog(
         title: const Text('关闭云卷？'),
-        description: const Text('你可以隐藏到托盘，或者直接退出应用。'),
+        description: Text(
+          WindowControls.supportsTray
+              ? '你可以隐藏到托盘，或者直接退出应用。'
+              : '你可以先最小化窗口，或者直接退出应用。',
+        ),
         child: SizedBox(
           width: 360,
           child: Column(
@@ -69,9 +69,14 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   ShadButton.outline(
-                    onPressed: () =>
-                        Navigator.of(dialogContext).pop(_CloseAction.tray),
-                    child: const Text('隐藏到托盘'),
+                    onPressed: () => Navigator.of(dialogContext).pop(
+                      WindowControls.supportsTray
+                          ? _CloseAction.tray
+                          : _CloseAction.minimize,
+                    ),
+                    child: Text(
+                      WindowControls.supportsTray ? '隐藏到托盘' : '最小化窗口',
+                    ),
                   ),
                   const SizedBox(width: 10),
                   ShadButton(
@@ -90,6 +95,9 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
     switch (choice) {
       case _CloseAction.tray:
         await WindowControls.hideToTray();
+        break;
+      case _CloseAction.minimize:
+        await WindowControls.minimize();
         break;
       case _CloseAction.exit:
         await WindowControls.close();
@@ -110,7 +118,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
     final panel = theme.colorScheme.background.withValues(alpha: 0.82);
 
     return Positioned(
-      top: 10,
+      top: 8,
       left: 0,
       right: 10,
       child: Row(
@@ -118,9 +126,10 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onPanStart: (_) => unawaited(WindowControls.startDrag()),
+              onPanDown: (details) =>
+                  unawaited(WindowControls.startDrag(details.globalPosition)),
               onDoubleTap: () => unawaited(_toggleMaximize()),
-              child: const SizedBox(height: 36),
+              child: const SizedBox(height: 48),
             ),
           ),
           DecoratedBox(
@@ -164,7 +173,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
   }
 }
 
-enum _CloseAction { tray, exit }
+enum _CloseAction { tray, minimize, exit }
 
 class _WindowButton extends StatefulWidget {
   const _WindowButton({
