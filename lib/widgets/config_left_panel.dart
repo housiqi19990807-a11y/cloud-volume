@@ -91,7 +91,7 @@ class ConfigLeftPanel extends StatelessWidget {
                 const AppBrandMark(height: 50, width: 188),
                 const SizedBox(height: 10),
                 Text(
-                  '云端存储，本地体验。',
+                  appBrandSubtitle,
                   style: TextStyle(
                     color: muted,
                     fontSize: 12,
@@ -121,8 +121,7 @@ class ConfigLeftPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '像使用本地硬盘一样，无缝管理 S3 及主流云端存储。'
-                  '\n一键挂载为虚拟盘，让远程文件触手可及。',
+                  appBrandDescription,
                   style: TextStyle(color: muted, fontSize: 13, height: 1.7),
                 ),
                 const Spacer(flex: 4),
