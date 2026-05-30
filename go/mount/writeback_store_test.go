@@ -1,39 +1,165 @@
-// Writeback store error tests keep lock-recovery messaging actionable.
+// Writeback store tests cover per-process journal recovery and merge behavior.
 package mount
 
 import (
-	"errors"
-	"strings"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
-
-	bolt "go.etcd.io/bbolt"
 )
 
-func TestFormatWritebackStoreOpenErrorIncludesCleanupHintForTimeout(t *testing.T) {
+func TestWritebackStoreMergesLatestEntryAcrossQueueFiles(t *testing.T) {
 	t.Parallel()
 
-	err := formatWritebackStoreOpenError("C:/tmp/writeback.db", bolt.ErrTimeout)
-	message := err.Error()
-	if !strings.Contains(message, "writeback.db") {
-		t.Fatalf("expected locked-store error to include path, got %q", message)
+	storeDir := filepath.Join(t.TempDir(), writebackStoreDirName)
+	if err := os.MkdirAll(storeDir, 0o755); err != nil {
+		t.Fatalf("mkdir store dir: %v", err)
 	}
-	if !strings.Contains(message, "remote_storage.exe") {
-		t.Fatalf("expected locked-store error to mention stale process cleanup, got %q", message)
+	writeWritebackQueueFile(t, filepath.Join(storeDir, "queue-100.json"), map[string]writebackRecord{
+		"folder/file.txt": {
+			TaskID:          "task-old",
+			VirtualPath:     "folder/file.txt",
+			LocalPath:       "C:/old.txt",
+			Size:            1,
+			ModTimeUnixNano: 100,
+			DueAtUnixNano:   200,
+			RetryCount:      1,
+		},
+	})
+	writeWritebackQueueFile(t, filepath.Join(storeDir, "queue-101.json"), map[string]writebackRecord{
+		"folder/file.txt": {
+			TaskID:          "task-new",
+			VirtualPath:     "folder/file.txt",
+			LocalPath:       "C:/new.txt",
+			Size:            2,
+			ModTimeUnixNano: 300,
+			DueAtUnixNano:   400,
+			RetryCount:      0,
+		},
+	})
+
+	store, err := openWritebackStore(storeDir)
+	if err != nil {
+		t.Fatalf("openWritebackStore: %v", err)
 	}
-	if !strings.Contains(message, "结束残留占用进程") {
-		t.Fatalf("expected locked-store error to mention settings recovery action, got %q", message)
+	records, err := store.list()
+	if err != nil {
+		t.Fatalf("store.list: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 merged record, got %d", len(records))
+	}
+	if records[0].TaskID != "task-new" || records[0].LocalPath != "C:/new.txt" {
+		t.Fatalf("expected newest merged record, got %+v", records[0])
 	}
 }
 
-func TestFormatWritebackStoreOpenErrorLeavesGenericErrorsUnchanged(t *testing.T) {
+func TestWritebackStoreDeleteRemovesOnlyCurrentProcessEntry(t *testing.T) {
 	t.Parallel()
 
-	err := formatWritebackStoreOpenError("C:/tmp/writeback.db", errors.New("permission denied"))
-	message := err.Error()
-	if !strings.Contains(message, "permission denied") {
-		t.Fatalf("expected generic store error to preserve source failure, got %q", message)
+	storeDir := filepath.Join(t.TempDir(), writebackStoreDirName)
+	store, err := openWritebackStore(storeDir)
+	if err != nil {
+		t.Fatalf("openWritebackStore: %v", err)
 	}
-	if strings.Contains(message, "remote_storage.exe") {
-		t.Fatalf("expected generic store error to avoid stale-process hint, got %q", message)
+	otherPath := filepath.Join(storeDir, "queue-999.json")
+	writeWritebackQueueFile(t, otherPath, map[string]writebackRecord{
+		"other/file.txt": {
+			TaskID:          "task-other",
+			VirtualPath:     "other/file.txt",
+			LocalPath:       "C:/other.txt",
+			Size:            3,
+			ModTimeUnixNano: 300,
+			DueAtUnixNano:   400,
+		},
+	})
+
+	entry := &pendingWriteback{
+		taskID:          "task-local",
+		virtualPath:     "local/file.txt",
+		localPath:       "C:/local.txt",
+		size:            4,
+		modTimeUnixNano: 500,
+	}
+	if err := store.upsert(entry); err != nil {
+		t.Fatalf("store.upsert: %v", err)
+	}
+	if err := store.delete(entry.virtualPath); err != nil {
+		t.Fatalf("store.delete: %v", err)
+	}
+
+	records, err := store.list()
+	if err != nil {
+		t.Fatalf("store.list: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected only other process entry to remain, got %d", len(records))
+	}
+	if records[0].VirtualPath != "other/file.txt" {
+		t.Fatalf("unexpected remaining record %+v", records[0])
+	}
+}
+
+func TestWritebackStoreReplaceWithMergedCompactsOldQueueFiles(t *testing.T) {
+	t.Parallel()
+
+	storeDir := filepath.Join(t.TempDir(), writebackStoreDirName)
+	store, err := openWritebackStore(storeDir)
+	if err != nil {
+		t.Fatalf("openWritebackStore: %v", err)
+	}
+	writeWritebackQueueFile(t, filepath.Join(storeDir, "queue-100.json"), map[string]writebackRecord{
+		"folder/a.txt": {
+			TaskID:          "task-a",
+			VirtualPath:     "folder/a.txt",
+			LocalPath:       "C:/a.txt",
+			Size:            1,
+			ModTimeUnixNano: 100,
+			DueAtUnixNano:   200,
+		},
+	})
+	writeWritebackQueueFile(t, filepath.Join(storeDir, "queue-101.json"), map[string]writebackRecord{
+		"folder/b.txt": {
+			TaskID:          "task-b",
+			VirtualPath:     "folder/b.txt",
+			LocalPath:       "C:/b.txt",
+			Size:            2,
+			ModTimeUnixNano: 200,
+			DueAtUnixNano:   300,
+		},
+	})
+
+	records, err := store.list()
+	if err != nil {
+		t.Fatalf("store.list: %v", err)
+	}
+	if err := store.replaceWithMerged(records); err != nil {
+		t.Fatalf("store.replaceWithMerged: %v", err)
+	}
+
+	files, err := filepath.Glob(filepath.Join(storeDir, "queue-*.json"))
+	if err != nil {
+		t.Fatalf("glob queue files: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected compacted store to leave 1 queue file, got %d", len(files))
+	}
+}
+
+func writeWritebackQueueFile(
+	t *testing.T,
+	filePath string,
+	records map[string]writebackRecord,
+) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		t.Fatalf("mkdir parent dir: %v", err)
+	}
+	payload, err := json.Marshal(records)
+	if err != nil {
+		t.Fatalf("marshal records: %v", err)
+	}
+	if err := os.WriteFile(filePath, payload, 0o600); err != nil {
+		t.Fatalf("write queue file: %v", err)
 	}
 }

@@ -1,16 +1,15 @@
-// Persistent writeback storage keeps mounted uploads resumable across unmounts.
+// Persistent writeback storage keeps mounted uploads resumable without a single shared DB lock.
 package mount
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
-
-	bolt "go.etcd.io/bbolt"
 
 	"github.com/panjf2000/ants/v2"
 )
@@ -19,7 +18,7 @@ var globalWritebackRegistry = &writebackRegistry{
 	queues: map[string]*writebackQueue{},
 }
 
-var writebackBucketName = []byte("writebacks")
+const writebackStoreDirName = "writeback"
 
 type writebackRegistry struct {
 	mu     sync.Mutex
@@ -27,7 +26,8 @@ type writebackRegistry struct {
 }
 
 type writebackStore struct {
-	db *bolt.DB
+	dirPath  string
+	filePath string
 }
 
 type writebackRecord struct {
@@ -41,17 +41,17 @@ type writebackRecord struct {
 }
 
 func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
-	storePath := filepath.Join(access.sessionRoot, "writeback.db")
+	storeDir := filepath.Join(access.sessionRoot, writebackStoreDirName)
 
 	globalWritebackRegistry.mu.Lock()
-	if existing, ok := globalWritebackRegistry.queues[storePath]; ok {
+	if existing, ok := globalWritebackRegistry.queues[storeDir]; ok {
 		globalWritebackRegistry.mu.Unlock()
 		existing.attach(access)
 		return existing, nil
 	}
 	globalWritebackRegistry.mu.Unlock()
 
-	store, err := openWritebackStore(storePath)
+	store, err := openWritebackStore(storeDir)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
 	}
 	q := &writebackQueue{
 		store:    store,
-		storeKey: storePath,
+		storeKey: storeDir,
 		entries:  map[string]*pendingWriteback{},
 		running:  map[string]*pendingWriteback{},
 		queue:    make(chan *pendingWriteback, 512),
@@ -77,39 +77,39 @@ func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
 	go q.dispatch()
 
 	globalWritebackRegistry.mu.Lock()
-	globalWritebackRegistry.queues[storePath] = q
+	globalWritebackRegistry.queues[storeDir] = q
 	globalWritebackRegistry.mu.Unlock()
 	return q, nil
 }
 
-func openWritebackStore(path string) (*writebackStore, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func openWritebackStore(dirPath string) (*writebackStore, error) {
+	if err := os.MkdirAll(dirPath, 0o755); err != nil {
 		return nil, fmt.Errorf("create writeback store dir: %w", err)
 	}
-	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 2 * time.Second})
-	if err != nil {
-		return nil, formatWritebackStoreOpenError(path, err)
+	filePath := filepath.Join(dirPath, fmt.Sprintf("queue-%d.json", os.Getpid()))
+	store := &writebackStore{
+		dirPath:  dirPath,
+		filePath: filePath,
 	}
-	store := &writebackStore{db: db}
-	if err := db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists(writebackBucketName)
-		return err
-	}); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("init writeback store %q: %w", path, err)
+	if err := store.ensureFile(); err != nil {
+		return nil, err
 	}
 	return store, nil
 }
 
-func formatWritebackStoreOpenError(path string, err error) error {
-	if errors.Is(err, bolt.ErrTimeout) {
-		return fmt.Errorf(
-			"open writeback store %q: %w (another remote_storage.exe likely still holds the file; use Settings > Windows > 结束残留占用进程 and try again)",
-			path,
-			err,
-		)
+func (s *writebackStore) ensureFile() error {
+	if s == nil {
+		return nil
 	}
-	return fmt.Errorf("open writeback store %q: %w", path, err)
+	if _, err := os.Stat(s.filePath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat writeback store %q: %w", s.filePath, err)
+	}
+	if err := os.WriteFile(s.filePath, []byte("{}\n"), 0o600); err != nil {
+		return fmt.Errorf("create writeback store %q: %w", s.filePath, err)
+	}
+	return nil
 }
 
 func (q *writebackQueue) attach(access *bucketAccess) {
@@ -135,6 +135,9 @@ func (q *writebackQueue) currentAccess() *bucketAccess {
 func (q *writebackQueue) restorePersistedEntries() error {
 	records, err := q.store.list()
 	if err != nil {
+		return err
+	}
+	if err := q.store.replaceWithMerged(records); err != nil {
 		return err
 	}
 	now := time.Now()
@@ -189,7 +192,11 @@ func (s *writebackStore) upsert(entry *pendingWriteback) error {
 	if s == nil || entry == nil {
 		return nil
 	}
-	record := writebackRecord{
+	records, err := s.readOwnRecords()
+	if err != nil {
+		return err
+	}
+	records[cleanVirtualPath(entry.virtualPath)] = writebackRecord{
 		TaskID:          entry.taskID,
 		VirtualPath:     entry.virtualPath,
 		LocalPath:       entry.localPath,
@@ -198,47 +205,137 @@ func (s *writebackStore) upsert(entry *pendingWriteback) error {
 		DueAtUnixNano:   entry.dueAt.UnixNano(),
 		RetryCount:      entry.retryCount,
 	}
-	payload, err := json.Marshal(record)
-	if err != nil {
-		return err
-	}
-	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(writebackBucketName).Put([]byte(entry.virtualPath), payload)
-	})
+	return s.writeOwnRecords(records)
 }
 
 func (s *writebackStore) delete(virtualPath string) error {
 	if s == nil || virtualPath == "" {
 		return nil
 	}
-	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(writebackBucketName).Delete([]byte(virtualPath))
-	})
+	records, err := s.readOwnRecords()
+	if err != nil {
+		return err
+	}
+	delete(records, cleanVirtualPath(virtualPath))
+	return s.writeOwnRecords(records)
 }
 
 func (s *writebackStore) list() ([]writebackRecord, error) {
 	if s == nil {
 		return nil, nil
 	}
-	records := []writebackRecord{}
-	err := s.db.View(func(tx *bolt.Tx) error {
-		return tx.Bucket(writebackBucketName).ForEach(func(_, value []byte) error {
-			record := writebackRecord{}
-			if err := json.Unmarshal(value, &record); err != nil {
-				return err
+	files, err := filepath.Glob(filepath.Join(s.dirPath, "queue-*.json"))
+	if err != nil {
+		return nil, fmt.Errorf("glob writeback stores: %w", err)
+	}
+	sort.Strings(files)
+	merged := map[string]writebackRecord{}
+	for _, filePath := range files {
+		records, err := readWritebackRecordsFile(filePath)
+		if err != nil {
+			return nil, err
+		}
+		for key, record := range records {
+			existing, ok := merged[key]
+			if !ok || record.ModTimeUnixNano >= existing.ModTimeUnixNano {
+				merged[key] = record
 			}
-			records = append(records, record)
-			return nil
-		})
+		}
+	}
+	records := make([]writebackRecord, 0, len(merged))
+	for _, record := range merged {
+		records = append(records, record)
+	}
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].DueAtUnixNano == records[j].DueAtUnixNano {
+			return records[i].VirtualPath < records[j].VirtualPath
+		}
+		return records[i].DueAtUnixNano < records[j].DueAtUnixNano
 	})
-	return records, err
+	return records, nil
+}
+
+func (s *writebackStore) replaceWithMerged(records []writebackRecord) error {
+	if s == nil {
+		return nil
+	}
+	merged := map[string]writebackRecord{}
+	for _, record := range records {
+		key := cleanVirtualPath(record.VirtualPath)
+		if key == "" {
+			continue
+		}
+		record.VirtualPath = key
+		merged[key] = record
+	}
+	if err := s.writeOwnRecords(merged); err != nil {
+		return err
+	}
+	files, err := filepath.Glob(filepath.Join(s.dirPath, "queue-*.json"))
+	if err != nil {
+		return fmt.Errorf("glob writeback stores for cleanup: %w", err)
+	}
+	for _, filePath := range files {
+		if filepath.Clean(filePath) == filepath.Clean(s.filePath) {
+			continue
+		}
+		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove stale writeback store %q: %w", filePath, err)
+		}
+	}
+	return nil
+}
+
+func (s *writebackStore) readOwnRecords() (map[string]writebackRecord, error) {
+	if s == nil {
+		return map[string]writebackRecord{}, nil
+	}
+	return readWritebackRecordsFile(s.filePath)
+}
+
+func readWritebackRecordsFile(filePath string) (map[string]writebackRecord, error) {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return map[string]writebackRecord{}, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("stat writeback store %q: %w", filePath, err)
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("read writeback store %q: %w", filePath, err)
+	}
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return map[string]writebackRecord{}, nil
+	}
+	records := map[string]writebackRecord{}
+	if err := json.Unmarshal([]byte(trimmed), &records); err != nil {
+		return nil, fmt.Errorf("decode writeback store %q: %w", filePath, err)
+	}
+	return records, nil
+}
+
+func (s *writebackStore) writeOwnRecords(records map[string]writebackRecord) error {
+	if s == nil {
+		return nil
+	}
+	if records == nil {
+		records = map[string]writebackRecord{}
+	}
+	payload, err := json.MarshalIndent(records, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode writeback store %q: %w", s.filePath, err)
+	}
+	if err := os.WriteFile(s.filePath, append(payload, '\n'), 0o600); err != nil {
+		return fmt.Errorf("write writeback store %q: %w", s.filePath, err)
+	}
+	return nil
 }
 
 func (s *writebackStore) close() error {
-	if s == nil || s.db == nil {
+	if s == nil {
 		return nil
 	}
-	return s.db.Close()
+	return nil
 }
 
 func (r writebackRecord) toPendingWriteback() *pendingWriteback {
