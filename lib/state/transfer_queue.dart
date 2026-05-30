@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 part 'transfer_queue_storage.dart';
@@ -201,9 +202,20 @@ class TransferQueue extends ChangeNotifier {
     _ensurePolling();
   }
 
+  bool canCancelTask(String id) => _canCancelTask(_taskById(id));
+
+  int cancelableTaskCount(Iterable<String> ids) =>
+      _countTasks(ids, _canCancelTask);
+
+  bool canTriggerTask(String id) => _canTriggerTask(_taskById(id));
+
+  int triggerableTaskCount(Iterable<String> ids) =>
+      _countTasks(ids, _canTriggerTask);
+
   Future<void> cancelTask(String id) async {
-    final task = _taskById(id);
-    if (task == null || !task.isCancelable) return;
+    final existingTask = _taskById(id);
+    if (!_canCancelTask(existingTask)) return;
+    final task = existingTask!;
     _cancelRequestedIds.add(id);
     task.status = TransferStatus.canceled;
     task.speedBytes = 0;
@@ -216,14 +228,46 @@ class TransferQueue extends ChangeNotifier {
     _ensurePolling();
   }
 
+  Future<int> cancelTasks(Iterable<String> ids) async {
+    var canceled = 0;
+    for (final id in ids.toSet()) {
+      final task = _taskById(id);
+      if (!_canCancelTask(task)) {
+        continue;
+      }
+      await cancelTask(id);
+      canceled++;
+    }
+    return canceled;
+  }
+
   Future<bool> triggerTaskNow(String id) async {
-    final task = _taskById(id);
-    if (task == null || task.status != TransferStatus.pending || _api == null) {
+    final existingTask = _taskById(id);
+    if (!_canTriggerTask(existingTask)) {
       return false;
     }
     final triggered = await _api!.triggerTransfer(id);
     await pollNow();
     return triggered;
+  }
+
+  Future<int> triggerTasksNow(Iterable<String> ids) async {
+    if (_api == null) {
+      return 0;
+    }
+    var triggeredCount = 0;
+    for (final id in ids.toSet()) {
+      final task = _taskById(id);
+      if (!_canTriggerTask(task)) {
+        continue;
+      }
+      final triggered = await _api!.triggerTransfer(id);
+      if (triggered) {
+        triggeredCount++;
+      }
+    }
+    await pollNow();
+    return triggeredCount;
   }
 
   bool isCancelRequested(String id) => _cancelRequestedIds.contains(id);
@@ -383,6 +427,27 @@ class TransferQueue extends ChangeNotifier {
     return null;
   }
 
+  bool _canCancelTask(TransferTask? task) => task?.isCancelable ?? false;
+
+  bool _canTriggerTask(TransferTask? task) =>
+      _api != null &&
+      task != null &&
+      task.status == TransferStatus.pending &&
+      task.isUpload;
+
+  int _countTasks(
+    Iterable<String> ids,
+    bool Function(TransferTask? task) predicate,
+  ) {
+    var count = 0;
+    for (final id in ids.toSet()) {
+      if (predicate(_taskById(id))) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   TransferTask _addRemoteTask(TransferSnapshot snapshot) {
     final task = TransferTask(
       id: snapshot.id,
@@ -470,29 +535,4 @@ TransferStatus _transferStatusFromName(String value) {
     'canceled' => TransferStatus.canceled,
     _ => TransferStatus.pending,
   };
-}
-
-/// 将速率格式化成适合侧边栏展示的短文本。
-String formatBytesPerSecond(double bytesPerSecond) {
-  if (bytesPerSecond >= 1024 * 1024) {
-    return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s';
-  }
-  if (bytesPerSecond >= 1024) {
-    return '${(bytesPerSecond / 1024).toStringAsFixed(0)} KB/s';
-  }
-  return '${bytesPerSecond.toStringAsFixed(0)} B/s';
-}
-
-/// 将体积格式化成任务列表中的可读文本。
-String formatBytes(int bytes) {
-  if (bytes >= 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-  if (bytes >= 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  if (bytes >= 1024) {
-    return '${(bytes / 1024).toStringAsFixed(0)} KB';
-  }
-  return '$bytes B';
 }

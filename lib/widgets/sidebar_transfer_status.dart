@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 

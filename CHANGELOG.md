@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The transfer queue now supports row selection plus batch start and batch cancel actions, so waiting uploads and active jobs can be resumed or stopped in bulk from the transfers page instead of one by one.
 - Windows Cloud Files watcher recovery now starts placeholder directory watches immediately and recursively harvests freshly copied local directory trees after their parent folder appears, which fixes the cases where opening a newly populated folder and pasting files or copying a whole directory tree produced no upload task, hid the new files from the local-first file manager, and left later unmounts stuck behind missing writeback state.
 - The file-manager object list now comes from the mounted local-first directory view when a bucket is mounted, so pending writeback items appear in the list and the sync status stays in a dedicated column instead of repeating under the name.
 - Windows Cloud Files sync roots now project mounted writeback queue state back into Explorer via `CfSetInSyncState`, so files queued by the cached/writeback path show native not-in-sync status until the delayed upload completes and then flip back to in-sync.
