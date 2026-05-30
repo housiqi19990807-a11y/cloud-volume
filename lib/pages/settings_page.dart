@@ -10,7 +10,6 @@ import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/settings_sections.dart'
     show DownloadDirectorySection, ThemePicker, VisibilitySection;
-import 'package:remote_storage/widgets/settings_tab_selector.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:remote_storage/widgets/windows_settings_sections.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -58,9 +57,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final config = widget.state.config;
-    final sections = _showsWindowsTab && _activeTab == _SettingsTab.windows
-        ? _buildWindowsSections(theme, config)
-        : _buildGeneralSections(theme, config);
 
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
@@ -84,35 +80,37 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const SizedBox(height: 24),
-            if (_showsWindowsTab) ...[
-              _buildTabSelector(theme),
-              const SizedBox(height: 20),
-            ],
-            ...sections,
+            if (_showsWindowsTab)
+              ShadTabs<_SettingsTab>(
+                value: _activeTab,
+                onChanged: (value) => setState(() => _activeTab = value),
+                tabs: [
+                  ShadTab<_SettingsTab>(
+                    value: _SettingsTab.general,
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _buildGeneralSections(theme, config),
+                    ),
+                    child: const Text('通用设置'),
+                  ),
+                  ShadTab<_SettingsTab>(
+                    value: _SettingsTab.windows,
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _buildWindowsSections(theme, config),
+                    ),
+                    child: const Text('Windows 设置'),
+                  ),
+                ],
+              )
+            else
+              ..._buildGeneralSections(theme, config),
             const SizedBox(height: 24),
             _buildFooterActions(),
             const SizedBox(height: 40),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTabSelector(ShadThemeData theme) {
-    return SettingsTabSelector<_SettingsTab>(
-      theme: theme,
-      value: _activeTab,
-      items: const [
-        SettingsTabItem<_SettingsTab>(
-          value: _SettingsTab.general,
-          label: '通用设置',
-        ),
-        SettingsTabItem<_SettingsTab>(
-          value: _SettingsTab.windows,
-          label: 'Windows 设置',
-        ),
-      ],
-      onChanged: (value) => setState(() => _activeTab = value),
     );
   }
 

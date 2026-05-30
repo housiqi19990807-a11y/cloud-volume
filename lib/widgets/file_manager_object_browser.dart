@@ -297,10 +297,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   FileSyncState _syncStateFor(ObjectInfo object) {
     if (!mountedToDesktop) {
-      return const FileSyncState.unmounted();
+      return const FileSyncState.synced();
     }
     if (mountBucketName == null || mountBucketName!.trim().isEmpty) {
-      return const FileSyncState.unmounted();
+      return const FileSyncState.synced();
     }
 
     var pending = 0;
