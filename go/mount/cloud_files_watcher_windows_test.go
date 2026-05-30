@@ -319,6 +319,60 @@ func TestHandleCreateRefreshesAncestorHarvestsForChildDirectory(t *testing.T) {
 	}
 }
 
+func TestPlaceholderDirectoryWatchesEnableNestedCopies(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	root := t.TempDir()
+	parentDir := filepath.Join(root, "bakcuptest", "test")
+	childDir := filepath.Join(parentDir, "test2")
+	copyDir := filepath.Join(childDir, "flow2api")
+	copyFile := filepath.Join(copyDir, "main.py")
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
+		t.Fatalf("mkdir parent tree: %v", err)
+	}
+
+	watcher, err := newWindowsSyncWatcher(root, access)
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
+	}
+	if err := watcher.Start(); err != nil {
+		t.Fatalf("start watcher: %v", err)
+	}
+	defer func() {
+		if err := watcher.Close(); err != nil {
+			t.Fatalf("close watcher: %v", err)
+		}
+	}()
+
+	placeholders := []cloudPlaceholderInfo{{
+		RelativePath: "test2",
+		IsDirectory:  true,
+	}}
+	watcher.RememberPlaceholders(parentDir, placeholders)
+	if err := os.MkdirAll(childDir, 0o755); err != nil {
+		t.Fatalf("mkdir placeholder dir: %v", err)
+	}
+	watcher.watchPlaceholderDirectories(parentDir, placeholders)
+	if err := os.MkdirAll(copyDir, 0o755); err != nil {
+		t.Fatalf("mkdir copied subtree: %v", err)
+	}
+	if err := os.WriteFile(copyFile, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write copied file: %v", err)
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, ok := access.cache.localFile("bakcuptest/test/test2/flow2api/main.py"); ok &&
+			access.writeback.hasPendingAtOrBelow("bakcuptest/test/test2/flow2api", true) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Fatal("expected placeholder directory watch to capture nested copied files")
+}
+
 func TestWindowsSyncWatcherCloseReturnsDuringHarvest(t *testing.T) {
 	t.Parallel()
 

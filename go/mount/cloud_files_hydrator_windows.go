@@ -162,8 +162,10 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 		len(placeholders),
 	)
 	if err := h.provider.CreatePlaceholders(localPath, placeholders); err != nil {
+		h.watcher.watchPlaceholderDirectories(localPath, placeholders)
 		return err
 	}
+	h.watcher.watchPlaceholderDirectories(localPath, placeholders)
 	success = true
 	return nil
 }

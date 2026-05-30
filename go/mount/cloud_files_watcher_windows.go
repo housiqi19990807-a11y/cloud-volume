@@ -43,6 +43,10 @@ type windowsSyncWatcher struct {
 	done   chan struct{}
 	wg     sync.WaitGroup
 
+	rawMu     sync.Mutex
+	rawClosed bool
+	watched   map[string]bool
+
 	harvestMu      sync.Mutex
 	activeHarvests map[string]time.Time
 	closeOnce      sync.Once
@@ -65,6 +69,7 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 			placeholders: map[string]bool{},
 		},
 		done:           make(chan struct{}),
+		watched:        map[string]bool{},
 		activeHarvests: map[string]time.Time{},
 	}, nil
 }
@@ -80,7 +85,7 @@ func (w *windowsSyncWatcher) Start() error {
 
 func (w *windowsSyncWatcher) Close() error {
 	w.signalStop()
-	closeErr := w.raw.Close()
+	closeErr := w.closeRaw()
 	w.wg.Wait()
 	return closeErr
 }
@@ -93,9 +98,6 @@ func (w *windowsSyncWatcher) RememberPlaceholders(baseDir string, items []cloudP
 		// Ignore only the placeholder path itself so a freshly opened child
 		// directory can still surface immediate user writes below it.
 		w.state.ignore(fullPath, windowsCFEventIgnoreTTL, false)
-		if item.IsDirectory {
-			w.addWatch(fullPath)
-		}
 	}
 }
 
@@ -116,7 +118,7 @@ func (w *windowsSyncWatcher) IsDir(localPath string) bool {
 
 func (w *windowsSyncWatcher) Forget(localPath string) {
 	w.state.forget(localPath)
-	_ = w.raw.Remove(localPath)
+	w.removeWatchTree(localPath)
 }
 
 func (w *windowsSyncWatcher) Rebase(oldPath, newPath string, isDir bool) {
