@@ -4,11 +4,15 @@ package mount
 import (
 	"fmt"
 	"log"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	s3ops "remote-storage/go/s3"
 )
+
+const writebackDrainLogInterval = 3 * time.Second
 
 func (q *writebackQueue) cancel(virtualPath string) bool {
 	q.mu.Lock()
@@ -249,6 +253,7 @@ func (q *writebackQueue) drain() error {
 		q.mu.Unlock()
 	}()
 
+	lastWaitLog := time.Time{}
 	for {
 		ready, pending, running, err := q.prepareDrainPass()
 		if err != nil {
@@ -270,11 +275,18 @@ func (q *writebackQueue) drain() error {
 				q.enqueueDrainEntry(entry)
 			}
 		} else {
+			now := time.Now()
+			if !lastWaitLog.IsZero() && now.Sub(lastWaitLog) < writebackDrainLogInterval {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			lastWaitLog = now
 			log.Printf(
-				"[mount/writeback] drain-wait bucket=%q pending=%d running=%d",
+				"[mount/writeback] drain-wait bucket=%q pending=%d running=%d files=%s",
 				q.bucketName(),
 				pending,
 				running,
+				q.drainRunningProgress(),
 			)
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -342,4 +354,53 @@ func (q *writebackQueue) enqueueDrainEntry(entry *pendingWriteback) {
 		return
 	}
 	q.queue <- entry
+}
+
+func (q *writebackQueue) drainRunningProgress() string {
+	q.mu.Lock()
+	entries := make([]*pendingWriteback, 0, len(q.running))
+	for _, entry := range q.running {
+		entries = append(entries, entry)
+	}
+	q.mu.Unlock()
+
+	if len(entries) == 0 {
+		return "none"
+	}
+
+	parts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		parts = append(parts, formatDrainProgress(entry))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func formatDrainProgress(entry *pendingWriteback) string {
+	if entry == nil {
+		return "unknown"
+	}
+	label := entry.virtualPath
+	if label == "" {
+		label = filepath.Base(entry.localPath)
+	}
+	if snapshot, ok := s3ops.GetTransferSnapshot(entry.taskID); ok {
+		total := snapshot.TotalBytes
+		done := snapshot.BytesCompleted
+		if total > 0 {
+			percent := float64(done) * 100 / float64(total)
+			return label +
+				" " +
+				strconv.FormatInt(done, 10) +
+				"/" +
+				strconv.FormatInt(total, 10) +
+				" (" +
+				fmt.Sprintf("%.1f%%", percent) +
+				")"
+		}
+		return label + " " + strconv.FormatInt(done, 10) + "/?"
+	}
+	if entry.size > 0 {
+		return label + " 0/" + strconv.FormatInt(entry.size, 10) + " (0.0%)"
+	}
+	return label + " progress=unknown"
 }
