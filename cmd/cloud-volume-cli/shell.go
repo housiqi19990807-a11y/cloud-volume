@@ -91,9 +91,13 @@ func runShell() error {
 }
 
 func shellPrompt(state *shellState) string {
-	if state != nil && strings.TrimSpace(state.bucketOverride) != "" {
+	if state != nil {
 		dir := shellDisplayDir(state.currentDir)
-		return fmt.Sprintf("cloud-volume[%s:%s]> ", strings.TrimSpace(state.bucketOverride), dir)
+		bucket := strings.TrimSpace(state.bucketOverride)
+		if bucket == "" {
+			bucket = "no-bucket"
+		}
+		return fmt.Sprintf("cloud-volume[%s:%s]> ", bucket, dir)
 	}
 	return "cloud-volume> "
 }
