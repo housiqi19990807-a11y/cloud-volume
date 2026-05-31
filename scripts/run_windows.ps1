@@ -139,9 +139,9 @@ try {
   & go build -buildmode=c-shared -o $bridgeDll ./bridge
 
   if ($Build) {
-    & $flutter build windows
+    & $flutter build windows --dart-define APP_VERSION_LABEL=dev
   } else {
-    & $flutter run -d windows
+    & $flutter run -d windows --dart-define APP_VERSION_LABEL=dev
   }
 } finally {
   Pop-Location

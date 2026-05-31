@@ -179,12 +179,14 @@ build_macos_flutter() {
   if [[ -n "$excluded" ]]; then
     FLUTTER_XCODE_EXCLUDED_ARCHS="$excluded" \
       flutter build macos --release \
+      --dart-define APP_VERSION_LABEL=$VERSION \
       --build-name "$VERSION" \
       --build-number "$BUILD_NUMBER"
     return
   fi
 
   flutter build macos --release \
+    --dart-define APP_VERSION_LABEL=$VERSION \
     --build-name "$VERSION" \
     --build-number "$BUILD_NUMBER"
 }
@@ -328,6 +330,7 @@ build_windows() {
     fi
     go build -buildmode=c-shared -o bin/bridge/remote_storage_bridge.dll ./bridge
     flutter build windows --release \
+      --dart-define APP_VERSION_LABEL=$VERSION \
       --build-name "$VERSION" \
       --build-number "$BUILD_NUMBER"
   )
@@ -406,6 +409,7 @@ build_linux() {
       go build -buildmode=c-shared -o "$bridge_so" ./bridge
     flutter build linux --release \
       --target-platform "$flutter_target" \
+      --dart-define APP_VERSION_LABEL=$VERSION \
       --build-name "$VERSION" \
       --build-number "$BUILD_NUMBER"
   )

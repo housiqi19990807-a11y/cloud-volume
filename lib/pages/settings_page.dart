@@ -2,7 +2,7 @@
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart';
+import 'package:remote_storage/utils/app_runtime_version.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/platform/platform_info.dart';
@@ -61,33 +61,12 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
   bool _cleaningStaleWindowsProcesses = false;
-  late String _appVersionText = '读取中...';
 
   bool get _showsWindowsTab => isWindowsPlatform;
 
+  bool get _showsFooterActions => _activeTab != _SettingsTab.about;
+
   void _updateState(VoidCallback action) => setState(action);
-
-  Future<void> _loadAboutVersion() async {
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      if (!mounted) return;
-      final buildNumber = packageInfo.buildNumber.trim();
-      final version = packageInfo.version.trim();
-      final versionText = buildNumber.isEmpty
-          ? version
-          : '$version+$buildNumber';
-      _updateState(() => _appVersionText = versionText);
-    } catch (_) {
-      if (!mounted) return;
-      _updateState(() => _appVersionText = '未知版本');
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadAboutVersion();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -147,8 +126,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            _buildFooterActions(),
+            if (_showsFooterActions) ...[
+              const SizedBox(height: 24),
+              _buildFooterActions(),
+            ],
             const SizedBox(height: 40),
           ],
         ),
@@ -284,7 +265,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _buildCard(
         theme,
         '关于云卷',
-        SettingsAboutSection(theme: theme, versionText: _appVersionText),
+        SettingsAboutSection(theme: theme, versionText: kAppRuntimeVersion),
       ),
     ];
   }

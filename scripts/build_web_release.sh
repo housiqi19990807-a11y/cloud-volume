@@ -83,7 +83,7 @@ done
 mkdir -p "$OUTPUT_DIR"
 
 flutter pub get
-flutter build web --release --wasm-dry-run --pwa-strategy=none
+flutter build web --release --dart-define APP_VERSION_LABEL=$VERSION --wasm-dry-run --pwa-strategy=none
 
 stage_root="$(mktemp -d)"
 stage_dir="$stage_root/${ARTIFACT_PREFIX}-web-linux-${GOARCH_VALUE}"

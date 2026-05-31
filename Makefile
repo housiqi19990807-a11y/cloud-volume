@@ -118,22 +118,22 @@ run-cli: build-cli
 
 run: bridge
 ifeq ($(HOST_PLATFORM),macos)
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) run -d macos
+	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) run -d macos --dart-define=APP_VERSION_LABEL=dev
 else ifeq ($(HOST_PLATFORM),linux)
-	$(FLUTTER) run -d linux
+	$(FLUTTER) run -d linux --dart-define=APP_VERSION_LABEL=dev
 else ifeq ($(HOST_PLATFORM),windows)
-	$(FLUTTER) run -d windows
+	$(FLUTTER) run -d windows --dart-define=APP_VERSION_LABEL=dev
 else
 	@echo "Unsupported host OS for default run target: $(HOST_PLATFORM)"
 	@exit 1
 endif
 
 run-macos: bridge-macos
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) run -d macos
+	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) run -d macos --dart-define=APP_VERSION_LABEL=dev
 
 run-linux: bridge-linux
 ifeq ($(HOST_PLATFORM),linux)
-	$(FLUTTER) run -d linux
+	$(FLUTTER) run -d linux --dart-define=APP_VERSION_LABEL=dev
 else
 	@echo "run-linux must be run on a Linux host."
 	@exit 1
@@ -141,7 +141,7 @@ endif
 
 run-windows: bridge-windows
 ifeq ($(HOST_PLATFORM),windows)
-	$(FLUTTER) run -d windows
+	$(FLUTTER) run -d windows --dart-define=APP_VERSION_LABEL=dev
 else
 	@echo "run-windows must be run on a Windows host."
 	@exit 1
@@ -163,11 +163,11 @@ else
 endif
 
 build-macos: bridge-macos
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) build macos
+	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) build macos --dart-define=APP_VERSION_LABEL=dev
 
 build-linux: bridge-linux
 ifeq ($(HOST_PLATFORM),linux)
-	$(FLUTTER) build linux
+	$(FLUTTER) build linux --dart-define=APP_VERSION_LABEL=dev
 else
 	@echo "build-linux must be run on a Linux host."
 	@exit 1
@@ -175,14 +175,14 @@ endif
 
 build-windows: bridge-windows
 ifeq ($(HOST_PLATFORM),windows)
-	$(FLUTTER) build windows
+	$(FLUTTER) build windows --dart-define=APP_VERSION_LABEL=dev
 else
 	@echo "build-windows must be run on a Windows host."
 	@exit 1
 endif
 
 build-web:
-	$(FLUTTER) build web
+	$(FLUTTER) build web --dart-define=APP_VERSION_LABEL=dev
 
 test:
 	$(FLUTTER) test

@@ -112,7 +112,7 @@ prepare_full_assets() {
   (
     cd "$ROOT_DIR"
     "$FLUTTER_BIN" pub get
-    "$FLUTTER_BIN" build web --release --wasm-dry-run --pwa-strategy=none
+    "$FLUTTER_BIN" build web --release --dart-define APP_VERSION_LABEL=$VERSION --wasm-dry-run --pwa-strategy=none
   )
   cleanup_embedded_assets
   cp -R "$ROOT_DIR/build/web/." "$ROOT_DIR/cmd/cloud-volume-cli/embedded_web/"
