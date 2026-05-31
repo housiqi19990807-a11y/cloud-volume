@@ -167,7 +167,9 @@ jobs:
         shell: pwsh
         run: |
           $gccPath = (Get-Command gcc -ErrorAction Stop).Source
+          $gxxPath = (Get-Command g++ -ErrorAction Stop).Source
           "BRIDGE_CC=$gccPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BRIDGE_CXX=$gxxPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install Inno Setup
         shell: pwsh
