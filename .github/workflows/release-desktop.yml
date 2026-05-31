@@ -275,6 +275,8 @@ jobs:
           sudo apt-get install -y \
             clang \
             cmake \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
             libgtk-3-dev \
             liblzma-dev \
             ninja-build \
@@ -289,6 +291,10 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           flutter pub get
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            export BRIDGE_CC=aarch64-linux-gnu-gcc
+            export BRIDGE_CXX=aarch64-linux-gnu-g++
+          fi
           ./scripts/build_desktop_packages.sh \
             --platform linux \
             --arch "${{ matrix.arch }}" \
