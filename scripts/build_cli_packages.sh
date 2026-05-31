@@ -6,22 +6,25 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_PREFIX="${ARTIFACT_PREFIX:-yunjuan}"
 OUTPUT_DIR="$ROOT_DIR/dist/cli"
+FLUTTER_BIN="${FLUTTER:-flutter}"
 
 GOOS_VALUE=""
 GOARCH_VALUE=""
 VERSION=""
+VARIANT="lite"
 
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Usage: ./scripts/build_cli_packages.sh --goos <linux|darwin|windows> --goarch <amd64|arm64> --version <x.y.z> [options]
 
 Options:
   --goos <name>            Target GOOS
   --goarch <name>          Target GOARCH
   --version <x.y.z>        Release version embedded with ldflags
+  --variant <lite|full>    CLI package variant, default is lite
   --output-dir <path>      Output directory for packaged artifacts
   -h, --help               Show this help
-EOF
+USAGE
 }
 
 fail() {
@@ -37,18 +40,40 @@ resolve_output_dir() {
 }
 
 archive_name() {
-  local goos="$1"
-  local goarch="$2"
+  local variant="$1"
+  local goos="$2"
+  local goarch="$3"
   case "$goos" in
-    windows) printf '%s-cli-%s-%s.zip\n' "$ARTIFACT_PREFIX" "$goos" "$goarch" ;;
-    *) printf '%s-cli-%s-%s.tar.gz\n' "$ARTIFACT_PREFIX" "$goos" "$goarch" ;;
+    windows) printf '%s-cli-%s-%s-%s.zip\n' "$ARTIFACT_PREFIX" "$variant" "$goos" "$goarch" ;;
+    *) printf '%s-cli-%s-%s-%s.tar.gz\n' "$ARTIFACT_PREFIX" "$variant" "$goos" "$goarch" ;;
   esac
 }
 
+stage_dir_name() {
+  local variant="$1"
+  local goos="$2"
+  local goarch="$3"
+  printf '%s-cli-%s-%s-%s\n' "$ARTIFACT_PREFIX" "$variant" "$goos" "$goarch"
+}
+
 binary_name() {
-  case "$1" in
-    windows) printf 'cloud-volume-cli.exe\n' ;;
-    *) printf 'cloud-volume-cli\n' ;;
+  local variant="$1"
+  local goos="$2"
+  case "$goos" in
+    windows)
+      if [[ "$variant" == "full" ]]; then
+        printf 'cloud-volume-cli-full.exe\n'
+      else
+        printf 'cloud-volume-cli.exe\n'
+      fi
+      ;;
+    *)
+      if [[ "$variant" == "full" ]]; then
+        printf 'cloud-volume-cli-full\n'
+      else
+        printf 'cloud-volume-cli\n'
+      fi
+      ;;
   esac
 }
 
@@ -75,6 +100,24 @@ package_archive() {
   esac
 }
 
+cleanup_embedded_assets() {
+  local embedded_dir="$ROOT_DIR/cmd/cloud-volume-cli/embedded_web"
+  rm -rf "$embedded_dir"
+  mkdir -p "$embedded_dir"
+  printf '*\n!.gitignore\n' > "$embedded_dir/.gitignore"
+}
+
+prepare_full_assets() {
+  command -v "$FLUTTER_BIN" >/dev/null 2>&1 || fail "Flutter is required for --variant full"
+  (
+    cd "$ROOT_DIR"
+    "$FLUTTER_BIN" pub get
+    "$FLUTTER_BIN" build web --release --wasm-dry-run --pwa-strategy=none
+  )
+  cleanup_embedded_assets
+  cp -R "$ROOT_DIR/build/web/." "$ROOT_DIR/cmd/cloud-volume-cli/embedded_web/"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --goos)
@@ -87,6 +130,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --version)
       VERSION="${2:-}"
+      shift 2
+      ;;
+    --variant)
+      VARIANT="${2:-}"
       shift 2
       ;;
     --output-dir)
@@ -106,27 +153,40 @@ done
 [[ -n "$GOOS_VALUE" ]] || fail "--goos is required"
 [[ -n "$GOARCH_VALUE" ]] || fail "--goarch is required"
 [[ -n "$VERSION" ]] || fail "--version is required"
+[[ "$VARIANT" == "lite" || "$VARIANT" == "full" ]] || fail "--variant must be lite or full"
 
 mkdir -p "$OUTPUT_DIR"
+cleanup_embedded_assets
 
 stage_root="$(mktemp -d)"
-stage_dir="$stage_root/${ARTIFACT_PREFIX}-cli-${GOOS_VALUE}-${GOARCH_VALUE}"
+stage_dir="$stage_root/$(stage_dir_name "$VARIANT" "$GOOS_VALUE" "$GOARCH_VALUE")"
 mkdir -p "$stage_dir"
 
-binary_path="$stage_dir/$(binary_name "$GOOS_VALUE")"
+binary_path="$stage_dir/$(binary_name "$VARIANT" "$GOOS_VALUE")"
+trap 'cleanup_embedded_assets; rm -rf "$stage_root"' EXIT
 
-env \
-  CGO_ENABLED=0 \
-  GOOS="$GOOS_VALUE" \
-  GOARCH="$GOARCH_VALUE" \
+if [[ "$VARIANT" == "full" ]]; then
+  prepare_full_assets
+  BUILD_TAG_ARGS=( -tags cli_full )
+else
+  BUILD_TAG_ARGS=()
+fi
+
+env CGO_ENABLED=0 GOOS="$GOOS_VALUE" GOARCH="$GOARCH_VALUE" \
   go build \
+  "${BUILD_TAG_ARGS[@]}" \
   -trimpath \
   -ldflags "-s -w -X main.version=$VERSION" \
   -o "$binary_path" \
   ./cmd/cloud-volume-cli
 
 cp "$ROOT_DIR/README.md" "$stage_dir/README.md"
-archive_path="$OUTPUT_DIR/$(archive_name "$GOOS_VALUE" "$GOARCH_VALUE")"
-package_archive "$stage_dir" "$archive_path"
+if [[ "$VARIANT" == "full" ]]; then
+  cat > "$stage_dir/START.txt" <<START
+Run the embedded web console:
+  ./$(binary_name "$VARIANT" "$GOOS_VALUE") web --listen :8080
+START
+fi
 
-rm -rf "$stage_root"
+archive_path="$OUTPUT_DIR/$(archive_name "$VARIANT" "$GOOS_VALUE" "$GOARCH_VALUE")"
+package_archive "$stage_dir" "$archive_path"

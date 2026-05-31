@@ -69,7 +69,7 @@ write_download_notes() {
 - Apple Silicon 用户如果只想下载更精简的包，也可以直接使用 `macos-arm64`。
 - Windows 用户优先下载 `yunjuan-windows-amd64-installer.exe`；如需绿色版可使用 `.zip` 包。
 - Linux 桌面用户可按需选择 `AppImage` 或 `tar.gz`。
-- Linux 服务器场景推荐使用 `yunjuan-cli-*` 或 `yunjuan-web-*` 发布包。
+- Linux 服务器场景推荐使用 `yunjuan-cli-lite-*`、`yunjuan-cli-full-*` 或 `yunjuan-web-*` 发布包。
 
 SECTION
 }

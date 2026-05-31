@@ -21,6 +21,7 @@ endif
 BRIDGE_DIR := bin/bridge
 CLI_DIR := bin
 CLI_OUT := $(CLI_DIR)/cloud-volume-cli
+CLI_FULL_OUT := $(CLI_DIR)/cloud-volume-cli-full
 MACOS_BRIDGE_OUT := $(BRIDGE_DIR)/libremote_storage_bridge.dylib
 LINUX_BRIDGE_OUT := $(BRIDGE_DIR)/libremote_storage_bridge.so
 WINDOWS_BRIDGE_OUT := $(BRIDGE_DIR)/remote_storage_bridge.dll
@@ -34,7 +35,7 @@ ifneq ($(BRIDGE_CXX),)
 BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
 endif
 
-.PHONY: bridge bridge-macos bridge-linux bridge-windows cli build-cli cli-release cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64 run-cli run run-macos run-linux run-web build build-macos build-linux build-windows build-web test analyze clean
+.PHONY: bridge bridge-macos bridge-linux bridge-windows cli cli-full build-cli build-cli-full cli-release cli-release-full cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64 cli-release-full-linux-amd64 cli-release-full-linux-arm64 cli-release-full-darwin-amd64 cli-release-full-darwin-arm64 cli-release-full-windows-amd64 run-cli run run-macos run-linux run-web build build-macos build-linux build-windows build-web test analyze clean
 
 bridge:
 ifeq ($(HOST_PLATFORM),macos)
@@ -69,24 +70,48 @@ build-cli:
 	@mkdir -p $(CLI_DIR)
 	go build -o $(CLI_OUT) ./cmd/cloud-volume-cli
 
+build-cli-full:
+	@mkdir -p $(CLI_DIR)
+	go build -tags cli_full -o $(CLI_FULL_OUT) ./cmd/cloud-volume-cli
+
 cli: build-cli
+
+cli-full: build-web
+	./scripts/build_cli_packages.sh --goos $(shell go env GOOS) --goarch $(shell go env GOARCH) --version dev --variant full --output-dir dist/cli-local
 
 cli-release: cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64
 
+cli-release-full: cli-release-full-linux-amd64 cli-release-full-linux-arm64 cli-release-full-darwin-amd64 cli-release-full-darwin-arm64 cli-release-full-windows-amd64
+
 cli-release-linux-amd64:
-	./scripts/build_cli_packages.sh --goos linux --goarch amd64 --version dev --output-dir dist/cli
+	./scripts/build_cli_packages.sh --goos linux --goarch amd64 --version dev --variant lite --output-dir dist/cli
 
 cli-release-linux-arm64:
-	./scripts/build_cli_packages.sh --goos linux --goarch arm64 --version dev --output-dir dist/cli
+	./scripts/build_cli_packages.sh --goos linux --goarch arm64 --version dev --variant lite --output-dir dist/cli
 
 cli-release-darwin-amd64:
-	./scripts/build_cli_packages.sh --goos darwin --goarch amd64 --version dev --output-dir dist/cli
+	./scripts/build_cli_packages.sh --goos darwin --goarch amd64 --version dev --variant lite --output-dir dist/cli
 
 cli-release-darwin-arm64:
-	./scripts/build_cli_packages.sh --goos darwin --goarch arm64 --version dev --output-dir dist/cli
+	./scripts/build_cli_packages.sh --goos darwin --goarch arm64 --version dev --variant lite --output-dir dist/cli
 
 cli-release-windows-amd64:
-	./scripts/build_cli_packages.sh --goos windows --goarch amd64 --version dev --output-dir dist/cli
+	./scripts/build_cli_packages.sh --goos windows --goarch amd64 --version dev --variant lite --output-dir dist/cli
+
+cli-release-full-linux-amd64:
+	./scripts/build_cli_packages.sh --goos linux --goarch amd64 --version dev --variant full --output-dir dist/cli
+
+cli-release-full-linux-arm64:
+	./scripts/build_cli_packages.sh --goos linux --goarch arm64 --version dev --variant full --output-dir dist/cli
+
+cli-release-full-darwin-amd64:
+	./scripts/build_cli_packages.sh --goos darwin --goarch amd64 --version dev --variant full --output-dir dist/cli
+
+cli-release-full-darwin-arm64:
+	./scripts/build_cli_packages.sh --goos darwin --goarch arm64 --version dev --variant full --output-dir dist/cli
+
+cli-release-full-windows-amd64:
+	./scripts/build_cli_packages.sh --goos windows --goarch amd64 --version dev --variant full --output-dir dist/cli
 
 run-cli: build-cli
 	./$(CLI_OUT)

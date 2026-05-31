@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 发布体系现在新增 `cloud-volume-cli-full` 变体：保留原有 `cloud-volume-cli` lite 包和独立 `cloud-volume-web` 包不变，同时额外发布内嵌 Flutter Web 静态资源的单文件 full CLI，提供 `web` 子命令启动浏览器控制台，并把对应构建说明同步到了 README、Release 文案和 GitHub Actions workflow。
 - Windows 桌面窗口启动位置现在会按主屏工作区居中计算，不再每次都固定从左上角打开。
 - Windows 本地启动脚本现在同时兼容 PowerShell 风格的 `-Build` / `-SkipPubGet` 与常见的 GNU 风格 `--build` / `--skip-pub-get`，避免误把“仅构建”命令当成调试启动执行。
 - 桌面端文件管理首页在获取存储桶列表失败时，错误提示现在除了“重试”外还会显示“重新配置认证信息”，可直接跳回 AK/SK/Endpoint 配置页修改后再重试。

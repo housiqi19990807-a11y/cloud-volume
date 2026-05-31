@@ -23,21 +23,41 @@ env:
 
 jobs:
   cli:
-    name: cli
+    name: cli-${{ matrix.variant }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - goos: linux
+          - variant: lite
+            goos: linux
             goarch: amd64
-          - goos: linux
+          - variant: lite
+            goos: linux
             goarch: arm64
-          - goos: darwin
+          - variant: lite
+            goos: darwin
             goarch: amd64
-          - goos: darwin
+          - variant: lite
+            goos: darwin
             goarch: arm64
-          - goos: windows
+          - variant: lite
+            goos: windows
+            goarch: amd64
+          - variant: full
+            goos: linux
+            goarch: amd64
+          - variant: full
+            goos: linux
+            goarch: arm64
+          - variant: full
+            goos: darwin
+            goarch: amd64
+          - variant: full
+            goos: darwin
+            goarch: arm64
+          - variant: full
+            goos: windows
             goarch: amd64
     steps:
       - name: Checkout
@@ -52,6 +72,14 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Set up Flutter
+        if: ${{ matrix.variant == 'full' }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
           cache: true
 
       - name: Install CLI packaging helpers
@@ -70,7 +98,7 @@ jobs:
       - name: Upload CLI assets
         uses: actions/upload-artifact@v4
         with:
-          name: yunjuan-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: yunjuan-cli-${{ matrix.variant }}-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/cli/*
           if-no-files-found: error
 

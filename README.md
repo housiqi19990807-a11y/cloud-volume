@@ -238,14 +238,20 @@ cloud-volume[media:/reports/2026]> get summary.csv ./summary.csv
 
 CLI 发布产物命名：
 
-- Linux：`yunjuan-cli-linux-amd64.tar.gz`、`yunjuan-cli-linux-arm64.tar.gz`
-- macOS：`yunjuan-cli-darwin-amd64.tar.gz`、`yunjuan-cli-darwin-arm64.tar.gz`
-- Windows：`yunjuan-cli-windows-amd64.zip`
+- Lite CLI：`yunjuan-cli-lite-linux-amd64.tar.gz`、`yunjuan-cli-lite-linux-arm64.tar.gz`、`yunjuan-cli-lite-darwin-amd64.tar.gz`、`yunjuan-cli-lite-darwin-arm64.tar.gz`、`yunjuan-cli-lite-windows-amd64.zip`
+- Full CLI：`yunjuan-cli-full-linux-amd64.tar.gz`、`yunjuan-cli-full-linux-arm64.tar.gz`、`yunjuan-cli-full-darwin-amd64.tar.gz`、`yunjuan-cli-full-darwin-arm64.tar.gz`、`yunjuan-cli-full-windows-amd64.zip`
 
-本地如果需要一把构建所有 CLI 发布包，可以直接运行：
+其中：
+
+- `cloud-volume-cli` 对应 lite 版，只包含原有 CLI 能力。
+- `cloud-volume-cli-full` 对应 full 版，额外内嵌 Flutter web 静态资源并提供 `web` 子命令，可单文件启动浏览器控制台。
+- 原有独立 Web 运行时产物 `yunjuan-web-linux-*` 仍会继续发布，适合单独部署 `cloud-volume-web`。
+
+本地如果需要构建 CLI 发布包，可以运行：
 
 ```bash
 make cli-release
+make cli-release-full
 ```
 
 ### Web 本地开发
@@ -264,6 +270,14 @@ make run-web
 - 启动 `go run ./cmd/web --listen :8080 --static-root build/web`
 
 然后打开 `http://127.0.0.1:8080`。
+
+如果想测试新的单文件 full CLI，也可以直接运行：
+
+```bash
+./bin/cloud-volume-cli-full web --listen :8080
+```
+
+这个子命令会优先使用二进制内嵌的 Flutter web 静态资源，不依赖外部 `build/web` 目录。
 
 Web 端行为和桌面端有几个关键差异：
 
@@ -310,8 +324,15 @@ Web 端行为和桌面端有几个关键差异：
 - macOS `universal` / `arm64`：桌面版 `dmg`、`zip`
 - Windows `amd64`：桌面版 `installer.exe`、`zip`
 - Linux `amd64`：桌面版 `tar.gz`、`AppImage`
-- Linux `amd64` / `arm64`：CLI `tar.gz`
+- Linux / macOS / Windows：Lite CLI 发布包
+- Linux / macOS / Windows：Full CLI 发布包，内含 `cloud-volume-cli-full` 单文件二进制
 - Linux `amd64` / `arm64`：Web 服务端 `tar.gz`，内含 `cloud-volume-web` 和对应静态站点
+
+CLI / Web 发布形态说明：
+
+- Lite CLI 继续保留现有 `cloud-volume-cli` 行为，不包含 `web` 子命令。
+- Full CLI 新增 `cloud-volume-cli-full`，通过内嵌文件系统提供 `web` 子命令，适合单文件分发。
+- 独立 Web 版继续保留 `cloud-volume-web`，适合把静态资源和服务端一起解压部署。
 
 Linux 桌面版同时提供 `tar.gz` 和 `AppImage`：
 

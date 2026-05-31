@@ -3,10 +3,8 @@ package webapi
 
 import (
 	"encoding/json"
-	"errors"
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -26,11 +24,13 @@ type responseError struct {
 // Options controls how the web server exposes static assets.
 type Options struct {
 	StaticRoot string
+	StaticFS   fs.FS
 }
 
 // Server owns browser auth state plus cached WebDAV handlers.
 type Server struct {
 	staticRoot string
+	staticFS   fs.FS
 	sessions   *sessionStore
 	webdav     *webDAVService
 }
@@ -38,6 +38,7 @@ type Server struct {
 func NewServer(options Options) *Server {
 	return &Server{
 		staticRoot: strings.TrimSpace(options.StaticRoot),
+		staticFS:   options.StaticFS,
 		sessions:   newSessionStore(),
 		webdav:     newWebDAVService(),
 	}
@@ -128,30 +129,4 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Secure:   r.TLS != nil,
 	})
-}
-
-func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		http.NotFound(w, r)
-		return
-	}
-	if s.staticRoot == "" {
-		http.Error(w, "web static root is not configured", http.StatusServiceUnavailable)
-		return
-	}
-	cleanPath := filepath.Clean(strings.TrimPrefix(r.URL.Path, "/"))
-	if cleanPath == "." {
-		cleanPath = "index.html"
-	}
-	targetPath := filepath.Join(s.staticRoot, cleanPath)
-	if info, err := os.Stat(targetPath); err == nil && !info.IsDir() {
-		http.ServeFile(w, r, targetPath)
-		return
-	}
-	indexPath := filepath.Join(s.staticRoot, "index.html")
-	if _, err := os.Stat(indexPath); errors.Is(err, os.ErrNotExist) {
-		http.Error(w, "web build output was not found", http.StatusServiceUnavailable)
-		return
-	}
-	http.ServeFile(w, r, indexPath)
 }
