@@ -105,6 +105,13 @@ func (a *bucketAccess) close() error {
 	return nil
 }
 
+func (a *bucketAccess) drainWriteback() error {
+	if a == nil || a.writeback == nil {
+		return nil
+	}
+	return a.writeback.drain()
+}
+
 func (a *bucketAccess) release() {
 	if a == nil {
 		return
@@ -125,6 +132,8 @@ type writebackQueue struct {
 	entries  map[string]*pendingWriteback
 	running  map[string]*pendingWriteback
 	closed   bool
+	draining bool
+	drainErr error
 	queue    chan *pendingWriteback
 	pool     *ants.Pool
 	wg       sync.WaitGroup

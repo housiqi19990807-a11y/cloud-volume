@@ -2,6 +2,8 @@
 package mount
 
 import (
+	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -228,6 +230,57 @@ func (q *writebackQueue) shutdown() error {
 	return nil
 }
 
+func (q *writebackQueue) drain() error {
+	if q == nil {
+		return nil
+	}
+
+	q.mu.Lock()
+	if q.closed {
+		q.mu.Unlock()
+		return fmt.Errorf("writeback queue is closed")
+	}
+	q.draining = true
+	q.drainErr = nil
+	q.mu.Unlock()
+	defer func() {
+		q.mu.Lock()
+		q.draining = false
+		q.mu.Unlock()
+	}()
+
+	for {
+		ready, pending, running, err := q.prepareDrainPass()
+		if err != nil {
+			return err
+		}
+		if pending == 0 && running == 0 {
+			log.Printf("[mount/writeback] drain-idle bucket=%q", q.bucketName())
+			return nil
+		}
+		if len(ready) > 0 {
+			log.Printf(
+				"[mount/writeback] drain-trigger bucket=%q ready=%d pending=%d running=%d",
+				q.bucketName(),
+				len(ready),
+				pending,
+				running,
+			)
+			for _, entry := range ready {
+				q.enqueueDrainEntry(entry)
+			}
+		} else {
+			log.Printf(
+				"[mount/writeback] drain-wait bucket=%q pending=%d running=%d",
+				q.bucketName(),
+				pending,
+				running,
+			)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func nextWritebackRetryDelay(retryCount int) time.Duration {
 	if retryCount <= 0 {
 		return writebackRetryBaseDelay
@@ -252,4 +305,41 @@ func (q *writebackQueue) discardEntryLocalState(entry *pendingWriteback) {
 		access.cache.invalidatePath(entry.virtualPath)
 		_ = s3ops.DiscardResumableUpload(access.config, entry.localPath)
 	}
+}
+
+func (q *writebackQueue) prepareDrainPass() ([]*pendingWriteback, int, int, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if q.closed {
+		return nil, 0, 0, fmt.Errorf("writeback queue is closed")
+	}
+	if q.drainErr != nil {
+		return nil, len(q.entries), len(q.running), q.drainErr
+	}
+	ready := make([]*pendingWriteback, 0, len(q.entries))
+	for _, entry := range q.entries {
+		if entry == nil {
+			continue
+		}
+		if entry.timer != nil {
+			entry.timer.Stop()
+			entry.timer = nil
+		}
+		if entry.queued {
+			continue
+		}
+		entry.queued = true
+		entry.dueAt = time.Now()
+		q.persistEntryLocked(entry)
+		ready = append(ready, entry)
+	}
+	return ready, len(q.entries), len(q.running), nil
+}
+
+func (q *writebackQueue) enqueueDrainEntry(entry *pendingWriteback) {
+	if entry == nil {
+		return
+	}
+	q.queue <- entry
 }

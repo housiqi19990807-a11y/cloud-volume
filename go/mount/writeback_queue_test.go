@@ -267,3 +267,67 @@ func TestFlushNowReschedulesModifiedRunningEntry(t *testing.T) {
 		t.Fatalf("expected refreshed entry due in the future, got %v", refreshed.dueAt)
 	}
 }
+
+func TestDrainFlushesQueuedEntriesBeforeShutdown(t *testing.T) {
+	access := newTestBucketAccess(t)
+	virtualPath := "archive/output.zip"
+	localPath := filepath.Join(access.cacheRoot, "archive", "output.zip")
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		t.Fatalf("mkdir local path: %v", err)
+	}
+	payload := []byte("payload")
+	if err := os.WriteFile(localPath, payload, 0o644); err != nil {
+		t.Fatalf("write staged file: %v", err)
+	}
+
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	access.config.Endpoint = "http://127.0.0.1:1"
+	access.config.AccessKeyID = "ak"
+	access.config.SecretAccessKey = "sk"
+	access.transferTimeout = 100 * time.Millisecond
+
+	access.writeback.enqueue(virtualPath, localPath, int64(len(payload)))
+	if err := access.writeback.drain(); err == nil {
+		t.Fatal("expected drain upload failure against invalid endpoint")
+	}
+	if entry := access.writeback.entries[virtualPath]; entry == nil {
+		t.Fatal("expected failed drain to keep queued entry for retry")
+	}
+	if len(access.writeback.running) != 0 {
+		t.Fatalf("expected no running entries after drain failure, got %d", len(access.writeback.running))
+	}
+}
+
+func TestDrainWaitsForRunningEntries(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	entry := &pendingWriteback{
+		taskID:      "task-running",
+		virtualPath: "archive/output.zip",
+		localPath:   filepath.Join(access.cacheRoot, "archive", "output.zip"),
+	}
+	access.writeback.running[entry.taskID] = entry
+
+	done := make(chan error, 1)
+	go func() {
+		done <- access.writeback.drain()
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("drain returned before running task completed: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	delete(access.writeback.running, entry.taskID)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("drain returned error after running task cleared: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("drain did not finish after running task cleared")
+	}
+}

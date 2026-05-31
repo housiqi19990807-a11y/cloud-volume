@@ -74,6 +74,17 @@ func (b *linuxFUSEBackend) Stop(session *mountSession) error {
 	session.mounted = false
 
 	var firstErr error
+	if session.access != nil {
+		log.Printf("[mount/linux] drain-start bucket=%q mount_path=%q", session.bucket, session.mountPath)
+		if err := session.access.drainWriteback(); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("drain linux writeback: %w", err)
+		}
+		if firstErr != nil {
+			log.Printf("[mount/linux] drain-error bucket=%q mount_path=%q error=%v", session.bucket, session.mountPath, firstErr)
+		} else {
+			log.Printf("[mount/linux] drain-done bucket=%q mount_path=%q", session.bucket, session.mountPath)
+		}
+	}
 	if b.server != nil {
 		if err := b.server.Unmount(); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("unmount linux fuse: %w", err)

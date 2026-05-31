@@ -129,7 +129,7 @@ func waitForMountedBucket(bucket string) error {
 		select {
 		case sig := <-signalCh:
 			log.Printf("[cli/mount] signal bucket=%q signal=%s", bucket, sig)
-			fmt.Printf("收到信号 %s，开始卸载...\n", sig)
+			fmt.Printf("收到信号 %s，正在等待未推送任务完成并卸载...\n", sig)
 			_, err := bucketmount.UnmountBucket(bucket)
 			if err != nil {
 				log.Printf("[cli/mount] unmount-error bucket=%q error=%v", bucket, err)

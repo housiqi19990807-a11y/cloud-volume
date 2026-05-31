@@ -152,7 +152,7 @@ make build-cli
 - 不传 `--bucket` 时，会回退到 `~/.remote-storage/config.toml` 里的默认 `bucket`
 - 如果既没有传 `--bucket`，配置里也没有默认 bucket，CLI 会先拉取 bucket 列表让你选择
 - 不传 `--mount-point` 时，仍使用默认目录 `~/Cloud Volume/<bucket>`
-- `mount` 会前台常驻，按 `Ctrl+C` 会触发卸载
+- `mount` 会前台常驻；Linux CLI 下按 `Ctrl+C` 会先等待当前 bucket 里尚未推送完成的写回任务刷完，再执行卸载
 - 自定义挂载目录必须为空目录；CLI 不会删除你自定义目录里的已有内容
 - `put` / `get` 现在默认支持目录递归；上传目录时会同步创建远端目录占位符，下载目录时会在本地重建目录树
 - `rm` / `delete` 当前走硬删除，对象和前缀都会直接从 bucket 删除，不会进入应用级回收站

@@ -178,6 +178,7 @@ func (q *writebackQueue) flush(entry *pendingWriteback) {
 	discard := entry.discard
 	q.mu.Unlock()
 	if err != nil && !discard && !errors.Is(err, context.Canceled) {
+		q.recordDrainError(err)
 		log.Printf(
 			"[mount/writeback] flush-error bucket=%q path=%q local_path=%q error=%v",
 			q.bucketName(),
@@ -331,6 +332,18 @@ func (q *writebackQueue) projectSyncState(virtualPath string, inSync bool) {
 		return
 	}
 	access.projectSyncState(virtualPath, inSync)
+}
+
+func (q *writebackQueue) recordDrainError(err error) {
+	if err == nil {
+		return
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if !q.draining || q.drainErr != nil {
+		return
+	}
+	q.drainErr = err
 }
 
 func s3opsQueueTransferForEntry(access *bucketAccess, entry *pendingWriteback) {
