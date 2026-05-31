@@ -83,6 +83,15 @@ class ConfigRightFormPanel extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 28),
+                      _sectionLabel(context, '连接信息'),
+                      const SizedBox(height: 16),
+                      _fieldLabel(context, '网关地址'),
+                      const SizedBox(height: 6),
+                      ShadInput(
+                        controller: endpointController,
+                        placeholder: const Text('https://s3.example.com'),
+                      ),
+                      const SizedBox(height: 22),
                       // 认证字段和操作入口都保持在同一段自然流布局里，避免按钮被
                       // 挤到窗口底部。
                       _sectionLabel(context, '认证信息'),
@@ -248,7 +257,6 @@ class ConfigRightFormPanel extends StatelessWidget {
 
   /// 打开高级设置弹窗。
   void _openAdvancedDialog(BuildContext context) {
-    final epCtrl = TextEditingController(text: endpointController.text);
     final rgCtrl = TextEditingController(text: regionController.text);
     var pathStyle = usePathStyle;
 
@@ -257,7 +265,7 @@ class ConfigRightFormPanel extends StatelessWidget {
       builder: (dialogContext) {
         return ShadDialog(
           title: const Text('高级设置'),
-          description: const Text('配置端点地址、区域和连接选项。'),
+          description: const Text('配置区域和连接选项。'),
           child: StatefulBuilder(
             builder: (dialogContext, setDialogState) {
               final theme = ShadTheme.of(dialogContext);
@@ -268,13 +276,6 @@ class ConfigRightFormPanel extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const SizedBox(height: 8),
-                    _fieldLabel(dialogContext, '端点地址'),
-                    const SizedBox(height: 5),
-                    ShadInput(
-                      controller: epCtrl,
-                      placeholder: const Text('https://s3.example.com'),
-                    ),
-                    const SizedBox(height: 14),
                     _fieldLabel(dialogContext, '区域'),
                     const SizedBox(height: 5),
                     ShadInput(
@@ -311,7 +312,6 @@ class ConfigRightFormPanel extends StatelessWidget {
                         const SizedBox(width: 10),
                         ShadButton(
                           onPressed: () {
-                            endpointController.text = epCtrl.text;
                             regionController.text = rgCtrl.text;
                             onPathStyleChanged(pathStyle);
                             Navigator.of(dialogContext).pop();

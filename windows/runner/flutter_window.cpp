@@ -211,6 +211,10 @@ void FlutterWindow::ShowTrayContextMenu() {
   if (clicked != 0) {
     HandleTrayCommand(clicked);
   }
+
+  // TrackPopupMenu on a notification icon needs a follow-up message so the
+  // shell can fully dismiss the temporary menu loop after right-click.
+  PostMessage(GetHandle(), WM_NULL, 0, 0);
 }
 
 bool FlutterWindow::HandleTrayCommand(UINT command_id) {

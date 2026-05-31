@@ -203,9 +203,13 @@ package_macos_zip() {
 package_macos_dmg() {
   local app_bundle="$1"
   local dmg_path="$2"
-  local stage_dir
+  local stage_dir fix_script
   stage_dir="$(mktemp -d)"
+  fix_script="$ROOT_DIR/packaging/macos/双击修复已损坏问题.command"
   ditto "$app_bundle" "$stage_dir/$(basename "$app_bundle")"
+  [[ -f "$fix_script" ]] || fail "Missing macOS quarantine helper: $fix_script"
+  cp "$fix_script" "$stage_dir/$(basename "$fix_script")"
+  chmod +x "$stage_dir/$(basename "$fix_script")"
   ln -s /Applications "$stage_dir/Applications"
   rm -f "$dmg_path"
   hdiutil create \
@@ -303,6 +307,7 @@ build_windows_installer() {
       /DAppName='$APP_NAME' \
       /DAppVersion='$VERSION' \
       /DAppPublisher='云卷' \
+      /DAppInstallDirName='Cloud Volume' \
       /DSourceDir='$source_dir_win' \
       /DOutputDir='$output_dir_win' \
       /DOutputBaseFilename='$installer_base' \

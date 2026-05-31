@@ -46,6 +46,7 @@ final class MenuBarController: NSObject {
     button.title = ""
     button.target = self
     button.action = #selector(handleStatusItemPressed(_:))
+    button.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
     if let image = makeTrayStatusImage() {
       button.image = image

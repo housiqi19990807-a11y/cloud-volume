@@ -9,6 +9,9 @@
 #ifndef AppPublisher
   #define AppPublisher "云卷"
 #endif
+#ifndef AppInstallDirName
+  #define AppInstallDirName "Cloud Volume"
+#endif
 #ifndef SourceDir
   #error SourceDir must be defined.
 #endif
@@ -30,7 +33,7 @@ AppId={{B291B621-9AA2-4E6C-9D2A-1F7E44580757}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\{#AppName}
+DefaultDirName={autopf}\{#AppInstallDirName}
 DefaultGroupName={#AppName}
 ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
