@@ -49,11 +49,11 @@ final class MenuBarController: NSObject {
 
     if let image = NSImage(named: "TrayIcon")?.copy() as? NSImage {
       image.isTemplate = true
-      image.size = NSSize(width: 18, height: 18)
+      image.size = NSSize(width: 20, height: 20)
       button.image = image
     } else if let image = NSApp.applicationIconImage.copy() as? NSImage {
       image.isTemplate = true
-      image.size = NSSize(width: 18, height: 18)
+      image.size = NSSize(width: 20, height: 20)
       button.image = image
     }
   }
