@@ -108,7 +108,6 @@ make build-cli
 - `access key id`
 - `secret access key`
 - `bucket`
-- `root prefix`
 - `use_path_style`
 
 默认会立即校验 endpoint、凭证和 bucket 可访问性；如果当前账号没有 `ListBuckets` 权限，或者你只是想先保存配置，可以改用：

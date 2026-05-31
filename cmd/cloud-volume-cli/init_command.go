@@ -50,9 +50,6 @@ func runInitCommand(args []string) error {
 	if cfg.SecretAccessKey, err = ui.askSecret("Secret Access Key", cfg.SecretAccessKey); err != nil {
 		return err
 	}
-	if cfg.RootPrefix, err = ui.askString("Root Prefix", cfg.RootPrefix, false); err != nil {
-		return err
-	}
 	if cfg.UsePathStyle, err = ui.askBool("启用 path-style URL", cfg.UsePathStyle); err != nil {
 		return err
 	}
