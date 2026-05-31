@@ -1,13 +1,15 @@
-// 设置页负责按“通用 / Windows”分组展示配置，避免平台专属选项把通用设置挤在同一长页里。
+// 设置页负责按“通用 / Windows / 关于”分组展示配置，避免平台专属选项把通用设置挤在同一长页里。
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/settings_about_section.dart';
 import 'package:remote_storage/widgets/settings_sections.dart'
     show
         DownloadDirectorySection,
@@ -20,7 +22,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'settings_page_actions.dart';
 
-enum _SettingsTab { general, windows }
+enum _SettingsTab { general, windows, about }
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -59,10 +61,33 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
   bool _cleaningStaleWindowsProcesses = false;
+  late String _appVersionText = '读取中...';
 
   bool get _showsWindowsTab => isWindowsPlatform;
 
   void _updateState(VoidCallback action) => setState(action);
+
+  Future<void> _loadAboutVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      final buildNumber = packageInfo.buildNumber.trim();
+      final version = packageInfo.version.trim();
+      final versionText = buildNumber.isEmpty
+          ? version
+          : '$version+$buildNumber';
+      _updateState(() => _appVersionText = versionText);
+    } catch (_) {
+      if (!mounted) return;
+      _updateState(() => _appVersionText = '未知版本');
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAboutVersion();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,19 +116,19 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const SizedBox(height: 24),
-            if (_showsWindowsTab)
-              ShadTabs<_SettingsTab>(
-                value: _activeTab,
-                onChanged: (value) => setState(() => _activeTab = value),
-                tabs: [
-                  ShadTab<_SettingsTab>(
-                    value: _SettingsTab.general,
-                    content: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _buildGeneralSections(theme, config),
-                    ),
-                    child: const Text('通用设置'),
+            ShadTabs<_SettingsTab>(
+              value: _activeTab,
+              onChanged: (value) => setState(() => _activeTab = value),
+              tabs: [
+                ShadTab<_SettingsTab>(
+                  value: _SettingsTab.general,
+                  content: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _buildGeneralSections(theme, config),
                   ),
+                  child: const Text('通用设置'),
+                ),
+                if (_showsWindowsTab)
                   ShadTab<_SettingsTab>(
                     value: _SettingsTab.windows,
                     content: Column(
@@ -112,10 +137,16 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     child: const Text('Windows 设置'),
                   ),
-                ],
-              )
-            else
-              ..._buildGeneralSections(theme, config),
+                ShadTab<_SettingsTab>(
+                  value: _SettingsTab.about,
+                  content: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: _buildAboutSections(theme),
+                  ),
+                  child: const Text('关于'),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
             _buildFooterActions(),
             const SizedBox(height: 40),
@@ -248,6 +279,16 @@ class _SettingsPageState extends State<SettingsPage> {
     ];
   }
 
+  List<Widget> _buildAboutSections(ShadThemeData theme) {
+    return [
+      _buildCard(
+        theme,
+        '关于云卷',
+        SettingsAboutSection(theme: theme, versionText: _appVersionText),
+      ),
+    ];
+  }
+
   Widget _buildConnectionInfo(ShadThemeData theme, RemoteStorageConfig config) {
     return Column(
       children: [
@@ -283,10 +324,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         if (widget.api.capabilities.supportsSessionLogin) ...[
           const SizedBox(width: 10),
-          ShadButton.outline(
-            onPressed: _logout,
-            child: const Text('退出登录'),
-          ),
+          ShadButton.outline(onPressed: _logout, child: const Text('退出登录')),
         ],
       ],
     );
