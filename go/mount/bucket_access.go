@@ -25,6 +25,7 @@ type bucketAccess struct {
 	transferTimeout time.Duration
 	listTTL         time.Duration
 	prefetchTTL     time.Duration
+	allowPrefetch   bool
 	autoSync        bool
 	uploadWorkers   int
 
@@ -75,6 +76,7 @@ func newBucketAccess(
 		transferTimeout: defaultTransferTimeout * time.Second,
 		listTTL:         defaultCacheTTL * time.Second,
 		prefetchTTL:     defaultPrefetchTTL * time.Second,
+		allowPrefetch:   false,
 		cache:           newBucketCache(defaultCacheTTL*time.Second, defaultPrefetchTTL*time.Second),
 		overlay:         overlay,
 	}

@@ -3,6 +3,7 @@ package mount
 
 import (
 	"context"
+	"log"
 	"strconv"
 	"strings"
 
@@ -29,16 +30,23 @@ func (m *manager) listMountedObjectPage(
 	pageSize int32,
 ) (s3ops.ObjectPage, bool, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if err := m.syncSessionLocked(); err != nil {
+		m.mu.Unlock()
+		log.Printf("[mount/object-page] sync-error bucket=%q prefix=%q err=%v", bucket, prefix, err)
 		return s3ops.ObjectPage{}, false, err
 	}
-	if !mountSessionMatches(m.session, cfg, bucket, MountOptions{}) || m.session.access == nil {
+	session := m.session
+	if !mountSessionMatches(session, cfg, bucket, MountOptions{}) || session == nil || session.access == nil {
+		activeBucket := activeSessionBucket(session)
+		m.mu.Unlock()
+		log.Printf("[mount/object-page] remote-fallback bucket=%q prefix=%q active_bucket=%q", bucket, prefix, activeBucket)
 		return s3ops.ObjectPage{}, false, nil
 	}
+	access := session.access
+	m.mu.Unlock()
 
-	items, err := m.session.access.listDirectory(context.Background(), prefix)
+	log.Printf("[mount/object-page] mounted-list bucket=%q prefix=%q", bucket, prefix)
+	items, err := access.listDirectory(context.Background(), prefix)
 	if err != nil {
 		return s3ops.ObjectPage{}, true, err
 	}
@@ -75,4 +83,11 @@ func paginateObjectInfos(
 		page.NextToken = strconv.Itoa(end)
 	}
 	return page
+}
+
+func activeSessionBucket(session *mountSession) string {
+	if session == nil {
+		return ""
+	}
+	return session.bucket
 }

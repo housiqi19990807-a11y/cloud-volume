@@ -3,6 +3,7 @@ package mount
 
 import (
 	"context"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,9 @@ import (
 
 	s3ops "remote-storage/go/s3"
 )
+
+const prefetchDirectoryPageSize int32 = 20
+const maxPrefetchChildrenPerDirectory = 8
 
 func (a *bucketAccess) fetchDirectory(
 	ctx context.Context,
@@ -122,20 +126,62 @@ func (a *bucketAccess) downloadToCache(
 }
 
 func (a *bucketAccess) prefetchChildren(items []s3ops.ObjectInfo) {
+	if !a.allowPrefetch {
+		return
+	}
+	prefetched := 0
 	for _, item := range items {
 		if !item.IsDir {
 			continue
+		}
+		if prefetched >= maxPrefetchChildrenPerDirectory {
+			return
 		}
 		childPrefix := strings.TrimSuffix(item.Key, "/")
 		if !a.cache.shouldPrefetch(childPrefix) {
 			continue
 		}
+		prefetched++
 		go func(prefix string) {
 			ctx, cancel := context.WithTimeout(context.Background(), a.requestTimeout)
 			defer cancel()
-			_, _ = a.listDirectory(ctx, prefix)
+			if err := a.prefetchDirectoryPreview(ctx, prefix); err != nil {
+				log.Printf("[mount/prefetch] preview-error prefix=%q err=%v", prefix, err)
+			}
 		}(childPrefix)
 	}
+}
+
+func (a *bucketAccess) prefetchDirectoryPreview(
+	ctx context.Context,
+	virtualPrefix string,
+) error {
+	page, err := s3ops.ListObjectsPageContext(
+		ctx,
+		a.config,
+		a.bucket,
+		a.remotePrefix(virtualPrefix),
+		"",
+		prefetchDirectoryPageSize,
+	)
+	if err != nil {
+		return err
+	}
+	log.Printf(
+		"[mount/prefetch] preview prefix=%q items=%d next_token=%q",
+		cleanVirtualPath(virtualPrefix),
+		len(page.Items),
+		page.NextToken,
+	)
+	for _, item := range page.Items {
+		virtualKey, ok := a.virtualKey(item.Key, item.IsDir)
+		if !ok {
+			continue
+		}
+		item.Key = virtualKey
+		a.cache.storeObject(strings.TrimSuffix(virtualKey, "/"), item)
+	}
+	return nil
 }
 
 func (a *bucketAccess) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {

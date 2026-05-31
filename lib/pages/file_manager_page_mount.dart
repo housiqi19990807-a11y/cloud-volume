@@ -69,7 +69,7 @@ extension _FileManagerPageMount on _FileManagerPageState {
     if (!widget.api.capabilities.supportsMounts) {
       return;
     }
-    if (_mountStatusRefreshInFlight || _mountBusyBuckets.isNotEmpty) {
+    if (_loading || _mountStatusRefreshInFlight || _mountBusyBuckets.isNotEmpty) {
       return;
     }
     _mountStatusRefreshInFlight = true;
@@ -88,7 +88,11 @@ extension _FileManagerPageMount on _FileManagerPageState {
       await _refreshMountStatus(_activeBucket!);
       return;
     }
-    await _refreshBucketMountStatuses(_buckets ?? const <BucketInfo>[]);
+    final mountedBucket = _currentMountedBucketName();
+    if (mountedBucket == null) {
+      return;
+    }
+    await _refreshMountStatus(mountedBucket);
   }
 
   Future<void> _refreshBucketMountStatuses(List<BucketInfo> buckets) async {
@@ -111,6 +115,15 @@ extension _FileManagerPageMount on _FileManagerPageState {
     } catch (_) {
       // 挂载状态查询失败不阻断文件浏览；用户显式操作时再显示错误。
     }
+  }
+
+  String? _currentMountedBucketName() {
+    for (final entry in _bucketMountStatuses.entries) {
+      if (entry.value.mounted) {
+        return entry.key;
+      }
+    }
+    return null;
   }
 
   Future<void> _mountBucket([String? bucket]) async {
