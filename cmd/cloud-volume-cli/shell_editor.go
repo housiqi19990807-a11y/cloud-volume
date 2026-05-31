@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/peterh/liner"
 
@@ -16,6 +17,7 @@ import (
 type shellEditor struct {
 	line        *liner.State
 	historyPath string
+	mu          sync.Mutex
 }
 
 func newShellEditor(state *shellState) (*shellEditor, error) {
@@ -60,6 +62,41 @@ func (e *shellEditor) AppendHistory(line string) {
 		return
 	}
 	e.line.AppendHistory(trimmed)
+}
+
+func (e *shellEditor) Suspend() error {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.line == nil {
+		return nil
+	}
+	if err := e.saveHistory(); err != nil {
+		return err
+	}
+	e.line.Close()
+	e.line = nil
+	return nil
+}
+
+func (e *shellEditor) Resume(state *shellState) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.line != nil {
+		return nil
+	}
+	line := liner.NewLiner()
+	line.SetCtrlCAborts(true)
+	line.SetCompleter(func(input string) []string {
+		return completeShellInput(state, input)
+	})
+	e.line = line
+	return e.loadHistory()
 }
 
 func (e *shellEditor) loadHistory() error {

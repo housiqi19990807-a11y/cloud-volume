@@ -17,6 +17,7 @@ type shellState struct {
 	configPath     string
 	bucketOverride string
 	currentDir     string
+	editor         *shellEditor
 }
 
 var activeShell *shellState
@@ -48,8 +49,10 @@ func runShell() error {
 	if err != nil {
 		return err
 	}
+	state.editor = editor
 	defer func() {
 		_ = editor.Close()
+		state.editor = nil
 	}()
 
 	for {
@@ -98,6 +101,8 @@ func runShellCommand(state *shellState, args []string) error {
 		return nil
 	}
 	switch strings.ToLower(strings.TrimSpace(args[0])) {
+	case "init":
+		return runShellInitCommand(state, args[1:])
 	case "exit", "quit":
 		return errShellExit
 	case "bucket":
@@ -112,6 +117,19 @@ func runShellCommand(state *shellState, args []string) error {
 	default:
 		return run(args)
 	}
+}
+
+func runShellInitCommand(state *shellState, args []string) error {
+	if state == nil || state.editor == nil {
+		return runInitCommand(args)
+	}
+	if err := state.editor.Suspend(); err != nil {
+		return err
+	}
+	defer func() {
+		_ = state.editor.Resume(state)
+	}()
+	return runInitCommand(args)
 }
 
 func runShellBucketCommand(state *shellState, args []string) error {
