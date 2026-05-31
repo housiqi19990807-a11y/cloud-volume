@@ -43,7 +43,6 @@ WizardStyle=modern
 UninstallDisplayIcon={app}\remote_storage.exe
 
 [Languages]
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
