@@ -72,10 +72,12 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, err)
 		return
 	}
-	if method == "save_config" && input.Config.HasWebDAVCredentials() {
-		if err := s.establishSession(w, r); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
+	if method == "save_config" {
+		if state, ok := result.(storageconfig.BootstrapState); ok && isWebConfigured(state.Config) {
+			if err := s.establishSession(w, r); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
 		}
 	}
 	writeSuccess(w, result)

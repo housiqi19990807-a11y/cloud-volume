@@ -43,7 +43,7 @@
 
 - 应用通过 Go FFI bridge 读取 `~/.remote-storage/config.toml`。
 - 如果配置缺失或不完整，会先进入初始化配置页。
-- Web 端首次初始化除了 S3 `endpoint/region/bucket/access_key_id/secret_access_key` 之外，还要求配置一组 `webdav_username/webdav_password`，这组凭据同时用于浏览器登录和标准 WebDAV 客户端连接。
+- Web 端首次初始化只要求填写 S3 `endpoint/region/bucket/access_key_id/secret_access_key`；如果没有单独设置 WebDAV 凭据，后端会默认把 `access_key_id/secret_access_key` 作为浏览器登录和标准 WebDAV 客户端共用账号密码，后续可在系统设置里再单独修改。
 - 如果访问密钥、签名或网络配置有误，初始化页会把常见 S3 / 网络错误转换成更友好的中文提示。
 - 保存后进入主界面，后续设置页可以再次修改下载目录、显示选项、回收站策略等内容。
 - Web 端后续每次打开会先检查浏览器 Cookie 里的会话 token；如果没有有效 token，会先进入登录页，校验通过后才允许访问文件管理、分享、回收站和系统设置。
@@ -105,7 +105,7 @@ Web 端行为和桌面端有几个关键差异：
 - 不走 FFI，也不做本地文件系统挂载。
 - 桶列表中的“挂载/打开挂载目录”会替换成查看 WebDAV 地址。
 - 上传使用浏览器选中的内存文件，下载使用浏览器地址或新标签页。
-- 浏览器登录依赖 Cookie 会话；标准 WebDAV 客户端则使用 HTTP Basic Auth，并复用同一组 WebDAV 账号密码。
+- 浏览器登录依赖 Cookie 会话；标准 WebDAV 客户端则使用 HTTP Basic Auth。默认情况下两者都会复用当前 `AK/SK`，也可以在系统设置里改成独立的 WebDAV 账号密码。
 
 ## 配置项
 
@@ -118,8 +118,8 @@ Web 端行为和桌面端有几个关键差异：
 - `secret_access_key`：访问密钥 Secret
 - `root_prefix`：可选的根前缀
 - `use_path_style`：是否启用 path-style URL
-- `webdav_username`：Web 端登录 / WebDAV 客户端共用账号
-- `webdav_password`：Web 端登录 / WebDAV 客户端共用密码
+- `webdav_username`：可选；不填写时默认回退为 `access_key_id`
+- `webdav_password`：可选；不填写时默认回退为 `secret_access_key`
 
 其他应用级设置包括：
 

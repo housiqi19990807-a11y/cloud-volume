@@ -94,7 +94,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '使用初始化阶段配置的 WebDAV 账号密码进入当前存储控制台。',
+                          '默认使用当前 AK/SK 登录当前控制台；如果你在系统设置里改过 WebDAV 凭据，则这里使用修改后的账号密码。',
                           style: TextStyle(
                             color: theme.colorScheme.mutedForeground,
                             fontSize: 13,

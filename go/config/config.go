@@ -115,6 +115,19 @@ func (c RemoteStorageConfig) MergeStoredSecrets(existing RemoteStorageConfig) Re
 	return normalized
 }
 
+// WithDefaultWebDAVCredentials falls back to AK/SK when web credentials are omitted.
+func (c RemoteStorageConfig) WithDefaultWebDAVCredentials() RemoteStorageConfig {
+	normalized := c.Normalized()
+	if normalized.WebDAVUsername == "" {
+		normalized.WebDAVUsername = normalized.AccessKeyID
+	}
+	if normalized.WebDAVPassword == "" && normalized.SecretAccessKey != "" {
+		normalized.WebDAVPassword = normalized.SecretAccessKey
+	}
+	normalized.HasWebDAVPassword = normalized.WebDAVPassword != "" || normalized.HasWebDAVPassword
+	return normalized
+}
+
 // PublicSanitized clears secrets while preserving whether stored secrets exist.
 func (c RemoteStorageConfig) PublicSanitized() RemoteStorageConfig {
 	normalized := c.Normalized()

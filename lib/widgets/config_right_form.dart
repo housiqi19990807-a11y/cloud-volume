@@ -32,8 +32,8 @@ class ConfigRightFormPanel extends StatelessWidget {
   final TextEditingController secretKeyController;
   final bool hasStoredSecretKey;
   final bool showWebDavFields;
-  final TextEditingController webdavUsernameController;
-  final TextEditingController webdavPasswordController;
+  final TextEditingController? webdavUsernameController;
+  final TextEditingController? webdavPasswordController;
   final bool hasStoredWebdavPassword;
   final bool usePathStyle;
   final ValueChanged<bool> onPathStyleChanged;
@@ -107,21 +107,23 @@ class ConfigRightFormPanel extends StatelessWidget {
                         ),
                         obscureText: true,
                       ),
-                      if (showWebDavFields) ...[
+                      if (showWebDavFields &&
+                          webdavUsernameController != null &&
+                          webdavPasswordController != null) ...[
                         const SizedBox(height: 18),
                         _sectionLabel(context, 'WebDAV 登录'),
                         const SizedBox(height: 16),
                         _fieldLabel(context, 'WebDAV 账号'),
                         const SizedBox(height: 6),
                         ShadInput(
-                          controller: webdavUsernameController,
+                          controller: webdavUsernameController!,
                           placeholder: const Text('输入 WebDAV 登录账号'),
                         ),
                         const SizedBox(height: 18),
                         _fieldLabel(context, 'WebDAV 密码'),
                         const SizedBox(height: 6),
                         ShadInput(
-                          controller: webdavPasswordController,
+                          controller: webdavPasswordController!,
                           placeholder: Text(
                             hasStoredWebdavPassword
                                 ? '留空则保留当前已保存的 WebDAV 密码'

@@ -118,8 +118,6 @@ func TestSaveConfigCreatesSessionForFirstRun(t *testing.T) {
 				"bucket": "demo",
 				"accessKeyId": "ak-test",
 				"secretAccessKey": "sk-test",
-				"webdavUsername": "web-user",
-				"webdavPassword": "web-pass",
 				"usePathStyle": true
 			}
 		}`),
@@ -156,5 +154,17 @@ func TestSaveConfigCreatesSessionForFirstRun(t *testing.T) {
 	handler.ServeHTTP(bucketsRecorder, bucketsRequest)
 	if bucketsRecorder.Code != http.StatusOK {
 		t.Fatalf("expected first-run session to unlock protected routes, got %d body=%s", bucketsRecorder.Code, bucketsRecorder.Body.String())
+	}
+
+	loginRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/login",
+		strings.NewReader(`{"username":"ak-test","password":"sk-test"}`),
+	)
+	loginRequest.Header.Set("Content-Type", "application/json")
+	loginRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(loginRecorder, loginRequest)
+	if loginRecorder.Code != http.StatusOK {
+		t.Fatalf("expected defaulted AK/SK WebDAV credentials to login successfully, got %d body=%s", loginRecorder.Code, loginRecorder.Body.String())
 	}
 }
