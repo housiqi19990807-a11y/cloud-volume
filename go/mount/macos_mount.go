@@ -5,8 +5,8 @@ package mount
 
 import (
 	"fmt"
+	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -17,6 +17,7 @@ type unmountCommand struct {
 }
 
 func (s *mountSession) start() error {
+	log.Printf("[mount/session] start bucket=%q mount_name=%q", s.bucket, s.mountName)
 	server, serverURL, port, err := startWebDAVServer(s.access, s.mountName)
 	if err != nil {
 		return err
@@ -24,6 +25,13 @@ func (s *mountSession) start() error {
 	s.server = server
 	s.serverURL = serverURL
 	s.port = port
+	log.Printf(
+		"[mount/session] webdav-ready bucket=%q mount_name=%q url=%q port=%d",
+		s.bucket,
+		s.mountName,
+		serverURL,
+		port,
+	)
 
 	mountPath, err := mountWebDAV(serverURL)
 	if err != nil {
@@ -33,10 +41,17 @@ func (s *mountSession) start() error {
 	s.mountPath = mountPath
 	s.mountTarget = mountPath
 	s.mounted = true
+	log.Printf("[mount/session] mounted bucket=%q path=%q", s.bucket, mountPath)
 	return nil
 }
 
 func (s *mountSession) stop() error {
+	log.Printf(
+		"[mount/session] stop bucket=%q mounted=%t target=%q",
+		s.bucket,
+		s.mounted,
+		s.mountTarget,
+	)
 	var mountErr error
 	if s.mounted && s.mountTarget != "" {
 		active, err := isWebDAVMountActive(s.mountTarget)
@@ -49,10 +64,12 @@ func (s *mountSession) stop() error {
 	}
 	serverErr := error(nil)
 	if s.server != nil {
+		log.Printf("[mount/session] stop-webdav bucket=%q", s.bucket)
 		serverErr = s.server.stop()
 	}
 	accessErr := error(nil)
 	if s.access != nil {
+		log.Printf("[mount/session] close-access bucket=%q", s.bucket)
 		accessErr = s.access.close()
 	}
 	if mountErr != nil {
@@ -67,6 +84,7 @@ func (s *mountSession) stop() error {
 		s.lastError = accessErr.Error()
 		return accessErr
 	}
+	log.Printf("[mount/session] stop-done bucket=%q", s.bucket)
 	return nil
 }
 
@@ -75,8 +93,13 @@ func mountWebDAV(serverURL string) (string, error) {
 		"POSIX path of (mount volume %s)",
 		appleScriptStringLiteral(serverURL),
 	)
-	cmd := exec.Command("osascript", "-e", script)
-	output, err := cmd.CombinedOutput()
+	output, err := runLoggedCommand(
+		macosMountCommandTimeout,
+		"mount-volume",
+		"osascript",
+		"-e",
+		script,
+	)
 	if err != nil {
 		return "", fmt.Errorf("mount bucket with macOS mount volume: %w: %s", err, string(output))
 	}
@@ -91,12 +114,18 @@ func unmountWebDAV(mountPath string) error {
 	var lastErr error
 	var lastOutput string
 	for _, candidate := range unmountCommands(mountPath) {
-		cmd := exec.Command(candidate.name, candidate.args...)
-		output, err := cmd.CombinedOutput()
+		phase := fmt.Sprintf("unmount cmd=%s path=%s", filepath.Base(candidate.name), mountPath)
+		output, err := runLoggedCommand(
+			macosUnmountCommandTimeout,
+			phase,
+			candidate.name,
+			candidate.args...,
+		)
 		if err == nil {
 			return nil
 		}
 		if _, statErr := os.Stat(mountPath); statErr != nil && os.IsNotExist(statErr) {
+			log.Printf("[mount/macos] unmount-path-gone path=%q", mountPath)
 			return nil
 		}
 		lastErr = err
@@ -109,8 +138,7 @@ func unmountWebDAV(mountPath string) error {
 }
 
 func openMountPath(mountPath string) error {
-	cmd := exec.Command("open", mountPath)
-	output, err := cmd.CombinedOutput()
+	output, err := runLoggedCommand(macosOpenCommandTimeout, "open-mount-path", "open", mountPath)
 	if err != nil {
 		return fmt.Errorf("open mount path: %w: %s", err, string(output))
 	}

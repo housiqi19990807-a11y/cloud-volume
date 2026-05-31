@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- macOS 挂载调试日志现在会显式记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 与 WebDAV mount probe 各阶段，并给相关系统命令加上超时，避免旧挂载残留或系统挂载命令卡住时前端只表现为一直转圈但 bridge 日志停在入口行。
 - “关于”页版本信息现在统一走构建时注入的 `APP_VERSION_LABEL`：本地开发构建默认显示 `dev`，CI/tag 发布构建会显示对应版本号，不再依赖平台包元信息。
 - CLI 与 Web 运行时现在都支持直接输出版本号：顶层 `cloud-volume-cli version/--version` 继续保留，`cloud-volume-cli-full web version/--version` 与独立 `cloud-volume-web version/--version` 也会直接打印当前构建版本。
 - 设置页现在新增独立的“关于”子 Tab，并通过运行时版本信息展示当前应用版本，同时补充作者版权 `三千` 和 QQ 交流群 `572532027`。

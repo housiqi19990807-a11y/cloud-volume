@@ -3,6 +3,7 @@ package mount
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
@@ -69,6 +70,7 @@ func (m *manager) mountBucket(
 	if trimmedBucket == "" {
 		return BucketMountStatus{}, fmt.Errorf("missing bucket name")
 	}
+	log.Printf("[mount/manager] mount-start bucket=%q root_prefix=%q", trimmedBucket, normalizeRootPrefix(cfg.RootPrefix))
 
 	if err := m.syncSessionLocked(); err != nil {
 		return BucketMountStatus{}, err
@@ -91,15 +93,20 @@ func (m *manager) mountBucket(
 	if err != nil {
 		return BucketMountStatus{}, err
 	}
+	log.Printf("[mount/manager] mount-session-ready bucket=%q mount_name=%q target=%q", session.bucket, session.mountName, session.mountTarget)
 	if err := session.backend.CleanupStale(session); err != nil {
+		log.Printf("[mount/manager] mount-cleanup-stale-error bucket=%q err=%v", session.bucket, err)
 		return BucketMountStatus{}, err
 	}
+	log.Printf("[mount/manager] mount-cleanup-stale-done bucket=%q", session.bucket)
 	if err := session.backend.Start(session); err != nil {
+		log.Printf("[mount/manager] mount-start-error bucket=%q err=%v", session.bucket, err)
 		_ = session.backend.Stop(session)
 		return BucketMountStatus{}, err
 	}
 
 	m.session = session
+	log.Printf("[mount/manager] mount-done bucket=%q path=%q url=%q", session.bucket, session.mountPath, session.serverURL)
 	return session.status(), nil
 }
 
@@ -184,18 +191,31 @@ func (m *manager) unmountCurrentLocked() error {
 	if m.session == nil {
 		return nil
 	}
+	log.Printf("[mount/manager] unmount-current bucket=%q target=%q", m.session.bucket, m.session.mountTarget)
 	err := m.session.backend.Stop(m.session)
 	m.session = nil
-	return err
+	if err != nil {
+		log.Printf("[mount/manager] unmount-current-error err=%v", err)
+		return err
+	}
+	log.Printf("[mount/manager] unmount-current-done")
+	return nil
 }
 
 func (m *manager) cleanupMounts() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	log.Printf("[mount/manager] cleanup-start")
 	if err := m.unmountCurrentLocked(); err != nil {
+		log.Printf("[mount/manager] cleanup-current-error err=%v", err)
 		return err
 	}
-	return cleanupAllManagedMounts()
+	if err := cleanupAllManagedMounts(); err != nil {
+		log.Printf("[mount/manager] cleanup-managed-error err=%v", err)
+		return err
+	}
+	log.Printf("[mount/manager] cleanup-done")
+	return nil
 }
 
 func newMountSession(

@@ -4,6 +4,7 @@
 package mount
 
 import (
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -42,7 +43,14 @@ func (b *macOSWebDAVBackend) CleanupStale(session *mountSession) error {
 	if err != nil {
 		return err
 	}
-	for _, mountPath := range matchingBucketMountPaths(paths, session.mountName) {
+	matches := matchingBucketMountPaths(paths, session.mountName)
+	log.Printf(
+		"[mount/backend] cleanup-stale bucket=%q mount_name=%q matches=%q",
+		session.bucket,
+		session.mountName,
+		matches,
+	)
+	for _, mountPath := range matches {
 		if err := unmountWebDAV(mountPath); err != nil {
 			return err
 		}
@@ -55,7 +63,9 @@ func cleanupAllManagedMounts() error {
 	if err != nil {
 		return err
 	}
-	for _, mountPath := range matchingManagedMountPaths(paths) {
+	matches := matchingManagedMountPaths(paths)
+	log.Printf("[mount/backend] cleanup-all matches=%q", matches)
+	for _, mountPath := range matches {
 		if err := unmountWebDAV(mountPath); err != nil {
 			return err
 		}
