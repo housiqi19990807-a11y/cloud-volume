@@ -16,6 +16,11 @@ type bucketRequest struct {
 	mountPath string
 }
 
+type loadedConfig struct {
+	path string
+	cfg  storageconfig.RemoteStorageConfig
+}
+
 func parseBucketRequest(command string, args []string) (bucketRequest, error) {
 	flags := newFlagSet(command)
 	configPath := flags.String("config", "", "config file path")
@@ -35,18 +40,18 @@ func parseBucketRequest(command string, args []string) (bucketRequest, error) {
 		}
 	}
 
-	store, _, err := openConfigStore(*configPath)
-	if err != nil {
-		return bucketRequest{}, err
-	}
-	cfg, err := store.Load()
+	loaded, err := loadConfig(*configPath)
 	if err != nil {
 		return bucketRequest{}, err
 	}
 
 	bucket := strings.TrimSpace(*bucketName)
 	if bucket == "" {
-		bucket = strings.TrimSpace(cfg.Bucket)
+		if activeShell != nil && strings.TrimSpace(activeShell.bucketOverride) != "" {
+			bucket = strings.TrimSpace(activeShell.bucketOverride)
+		} else {
+			bucket = strings.TrimSpace(loaded.cfg.Bucket)
+		}
 	}
 	resolvedMountPath := strings.TrimSpace(*mountPoint)
 	if bucket == "" && resolvedMountPath == "" {
@@ -59,6 +64,9 @@ func parseBucketRequest(command string, args []string) (bucketRequest, error) {
 }
 
 func openConfigStore(explicitPath string) (storageconfig.Store, string, error) {
+	if strings.TrimSpace(explicitPath) == "" && activeShell != nil && strings.TrimSpace(activeShell.configPath) != "" {
+		explicitPath = activeShell.configPath
+	}
 	if strings.TrimSpace(explicitPath) != "" {
 		path := strings.TrimSpace(explicitPath)
 		return storageconfig.NewStore(path), path, nil
@@ -68,6 +76,32 @@ func openConfigStore(explicitPath string) (storageconfig.Store, string, error) {
 		return storageconfig.Store{}, "", err
 	}
 	return storageconfig.NewStore(path), path, nil
+}
+
+func loadConfig(explicitPath string) (loadedConfig, error) {
+	store, resolvedPath, err := openConfigStore(explicitPath)
+	if err != nil {
+		return loadedConfig{}, err
+	}
+	cfg, err := store.Load()
+	if err != nil {
+		return loadedConfig{}, err
+	}
+	return loadedConfig{
+		path: resolvedPath,
+		cfg:  cfg.Normalized(),
+	}, nil
+}
+
+func loadConfiguredConfig(explicitPath string) (loadedConfig, error) {
+	loaded, err := loadConfig(explicitPath)
+	if err != nil {
+		return loadedConfig{}, err
+	}
+	if !loaded.cfg.IsConfigured() {
+		return loadedConfig{}, errors.New("当前还没有完整配置，请先运行 cloud-volume-cli init")
+	}
+	return loaded, nil
 }
 
 func stdoutWriter() io.Writer {

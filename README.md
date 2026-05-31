@@ -95,6 +95,12 @@ make build-cli
 ./bin/cloud-volume-cli init
 ```
 
+直接执行 CLI 会默认进入交互 shell：
+
+```bash
+./bin/cloud-volume-cli
+```
+
 `init` 会交互式提示输入这些关键配置：
 
 - `endpoint`
@@ -123,6 +129,15 @@ make build-cli
 ./bin/cloud-volume-cli mount media /mnt/media
 ```
 
+对象操作：
+
+```bash
+./bin/cloud-volume-cli ls
+./bin/cloud-volume-cli ls docs
+./bin/cloud-volume-cli put ./demo.txt docs/demo.txt
+./bin/cloud-volume-cli get docs/demo.txt ./demo.txt
+```
+
 说明：
 
 - 不传 `--bucket` 时，会回退到 `~/.remote-storage/config.toml` 里的默认 `bucket`
@@ -145,6 +160,32 @@ make build-cli
 ```
 
 当前 `mount` / `unmount` 真正的挂载能力仍然只在 Linux 上生效；但 CLI 本身会继续构建 Windows amd64、macOS amd64/arm64、Linux amd64/arm64 版本，便于统一分发 `init`、配置检查和后续扩展命令。
+
+### CLI Shell
+
+默认进入的 shell 会保存当前 bucket 和当前远端目录上下文，减少重复输入。
+
+常用 shell 内命令：
+
+- `bucket <name>`：切换当前默认 bucket
+- `pwd`：输出当前远端目录
+- `cd docs/api`：进入远端目录，支持相对路径、`..` 和绝对路径
+- `ls` / `ls subdir`：列出当前目录或子目录
+- `put ./local.txt`：上传到当前目录，默认远端文件名取本地 basename
+- `get report.csv`：从当前目录下载
+- `mount --mount-point /mnt/media`：挂载当前 bucket
+- `status` / `unmount`：查看或卸载当前 bucket 的挂载
+
+示例：
+
+```bash
+./bin/cloud-volume-cli
+cloud-volume> bucket media
+cloud-volume[media:/]> cd reports/2026
+cloud-volume[media:/reports/2026]> ls
+cloud-volume[media:/reports/2026]> put ./summary.csv
+cloud-volume[media:/reports/2026]> get summary.csv ./summary.csv
+```
 
 CLI 发布产物命名：
 

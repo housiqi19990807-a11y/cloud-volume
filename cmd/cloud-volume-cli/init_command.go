@@ -72,5 +72,8 @@ func runInitCommand(args []string) error {
 	if strings.TrimSpace(cfg.Bucket) != "" {
 		fmt.Fprintf(ui.out, "默认 Bucket: %s\n", cfg.Bucket)
 	}
+	if activeShell != nil && strings.TrimSpace(cfg.Bucket) != "" {
+		activeShell.bucketOverride = strings.TrimSpace(cfg.Bucket)
+	}
 	return nil
 }
