@@ -21,7 +21,17 @@ func MountBucket(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) (BucketMountStatus, error) {
-	return globalManager.mountBucket(cfg, bucket)
+	return globalManager.mountBucket(cfg, bucket, MountOptions{})
+}
+
+// MountBucketWithOptions lets non-desktop callers override mount details such
+// as the Linux mountpoint while keeping the existing public desktop API stable.
+func MountBucketWithOptions(
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+	options MountOptions,
+) (BucketMountStatus, error) {
+	return globalManager.mountBucket(cfg, bucket, options)
 }
 
 // UnmountBucket unmounts the current mount when it matches the provided bucket.
@@ -47,6 +57,7 @@ func CleanupMounts() error {
 func (m *manager) mountBucket(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
+	options MountOptions,
 ) (BucketMountStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -63,7 +74,7 @@ func (m *manager) mountBucket(
 		return BucketMountStatus{}, err
 	}
 	if m.session != nil && m.session.bucket == trimmedBucket {
-		if mountSessionMatches(m.session, cfg, trimmedBucket) {
+		if mountSessionMatches(m.session, cfg, trimmedBucket, options) {
 			return m.session.status(), nil
 		}
 		if err := m.unmountCurrentLocked(); err != nil {
@@ -76,7 +87,7 @@ func (m *manager) mountBucket(
 		}
 	}
 
-	session, err := newMountSession(cfg.Normalized(), trimmedBucket)
+	session, err := newMountSession(cfg.Normalized(), trimmedBucket, options)
 	if err != nil {
 		return BucketMountStatus{}, err
 	}
@@ -190,6 +201,7 @@ func (m *manager) cleanupMounts() error {
 func newMountSession(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
+	options MountOptions,
 ) (*mountSession, error) {
 	access, err := newBucketAccess(cfg, bucket)
 	if err != nil {
@@ -201,16 +213,22 @@ func newMountSession(
 		return nil, err
 	}
 	session := &mountSession{
-		config:     cfg,
-		bucket:     bucket,
-		rootPrefix: normalizeRootPrefix(cfg.RootPrefix),
-		access:     access,
-		backend:    backend,
+		config:        cfg,
+		bucket:        bucket,
+		rootPrefix:    normalizeRootPrefix(cfg.RootPrefix),
+		requestedPath: normalizeMountPath(options.MountPath),
+		autoSync:      options.AutoSync,
+		uploadWorkers: options.UploadWorkers,
+		mountTarget:   normalizeMountPath(options.MountPath),
+		access:        access,
+		backend:       backend,
 	}
 	if err := backend.Initialize(session); err != nil {
 		_ = access.close()
 		return nil, err
 	}
+	access.autoSync = session.autoSync
+	access.uploadWorkers = session.uploadWorkers
 	return session, nil
 }
 

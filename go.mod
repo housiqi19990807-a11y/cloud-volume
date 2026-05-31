@@ -17,6 +17,7 @@ require (
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.39.0
+	golang.org/x/term v0.38.0
 )
 
 require (
@@ -33,8 +34,10 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
+	github.com/mattn/go-runewidth v0.0.3 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/peterh/liner v1.2.2 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect

@@ -302,6 +302,18 @@ func ListTransferSnapshots() []TransferSnapshot {
 	return out
 }
 
+// GetTransferSnapshot returns the current snapshot for a specific task when present.
+func GetTransferSnapshot(id string) (TransferSnapshot, bool) {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return TransferSnapshot{}, false
+	}
+	return task.snapshot, true
+}
+
 type countingReader struct {
 	reader io.Reader
 	onRead func(int)

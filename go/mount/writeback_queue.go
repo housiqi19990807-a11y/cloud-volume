@@ -55,6 +55,14 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 	q.armTimerLocked(entry, writebackQuietPeriod)
 	q.entries[clean] = entry
 	q.persistEntryLocked(entry)
+	log.Printf(
+		"[mount/writeback] enqueue bucket=%q path=%q local_path=%q size=%d due_at=%s",
+		q.bucketName(),
+		entry.virtualPath,
+		entry.localPath,
+		entry.size,
+		entry.dueAt.Format(time.RFC3339Nano),
+	)
 	s3opsQueueTransferForEntry(q.currentAccess(), entry)
 	s3ops.SetTransferStatusDetail(entry.taskID, "sync_wait")
 	q.projectSyncState(entry.virtualPath, false)
@@ -131,6 +139,12 @@ func (q *writebackQueue) enqueueReady(virtualPath string) {
 	s3ops.SetTransferStatusDetail(entry.taskID, "upload_wait")
 	queue := q.queue
 	q.mu.Unlock()
+	log.Printf(
+		"[mount/writeback] ready bucket=%q path=%q local_path=%q",
+		q.bucketName(),
+		entry.virtualPath,
+		entry.localPath,
+	)
 	queue <- entry
 }
 
@@ -152,6 +166,13 @@ func (q *writebackQueue) flush(entry *pendingWriteback) {
 	if !q.claim(entry) {
 		return
 	}
+	log.Printf(
+		"[mount/writeback] flush-start bucket=%q path=%q local_path=%q size=%d",
+		q.bucketName(),
+		entry.virtualPath,
+		entry.localPath,
+		entry.size,
+	)
 
 	err := q.flushNow(entry)
 	q.mu.Lock()
@@ -159,8 +180,22 @@ func (q *writebackQueue) flush(entry *pendingWriteback) {
 	discard := entry.discard
 	q.mu.Unlock()
 	if err != nil && !discard && !errors.Is(err, context.Canceled) {
+		q.recordDrainError(err)
+		log.Printf(
+			"[mount/writeback] flush-error bucket=%q path=%q local_path=%q error=%v",
+			q.bucketName(),
+			entry.virtualPath,
+			entry.localPath,
+			err,
+		)
 		q.requeue(entry, nextWritebackRetryDelay(entry.retryCount+1))
+		return
 	}
+	if discard {
+		log.Printf("[mount/writeback] flush-discard bucket=%q path=%q", q.bucketName(), entry.virtualPath)
+		return
+	}
+	log.Printf("[mount/writeback] flush-done bucket=%q path=%q", q.bucketName(), entry.virtualPath)
 }
 
 func (q *writebackQueue) requeue(entry *pendingWriteback, delay time.Duration) {
@@ -187,6 +222,18 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 	}
 	info, err := os.Stat(entry.localPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			access.cache.removeLocalFile(entry.virtualPath, false)
+			access.cache.invalidatePath(entry.virtualPath)
+			_ = q.store.delete(entry.virtualPath)
+			log.Printf(
+				"[mount/writeback] flush-missing bucket=%q path=%q local_path=%q",
+				q.bucketName(),
+				entry.virtualPath,
+				entry.localPath,
+			)
+			return nil
+		}
 		return err
 	}
 	if info.IsDir() {
@@ -196,7 +243,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		return q.refreshEntryFromDisk(entry, info, writebackQuietPeriod)
 	}
 
-	ctx, cancel := access.withTransferTimeout(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	err = s3ops.UploadFileContextResumable(
@@ -206,6 +253,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		access.remoteKey(entry.virtualPath),
 		entry.localPath,
 		entry.taskID,
+		access.uploadWorkers,
 	)
 	if err != nil {
 		return err
@@ -300,6 +348,18 @@ func (q *writebackQueue) projectSyncState(virtualPath string, inSync bool) {
 		return
 	}
 	access.projectSyncState(virtualPath, inSync)
+}
+
+func (q *writebackQueue) recordDrainError(err error) {
+	if err == nil {
+		return
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if !q.draining || q.drainErr != nil {
+		return
+	}
+	q.drainErr = err
 }
 
 func s3opsQueueTransferForEntry(access *bucketAccess, entry *pendingWriteback) {

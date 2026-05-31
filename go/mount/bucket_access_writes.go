@@ -3,8 +3,11 @@ package mount
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,6 +28,13 @@ func (a *bucketAccess) registerLocalWrite(virtualPath, localPath string, size in
 }
 
 func (a *bucketAccess) scheduleUpload(virtualPath, localPath string) {
+	log.Printf(
+		"[mount/writeback] enqueue-request bucket=%q path=%q local_path=%q size=%d",
+		a.bucket,
+		cleanVirtualPath(virtualPath),
+		localPath,
+		fileSize(localPath),
+	)
 	a.writeback.enqueue(cleanVirtualPath(virtualPath), localPath, fileSize(localPath))
 }
 
@@ -161,14 +171,13 @@ func (a *bucketAccess) cachePathFor(virtualPath string) string {
 }
 
 func pathForVirtualKey(root, virtualPath string) string {
-	segments := []string{root}
-	for _, part := range splitVirtualPath(virtualPath) {
-		segments = append(segments, safeSegment(part))
+	clean := cleanVirtualPath(virtualPath)
+	if clean == "" {
+		return filepath.Join(root, "_root")
 	}
-	if len(segments) == 1 {
-		segments = append(segments, "_root")
-	}
-	return filepath.Join(segments...)
+	sum := sha1.Sum([]byte(clean))
+	encoded := hex.EncodeToString(sum[:])
+	return filepath.Join(root, encoded[:2], encoded[2:])
 }
 
 func copyFile(dstPath, srcPath string) error {

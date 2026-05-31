@@ -1,3 +1,5 @@
+//go:build windows
+
 // Cloud Files reads use the remote-only bucket view so placeholders never mirror local drafts.
 package mount
 

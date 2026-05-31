@@ -34,7 +34,7 @@ func (m *manager) listMountedObjectPage(
 	if err := m.syncSessionLocked(); err != nil {
 		return s3ops.ObjectPage{}, false, err
 	}
-	if !mountSessionMatches(m.session, cfg, bucket) || m.session.access == nil {
+	if !mountSessionMatches(m.session, cfg, bucket, MountOptions{}) || m.session.access == nil {
 		return s3ops.ObjectPage{}, false, nil
 	}
 

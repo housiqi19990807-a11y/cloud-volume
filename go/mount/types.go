@@ -36,19 +36,23 @@ type mountBackend interface {
 }
 
 type mountSession struct {
-	config      storageconfig.RemoteStorageConfig
-	bucket      string
-	rootPrefix  string
-	mountName   string
-	mountPath   string
-	mountTarget string
-	serverURL   string
-	port        int
-	mounted     bool
-	server      *webDAVServer
-	access      *bucketAccess
-	backend     mountBackend
-	lastError   string
+	config        storageconfig.RemoteStorageConfig
+	bucket        string
+	rootPrefix    string
+	mountName     string
+	requestedPath string
+	autoSync      bool
+	uploadWorkers int
+	mountPath     string
+	mountTarget   string
+	managedPath   bool
+	serverURL     string
+	port          int
+	mounted       bool
+	server        *webDAVServer
+	access        *bucketAccess
+	backend       mountBackend
+	lastError     string
 }
 
 func (s *mountSession) status() BucketMountStatus {

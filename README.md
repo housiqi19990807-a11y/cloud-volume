@@ -77,6 +77,164 @@ Linux 本地启动前提：
 - 需要 `clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`、`fuse3` 以及可用的 Go CGO 编译链。
 - Linux runner 现在也会在 `flutter run -d linux` / `flutter build linux` 期间自动构建 `bin/bridge/libremote_storage_bridge.so`，并把它安装到 bundle 的 `lib/` 目录，避免打包后的可执行文件因缺少 bridge 而无法启动。
 - Linux 挂载现在使用用户态 FUSE mount，把 bucket 暴露到 `~/Cloud Volume/<bucket>`，目录读取、按需下载、本地暂存、延迟写回、删除和改名都继续复用现有 Go 侧本地优先逻辑。
+- 仅使用 CLI 挂载时，至少需要 `fuse3`、`fusermount3` 和可用的 `/dev/fuse` 设备；Ubuntu / Debian 可先执行 `sudo apt install -y fuse3`。
+
+### Linux CLI 挂载
+
+仓库现在额外提供 `cloud-volume-cli`，用于在没有桌面环境的 Linux 服务器上初始化配置并前台挂载 bucket。
+
+构建：
+
+```bash
+make cli
+```
+
+首次初始化：
+
+```bash
+./bin/cloud-volume-cli init
+```
+
+直接执行 CLI 会默认进入交互 shell：
+
+```bash
+./bin/cloud-volume-cli
+```
+
+`init` 会交互式提示输入这些关键配置：
+
+- `endpoint`
+- `region`
+- `access key id`
+- `secret access key`
+- `use_path_style`
+
+初始化时会直接用新输入的 endpoint 和凭证发起 `ListBuckets` 请求：
+
+- 如果 bucket 列表可用，你可以用上下键选择一个默认 bucket
+- 也可以选择“暂不设置默认 Bucket”
+- 如果暂时没设置默认 bucket，后续第一次执行对象操作或挂载命令时，CLI 会再即时拉取 bucket 列表让你选
+
+默认会立即校验 endpoint、凭证和 bucket 可访问性；如果当前账号没有 `ListBuckets` 权限，或者你只是想先保存配置，可以改用：
+
+```bash
+./bin/cloud-volume-cli init --skip-validate
+```
+
+挂载指定 bucket 到指定目录：
+
+```bash
+./bin/cloud-volume-cli mount --bucket media --mount-point /mnt/media
+```
+
+追加写入场景如果希望尽早把完整 multipart 分块预推到远端，可以打开 `--auto-sync`：
+
+```bash
+./bin/cloud-volume-cli mount --bucket media --mount-point /mnt/media --auto-sync
+```
+
+如果需要手工放大 multipart 并发，可以再叠加 `--worker`：
+
+```bash
+./bin/cloud-volume-cli mount --bucket media --mount-point /mnt/media --auto-sync --worker 16
+```
+
+也支持位置参数：
+
+```bash
+./bin/cloud-volume-cli mount media /mnt/media
+```
+
+对象操作：
+
+```bash
+./bin/cloud-volume-cli bucket list
+./bin/cloud-volume-cli ls
+./bin/cloud-volume-cli ls docs
+./bin/cloud-volume-cli mkdir docs/archive
+./bin/cloud-volume-cli rm docs/archive
+./bin/cloud-volume-cli put ./demo.txt docs/demo.txt
+./bin/cloud-volume-cli get docs/demo.txt ./demo.txt
+./bin/cloud-volume-cli put ./photos
+./bin/cloud-volume-cli get docs/archive ./archive-local
+```
+
+说明：
+
+- 不传 `--bucket` 时，会回退到 `~/.remote-storage/config.toml` 里的默认 `bucket`
+- 如果既没有传 `--bucket`，配置里也没有默认 bucket，CLI 会先拉取 bucket 列表让你选择
+- 不传 `--mount-point` 时，仍使用默认目录 `~/Cloud Volume/<bucket>`
+- `mount` 会前台常驻；Linux CLI 下按 `Ctrl+C` 会先等待当前 bucket 里尚未推送完成的写回任务刷完，再执行卸载
+- 自定义挂载目录必须为空目录；CLI 不会删除你自定义目录里的已有内容
+- 大文件写回当前使用可恢复 multipart 上传，已完成分块会记录到本地 `.uploading.json` 状态里；后续重试会跳过已完成分块，并且会并发上传剩余分块来提升多 GB 文件的同步速度
+- `--worker` 可显式指定 multipart 上传并发；不指定时默认按 CPU 核数动态取值，最小 `4`、最大 `10`
+- `--auto-sync` 会在 Linux FUSE 检测到顺序追加写时，后台预上传已经完整落盘的 multipart 分块；遇到随机写、覆盖写、truncate 或显式属性改动时，会自动降级回原来的“本地落盘后异步整体写回”语义，避免破坏现有一致性
+- 即使启用了 `--auto-sync`，最终文件关闭后的 quiet-period 自动推送和卸载时的 drain 推送仍然保留，用于补齐最后不足一个完整分块的尾部数据并完成 multipart
+- Linux 挂载缓存文件现在按对象路径 hash 平铺到 `~/.remote-storage/runtime/mounts/<bucket>/cache/`，避免深层目录写入把本地缓存展开成一层层子目录
+- `put` / `get` 现在默认支持目录递归；上传目录时会同步创建远端目录占位符，下载目录时会在本地重建目录树
+- `rm` / `delete` 当前走硬删除，对象和前缀都会直接从 bucket 删除，不会进入应用级回收站
+
+查询和卸载：
+
+```bash
+./bin/cloud-volume-cli status --bucket media
+./bin/cloud-volume-cli unmount --bucket media
+```
+
+如果你挂载时用了自定义目录，也可以直接按目录查询和卸载：
+
+```bash
+./bin/cloud-volume-cli status --mount-point /mnt/media
+./bin/cloud-volume-cli unmount --mount-point /mnt/media
+```
+
+当前 `mount` / `unmount` 真正的挂载能力仍然只在 Linux 上生效；但 CLI 本身会继续构建 Windows amd64、macOS amd64/arm64、Linux amd64/arm64 版本，便于统一分发 `init`、配置检查和后续扩展命令。
+
+### CLI Shell
+
+默认进入的 shell 会保存当前 bucket 和当前远端目录上下文，减少重复输入。
+
+常用 shell 内命令：
+
+- `bucket`：弹出 bucket 选择器并切换当前 bucket
+- `bucket list`：列出可用 bucket
+- `bucket <name>`：直接切换当前默认 bucket
+- `pwd`：输出当前远端目录
+- `cd docs/api`：进入远端目录，支持相对路径、`..` 和绝对路径
+- `mkdir docs/archive`：创建远端目录占位符
+- `rm docs/archive`：递归硬删除远端对象或目录
+- `ls` / `ls subdir`：列出当前目录或子目录
+- `put ./local.txt`：上传到当前目录，默认远端文件名取本地 basename
+- `put ./folder`：递归上传整个目录树到当前目录
+- `get report.csv`：从当前目录下载文件
+- `get reports/2026`：递归下载整个远端目录树
+- `mount --mount-point /mnt/media`：挂载当前 bucket
+- `status` / `unmount`：查看或卸载当前 bucket 的挂载
+- `Tab`：补全命令和远端路径
+- `Up/Down`：浏览历史记录，持久化到 `~/.remote-storage/runtime/cli_history`
+
+示例：
+
+```bash
+./bin/cloud-volume-cli
+cloud-volume> bucket
+cloud-volume[media:/]> cd reports/2026
+cloud-volume[media:/reports/2026]> ls
+cloud-volume[media:/reports/2026]> put ./summary.csv
+cloud-volume[media:/reports/2026]> get summary.csv ./summary.csv
+```
+
+CLI 发布产物命名：
+
+- Linux：`yunjuan-cli-linux-amd64.tar.gz`、`yunjuan-cli-linux-arm64.tar.gz`
+- macOS：`yunjuan-cli-darwin-amd64.tar.gz`、`yunjuan-cli-darwin-arm64.tar.gz`
+- Windows：`yunjuan-cli-windows-amd64.zip`
+
+本地如果需要一把构建所有 CLI 发布包，可以直接运行：
+
+```bash
+make cli-release
+```
 
 ## 配置项
 
@@ -103,6 +261,7 @@ Linux 本地启动前提：
 
 - Flutter：桌面 UI、页面状态、任务展示、配置与交互层
 - Go bridge：配置读写、S3 操作、挂载实现、分享链接、回收站、任务快照
+- Go CLI：Linux 服务器上的交互式初始化和前台 FUSE 挂载入口
 - Desktop mount backends：macOS 走系统 WebDAV 卷挂载，Linux 走用户态 FUSE 挂载，Windows 同时保留 Cloud Files 与 WebDAV 映射盘方案
 - 本地缓存与 overlay：保证挂载场景下的本地优先可见性与恢复能力
 

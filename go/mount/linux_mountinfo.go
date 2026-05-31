@@ -18,7 +18,7 @@ func linuxMountActive(mountPath string) (bool, error) {
 	if target == "." || target == "" {
 		return false, nil
 	}
-	paths, err := listLinuxManagedMountPaths()
+	paths, err := listLinuxFuseMountPaths()
 	if err != nil {
 		return false, err
 	}
@@ -35,6 +35,21 @@ func listLinuxManagedMountPaths() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	paths, err := listLinuxFuseMountPaths()
+	if err != nil {
+		return nil, err
+	}
+	managed := make([]string, 0, len(paths))
+	for _, mountPath := range paths {
+		clean := filepath.Clean(mountPath)
+		if clean == rootPath || strings.HasPrefix(clean, rootPath+string(os.PathSeparator)) {
+			managed = append(managed, clean)
+		}
+	}
+	return managed, nil
+}
+
+func listLinuxFuseMountPaths() ([]string, error) {
 	file, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
 		return nil, fmt.Errorf("open linux mountinfo: %w", err)
@@ -48,10 +63,7 @@ func listLinuxManagedMountPaths() ([]string, error) {
 		if !ok || !strings.HasPrefix(fsType, "fuse.") {
 			continue
 		}
-		clean := filepath.Clean(mountPath)
-		if clean == rootPath || strings.HasPrefix(clean, rootPath+string(os.PathSeparator)) {
-			paths = append(paths, clean)
-		}
+		paths = append(paths, filepath.Clean(mountPath))
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scan linux mountinfo: %w", err)
