@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- macOS 托盘图标恢复使用内置品牌模板资源，并按侧边栏品牌图的横向比例设置尺寸，避免状态栏里的云形被方形缩放挤压得不自然。
 - 修正打包桌面版启动时的 bridge 加载顺序：应用现在会优先使用 bundle 内置的 Go bridge 动态库，只有开发环境下才回退到仓库根目录与本地 `bin/bridge` 构建路径，避免 release 包启动时报 `Could not locate the Remote Storage repository root.`。
 - Release 文案生成脚本现在会自动附带更新记录、问题修复、macOS “已损坏” 处理方法、国内 GitHub 加速下载说明，以及构建产物的校验和与体积信息，后续 tag 发布不再只有纯资产清单。
 - GitHub Actions 发布矩阵里的 Linux 桌面 GUI 产物现已收敛为 `amd64` 单架构，因为 Flutter 当前不支持在 Linux `x64` runner 上直接 cross-build 出 Linux `arm64` 桌面包；Linux `arm64` 仍继续发布 CLI 与 Web 运行时归档。

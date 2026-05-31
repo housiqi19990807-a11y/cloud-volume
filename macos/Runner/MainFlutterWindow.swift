@@ -47,15 +47,24 @@ final class MenuBarController: NSObject {
     button.target = self
     button.action = #selector(handleStatusItemPressed(_:))
 
-    if let image = NSImage(named: "TrayIcon")?.copy() as? NSImage {
-      image.isTemplate = true
-      image.size = NSSize(width: 20, height: 20)
+    if let image = makeTrayStatusImage() {
       button.image = image
     } else if let image = NSApp.applicationIconImage.copy() as? NSImage {
       image.isTemplate = true
-      image.size = NSSize(width: 20, height: 20)
+      image.size = NSSize(width: 22, height: 21)
       button.image = image
     }
+  }
+
+  private func makeTrayStatusImage() -> NSImage? {
+    guard let image = NSImage(named: "TrayIcon")?.copy() as? NSImage else {
+      return nil
+    }
+    // Keep tray rendering simple and deterministic: use the prebuilt transparent
+    // template asset instead of reshaping the app icon at runtime.
+    image.isTemplate = true
+    image.size = NSSize(width: 22, height: 21)
+    return image
   }
 
   private func configureMenu() {
