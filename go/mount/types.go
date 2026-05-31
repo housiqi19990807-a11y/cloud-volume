@@ -14,6 +14,7 @@ const (
 	defaultCacheTTL        = 15
 	defaultPrefetchTTL     = 10
 	writebackQuietPeriod   = time.Minute
+	mountProbeCacheTTL     = 1200 * time.Millisecond
 )
 
 // BucketMountStatus is returned to Flutter so the UI can render mount actions.
@@ -35,6 +36,12 @@ type mountBackend interface {
 	CleanupStale(*mountSession) error
 }
 
+type mountProbeSnapshot struct {
+	checkedAt time.Time
+	active    bool
+	err       error
+}
+
 type mountSession struct {
 	config        storageconfig.RemoteStorageConfig
 	bucket        string
@@ -53,6 +60,7 @@ type mountSession struct {
 	access        *bucketAccess
 	backend       mountBackend
 	lastError     string
+	stopping      bool
 }
 
 func (s *mountSession) status() BucketMountStatus {

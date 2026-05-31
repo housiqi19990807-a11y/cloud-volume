@@ -6,13 +6,16 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	storageconfig "remote-storage/go/config"
 )
 
 type manager struct {
-	mu      sync.Mutex
-	session *mountSession
+	mu           sync.Mutex
+	session      *mountSession
+	lastProbe    mountProbeSnapshot
+	lastProbeFor string
 }
 
 var globalManager = &manager{}
@@ -106,6 +109,8 @@ func (m *manager) mountBucket(
 	}
 
 	m.session = session
+	m.lastProbe = mountProbeSnapshot{}
+	m.lastProbeFor = ""
 	log.Printf("[mount/manager] mount-done bucket=%q path=%q url=%q", session.bucket, session.mountPath, session.serverURL)
 	return session.status(), nil
 }
@@ -171,9 +176,14 @@ func (m *manager) openBucketMount(bucket string) (BucketMountStatus, error) {
 
 func (m *manager) syncSessionLocked() error {
 	if m.session == nil {
+		m.lastProbe = mountProbeSnapshot{}
+		m.lastProbeFor = ""
 		return nil
 	}
-	active, err := m.session.backend.IsActive(m.session)
+	if m.session.stopping {
+		return nil
+	}
+	active, err := m.cachedSessionActiveLocked(m.session)
 	if err != nil {
 		m.session.lastError = err.Error()
 		return err
@@ -184,16 +194,43 @@ func (m *manager) syncSessionLocked() error {
 	}
 	_ = m.session.backend.Stop(m.session)
 	m.session = nil
+	m.lastProbe = mountProbeSnapshot{}
+	m.lastProbeFor = ""
 	return nil
+}
+
+func (m *manager) cachedSessionActiveLocked(session *mountSession) (bool, error) {
+	if session == nil {
+		return false, nil
+	}
+	if session.stopping {
+		return false, nil
+	}
+	if m.lastProbeFor == session.mountTarget &&
+		!m.lastProbe.checkedAt.IsZero() &&
+		time.Since(m.lastProbe.checkedAt) < mountProbeCacheTTL {
+		return m.lastProbe.active, m.lastProbe.err
+	}
+	active, err := session.backend.IsActive(session)
+	m.lastProbe = mountProbeSnapshot{
+		checkedAt: time.Now(),
+		active:    active,
+		err:       err,
+	}
+	m.lastProbeFor = session.mountTarget
+	return active, err
 }
 
 func (m *manager) unmountCurrentLocked() error {
 	if m.session == nil {
 		return nil
 	}
+	m.session.stopping = true
 	log.Printf("[mount/manager] unmount-current bucket=%q target=%q", m.session.bucket, m.session.mountTarget)
 	err := m.session.backend.Stop(m.session)
 	m.session = nil
+	m.lastProbe = mountProbeSnapshot{}
+	m.lastProbeFor = ""
 	if err != nil {
 		log.Printf("[mount/manager] unmount-current-error err=%v", err)
 		return err

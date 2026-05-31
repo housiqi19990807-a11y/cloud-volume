@@ -52,6 +52,11 @@ func (s *mountSession) stop() error {
 		s.mounted,
 		s.mountTarget,
 	)
+	serverErr := error(nil)
+	if s.server != nil {
+		log.Printf("[mount/session] stop-webdav bucket=%q", s.bucket)
+		serverErr = s.server.stop()
+	}
 	var mountErr error
 	if s.mounted && s.mountTarget != "" {
 		active, err := isWebDAVMountActive(s.mountTarget)
@@ -61,11 +66,6 @@ func (s *mountSession) stop() error {
 			mountErr = unmountWebDAV(s.mountTarget)
 		}
 		s.mounted = false
-	}
-	serverErr := error(nil)
-	if s.server != nil {
-		log.Printf("[mount/session] stop-webdav bucket=%q", s.bucket)
-		serverErr = s.server.stop()
 	}
 	accessErr := error(nil)
 	if s.access != nil {
@@ -124,6 +124,10 @@ func unmountWebDAV(mountPath string) error {
 		if err == nil {
 			return nil
 		}
+		if gone, probeErr := mountPathInactive(mountPath); probeErr == nil && gone {
+			log.Printf("[mount/macos] unmount-confirmed-inactive path=%q", mountPath)
+			return nil
+		}
 		if _, statErr := os.Stat(mountPath); statErr != nil && os.IsNotExist(statErr) {
 			log.Printf("[mount/macos] unmount-path-gone path=%q", mountPath)
 			return nil
@@ -135,6 +139,14 @@ func unmountWebDAV(mountPath string) error {
 		return nil
 	}
 	return fmt.Errorf("unmount bucket: %w: %s", lastErr, lastOutput)
+}
+
+func mountPathInactive(mountPath string) (bool, error) {
+	active, err := isWebDAVMountActive(mountPath)
+	if err != nil {
+		return false, err
+	}
+	return !active, nil
 }
 
 func openMountPath(mountPath string) error {
