@@ -10,6 +10,12 @@
 
 ![云卷主界面](docs/screenshots/main-page.png)
 
+## 社区交流
+
+- QQ 交流群：`572532027`
+
+![QQ 群二维码](docs/screenshots/qrcode.jpg)
+
 ## 核心能力
 
 - 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
@@ -312,6 +318,11 @@ Linux 桌面版同时提供 `tar.gz` 和 `AppImage`：
 - `AppImage` 适合直接下载后单文件运行，不依赖目标机器的发行版包管理器。
 
 产物都包含对应平台的 Flutter 桌面壳和 Go bridge。
+
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。
 
 ## 当前状态
 
