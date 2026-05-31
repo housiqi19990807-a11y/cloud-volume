@@ -302,7 +302,7 @@ Web 端行为和桌面端有几个关键差异：
 
 - macOS `amd64` / `arm64`：桌面版 `dmg`、`zip`
 - Windows `amd64`：桌面版 `installer.exe`、`zip`
-- Linux `amd64` / `arm64`：桌面版 `tar.gz`、`AppImage`
+- Linux `amd64`：桌面版 `tar.gz`、`AppImage`
 - Linux `amd64` / `arm64`：CLI `tar.gz`
 - Linux `amd64` / `arm64`：Web 服务端 `tar.gz`，内含 `cloud-volume-web` 和对应静态站点
 

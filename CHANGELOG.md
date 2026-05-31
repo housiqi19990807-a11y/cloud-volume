@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- GitHub Actions 发布矩阵里的 Linux 桌面 GUI 产物现已收敛为 `amd64` 单架构，因为 Flutter 当前不支持在 Linux `x64` runner 上直接 cross-build 出 Linux `arm64` 桌面包；Linux `arm64` 仍继续发布 CLI 与 Web 运行时归档。
 - Windows Cloud Files mounts now keep a stable sync-root path at `~/Cloud Volume/<bucket>` instead of allocating a timestamped directory on every mount, so Explorer paths, remount recovery, and task references no longer drift across sessions.
 - Windows Cloud Files cached writeback persistence no longer depends on a single shared `writeback.db` lock. Each mount process now writes its own queue snapshot under `~/.remote-storage/runtime/mounts/<bucket>/writeback/queue-<pid>.json`, remount recovery compacts old queue files back into the active process, and leftover crashed runners no longer block the next mount just by holding a stale queue DB handle.
 - Linux CLI FUSE 挂载新增 `--auto-sync` 和 `--worker`：顺序追加写现在可以在后台预上传已经完整落盘的 multipart 分块，最终仍保留 quiet-period 自动推送和卸载 drain 推送来补齐尾块并完成 multipart；multipart 并发默认按 CPU 核数动态收敛到 `4..10`，也可以通过 `--worker` 显式放大以适配更高的内网上传带宽。
@@ -34,7 +35,7 @@
 - The transfer queue now supports row selection plus batch start and batch cancel actions, so waiting uploads and active jobs can be resumed or stopped in bulk from the transfers page instead of one by one.
 - Windows Cloud Files watcher recovery now re-arms the currently opened placeholder directory itself when Explorer fetches that directory, moves raw watcher `Add/Remove` work off the event-processing path, and starts consuming watcher events before the initial directory rescan, which fixes the cases where copying a folder into an already opened nested directory such as `bakcuptest/test/test2` still produced no upload task and where later unmounts or pre-existing directory rescans could wedge around watcher shutdown.
 
-- GitHub Actions 桌面发布流程现在只会在推送形如 `v0.0.1` 的标签时触发，并自动发布 macOS `amd64/arm64` 的 `dmg+zip`、Windows `amd64` 的 `installer.exe+zip`、Linux `amd64/arm64` 的 `tar.gz+AppImage`。
+- GitHub Actions 桌面发布流程现在只会在推送形如 `v0.0.1` 的标签时触发，并自动发布 macOS `amd64/arm64` 的 `dmg+zip`、Windows `amd64` 的 `installer.exe+zip`、Linux `amd64` 的 `tar.gz+AppImage`。
 - Linux 自定义标题栏现在会使用应用内右上角窗口控件；GTK 应用显示名也显式改成 `云卷`，避免任务栏继续显示 `remote_storage`。
 - Linux 首次启动窗口现在会按屏幕尺寸再缩小一档，关闭按钮会弹出“最小化窗口 / 退出云卷”确认，登录表单改为真正的垂直居中可滚动布局。
 - 初始化配置、启动检查和文件管理里的 Go bridge 错误现在会转换成更友好的中文文案，像 S3 `SignatureDoesNotMatch` 这类常见密钥/签名错误会直接提示检查 AK/SK 与签名配置。
