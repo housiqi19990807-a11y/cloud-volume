@@ -319,6 +319,7 @@ Linux 桌面版同时提供 `tar.gz` 和 `AppImage`：
 
 产物都包含对应平台的 Flutter 桌面壳和 Go bridge。
 发布流程会自动生成包含更新记录、macOS 打开提示处理方法、国内 GitHub 加速下载说明以及校验信息的 Release 文案。
+打包后的桌面版现在会优先加载应用 bundle 内置的 Go bridge 动态库，不再要求从仓库目录启动才能正常运行。
 
 
 ## 许可证

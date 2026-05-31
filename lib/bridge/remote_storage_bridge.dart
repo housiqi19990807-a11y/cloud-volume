@@ -41,6 +41,12 @@ class RemoteStorageBridge {
   }
 
   static Future<RemoteStorageBridge> connect() async {
+    final bundledLibraryPath = _findBundledLibraryPath();
+    if (bundledLibraryPath != null) {
+      final library = DynamicLibrary.open(bundledLibraryPath);
+      return RemoteStorageBridge._(library, bundledLibraryPath);
+    }
+
     final repoRoot = _locateRepoRoot();
     final outputPath = path.join(
       repoRoot.path,
@@ -51,17 +57,6 @@ class RemoteStorageBridge {
     final libraryFile = File(outputPath);
     if (!await libraryFile.exists()) {
       await _buildBridge(repoRoot, outputPath);
-    }
-
-    if (Platform.isWindows) {
-      final library = DynamicLibrary.open(outputPath);
-      return RemoteStorageBridge._(library, outputPath);
-    }
-
-    final bundledLibraryPath = _findBundledLibraryPath();
-    if (bundledLibraryPath != null) {
-      final library = DynamicLibrary.open(bundledLibraryPath);
-      return RemoteStorageBridge._(library, bundledLibraryPath);
     }
 
     final library = DynamicLibrary.open(outputPath);
