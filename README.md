@@ -298,13 +298,15 @@ Web 端行为和桌面端有几个关键差异：
 
 ## 发布
 
-推送形如 `v0.0.1` 的语义化版本标签后，会触发 GitHub Actions 构建桌面发行版并自动创建 / 更新对应 GitHub Release：
+推送形如 `v0.0.1` 的语义化版本标签后，会触发 GitHub Actions 构建并自动创建 / 更新对应 GitHub Release：
 
-- macOS `amd64` / `arm64`：`dmg`、`zip`
-- Windows `amd64`：`installer.exe`、`zip`
-- Linux `amd64` / `arm64`：`tar.gz`、`AppImage`
+- macOS `amd64` / `arm64`：桌面版 `dmg`、`zip`
+- Windows `amd64`：桌面版 `installer.exe`、`zip`
+- Linux `amd64` / `arm64`：桌面版 `tar.gz`、`AppImage`
+- Linux `amd64` / `arm64`：CLI `tar.gz`
+- Linux `amd64` / `arm64`：Web 服务端 `tar.gz`，内含 `cloud-volume-web` 和对应静态站点
 
-Linux 同时提供 `tar.gz` 和 `AppImage`：
+Linux 桌面版同时提供 `tar.gz` 和 `AppImage`：
 
 - `tar.gz` 更通用，适合手动解压部署和兼容性更保守的桌面环境。
 - `AppImage` 适合直接下载后单文件运行，不依赖目标机器的发行版包管理器。

@@ -2,6 +2,8 @@
 
 #include <flutter_linux/flutter_linux.h>
 
+#include <gio/gio.h>
+
 #include "flutter/generated_plugin_registrant.h"
 
 struct _MyApplication {
@@ -96,6 +98,27 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+static void apply_window_icon(GtkWindow* window) {
+  const gchar* resource_root = g_getenv("FLUTTER_ASSETS_DIR");
+  g_autofree gchar* icon_path = nullptr;
+
+  if (resource_root != nullptr && resource_root[0] != '\0') {
+    icon_path = g_build_filename(resource_root, "..", "app_icon.png", nullptr);
+  } else {
+    icon_path = g_build_filename(g_get_current_dir(), "data", "app_icon.png", nullptr);
+  }
+
+  if (icon_path == nullptr) {
+    return;
+  }
+
+  g_autoptr(GError) error = nullptr;
+  g_autoptr(GdkPixbuf) pixbuf = gdk_pixbuf_new_from_file(icon_path, &error);
+  if (pixbuf != nullptr) {
+    gtk_window_set_icon(window, pixbuf);
+  }
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
@@ -105,6 +128,7 @@ static void my_application_activate(GApplication* application) {
   // Linux uses app-owned chrome, so hide the system decorations entirely.
   gtk_window_set_decorated(window, FALSE);
   gtk_window_set_title(window, "云卷");
+  apply_window_icon(window);
 
   gint default_width = 980;
   gint default_height = 640;
