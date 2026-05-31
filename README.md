@@ -136,6 +136,7 @@ make build-cli
 对象操作：
 
 ```bash
+./bin/cloud-volume-cli bucket list
 ./bin/cloud-volume-cli ls
 ./bin/cloud-volume-cli ls docs
 ./bin/cloud-volume-cli mkdir docs/archive
@@ -178,7 +179,9 @@ make build-cli
 
 常用 shell 内命令：
 
-- `bucket <name>`：切换当前默认 bucket
+- `bucket`：弹出 bucket 选择器并切换当前 bucket
+- `bucket list`：列出可用 bucket
+- `bucket <name>`：直接切换当前默认 bucket
 - `pwd`：输出当前远端目录
 - `cd docs/api`：进入远端目录，支持相对路径、`..` 和绝对路径
 - `mkdir docs/archive`：创建远端目录占位符
@@ -197,7 +200,7 @@ make build-cli
 
 ```bash
 ./bin/cloud-volume-cli
-cloud-volume> bucket media
+cloud-volume> bucket
 cloud-volume[media:/]> cd reports/2026
 cloud-volume[media:/reports/2026]> ls
 cloud-volume[media:/reports/2026]> put ./summary.csv

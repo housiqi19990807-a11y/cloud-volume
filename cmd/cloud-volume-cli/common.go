@@ -119,9 +119,7 @@ func resolveActiveBucket(loaded loadedConfig, allowEmpty bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if activeShell != nil {
-		activeShell.bucketOverride = selected
-	}
+	applySelectedBucket(selected)
 	return selected, nil
 }
 

@@ -138,25 +138,7 @@ func runShellBucketCommand(state *shellState, args []string) error {
 	if state == nil {
 		return errors.New("shell state is not initialized")
 	}
-	if len(args) == 0 {
-		if strings.TrimSpace(state.bucketOverride) == "" {
-			fmt.Fprintln(stdoutWriter(), "(empty)")
-			return nil
-		}
-		fmt.Fprintln(stdoutWriter(), strings.TrimSpace(state.bucketOverride))
-		return nil
-	}
-	if len(args) > 1 {
-		return errors.New("bucket 用法: bucket [name]")
-	}
-	state.bucketOverride = strings.TrimSpace(args[0])
-	state.currentDir = ""
-	if state.bucketOverride == "" {
-		fmt.Fprintln(stdoutWriter(), "已清空 shell bucket 覆盖值")
-		return nil
-	}
-	fmt.Fprintf(stdoutWriter(), "当前 bucket 已切换为 %s\n", state.bucketOverride)
-	return nil
+	return runBucketCommand(args)
 }
 
 func runShellCDCommand(state *shellState, args []string) error {
@@ -222,7 +204,9 @@ func printShellHelp() {
 	printUsage(stdoutWriter())
 	fmt.Fprintln(stdoutWriter(), "")
 	fmt.Fprintln(stdoutWriter(), "Shell builtins:")
-	fmt.Fprintln(stdoutWriter(), "  bucket [name]    查看或切换当前 shell 默认 bucket")
+	fmt.Fprintln(stdoutWriter(), "  bucket           弹出 bucket 选择器并切换当前 bucket")
+	fmt.Fprintln(stdoutWriter(), "  bucket list      列出可用 bucket")
+	fmt.Fprintln(stdoutWriter(), "  bucket <name>    直接切换当前 bucket")
 	fmt.Fprintln(stdoutWriter(), "  cd [dir]         切换当前远端目录，支持相对路径、.. 和绝对路径")
 	fmt.Fprintln(stdoutWriter(), "  pwd              输出当前远端目录")
 	fmt.Fprintln(stdoutWriter(), "  Tab              远端路径和命令补全")

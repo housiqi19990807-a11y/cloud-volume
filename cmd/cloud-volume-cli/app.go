@@ -35,6 +35,8 @@ func run(args []string) error {
 		return runPutCommand(args[1:])
 	case "get":
 		return runGetCommand(args[1:])
+	case "bucket":
+		return runBucketCommand(args[1:])
 	case "mkdir":
 		return runMkdirCommand(args[1:])
 	case "rm", "delete":
@@ -58,6 +60,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  cloud-volume-cli                    # enter interactive shell")
 	fmt.Fprintln(w, "  cloud-volume-cli shell")
 	fmt.Fprintln(w, "  cloud-volume-cli init [--config /path/to/config.toml] [--skip-validate]")
+	fmt.Fprintln(w, "  cloud-volume-cli bucket [list|<name>]")
 	fmt.Fprintln(w, "  cloud-volume-cli put [--config /path/to/config.toml] [--bucket name] <local-path> [remote-path]")
 	fmt.Fprintln(w, "  cloud-volume-cli get [--config /path/to/config.toml] [--bucket name] <remote-path> [local-path]")
 	fmt.Fprintln(w, "  cloud-volume-cli mkdir [--config /path/to/config.toml] [--bucket name] <remote-dir>")
@@ -72,6 +75,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  cloud-volume-cli init")
+	fmt.Fprintln(w, "  cloud-volume-cli bucket list")
 	fmt.Fprintln(w, "  cloud-volume-cli put ./demo.txt docs/demo.txt")
 	fmt.Fprintln(w, "  cloud-volume-cli get docs/demo.txt ./demo.txt")
 	fmt.Fprintln(w, "  cloud-volume-cli mkdir docs/archive")
