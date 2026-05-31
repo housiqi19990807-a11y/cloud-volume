@@ -5,11 +5,29 @@ param(
   [string]$BridgeCc,
   [string]$BridgeCxx,
   [switch]$Build,
-  [switch]$SkipPubGet
+  [switch]$SkipPubGet,
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$ExtraArgs
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+foreach ($arg in $ExtraArgs) {
+  switch ($arg) {
+    '--build' {
+      $Build = $true
+      continue
+    }
+    '--skip-pub-get' {
+      $SkipPubGet = $true
+      continue
+    }
+    default {
+      throw "Unknown argument: $arg"
+    }
+  }
+}
 
 function Add-NoProxyEntry {
   param(
@@ -107,6 +125,11 @@ if ($env:HTTP_PROXY -or $env:HTTPS_PROXY -or $env:ALL_PROXY) {
 
 Push-Location $repoRoot
 try {
+  if ($Build) {
+    Write-Host 'run_windows.ps1 mode: build'
+  } else {
+    Write-Host 'run_windows.ps1 mode: run'
+  }
   & $flutter config --enable-windows-desktop
   if (-not $SkipPubGet) {
     & $flutter pub get

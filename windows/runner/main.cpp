@@ -50,6 +50,32 @@ Win32Window::Size ResolveInitialWindowSize() {
   return Win32Window::Size(resolved_width, resolved_height);
 }
 
+// Center the first window inside the primary monitor work area so the custom
+// titlebar does not appear detached in the top-left corner on every launch.
+Win32Window::Point ResolveInitialWindowOrigin(const Win32Window::Size& size) {
+  MONITORINFO monitor_info = {};
+  monitor_info.cbSize = sizeof(monitor_info);
+  const HMONITOR monitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
+  if (monitor == nullptr || !GetMonitorInfo(monitor, &monitor_info)) {
+    return Win32Window::Point(10, 10);
+  }
+
+  const LONG work_width = monitor_info.rcWork.right - monitor_info.rcWork.left;
+  const LONG work_height = monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+  if (work_width <= 0 || work_height <= 0) {
+    return Win32Window::Point(10, 10);
+  }
+
+  const LONG origin_x =
+      monitor_info.rcWork.left +
+      std::max<LONG>(0, (work_width - static_cast<LONG>(size.width)) / 2);
+  const LONG origin_y =
+      monitor_info.rcWork.top +
+      std::max<LONG>(0, (work_height - static_cast<LONG>(size.height)) / 2);
+  return Win32Window::Point(static_cast<unsigned int>(origin_x),
+                            static_cast<unsigned int>(origin_y));
+}
+
 }  // namespace
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -72,8 +98,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
   FlutterWindow window(project);
-  Win32Window::Point origin(10, 10);
   Win32Window::Size size = ResolveInitialWindowSize();
+  Win32Window::Point origin = ResolveInitialWindowOrigin(size);
   if (!window.Create(L"Yunjuan", origin, size)) {
     return EXIT_FAILURE;
   }
