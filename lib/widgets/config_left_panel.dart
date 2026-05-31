@@ -88,16 +88,8 @@ class ConfigLeftPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 品牌标识。
-                const AppBrandMark(height: 50, width: 188),
-                const SizedBox(height: 10),
-                Text(
-                  'Local Manager for Remote Volumes',
-                  style: TextStyle(
-                    color: muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                const AppBrandMark(height: 50, width: 230),
+                const SizedBox(height: 6),
                 const Spacer(flex: 3),
                 // 标语。
                 Text(

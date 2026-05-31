@@ -1,11 +1,11 @@
 {
-    "name": "remote_storage",
-    "short_name": "remote_storage",
+    "name": "Cloud Volume",
+    "short_name": "云卷",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7FAFF",
+    "theme_color": "#2563EB",
+    "description": "Cloud Volume / 云卷，面向远程卷的本地化管理控制台。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -72,7 +72,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     final muted = Color.lerp(const Color(0xff64748b), ac, 0.06)!;
 
     return Container(
-      width: 220,
+      width: 236,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -115,12 +115,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const AppBrandMark(height: 42, width: 172),
-                      const SizedBox(height: 6),
-                      Text(
-                        '面向远程卷的本地管理器',
-                        style: TextStyle(fontSize: 11, color: muted),
-                      ),
+                      const AppBrandMark(height: 42, width: 210),
                     ],
                   ),
                 ),
