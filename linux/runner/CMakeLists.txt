@@ -27,6 +27,8 @@ target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
+# Install the Linux window icon into the bundle data directory so GTK can
+# resolve the same brand asset after packaging.
 install(FILES "${LINUX_RUNNER_RESOURCE_DIR}/app_icon.png"
-  DESTINATION "${CMAKE_INSTALL_PREFIX}/data"
+  DESTINATION "data"
   COMPONENT Runtime)
