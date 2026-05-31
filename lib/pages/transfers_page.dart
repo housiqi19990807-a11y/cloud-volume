@@ -423,8 +423,11 @@ class _TransfersPageState extends State<TransfersPage> {
       ]);
     }
     if (task.totalBytes > 0) {
+      final progressLabel =
+          '${task.typeLabel}  ${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}';
       return _joinSubtitleParts([
-        '${task.typeLabel}  ${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}',
+        progressLabel,
+        task.progressTargetLabel,
         createdAtLabel,
       ]);
     }

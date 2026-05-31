@@ -76,13 +76,26 @@ class TransferTask {
     return segments.last;
   }
 
-  String get typeLabel => switch (kind) {
-    TransferKind.upload => '上传',
-    TransferKind.download => '下载',
-    TransferKind.copy => '复制',
-    TransferKind.move => '移动',
-    TransferKind.delete => '删除',
-  };
+  String get typeLabel {
+    if (statusDetail == 'mount_read') {
+      return '挂载读取';
+    }
+    return switch (kind) {
+      TransferKind.upload => '上传',
+      TransferKind.download => '下载',
+      TransferKind.copy => '复制',
+      TransferKind.move => '移动',
+      TransferKind.delete => '删除',
+    };
+  }
+
+  String get progressTargetLabel {
+    if (statusDetail == 'mount_read' && targetPath.isNotEmpty) {
+      return targetPath;
+    }
+    return '';
+  }
+
   bool get isUpload => kind == TransferKind.upload;
   bool get isDownload => kind == TransferKind.download;
   bool get isCopy => kind == TransferKind.copy;

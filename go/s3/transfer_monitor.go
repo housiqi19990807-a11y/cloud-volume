@@ -60,17 +60,17 @@ func startTransfer(
 	defer globalTransferMonitor.mu.Unlock()
 
 	globalTransferMonitor.tasks[id] = &transferState{
-			snapshot: TransferSnapshot{
-				ID:           id,
-				Type:         kind,
-				Bucket:       bucket,
-				Key:          key,
-				LocalPath:    localPath,
-				Status:       "running",
-				StatusDetail: "uploading",
-				CreatedAt:    now.Format(time.RFC3339),
-				TotalBytes:   totalBytes,
-			},
+		snapshot: TransferSnapshot{
+			ID:           id,
+			Type:         kind,
+			Bucket:       bucket,
+			Key:          key,
+			LocalPath:    localPath,
+			Status:       "running",
+			StatusDetail: "uploading",
+			CreatedAt:    now.Format(time.RFC3339),
+			TotalBytes:   totalBytes,
+		},
 		startedAt: now,
 		updatedAt: now,
 		cancel:    cancel,
@@ -184,6 +184,16 @@ func setTransferTarget(id string, targetPath string) {
 	task.updatedAt = time.Now()
 }
 
+// SetTransferTarget updates the task subtitle target, such as a copy destination
+// or the current byte range being streamed by a mounted WebDAV file.
+func SetTransferTarget(id string, targetPath string) {
+	setTransferTarget(id, targetPath)
+}
+
+func AdvanceTransfer(id string, delta int64) {
+	advanceTransfer(id, delta)
+}
+
 func advanceTransfer(id string, delta int64) {
 	globalTransferMonitor.mu.Lock()
 	defer globalTransferMonitor.mu.Unlock()
@@ -212,6 +222,10 @@ func finishTransfer(id string, err error) {
 	task.updatedAt = time.Now()
 	task.cancel = nil
 	task.snapshot.SpeedBytes = 0
+	if task.snapshot.Status == "canceled" {
+		task.snapshot.Error = ""
+		return
+	}
 	if errors.Is(err, context.Canceled) {
 		task.snapshot.Status = "canceled"
 		task.snapshot.Error = ""
@@ -223,7 +237,7 @@ func finishTransfer(id string, err error) {
 		return
 	}
 	task.snapshot.Status = "done"
-	if task.snapshot.TotalBytes > 0 {
+	if task.snapshot.TotalBytes > 0 && task.snapshot.StatusDetail != "mount_read" {
 		task.snapshot.BytesCompleted = task.snapshot.TotalBytes
 	}
 }

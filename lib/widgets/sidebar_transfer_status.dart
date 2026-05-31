@@ -327,6 +327,7 @@ class _TransferHoverRow extends StatelessWidget {
     if (task.totalBytes > 0) {
       return _joinHoverParts([
         '${formatBytes(task.bytesCompleted)} / ${formatBytes(task.totalBytes)}',
+        task.progressTargetLabel,
         createdAtLabel,
       ]);
     }
