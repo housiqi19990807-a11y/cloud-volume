@@ -1,6 +1,7 @@
 // 文件管理页：负责面包屑导航、桶/对象浏览，以及上传下载交互。
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -152,7 +153,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
       }
-      unawaited(_refreshBucketMountStatuses(buckets));
+      if (widget.api.capabilities.supportsMounts) {
+        unawaited(_refreshBucketMountStatuses(buckets));
+      }
       return true;
     } catch (e) {
       if (!mounted) return false;
@@ -199,7 +202,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
       }
-      unawaited(_refreshMountStatus(bucket));
+      if (widget.api.capabilities.supportsMounts) {
+        unawaited(_refreshMountStatus(bucket));
+      }
       return true;
     } catch (e) {
       if (!mounted) return false;
@@ -243,6 +248,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
   void _startMountStatusRefreshTimer() {
     _mountStatusRefreshTimer?.cancel();
     ObjectListingNotifier.instance.removeListener(_handleObjectListingMutation);
+    if (!widget.api.capabilities.supportsMounts) {
+      return;
+    }
     _mountStatusRefreshTimer = Timer.periodic(
       _mountStatusRefreshInterval,
       (_) => unawaited(_refreshVisibleMountStatuses()),
@@ -402,13 +410,25 @@ class _FileManagerPageState extends State<FileManagerPage> {
           : (bucket) => unawaited(_openBucketTrash(bucket)),
       onMountBucket: _isTrashHome
           ? null
-          : (bucket) => unawaited(_mountBucket(bucket)),
+          : widget.api.capabilities.supportsMounts
+          ? (bucket) => unawaited(_mountBucket(bucket))
+          : null,
       onUnmountBucket: _isTrashHome
           ? null
-          : (bucket) => unawaited(_unmountBucket(bucket)),
+          : widget.api.capabilities.supportsMounts
+          ? (bucket) => unawaited(_unmountBucket(bucket))
+          : null,
       onOpenMountedBucket: _isTrashHome
           ? null
-          : (bucket) => unawaited(_openMountedBucket(bucket)),
+          : widget.api.capabilities.supportsMounts
+          ? (bucket) => unawaited(_openMountedBucket(bucket))
+          : null,
+      onOpenWebDavBucket: _isTrashHome
+          ? null
+          : widget.api.capabilities.supportsWebDavAccess
+          ? (bucket) => _showWebDavEntry(bucket)
+          : null,
+      webDavActionLabel: 'WebDAV',
     );
   }
 

@@ -53,7 +53,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       text: config.region.trim().isNotEmpty ? config.region : _kDefaultRegion,
     );
     _accessKeyController = TextEditingController(text: config.accessKeyId);
-    _secretKeyController = TextEditingController(text: config.secretAccessKey);
+    _secretKeyController = TextEditingController();
     _usePathStyle = config.usePathStyle;
   }
 
@@ -73,6 +73,10 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       bucket: widget.initialState.config.bucket,
       accessKeyId: _accessKeyController.text,
       secretAccessKey: _secretKeyController.text,
+      hasSecretAccessKey: widget.initialState.config.hasSecretAccessKey,
+      webdavUsername: widget.initialState.config.webdavUsername,
+      webdavPassword: '',
+      hasWebdavPassword: widget.initialState.config.hasWebdavPassword,
       rootPrefix: widget.initialState.config.rootPrefix,
       defaultDownloadDirectory:
           widget.initialState.config.defaultDownloadDirectory,
@@ -134,6 +138,11 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
               regionController: _regionController,
               accessKeyController: _accessKeyController,
               secretKeyController: _secretKeyController,
+              hasStoredSecretKey: widget.initialState.config.hasSecretAccessKey,
+              showWebDavFields: false,
+              webdavUsernameController: null,
+              webdavPasswordController: null,
+              hasStoredWebdavPassword: false,
               usePathStyle: _usePathStyle,
               onPathStyleChanged: (v) => setState(() => _usePathStyle = v),
               isSaving: _isSaving,

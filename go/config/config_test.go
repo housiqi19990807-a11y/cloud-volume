@@ -112,3 +112,45 @@ func TestNormalizeWindowsWritebackConcurrency(t *testing.T) {
 		})
 	}
 }
+
+func TestWithDefaultWebDAVCredentialsFallsBackToAccessKeys(t *testing.T) {
+	t.Parallel()
+
+	config := RemoteStorageConfig{
+		Endpoint:           "https://example.invalid",
+		AccessKeyID:        "ak-test",
+		SecretAccessKey:    "sk-test",
+		HasSecretAccessKey: true,
+	}
+
+	got := config.WithDefaultWebDAVCredentials()
+	if got.WebDAVUsername != "ak-test" {
+		t.Fatalf("WebDAVUsername = %q, want %q", got.WebDAVUsername, "ak-test")
+	}
+	if got.WebDAVPassword != "sk-test" {
+		t.Fatalf("WebDAVPassword = %q, want %q", got.WebDAVPassword, "sk-test")
+	}
+	if !got.HasWebDAVPassword {
+		t.Fatal("expected HasWebDAVPassword to be true after defaulting")
+	}
+}
+
+func TestWithDefaultWebDAVCredentialsKeepsExplicitValues(t *testing.T) {
+	t.Parallel()
+
+	config := RemoteStorageConfig{
+		AccessKeyID:       "ak-test",
+		SecretAccessKey:   "sk-test",
+		WebDAVUsername:    "custom-user",
+		WebDAVPassword:    "custom-pass",
+		HasWebDAVPassword: true,
+	}
+
+	got := config.WithDefaultWebDAVCredentials()
+	if got.WebDAVUsername != "custom-user" {
+		t.Fatalf("WebDAVUsername = %q, want %q", got.WebDAVUsername, "custom-user")
+	}
+	if got.WebDAVPassword != "custom-pass" {
+		t.Fatalf("WebDAVPassword = %q, want %q", got.WebDAVPassword, "custom-pass")
+	}
+}

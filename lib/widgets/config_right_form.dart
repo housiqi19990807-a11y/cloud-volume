@@ -14,6 +14,11 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.regionController,
     required this.accessKeyController,
     required this.secretKeyController,
+    required this.hasStoredSecretKey,
+    required this.showWebDavFields,
+    required this.webdavUsernameController,
+    required this.webdavPasswordController,
+    required this.hasStoredWebdavPassword,
     required this.usePathStyle,
     required this.onPathStyleChanged,
     required this.isSaving,
@@ -25,6 +30,11 @@ class ConfigRightFormPanel extends StatelessWidget {
   final TextEditingController regionController;
   final TextEditingController accessKeyController;
   final TextEditingController secretKeyController;
+  final bool hasStoredSecretKey;
+  final bool showWebDavFields;
+  final TextEditingController? webdavUsernameController;
+  final TextEditingController? webdavPasswordController;
+  final bool hasStoredWebdavPassword;
   final bool usePathStyle;
   final ValueChanged<bool> onPathStyleChanged;
   final bool isSaving;
@@ -90,9 +100,38 @@ class ConfigRightFormPanel extends StatelessWidget {
                       const SizedBox(height: 6),
                       ShadInput(
                         controller: secretKeyController,
-                        placeholder: const Text('输入 Secret Access Key'),
+                        placeholder: Text(
+                          hasStoredSecretKey
+                              ? '留空则保留当前已保存的 Secret Access Key'
+                              : '输入 Secret Access Key',
+                        ),
                         obscureText: true,
                       ),
+                      if (showWebDavFields &&
+                          webdavUsernameController != null &&
+                          webdavPasswordController != null) ...[
+                        const SizedBox(height: 18),
+                        _sectionLabel(context, 'WebDAV 登录'),
+                        const SizedBox(height: 16),
+                        _fieldLabel(context, 'WebDAV 账号'),
+                        const SizedBox(height: 6),
+                        ShadInput(
+                          controller: webdavUsernameController!,
+                          placeholder: const Text('输入 WebDAV 登录账号'),
+                        ),
+                        const SizedBox(height: 18),
+                        _fieldLabel(context, 'WebDAV 密码'),
+                        const SizedBox(height: 6),
+                        ShadInput(
+                          controller: webdavPasswordController!,
+                          placeholder: Text(
+                            hasStoredWebdavPassword
+                                ? '留空则保留当前已保存的 WebDAV 密码'
+                                : '输入 WebDAV 登录密码',
+                          ),
+                          obscureText: true,
+                        ),
+                      ],
                       // 高级设置入口。
                       const SizedBox(height: 18),
                       _AdvancedSettingsLink(

@@ -1,7 +1,5 @@
 // Bridge error text formatting keeps common backend failures readable in UI.
 
-import 'package:remote_storage/bridge/remote_storage_bridge.dart';
-
 String describeBridgeError(Object error) {
   final raw = _extractBridgeErrorMessage(error);
   if (raw.isEmpty) {
@@ -39,9 +37,6 @@ String describeBridgeError(Object error) {
 }
 
 String _extractBridgeErrorMessage(Object error) {
-  if (error is RemoteStorageBridgeException) {
-    return error.message.trim();
-  }
   const prefix = 'RemoteStorageBridgeException: ';
   final text = error.toString().trim();
   if (text.startsWith(prefix)) {

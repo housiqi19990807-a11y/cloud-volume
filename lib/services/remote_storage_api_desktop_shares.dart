@@ -1,4 +1,4 @@
-part of 'remote_storage_api.dart';
+part of 'remote_storage_api_desktop.dart';
 
 // Share bridge calls stay on a dedicated mixin so the main API file stays small.
 mixin _RemoteStorageShareApiMixin implements RemoteStorageGateway {

@@ -62,6 +62,28 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     if (files.isEmpty) {
       return;
     }
+    if (widget.api.capabilities.supportsBrowserTransfers) {
+      try {
+        for (final object in files) {
+          unawaited(
+            FileAccessService.instance.downloadObjectToPath(
+              api: widget.api,
+              config: widget.config,
+              bucket: _activeBucket!,
+              object: object,
+              savePath: object.displayName,
+            ),
+          );
+        }
+        _clearSelection();
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+        _showPageError(error);
+      }
+      return;
+    }
     final targetDirectory = await resolveDefaultDownloadDirectory(
       widget.config.defaultDownloadDirectory,
     );

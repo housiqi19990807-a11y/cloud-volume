@@ -1,18 +1,24 @@
 // 设置页负责按“通用 / Windows”分组展示配置，避免平台专属选项把通用设置挤在同一长页里。
-import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/settings_sections.dart'
-    show DownloadDirectorySection, ThemePicker, VisibilitySection;
+    show
+        DownloadDirectorySection,
+        ThemePicker,
+        VisibilitySection,
+        WebDavCredentialsSection;
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:remote_storage/widgets/windows_settings_sections.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+part 'settings_page_actions.dart';
 
 enum _SettingsTab { general, windows }
 
@@ -42,6 +48,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _visibilityError;
   bool _savingTrashSettings = false;
   String? _trashSettingsError;
+  bool _savingWebdavCredentials = false;
+  String? _webdavCredentialsError;
   bool _savingWindowsMountMode = false;
   String? _windowsMountModeError;
   bool _savingWindowsThisPcEntry = false;
@@ -52,7 +60,9 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _windowsMountResetError;
   bool _cleaningStaleWindowsProcesses = false;
 
-  bool get _showsWindowsTab => Platform.isWindows;
+  bool get _showsWindowsTab => isWindowsPlatform;
+
+  void _updateState(VoidCallback action) => setState(action);
 
   @override
   Widget build(BuildContext context) {
@@ -119,21 +129,23 @@ class _SettingsPageState extends State<SettingsPage> {
     ShadThemeData theme,
     RemoteStorageConfig config,
   ) {
-    return [
+    final sections = <Widget>[
       _buildCard(theme, '外观', const ThemePicker()),
-      const SizedBox(height: 20),
-      _buildCard(
-        theme,
-        '下载设置',
-        DownloadDirectorySection(
-          theme: theme,
-          configuredPath: config.defaultDownloadDirectory,
-          saving: _savingDownloadDirectory,
-          errorText: _downloadDirectoryError,
-          onPickDirectory: () => _pickDownloadDirectory(config),
-          onResetDirectory: () => _resetDownloadDirectory(config),
+      if (widget.api.capabilities.supportsDownloadDirectory) ...[
+        const SizedBox(height: 20),
+        _buildCard(
+          theme,
+          '下载设置',
+          DownloadDirectorySection(
+            theme: theme,
+            configuredPath: config.defaultDownloadDirectory,
+            saving: _savingDownloadDirectory,
+            errorText: _downloadDirectoryError,
+            onPickDirectory: () => _pickDownloadDirectory(config),
+            onResetDirectory: () => _resetDownloadDirectory(config),
+          ),
         ),
-      ),
+      ],
       const SizedBox(height: 20),
       _buildCard(
         theme,
@@ -161,8 +173,23 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        'WebDAV 凭据',
+        WebDavCredentialsSection(
+          theme: theme,
+          username: config.webdavUsername,
+          hasPassword: config.hasWebdavPassword,
+          saving: _savingWebdavCredentials,
+          errorText: _webdavCredentialsError,
+          onSave: (username, password) =>
+              _saveWebdavCredentials(config, username, password),
+        ),
+      ),
+      const SizedBox(height: 20),
       _buildCard(theme, '连接信息', _buildConnectionInfo(theme, config)),
     ];
+    return sections;
   }
 
   List<Widget> _buildWindowsSections(
@@ -233,6 +260,14 @@ class _SettingsPageState extends State<SettingsPage> {
         _infoRow(theme, '配置路径', widget.state.configPath),
         const SizedBox(height: 8),
         _infoRow(theme, '访问密钥 ID', _maskedKey(config.accessKeyId)),
+        const SizedBox(height: 8),
+        _infoRow(
+          theme,
+          'WebDAV 账号',
+          config.webdavUsername.isEmpty ? '未配置' : config.webdavUsername,
+        ),
+        const SizedBox(height: 8),
+        _infoRow(theme, 'WebDAV 密码', config.hasWebdavPassword ? '已保存' : '未配置'),
       ],
     );
   }
@@ -246,6 +281,13 @@ class _SettingsPageState extends State<SettingsPage> {
           onPressed: widget.onRefresh,
           child: const Text('刷新状态'),
         ),
+        if (widget.api.capabilities.supportsSessionLogin) ...[
+          const SizedBox(width: 10),
+          ShadButton.outline(
+            onPressed: _logout,
+            child: const Text('退出登录'),
+          ),
+        ],
       ],
     );
   }
@@ -281,210 +323,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _resetDownloadDirectory(RemoteStorageConfig config) async {
     await _saveDownloadDirectory(config, '');
-  }
-
-  Future<void> _saveDownloadDirectory(
-    RemoteStorageConfig config,
-    String path,
-  ) async {
-    setState(() {
-      _savingDownloadDirectory = true;
-      _downloadDirectoryError = null;
-    });
-    try {
-      await widget.api.saveConfig(
-        config.copyWith(defaultDownloadDirectory: path),
-      );
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _downloadDirectoryError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _savingDownloadDirectory = false);
-      }
-    }
-  }
-
-  Future<void> _saveHideDotFiles(
-    RemoteStorageConfig config,
-    bool hideDotFiles,
-  ) async {
-    setState(() {
-      _savingVisibility = true;
-      _visibilityError = null;
-    });
-    try {
-      await widget.api.saveConfig(config.copyWith(hideDotFiles: hideDotFiles));
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _visibilityError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _savingVisibility = false);
-      }
-    }
-  }
-
-  Future<void> _saveTrashSettings(
-    RemoteStorageConfig config,
-    String directoryName,
-    int retentionDays,
-  ) async {
-    setState(() {
-      _savingTrashSettings = true;
-      _trashSettingsError = null;
-    });
-    try {
-      await widget.api.saveConfig(
-        config.copyWith(
-          trashDirectoryName: directoryName,
-          trashRetentionDays: retentionDays,
-        ),
-      );
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _trashSettingsError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _savingTrashSettings = false);
-      }
-    }
-  }
-
-  Future<void> _saveWindowsMountMode(
-    RemoteStorageConfig config,
-    WindowsMountMode? mode,
-  ) async {
-    if (mode == null || mode == config.windowsMountMode) {
-      return;
-    }
-    setState(() {
-      _savingWindowsMountMode = true;
-      _windowsMountModeError = null;
-    });
-    try {
-      await widget.api.saveConfig(config.copyWith(windowsMountMode: mode));
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _windowsMountModeError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _savingWindowsMountMode = false);
-      }
-    }
-  }
-
-  Future<void> _saveWindowsThisPcEntry(
-    RemoteStorageConfig config,
-    bool enabled,
-  ) async {
-    if (enabled == config.windowsThisPcEntryEnabled) {
-      return;
-    }
-    setState(() {
-      _savingWindowsThisPcEntry = true;
-      _windowsThisPcEntryError = null;
-    });
-    try {
-      await widget.api.saveConfig(
-        config.copyWith(windowsThisPcEntryEnabled: enabled),
-      );
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _windowsThisPcEntryError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _savingWindowsThisPcEntry = false);
-      }
-    }
-  }
-
-  Future<void> _saveWindowsWritebackConcurrency(
-    RemoteStorageConfig config,
-    int value,
-  ) async {
-    if (value == config.windowsWritebackConcurrency) {
-      return;
-    }
-    setState(() {
-      _savingWindowsWritebackConcurrency = true;
-      _windowsWritebackConcurrencyError = null;
-    });
-    try {
-      await widget.api.saveConfig(
-        config.copyWith(windowsWritebackConcurrency: value),
-      );
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _windowsWritebackConcurrencyError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _savingWindowsWritebackConcurrency = false);
-      }
-    }
-  }
-
-  Future<void> _forceResetWindowsMounts() async {
-    setState(() {
-      _resettingWindowsMounts = true;
-      _windowsMountResetError = null;
-    });
-    try {
-      await widget.api.cleanupMounts();
-      if (!mounted) return;
-      showAppToast(
-        context,
-        title: '挂载状态已重置',
-        message: '已强制清理 Windows 挂载与残留 sync root。',
-      );
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _windowsMountResetError = error.toString());
-      showAppErrorToast(context, title: '挂载重置失败', message: error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _resettingWindowsMounts = false);
-      }
-    }
-  }
-
-  Future<void> _cleanupStaleWindowsProcesses() async {
-    setState(() {
-      _cleaningStaleWindowsProcesses = true;
-      _windowsMountResetError = null;
-    });
-    try {
-      final count = await widget.api.cleanupStaleWindowsProcesses();
-      if (!mounted) return;
-      showAppToast(
-        context,
-        title: '残留进程已清理',
-        message: count > 0
-            ? '已结束 $count 个残留 remote_storage.exe 进程。'
-            : '没有发现需要清理的残留 remote_storage.exe 进程。',
-      );
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _windowsMountResetError = error.toString());
-      showAppErrorToast(context, title: '清理残留进程失败', message: error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _cleaningStaleWindowsProcesses = false);
-      }
-    }
   }
 
   Widget _infoRow(ShadThemeData theme, String label, String value) {

@@ -33,6 +33,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
     this.onMountBucket,
     this.onUnmountBucket,
     this.onOpenMountedBucket,
+    this.onOpenWebDavBucket,
+    this.webDavActionLabel = 'WebDAV',
   });
 
   final List<BucketInfo> buckets;
@@ -48,6 +50,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
   final ValueChanged<String>? onOpenMountedBucket;
+  final ValueChanged<String>? onOpenWebDavBucket;
+  final String webDavActionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +183,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
                                 onMountBucket: onMountBucket,
                                 onUnmountBucket: onUnmountBucket,
                                 onOpenMountedBucket: onOpenMountedBucket,
+                                onOpenWebDavBucket: onOpenWebDavBucket,
+                                webDavActionLabel: webDavActionLabel,
                               ),
                             ),
                           )
@@ -213,13 +219,26 @@ class FileManagerBucketBrowser extends StatelessWidget {
     final status = mountStatuses[bucket];
     final busy = busyBuckets.contains(bucket);
     final mounted = status?.mounted ?? false;
+    final showsWebDavAction = onOpenWebDavBucket != null;
 
     return <Widget>[
       ShadContextMenuItem(
         onPressed: () => _runBucketMenuAction(() => onOpenBucket(bucket)),
         child: const Text('打开存储桶'),
       ),
-      if (mounted && !busy) ...[
+      if (showsWebDavAction && !busy) ...[
+        if (onOpenTrashBucket != null)
+          ShadContextMenuItem(
+            onPressed: () =>
+                _runBucketMenuAction(() => onOpenTrashBucket!(bucket)),
+            child: const Text('打开回收站'),
+          ),
+        ShadContextMenuItem(
+          onPressed: () =>
+              _runBucketMenuAction(() => onOpenWebDavBucket!(bucket)),
+          child: Text('查看 $webDavActionLabel 地址'),
+        ),
+      ] else if (mounted && !busy) ...[
         if (onOpenTrashBucket != null)
           ShadContextMenuItem(
             onPressed: () =>
@@ -282,6 +301,8 @@ class _BucketMountActions extends StatelessWidget {
     required this.onMountBucket,
     required this.onUnmountBucket,
     required this.onOpenMountedBucket,
+    required this.onOpenWebDavBucket,
+    required this.webDavActionLabel,
   });
 
   final String bucket;
@@ -291,12 +312,15 @@ class _BucketMountActions extends StatelessWidget {
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
   final ValueChanged<String>? onOpenMountedBucket;
+  final ValueChanged<String>? onOpenWebDavBucket;
+  final String webDavActionLabel;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final mounted = status?.mounted ?? false;
     final foreground = theme.colorScheme.primary;
+    final showsWebDavAction = onOpenWebDavBucket != null;
 
     if (busy) {
       return SizedBox(
@@ -353,10 +377,20 @@ class _BucketMountActions extends StatelessWidget {
           const SizedBox(width: 6),
           _actionSlot(
             _miniButton(
-              label: mounted ? '卸载' : '挂载',
-              icon: mounted ? LucideIcons.x : LucideIcons.link,
+              label: showsWebDavAction
+                  ? webDavActionLabel
+                  : mounted
+                  ? '卸载'
+                  : '挂载',
+              icon: showsWebDavAction
+                  ? LucideIcons.globe
+                  : mounted
+                  ? LucideIcons.x
+                  : LucideIcons.link,
               color: foreground,
-              onPressed: mounted
+              onPressed: showsWebDavAction
+                  ? () => onOpenWebDavBucket!(bucket)
+                  : mounted
                   ? (onUnmountBucket == null
                         ? null
                         : () => onUnmountBucket!(bucket))
@@ -367,7 +401,9 @@ class _BucketMountActions extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           _actionSlot(
-            mounted
+            showsWebDavAction
+                ? const SizedBox.shrink()
+                : mounted
                 ? _miniButton(
                     label: '打开',
                     icon: LucideIcons.folderOpen,

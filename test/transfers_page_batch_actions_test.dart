@@ -1,7 +1,10 @@
 // Transfers page tests keep the header bulk actions wired to queue state.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/paged_listings.dart';
@@ -83,6 +86,20 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   final List<String> canceledTaskIds = <String>[];
 
   @override
+  RemoteStorageCapabilities get capabilities =>
+      const RemoteStorageCapabilities.desktop();
+
+  @override
+  Future<AuthSessionState> loadAuthSession() async =>
+      const AuthSessionState.desktop();
+
+  @override
+  Future<void> login(String username, String password) async {}
+
+  @override
+  Future<void> logout() async {}
+
+  @override
   Future<void> cancelTransfer(String taskId) async {
     canceledTaskIds.add(taskId);
   }
@@ -143,6 +160,16 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
     String prefix,
     String name,
   ) async => throw UnimplementedError();
+
+  @override
+  Future<void> uploadBytes(
+    RemoteStorageConfig config,
+    String bucket,
+    String key,
+    Uint8List bytes,
+    String taskId, {
+    String fileName = '',
+  }) async => throw UnimplementedError();
 
   @override
   Future<void> deleteObject(
@@ -276,4 +303,11 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   @override
   Future<BucketMountStatus> openBucketMount(String bucket) async =>
       throw UnimplementedError();
+
+  @override
+  Uri? objectDownloadUri(String bucket, String key, {bool inline = false}) =>
+      null;
+
+  @override
+  Uri? webDavUri(String bucket) => null;
 }

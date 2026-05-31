@@ -1,5 +1,10 @@
 # Cross-platform desktop workflows for remote-storage.
 
+FLUTTER ?= $(shell if command -v flutter >/dev/null 2>&1; then command -v flutter; elif [ -x /opt/tools/flutter/bin/flutter ]; then printf '%s\n' /opt/tools/flutter/bin/flutter; fi)
+HOST ?= 0.0.0.0
+PORT ?= 8080
+WEB_LISTEN ?= $(HOST):$(PORT)
+
 ifeq ($(OS),Windows_NT)
 HOST_PLATFORM := windows
 else
@@ -29,7 +34,7 @@ ifneq ($(BRIDGE_CXX),)
 BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
 endif
 
-.PHONY: bridge bridge-macos bridge-linux bridge-windows cli build-cli cli-release cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64 run-cli run run-macos run-linux build build-macos build-linux build-windows test analyze clean
+.PHONY: bridge bridge-macos bridge-linux bridge-windows cli build-cli cli-release cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64 run-cli run run-macos run-linux run-web build build-macos build-linux build-windows build-web test analyze clean
 
 bridge:
 ifeq ($(HOST_PLATFORM),macos)
@@ -88,22 +93,22 @@ run-cli: build-cli
 
 run: bridge
 ifeq ($(HOST_PLATFORM),macos)
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter run -d macos
+	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) run -d macos
 else ifeq ($(HOST_PLATFORM),linux)
-	flutter run -d linux
+	$(FLUTTER) run -d linux
 else ifeq ($(HOST_PLATFORM),windows)
-	flutter run -d windows
+	$(FLUTTER) run -d windows
 else
 	@echo "Unsupported host OS for default run target: $(HOST_PLATFORM)"
 	@exit 1
 endif
 
 run-macos: bridge-macos
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter run -d macos
+	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) run -d macos
 
 run-linux: bridge-linux
 ifeq ($(HOST_PLATFORM),linux)
-	flutter run -d linux
+	$(FLUTTER) run -d linux
 else
 	@echo "run-linux must be run on a Linux host."
 	@exit 1
@@ -111,11 +116,14 @@ endif
 
 run-windows: bridge-windows
 ifeq ($(HOST_PLATFORM),windows)
-	flutter run -d windows
+	$(FLUTTER) run -d windows
 else
 	@echo "run-windows must be run on a Windows host."
 	@exit 1
 endif
+
+run-web: build-web
+	go run ./cmd/web --listen $(WEB_LISTEN) --static-root build/web
 
 build:
 ifeq ($(HOST_PLATFORM),macos)
@@ -130,11 +138,11 @@ else
 endif
 
 build-macos: bridge-macos
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter build macos
+	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) build macos
 
 build-linux: bridge-linux
 ifeq ($(HOST_PLATFORM),linux)
-	flutter build linux
+	$(FLUTTER) build linux
 else
 	@echo "build-linux must be run on a Linux host."
 	@exit 1
@@ -142,18 +150,21 @@ endif
 
 build-windows: bridge-windows
 ifeq ($(HOST_PLATFORM),windows)
-	flutter build windows
+	$(FLUTTER) build windows
 else
 	@echo "build-windows must be run on a Windows host."
 	@exit 1
 endif
 
+build-web:
+	$(FLUTTER) build web
+
 test:
-	flutter test
+	$(FLUTTER) test
 
 analyze:
-	flutter analyze
+	$(FLUTTER) analyze
 
 clean:
-	flutter clean
+	$(FLUTTER) clean
 	rm -rf $(BRIDGE_DIR)
