@@ -134,8 +134,12 @@ make build-cli
 ```bash
 ./bin/cloud-volume-cli ls
 ./bin/cloud-volume-cli ls docs
+./bin/cloud-volume-cli mkdir docs/archive
+./bin/cloud-volume-cli rm docs/archive
 ./bin/cloud-volume-cli put ./demo.txt docs/demo.txt
 ./bin/cloud-volume-cli get docs/demo.txt ./demo.txt
+./bin/cloud-volume-cli put ./photos
+./bin/cloud-volume-cli get docs/archive ./archive-local
 ```
 
 说明：
@@ -144,6 +148,8 @@ make build-cli
 - 不传 `--mount-point` 时，仍使用默认目录 `~/Cloud Volume/<bucket>`
 - `mount` 会前台常驻，按 `Ctrl+C` 会触发卸载
 - 自定义挂载目录必须为空目录；CLI 不会删除你自定义目录里的已有内容
+- `put` / `get` 现在默认支持目录递归；上传目录时会同步创建远端目录占位符，下载目录时会在本地重建目录树
+- `rm` / `delete` 当前走硬删除，对象和前缀都会直接从 bucket 删除，不会进入应用级回收站
 
 查询和卸载：
 
@@ -170,11 +176,17 @@ make build-cli
 - `bucket <name>`：切换当前默认 bucket
 - `pwd`：输出当前远端目录
 - `cd docs/api`：进入远端目录，支持相对路径、`..` 和绝对路径
+- `mkdir docs/archive`：创建远端目录占位符
+- `rm docs/archive`：递归硬删除远端对象或目录
 - `ls` / `ls subdir`：列出当前目录或子目录
 - `put ./local.txt`：上传到当前目录，默认远端文件名取本地 basename
-- `get report.csv`：从当前目录下载
+- `put ./folder`：递归上传整个目录树到当前目录
+- `get report.csv`：从当前目录下载文件
+- `get reports/2026`：递归下载整个远端目录树
 - `mount --mount-point /mnt/media`：挂载当前 bucket
 - `status` / `unmount`：查看或卸载当前 bucket 的挂载
+- `Tab`：补全命令和远端路径
+- `Up/Down`：浏览历史记录，持久化到 `~/.remote-storage/runtime/cli_history`
 
 示例：
 

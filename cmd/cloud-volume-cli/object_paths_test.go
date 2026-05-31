@@ -39,3 +39,14 @@ func TestRelativeListedPath(t *testing.T) {
 		t.Fatalf("relativeListedPath dir = %q, want %q", got, "api/")
 	}
 }
+
+func TestRelativeDownloadPath(t *testing.T) {
+	t.Parallel()
+
+	if got := relativeDownloadPath("docs/archive", "docs/archive/2026/report.csv"); got != "2026/report.csv" {
+		t.Fatalf("relativeDownloadPath nested file = %q, want %q", got, "2026/report.csv")
+	}
+	if got := relativeDownloadPath("", "top-level.txt"); got != "top-level.txt" {
+		t.Fatalf("relativeDownloadPath root file = %q, want %q", got, "top-level.txt")
+	}
+}

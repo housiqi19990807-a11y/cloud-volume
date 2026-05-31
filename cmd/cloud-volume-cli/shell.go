@@ -2,12 +2,12 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/peterh/liner"
 	s3ops "remote-storage/go/s3"
 )
 
@@ -44,17 +44,28 @@ func runShell() error {
 	}
 	fmt.Fprintln(stdoutWriter(), "输入 help 查看命令，输入 exit 退出。")
 
-	scanner := bufio.NewScanner(os.Stdin)
+	editor, err := newShellEditor(state)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = editor.Close()
+	}()
+
 	for {
-		fmt.Fprint(stdoutWriter(), shellPrompt(state))
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
-				return err
+		line, err := editor.Prompt(shellPrompt(state))
+		if err != nil {
+			if errors.Is(err, liner.ErrPromptAborted) {
+				fmt.Fprintln(stdoutWriter())
+				continue
 			}
-			fmt.Fprintln(stdoutWriter())
+			if strings.Contains(strings.ToLower(err.Error()), "eof") {
+				fmt.Fprintln(stdoutWriter())
+				return nil
+			}
 			return nil
 		}
-		line := strings.TrimSpace(scanner.Text())
+		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
@@ -68,7 +79,9 @@ func runShell() error {
 				return nil
 			}
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			continue
 		}
+		editor.AppendHistory(line)
 	}
 }
 
@@ -192,6 +205,8 @@ func printShellHelp() {
 	fmt.Fprintln(stdoutWriter(), "  bucket [name]    查看或切换当前 shell 默认 bucket")
 	fmt.Fprintln(stdoutWriter(), "  cd [dir]         切换当前远端目录，支持相对路径、.. 和绝对路径")
 	fmt.Fprintln(stdoutWriter(), "  pwd              输出当前远端目录")
+	fmt.Fprintln(stdoutWriter(), "  Tab              远端路径和命令补全")
+	fmt.Fprintln(stdoutWriter(), "  Up/Down          历史记录，保存在 ~/.remote-storage/runtime/cli_history")
 	fmt.Fprintln(stdoutWriter(), "  exit | quit      退出 shell")
 }
 
@@ -208,50 +223,4 @@ func currentShellDir() string {
 		return ""
 	}
 	return cleanObjectPath(activeShell.currentDir)
-}
-
-func splitShellLine(line string) ([]string, error) {
-	args := make([]string, 0)
-	current := strings.Builder{}
-	inQuote := byte(0)
-	escaped := false
-
-	flush := func() {
-		if current.Len() == 0 {
-			return
-		}
-		args = append(args, current.String())
-		current.Reset()
-	}
-
-	for index := 0; index < len(line); index++ {
-		ch := line[index]
-		switch {
-		case escaped:
-			current.WriteByte(ch)
-			escaped = false
-		case ch == '\\':
-			escaped = true
-		case inQuote != 0:
-			if ch == inQuote {
-				inQuote = 0
-				continue
-			}
-			current.WriteByte(ch)
-		case ch == '\'' || ch == '"':
-			inQuote = ch
-		case ch == ' ' || ch == '\t':
-			flush()
-		default:
-			current.WriteByte(ch)
-		}
-	}
-	if escaped {
-		current.WriteByte('\\')
-	}
-	if inQuote != 0 {
-		return nil, fmt.Errorf("unterminated quote %q", string(inQuote))
-	}
-	flush()
-	return args, nil
 }
