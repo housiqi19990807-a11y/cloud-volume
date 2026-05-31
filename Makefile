@@ -29,7 +29,7 @@ ifneq ($(BRIDGE_CXX),)
 BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
 endif
 
-.PHONY: bridge bridge-macos bridge-linux bridge-windows build-cli run run-macos run-linux build build-macos build-linux build-windows test analyze clean
+.PHONY: bridge bridge-macos bridge-linux bridge-windows cli build-cli run-cli run run-macos run-linux build build-macos build-linux build-windows test analyze clean
 
 bridge:
 ifeq ($(HOST_PLATFORM),macos)
@@ -63,6 +63,11 @@ endif
 build-cli:
 	@mkdir -p $(CLI_DIR)
 	go build -o $(CLI_OUT) ./cmd/cloud-volume-cli
+
+cli: build-cli
+
+run-cli: build-cli
+	./$(CLI_OUT)
 
 run: bridge
 ifeq ($(HOST_PLATFORM),macos)
