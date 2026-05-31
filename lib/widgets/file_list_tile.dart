@@ -94,7 +94,6 @@ class _FileListTileState extends State<FileListTile> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: backgroundColor,
-            borderRadius: BorderRadius.circular(8),
             border: widget.showDivider
                 ? Border(bottom: BorderSide(color: dividerColor, width: 0.6))
                 : null,

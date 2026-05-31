@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Windows Cloud Files mounts now keep a stable sync-root path at `~/Cloud Volume/<bucket>` instead of allocating a timestamped directory on every mount, so Explorer paths, remount recovery, and task references no longer drift across sessions.
 - Windows Cloud Files cached writeback persistence no longer depends on a single shared `writeback.db` lock. Each mount process now writes its own queue snapshot under `~/.remote-storage/runtime/mounts/<bucket>/writeback/queue-<pid>.json`, remount recovery compacts old queue files back into the active process, and leftover crashed runners no longer block the next mount just by holding a stale queue DB handle.
 - Windows mount startup no longer panics when a leftover `remote_storage.exe` still holds `~/.remote-storage/runtime/mounts/<bucket>/writeback.db`; the bridge now returns a normal actionable error instead, and Windows Settings add an `结束残留占用进程` recovery action for cleaning those stale local runner processes before retrying the mount.
 - Windows Cloud Files cached-writeback now persists queued uploads in a per-bucket BoltDB store, merges repeated edits by virtual path, restores unfinished writeback tasks after remount, and releases unmount without synchronously flushing the whole queue first, so Explorer writes no longer have to wait for pending uploads before the mount disappears and background sync can continue while the app process stays alive.

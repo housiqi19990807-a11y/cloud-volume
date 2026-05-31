@@ -56,6 +56,7 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 	q.entries[clean] = entry
 	q.persistEntryLocked(entry)
 	s3opsQueueTransferForEntry(q.currentAccess(), entry)
+	s3ops.SetTransferStatusDetail(entry.taskID, "sync_wait")
 	q.projectSyncState(entry.virtualPath, false)
 }
 
@@ -127,6 +128,7 @@ func (q *writebackQueue) enqueueReady(virtualPath string) {
 		return
 	}
 	entry.queued = true
+	s3ops.SetTransferStatusDetail(entry.taskID, "upload_wait")
 	queue := q.queue
 	q.mu.Unlock()
 	queue <- entry
@@ -174,6 +176,7 @@ func (q *writebackQueue) requeue(entry *pendingWriteback, delay time.Duration) {
 	q.armTimerLocked(entry, delay)
 	q.persistEntryLocked(entry)
 	s3opsQueueTransferForEntry(q.currentAccess(), entry)
+	s3ops.SetTransferStatusDetail(entry.taskID, "sync_wait")
 	q.projectSyncState(entry.virtualPath, false)
 }
 
@@ -311,4 +314,5 @@ func s3opsQueueTransferForEntry(access *bucketAccess, entry *pendingWriteback) {
 		entry.localPath,
 		entry.size,
 	)
+	s3ops.SetTransferStatusDetail(entry.taskID, "sync_wait")
 }

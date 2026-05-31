@@ -9,6 +9,8 @@ class TransferSnapshot {
     required this.localPath,
     required this.targetPath,
     required this.status,
+    required this.statusDetail,
+    required this.createdAt,
     required this.bytesCompleted,
     required this.totalBytes,
     required this.speedBytes,
@@ -24,6 +26,8 @@ class TransferSnapshot {
       localPath: (json['localPath'] ?? '').toString(),
       targetPath: (json['targetPath'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
+      statusDetail: (json['statusDetail'] ?? '').toString(),
+      createdAt: (json['createdAt'] ?? '').toString(),
       bytesCompleted: (json['bytesCompleted'] ?? 0) as int,
       totalBytes: (json['totalBytes'] ?? 0) as int,
       speedBytes: (json['speedBytes'] ?? 0).toDouble(),
@@ -38,6 +42,8 @@ class TransferSnapshot {
   final String localPath;
   final String targetPath;
   final String status;
+  final String statusDetail;
+  final String createdAt;
   final int bytesCompleted;
   final int totalBytes;
   final double speedBytes;

@@ -1,4 +1,4 @@
-// Transfer task widgets share the same list-selection visual language as the file manager.
+// Transfer task widgets keep task rows and batch actions consistent with the file manager list style.
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
@@ -16,7 +16,8 @@ class TransferStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final text = switch (task.status) {
-      TransferStatus.pending => task.isUpload ? '等待同步' : '等待中',
+      TransferStatus.pending =>
+        task.isUpload ? (task.isUploadWaiting ? '等待上传' : '等待同步') : '等待中',
       TransferStatus.running =>
         task.speedBytes > 0
             ? formatBytesPerSecond(task.speedBytes)
@@ -32,7 +33,6 @@ class TransferStatusBadge extends StatelessWidget {
       TransferStatus.failed => theme.colorScheme.destructive,
       TransferStatus.canceled => theme.colorScheme.mutedForeground,
     };
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
@@ -93,7 +93,6 @@ class _TransferTaskRowState extends State<TransferTaskRow> {
         : _hovered
         ? hoverColor
         : Colors.transparent;
-
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {
@@ -112,7 +111,6 @@ class _TransferTaskRowState extends State<TransferTaskRow> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: backgroundColor,
-            borderRadius: BorderRadius.circular(8),
             border: widget.showDivider
                 ? Border(bottom: BorderSide(color: dividerColor, width: 0.6))
                 : null,
@@ -233,7 +231,6 @@ class TransferTaskSelectionActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -324,7 +321,6 @@ class TransferTaskListHeader extends StatelessWidget {
       color: theme.colorScheme.mutedForeground,
       letterSpacing: 0.2,
     );
-
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
       decoration: BoxDecoration(

@@ -137,6 +137,7 @@ func (q *writebackQueue) restorePersistedEntries() error {
 	if err != nil {
 		return err
 	}
+	records = q.filterRestorableRecords(records)
 	if err := q.store.replaceWithMerged(records); err != nil {
 		return err
 	}
@@ -156,6 +157,51 @@ func (q *writebackQueue) restorePersistedEntries() error {
 		q.armTimerLocked(entry, delay)
 	}
 	return nil
+}
+
+func (q *writebackQueue) filterRestorableRecords(
+	records []writebackRecord,
+) []writebackRecord {
+	access := q.currentAccess()
+	if access == nil {
+		return records
+	}
+	filtered := make([]writebackRecord, 0, len(records))
+	for _, record := range records {
+		if !q.canRestoreRecord(access, record) {
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+	return filtered
+}
+
+func (q *writebackQueue) canRestoreRecord(
+	access *bucketAccess,
+	record writebackRecord,
+) bool {
+	localPath := filepath.Clean(record.LocalPath)
+	if localPath == "." || localPath == "" {
+		return false
+	}
+	sessionRoot := filepath.Clean(access.sessionRoot)
+	if !isPathWithin(localPath, sessionRoot) {
+		return false
+	}
+	info, err := os.Stat(localPath)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return true
+}
+
+func isPathWithin(path, root string) bool {
+	cleanPath := filepath.Clean(path)
+	cleanRoot := filepath.Clean(root)
+	if cleanPath == cleanRoot {
+		return true
+	}
+	return strings.HasPrefix(cleanPath, cleanRoot+string(os.PathSeparator))
 }
 
 func (q *writebackQueue) pendingPaths() []string {

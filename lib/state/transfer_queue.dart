@@ -27,6 +27,8 @@ class TransferTask {
     required this.localPath,
     this.targetPath = '',
     this.status = TransferStatus.pending,
+    this.statusDetail = '',
+    this.createdAt = '',
     this.bytesCompleted = 0,
     this.totalBytes = 0,
     this.speedBytes = 0,
@@ -42,6 +44,8 @@ class TransferTask {
       localPath: (json['localPath'] ?? '').toString(),
       targetPath: (json['targetPath'] ?? '').toString(),
       status: _transferStatusFromName((json['status'] ?? '').toString()),
+      statusDetail: (json['statusDetail'] ?? '').toString(),
+      createdAt: (json['createdAt'] ?? '').toString(),
       bytesCompleted: (json['bytesCompleted'] ?? 0) as int,
       totalBytes: (json['totalBytes'] ?? 0) as int,
       speedBytes: (json['speedBytes'] ?? 0).toDouble(),
@@ -56,6 +60,8 @@ class TransferTask {
   final String localPath;
   String targetPath;
   TransferStatus status;
+  String statusDetail;
+  String createdAt;
   int bytesCompleted;
   int totalBytes;
   double speedBytes;
@@ -82,8 +88,13 @@ class TransferTask {
   bool get isCopy => kind == TransferKind.copy;
   bool get isMove => kind == TransferKind.move;
   bool get isDelete => kind == TransferKind.delete;
+  bool get isMountWriteback => id.startsWith('mount-writeback-');
   bool get isRunning => status == TransferStatus.running;
   bool get isPending => status == TransferStatus.pending;
+  bool get isSyncWaiting => isMountWriteback && statusDetail == 'sync_wait';
+  bool get isUploadWaiting => isMountWriteback && statusDetail == 'upload_wait';
+  bool get canForceSyncNow =>
+      isUpload && isPending && (!isMountWriteback || isSyncWaiting);
   bool get isCancelable =>
       status == TransferStatus.pending || status == TransferStatus.running;
   bool get isFinished =>
@@ -102,6 +113,8 @@ class TransferTask {
       'localPath': localPath,
       'targetPath': targetPath,
       'status': status.name,
+      'statusDetail': statusDetail,
+      'createdAt': createdAt,
       'bytesCompleted': bytesCompleted,
       'totalBytes': totalBytes,
       'speedBytes': speedBytes,
@@ -178,6 +191,7 @@ class TransferQueue extends ChangeNotifier {
       return;
     }
     task.status = TransferStatus.failed;
+    task.statusDetail = '';
     task.error = error.toString();
     task.speedBytes = 0;
     _rebuildMountWritebackCounts();
@@ -191,6 +205,7 @@ class TransferQueue extends ChangeNotifier {
     if (task == null) return;
     _cancelRequestedIds.remove(id);
     task.status = TransferStatus.done;
+    task.statusDetail = '';
     task.speedBytes = 0;
     task.bytesCompleted = task.totalBytes > 0
         ? task.totalBytes
@@ -206,6 +221,7 @@ class TransferQueue extends ChangeNotifier {
     if (task == null) return;
     _cancelRequestedIds.remove(id);
     task.status = TransferStatus.canceled;
+    task.statusDetail = '';
     task.speedBytes = 0;
     task.error = null;
     _rebuildMountWritebackCounts();
@@ -348,11 +364,15 @@ class TransferQueue extends ChangeNotifier {
           task.totalBytes != snapshot.totalBytes ||
           task.speedBytes != snapshot.speedBytes ||
           task.targetPath != snapshot.targetPath ||
+          task.statusDetail != snapshot.statusDetail ||
+          task.createdAt != snapshot.createdAt ||
           task.error != snapshot.error) {
         changed = true;
       }
       if (task.totalBytes != snapshot.totalBytes ||
           task.targetPath != snapshot.targetPath ||
+          task.statusDetail != snapshot.statusDetail ||
+          task.createdAt != snapshot.createdAt ||
           task.error != snapshot.error) {
         shouldPersist = true;
       }
@@ -360,6 +380,8 @@ class TransferQueue extends ChangeNotifier {
       task.totalBytes = snapshot.totalBytes;
       task.speedBytes = snapshot.speedBytes;
       task.targetPath = snapshot.targetPath;
+      task.statusDetail = snapshot.statusDetail;
+      task.createdAt = snapshot.createdAt;
       task.error = snapshot.error;
     }
     if (changed) {
@@ -458,7 +480,8 @@ class TransferQueue extends ChangeNotifier {
       _api != null &&
       task != null &&
       task.status == TransferStatus.pending &&
-      task.isUpload;
+      task.isUpload &&
+      (!task.isMountWriteback || task.isSyncWaiting);
 
   int _countTasks(
     Iterable<String> ids,
@@ -482,6 +505,8 @@ class TransferQueue extends ChangeNotifier {
       localPath: snapshot.localPath,
       targetPath: snapshot.targetPath,
     );
+    task.statusDetail = snapshot.statusDetail;
+    task.createdAt = snapshot.createdAt;
     _tasks.insert(0, task);
     _tasksById[task.id] = task;
     return task;

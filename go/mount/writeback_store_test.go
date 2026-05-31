@@ -146,6 +146,53 @@ func TestWritebackStoreReplaceWithMergedCompactsOldQueueFiles(t *testing.T) {
 	}
 }
 
+func TestRestorePersistedEntriesDropsMissingLocalPaths(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	storeDir := filepath.Join(access.sessionRoot, writebackStoreDirName)
+	missingPath := filepath.Join(
+		t.TempDir(),
+		"stale-mount",
+		"folder",
+		"file.txt",
+	)
+	writeWritebackQueueFile(t, filepath.Join(storeDir, "queue-100.json"), map[string]writebackRecord{
+		"folder/file.txt": {
+			TaskID:          "task-stale",
+			VirtualPath:     "folder/file.txt",
+			LocalPath:       missingPath,
+			Size:            12,
+			ModTimeUnixNano: 100,
+			DueAtUnixNano:   200,
+		},
+	})
+
+	if err := access.writeback.shutdown(); err != nil {
+		t.Fatalf("shutdown writeback queue: %v", err)
+	}
+
+	restored, err := newWritebackQueue(access)
+	if err != nil {
+		t.Fatalf("restore writeback queue: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = restored.shutdown()
+	})
+	access.writeback = restored
+
+	if len(restored.entries) != 0 {
+		t.Fatalf("expected stale persisted entries to be dropped, got %d", len(restored.entries))
+	}
+	records, err := restored.store.list()
+	if err != nil {
+		t.Fatalf("read compacted store: %v", err)
+	}
+	if len(records) != 0 {
+		t.Fatalf("expected stale persisted records to be removed, got %d", len(records))
+	}
+}
+
 func writeWritebackQueueFile(
 	t *testing.T,
 	filePath string,

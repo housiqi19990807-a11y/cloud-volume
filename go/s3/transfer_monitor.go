@@ -20,6 +20,8 @@ type TransferSnapshot struct {
 	LocalPath      string  `json:"localPath"`
 	TargetPath     string  `json:"targetPath,omitempty"`
 	Status         string  `json:"status"`
+	StatusDetail   string  `json:"statusDetail,omitempty"`
+	CreatedAt      string  `json:"createdAt,omitempty"`
 	BytesCompleted int64   `json:"bytesCompleted"`
 	TotalBytes     int64   `json:"totalBytes"`
 	SpeedBytes     float64 `json:"speedBytes"`
@@ -58,15 +60,17 @@ func startTransfer(
 	defer globalTransferMonitor.mu.Unlock()
 
 	globalTransferMonitor.tasks[id] = &transferState{
-		snapshot: TransferSnapshot{
-			ID:         id,
-			Type:       kind,
-			Bucket:     bucket,
-			Key:        key,
-			LocalPath:  localPath,
-			Status:     "running",
-			TotalBytes: totalBytes,
-		},
+			snapshot: TransferSnapshot{
+				ID:           id,
+				Type:         kind,
+				Bucket:       bucket,
+				Key:          key,
+				LocalPath:    localPath,
+				Status:       "running",
+				StatusDetail: "uploading",
+				CreatedAt:    now.Format(time.RFC3339),
+				TotalBytes:   totalBytes,
+			},
 		startedAt: now,
 		updatedAt: now,
 		cancel:    cancel,
@@ -98,13 +102,15 @@ func QueueTransfer(
 	if !ok {
 		globalTransferMonitor.tasks[id] = &transferState{
 			snapshot: TransferSnapshot{
-				ID:         id,
-				Type:       kind,
-				Bucket:     bucket,
-				Key:        key,
-				LocalPath:  localPath,
-				Status:     "pending",
-				TotalBytes: totalBytes,
+				ID:           id,
+				Type:         kind,
+				Bucket:       bucket,
+				Key:          key,
+				LocalPath:    localPath,
+				Status:       "pending",
+				StatusDetail: "queued",
+				CreatedAt:    now.Format(time.RFC3339),
+				TotalBytes:   totalBytes,
 			},
 			startedAt: now,
 			updatedAt: now,
@@ -117,9 +123,23 @@ func QueueTransfer(
 	task.snapshot.LocalPath = localPath
 	task.snapshot.TotalBytes = totalBytes
 	task.snapshot.Status = "pending"
+	task.snapshot.StatusDetail = "queued"
 	task.snapshot.Error = ""
 	task.snapshot.SpeedBytes = 0
 	task.updatedAt = now
+}
+
+// SetTransferStatusDetail refines a task's current phase without changing its main status.
+func SetTransferStatusDetail(id, detail string) {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.snapshot.StatusDetail = detail
+	task.updatedAt = time.Now()
 }
 
 // StartQueuedTransfer switches a previously queued task into the running state.

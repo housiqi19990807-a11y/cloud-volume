@@ -3,18 +3,28 @@
 package mount
 
 import (
-	"strings"
+	"path/filepath"
 	"testing"
 )
 
-func TestWindowsCloudFilesMountDirNameUsesFreshSuffix(t *testing.T) {
-	first := windowsCloudFilesMountDirName("demo/bucket")
-	second := windowsCloudFilesMountDirName("demo/bucket")
-
-	if first == second {
-		t.Fatalf("expected unique sync-root names, got %q", first)
+func TestWindowsCloudFilesMountDirNameUsesStableBucketDirectory(t *testing.T) {
+	got := windowsCloudFilesMountDirName("demo/bucket")
+	if got != "demo_bucket" {
+		t.Fatalf("expected stable sanitized bucket directory, got %q", got)
 	}
-	if !strings.HasPrefix(first, "demo_bucket-") {
-		t.Fatalf("expected sanitized bucket prefix, got %q", first)
+}
+
+func TestWindowsCloudFilesMountPathUsesStableBucketDirectory(t *testing.T) {
+	root, err := windowsCloudFilesRootPath()
+	if err != nil {
+		t.Fatalf("windowsCloudFilesRootPath: %v", err)
+	}
+	got, err := windowsCloudFilesMountPath("demo/bucket")
+	if err != nil {
+		t.Fatalf("windowsCloudFilesMountPath: %v", err)
+	}
+	want := filepath.Join(root, "demo_bucket")
+	if got != want {
+		t.Fatalf("expected stable mount path %q, got %q", want, got)
 	}
 }
