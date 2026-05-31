@@ -1,6 +1,9 @@
 # Cross-platform desktop workflows for remote-storage.
 
 FLUTTER ?= $(shell if command -v flutter >/dev/null 2>&1; then command -v flutter; elif [ -x /opt/tools/flutter/bin/flutter ]; then printf '%s\n' /opt/tools/flutter/bin/flutter; fi)
+HOST ?= 0.0.0.0
+PORT ?= 8080
+WEB_LISTEN ?= $(HOST):$(PORT)
 
 ifeq ($(OS),Windows_NT)
 HOST_PLATFORM := windows
@@ -92,7 +95,7 @@ else
 endif
 
 run-web: build-web
-	go run ./cmd/web --listen :8080 --static-root build/web
+	go run ./cmd/web --listen $(WEB_LISTEN) --static-root build/web
 
 build:
 ifeq ($(HOST_PLATFORM),macos)
