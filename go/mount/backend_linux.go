@@ -65,10 +65,7 @@ func (b *linuxFUSEBackend) Start(session *mountSession) error {
 			MaxWrite:          linuxFuseMaxWrite,
 			MaxReadAhead:      linuxFuseMaxReadAhead,
 			ExtraCapabilities: fuse.CAP_WRITEBACK_CACHE,
-			Options: []string{
-				"default_permissions",
-				"writeback_cache",
-			},
+			Options:           []string{"default_permissions"},
 		},
 	})
 	if err != nil {
