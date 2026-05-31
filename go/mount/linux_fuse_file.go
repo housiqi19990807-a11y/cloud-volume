@@ -183,9 +183,6 @@ func (h *linuxFuseFileHandle) publishLocked() syscall.Errno {
 	if !h.writable {
 		return 0
 	}
-	if err := h.file.Sync(); err != nil {
-		return gofusefs.ToErrno(err)
-	}
 	if !h.dirty || h.overlayOnly {
 		return 0
 	}
