@@ -39,12 +39,6 @@ func runShell() error {
 		state.bucketOverride = strings.TrimSpace(loaded.cfg.Bucket)
 	}
 
-	fmt.Fprintf(stdoutWriter(), "进入 cloud-volume shell。配置: %s\n", loaded.path)
-	if strings.TrimSpace(state.bucketOverride) != "" {
-		fmt.Fprintf(stdoutWriter(), "当前 bucket: %s\n", state.bucketOverride)
-	} else {
-		fmt.Fprintln(stdoutWriter(), "当前未设置默认 bucket，首次访问对象或挂载命令时会先让你选择一个 bucket。")
-	}
 	fmt.Fprintln(stdoutWriter(), "输入 help 查看命令，输入 exit 退出。")
 
 	editor, err := newShellEditor(state)
@@ -56,6 +50,12 @@ func runShell() error {
 		_ = editor.Close()
 		state.editor = nil
 	}()
+
+	if loaded.cfg.IsConfigured() && strings.TrimSpace(state.bucketOverride) == "" {
+		if err := ensureShellBucketSelected(state, loaded); err != nil {
+			return err
+		}
+	}
 
 	for {
 		line, err := editor.Prompt(shellPrompt(state))
@@ -88,6 +88,21 @@ func runShell() error {
 		}
 		editor.AppendHistory(line)
 	}
+}
+
+func ensureShellBucketSelected(state *shellState, loaded loadedConfig) error {
+	if state == nil {
+		return errors.New("shell state is not initialized")
+	}
+	if strings.TrimSpace(state.bucketOverride) != "" {
+		return nil
+	}
+	selected, err := chooseBucketInteractively(loaded)
+	if err != nil {
+		return err
+	}
+	applySelectedBucket(selected)
+	return nil
 }
 
 func shellPrompt(state *shellState) string {
