@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,6 +22,7 @@ import (
 const (
 	multipartUploadThreshold = 8 << 20
 	multipartUploadPartSize  = 8 << 20
+	multipartUploadWorkers   = 4
 	minUploadRateBytesPerSec = 1 << 20
 	partUploadGracePeriod    = 2 * time.Minute
 	partUploadMinTimeout     = 5 * time.Minute
@@ -193,44 +195,19 @@ func uploadPendingParts(
 ) error {
 	completed := completedPartMap(state)
 	totalParts := partCount(state.FileSize)
-	for index := int32(1); index <= totalParts; index++ {
-		expectedSize := partSizeFor(index, state.FileSize)
-		if part, ok := completed[index]; ok && part.Size == expectedSize {
-			continue
-		}
-		offset := int64(index-1) * multipartUploadPartSize
-		section := io.NewSectionReader(file, offset, expectedSize)
-		body := io.ReadSeeker(section)
-		if taskID != "" {
-			body = &contextReadSeeker{
-				ctx:    ctx,
-				reader: section,
-				onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
-			}
-		}
-		partCtx, cancel := withPerPartUploadTimeout(ctx, expectedSize)
-		partOut, err := client.UploadPart(partCtx, &s3.UploadPartInput{
-			Bucket:        &bucket,
-			Key:           &key,
-			UploadId:      &state.UploadID,
-			PartNumber:    aws.Int32(index),
-			Body:          body,
-			ContentLength: aws.Int64(expectedSize),
-		})
-		cancel()
+	pending := pendingUploadParts(completed, totalParts, state.FileSize)
+	if len(pending) == 0 {
+		return nil
+	}
+	if len(pending) == 1 {
+		part, err := uploadSinglePendingPart(ctx, client, bucket, key, file, state, taskID, pending[0])
 		if err != nil {
 			return err
 		}
-		upsertCompletedPart(state, resumablePartInfo{
-			PartNumber: index,
-			ETag:       aws.ToString(partOut.ETag),
-			Size:       expectedSize,
-		})
-		if err := writeResumableUploadState(state.LocalPath, state); err != nil {
-			return err
-		}
+		upsertCompletedPart(state, part)
+		return writeResumableUploadState(state.LocalPath, state)
 	}
-	return nil
+	return uploadPendingPartsConcurrent(ctx, client, bucket, key, file, state, taskID, pending)
 }
 
 func completeResumableUpload(
@@ -416,4 +393,156 @@ func uploadTimeoutForBytes(size int64) time.Duration {
 		return partUploadMinTimeout
 	}
 	return timeout
+}
+
+type pendingUploadPart struct {
+	partNumber int32
+	size       int64
+}
+
+func pendingUploadParts(
+	completed map[int32]resumablePartInfo,
+	totalParts int32,
+	totalSize int64,
+) []pendingUploadPart {
+	parts := make([]pendingUploadPart, 0, totalParts)
+	for index := int32(1); index <= totalParts; index++ {
+		expectedSize := partSizeFor(index, totalSize)
+		if part, ok := completed[index]; ok && part.Size == expectedSize {
+			continue
+		}
+		parts = append(parts, pendingUploadPart{
+			partNumber: index,
+			size:       expectedSize,
+		})
+	}
+	return parts
+}
+
+func uploadPendingPartsConcurrent(
+	ctx context.Context,
+	client *s3.Client,
+	bucket,
+	key string,
+	file *os.File,
+	state *resumableUploadState,
+	taskID string,
+	pending []pendingUploadPart,
+) error {
+	workerCount := multipartUploadWorkers
+	if len(pending) < workerCount {
+		workerCount = len(pending)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	partCh := make(chan pendingUploadPart)
+	resultCh := make(chan resumablePartInfo, len(pending))
+	errCh := make(chan error, 1)
+	var wg sync.WaitGroup
+
+	for worker := 0; worker < workerCount; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for part := range partCh {
+				completedPart, err := uploadSinglePendingPart(
+					ctx,
+					client,
+					bucket,
+					key,
+					file,
+					state,
+					taskID,
+					part,
+				)
+				if err != nil {
+					select {
+					case errCh <- err:
+						cancel()
+					default:
+					}
+					return
+				}
+				select {
+				case resultCh <- completedPart:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+
+	go func() {
+		defer close(partCh)
+		for _, part := range pending {
+			select {
+			case partCh <- part:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	completedCount := 0
+	for completedCount < len(pending) {
+		select {
+		case err := <-errCh:
+			wg.Wait()
+			return err
+		case part := <-resultCh:
+			upsertCompletedPart(state, part)
+			if err := writeResumableUploadState(state.LocalPath, state); err != nil {
+				cancel()
+				wg.Wait()
+				return err
+			}
+			completedCount++
+		}
+	}
+	cancel()
+	wg.Wait()
+	return nil
+}
+
+func uploadSinglePendingPart(
+	ctx context.Context,
+	client *s3.Client,
+	bucket,
+	key string,
+	file *os.File,
+	state *resumableUploadState,
+	taskID string,
+	part pendingUploadPart,
+) (resumablePartInfo, error) {
+	offset := int64(part.partNumber-1) * multipartUploadPartSize
+	section := io.NewSectionReader(file, offset, part.size)
+	body := io.ReadSeeker(section)
+	if taskID != "" {
+		body = &contextReadSeeker{
+			ctx:    ctx,
+			reader: section,
+			onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
+		}
+	}
+	partCtx, cancel := withPerPartUploadTimeout(ctx, part.size)
+	defer cancel()
+
+	partOut, err := client.UploadPart(partCtx, &s3.UploadPartInput{
+		Bucket:        &bucket,
+		Key:           &key,
+		UploadId:      &state.UploadID,
+		PartNumber:    aws.Int32(part.partNumber),
+		Body:          body,
+		ContentLength: aws.Int64(part.size),
+	})
+	if err != nil {
+		return resumablePartInfo{}, err
+	}
+	return resumablePartInfo{
+		PartNumber: part.partNumber,
+		ETag:       aws.ToString(partOut.ETag),
+		Size:       part.size,
+	}, nil
 }
