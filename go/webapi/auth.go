@@ -64,12 +64,10 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, fmt.Errorf("WebDAV 账号或密码错误"))
 		return
 	}
-	token, expiresAt, err := s.sessions.Create()
-	if err != nil {
+	if err := s.establishSession(w, r); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	s.setSessionCookie(w, r, token, expiresAt)
 	writeSuccess(w, map[string]any{"authenticated": true})
 }
 

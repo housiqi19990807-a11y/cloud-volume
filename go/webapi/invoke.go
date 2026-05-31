@@ -72,6 +72,12 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, err)
 		return
 	}
+	if method == "save_config" && input.Config.HasWebDAVCredentials() {
+		if err := s.establishSession(w, r); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
 	writeSuccess(w, result)
 }
 
@@ -257,6 +263,19 @@ func (s *Server) saveConfig(
 		return storageconfig.BootstrapState{}, err
 	}
 	return loadBootstrapState()
+}
+
+func (s *Server) establishSession(
+	w http.ResponseWriter,
+	r *http.Request,
+) error {
+	s.sessions.Delete(s.sessionToken(r))
+	token, expiresAt, err := s.sessions.Create()
+	if err != nil {
+		return err
+	}
+	s.setSessionCookie(w, r, token, expiresAt)
+	return nil
 }
 
 func decodeBody(body io.ReadCloser, target any) error {

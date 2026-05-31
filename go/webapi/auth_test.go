@@ -101,3 +101,60 @@ func TestAuthLoginAndCookieProtectedInvoke(t *testing.T) {
 		t.Fatalf("expected mount response to contain WebDAV URL, got %s", authedMountRecorder.Body.String())
 	}
 }
+
+func TestSaveConfigCreatesSessionForFirstRun(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	server := NewServer(Options{})
+	handler := server.Handler()
+
+	saveRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/invoke/save_config",
+		strings.NewReader(`{
+			"config": {
+				"endpoint": "https://example.invalid",
+				"region": "auto",
+				"bucket": "demo",
+				"accessKeyId": "ak-test",
+				"secretAccessKey": "sk-test",
+				"webdavUsername": "web-user",
+				"webdavPassword": "web-pass",
+				"usePathStyle": true
+			}
+		}`),
+	)
+	saveRequest.Header.Set("Content-Type", "application/json")
+	saveRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(saveRecorder, saveRequest)
+	if saveRecorder.Code != http.StatusOK {
+		t.Fatalf("expected first-run save_config status 200, got %d body=%s", saveRecorder.Code, saveRecorder.Body.String())
+	}
+
+	response := saveRecorder.Result()
+	cookies := response.Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("expected save_config to create a session cookie for first-run web setup")
+	}
+
+	sessionRequest := httptest.NewRequest(http.MethodGet, "/api/auth/session", nil)
+	sessionRequest.AddCookie(cookies[0])
+	sessionRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(sessionRecorder, sessionRequest)
+	if sessionRecorder.Code != http.StatusOK {
+		t.Fatalf("expected authenticated session after first-run save_config, got %d", sessionRecorder.Code)
+	}
+
+	bucketsRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/invoke/mount_bucket",
+		strings.NewReader(`{"bucket":"demo"}`),
+	)
+	bucketsRequest.Header.Set("Content-Type", "application/json")
+	bucketsRequest.AddCookie(cookies[0])
+	bucketsRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(bucketsRecorder, bucketsRequest)
+	if bucketsRecorder.Code != http.StatusOK {
+		t.Fatalf("expected first-run session to unlock protected routes, got %d body=%s", bucketsRecorder.Code, bucketsRecorder.Body.String())
+	}
+}
