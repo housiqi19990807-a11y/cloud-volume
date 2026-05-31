@@ -5,8 +5,11 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"remote-storage/go/webapi"
 )
@@ -23,6 +26,13 @@ func cliSupportsEmbeddedWeb() bool {
 }
 
 func runWebCommand(args []string) error {
+	if len(args) > 0 {
+		switch strings.ToLower(strings.TrimSpace(args[0])) {
+		case "version", "--version":
+			fmt.Fprintln(os.Stdout, version)
+			return nil
+		}
+	}
 	flags := newFlagSet("web")
 	listenAddr := flags.String("listen", ":8080", "HTTP listen address")
 	staticRoot := flags.String("static-root", filepath.Join("build", "web"), "Flutter web build directory")

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- CLI 与 Web 运行时现在都支持直接输出版本号：顶层 `cloud-volume-cli version/--version` 继续保留，`cloud-volume-cli-full web version/--version` 与独立 `cloud-volume-web version/--version` 也会直接打印当前构建版本。
 - 设置页现在新增独立的“关于”子 Tab，并通过运行时版本信息展示当前应用版本，同时补充作者版权 `三千` 和 QQ 交流群 `572532027`。
 - 发布体系现在新增 `cloud-volume-cli-full` 变体：保留原有 `cloud-volume-cli` lite 包和独立 `cloud-volume-web` 包不变，同时额外发布内嵌 Flutter Web 静态资源的单文件 full CLI，提供 `web` 子命令启动浏览器控制台，并把对应构建说明同步到了 README、Release 文案和 GitHub Actions workflow。
 - Windows 桌面窗口启动位置现在会按主屏工作区居中计算，不再每次都固定从左上角打开。

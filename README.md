@@ -246,6 +246,7 @@ CLI 发布产物命名：
 
 - `cloud-volume-cli` 对应 lite 版，只包含原有 CLI 能力。
 - `cloud-volume-cli-full` 对应 full 版，额外内嵌 Flutter web 静态资源并提供 `web` 子命令，可单文件启动浏览器控制台。
+- `cloud-volume-cli`、`cloud-volume-cli-full web` 和独立的 `cloud-volume-web` 入口都支持 `version` / `--version` 打印当前版本号。
 - 原有独立 Web 运行时产物 `yunjuan-web-linux-*` 仍会继续发布，适合单独部署 `cloud-volume-web`。
 
 本地如果需要构建 CLI 发布包，可以运行：
