@@ -93,7 +93,7 @@ func TestUploadFileContextResumableSkipsCompletedPartsOnRetry(t *testing.T) {
 		UsePathStyle:    true,
 	}
 	localPath := filepath.Join(t.TempDir(), "object.bin")
-	payload := make([]byte, multipartUploadThreshold+2<<20)
+	payload := make([]byte, defaultMultipartUploadPartSize*2+2<<20)
 	for index := range payload {
 		payload[index] = byte(index % 251)
 	}
@@ -108,6 +108,7 @@ func TestUploadFileContextResumableSkipsCompletedPartsOnRetry(t *testing.T) {
 		key,
 		localPath,
 		"",
+		0,
 	)
 	if err == nil {
 		t.Fatal("expected first multipart attempt to fail")
@@ -130,6 +131,7 @@ func TestUploadFileContextResumableSkipsCompletedPartsOnRetry(t *testing.T) {
 		key,
 		localPath,
 		"",
+		0,
 	); err != nil {
 		t.Fatalf("UploadFileContextResumable retry: %v", err)
 	}
@@ -236,7 +238,7 @@ func TestUploadFileContextResumableUploadsPartsConcurrently(t *testing.T) {
 		UsePathStyle:    true,
 	}
 	localPath := filepath.Join(t.TempDir(), "object.bin")
-	payload := make([]byte, multipartUploadPartSize*3)
+	payload := make([]byte, defaultMultipartUploadPartSize*3)
 	if err := os.WriteFile(localPath, payload, 0o644); err != nil {
 		t.Fatalf("seed local file: %v", err)
 	}
@@ -248,10 +250,19 @@ func TestUploadFileContextResumableUploadsPartsConcurrently(t *testing.T) {
 		key,
 		localPath,
 		"",
+		0,
 	); err != nil {
 		t.Fatalf("UploadFileContextResumable: %v", err)
 	}
 	if atomic.LoadInt32(&maxUploads) < 2 {
 		t.Fatalf("expected concurrent multipart uploads, saw max %d", atomic.LoadInt32(&maxUploads))
+	}
+}
+
+func TestChooseMultipartUploadWorkersHonorsExplicitValue(t *testing.T) {
+	t.Parallel()
+
+	if got := chooseMultipartUploadWorkers(1<<30, defaultMultipartUploadPartSize, 32); got != 32 {
+		t.Fatalf("explicit workers = %d, want 32", got)
 	}
 }

@@ -25,6 +25,8 @@ type bucketAccess struct {
 	transferTimeout time.Duration
 	listTTL         time.Duration
 	prefetchTTL     time.Duration
+	autoSync        bool
+	uploadWorkers   int
 
 	group singleflight.Group
 

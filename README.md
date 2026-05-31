@@ -86,7 +86,7 @@ Linux 本地启动前提：
 构建：
 
 ```bash
-make build-cli
+make cli
 ```
 
 首次初始化：
@@ -127,6 +127,18 @@ make build-cli
 ./bin/cloud-volume-cli mount --bucket media --mount-point /mnt/media
 ```
 
+追加写入场景如果希望尽早把完整 multipart 分块预推到远端，可以打开 `--auto-sync`：
+
+```bash
+./bin/cloud-volume-cli mount --bucket media --mount-point /mnt/media --auto-sync
+```
+
+如果需要手工放大 multipart 并发，可以再叠加 `--worker`：
+
+```bash
+./bin/cloud-volume-cli mount --bucket media --mount-point /mnt/media --auto-sync --worker 16
+```
+
 也支持位置参数：
 
 ```bash
@@ -155,6 +167,10 @@ make build-cli
 - `mount` 会前台常驻；Linux CLI 下按 `Ctrl+C` 会先等待当前 bucket 里尚未推送完成的写回任务刷完，再执行卸载
 - 自定义挂载目录必须为空目录；CLI 不会删除你自定义目录里的已有内容
 - 大文件写回当前使用可恢复 multipart 上传，已完成分块会记录到本地 `.uploading.json` 状态里；后续重试会跳过已完成分块，并且会并发上传剩余分块来提升多 GB 文件的同步速度
+- `--worker` 可显式指定 multipart 上传并发；不指定时默认按 CPU 核数动态取值，最小 `4`、最大 `10`
+- `--auto-sync` 会在 Linux FUSE 检测到顺序追加写时，后台预上传已经完整落盘的 multipart 分块；遇到随机写、覆盖写、truncate 或显式属性改动时，会自动降级回原来的“本地落盘后异步整体写回”语义，避免破坏现有一致性
+- 即使启用了 `--auto-sync`，最终文件关闭后的 quiet-period 自动推送和卸载时的 drain 推送仍然保留，用于补齐最后不足一个完整分块的尾部数据并完成 multipart
+- Linux 挂载缓存文件现在按对象路径 hash 平铺到 `~/.remote-storage/runtime/mounts/<bucket>/cache/`，避免深层目录写入把本地缓存展开成一层层子目录
 - `put` / `get` 现在默认支持目录递归；上传目录时会同步创建远端目录占位符，下载目录时会在本地重建目录树
 - `rm` / `delete` 当前走硬删除，对象和前缀都会直接从 bucket 删除，不会进入应用级回收站
 
@@ -213,6 +229,12 @@ CLI 发布产物命名：
 - Linux：`yunjuan-cli-linux-amd64.tar.gz`、`yunjuan-cli-linux-arm64.tar.gz`
 - macOS：`yunjuan-cli-darwin-amd64.tar.gz`、`yunjuan-cli-darwin-arm64.tar.gz`
 - Windows：`yunjuan-cli-windows-amd64.zip`
+
+本地如果需要一把构建所有 CLI 发布包，可以直接运行：
+
+```bash
+make cli-release
+```
 
 ## 配置项
 

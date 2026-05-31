@@ -41,6 +41,8 @@ type mountSession struct {
 	rootPrefix    string
 	mountName     string
 	requestedPath string
+	autoSync      bool
+	uploadWorkers int
 	mountPath     string
 	mountTarget   string
 	managedPath   bool

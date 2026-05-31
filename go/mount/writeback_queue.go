@@ -219,6 +219,18 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 	}
 	info, err := os.Stat(entry.localPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			access.cache.removeLocalFile(entry.virtualPath, false)
+			access.cache.invalidatePath(entry.virtualPath)
+			_ = q.store.delete(entry.virtualPath)
+			log.Printf(
+				"[mount/writeback] flush-missing bucket=%q path=%q local_path=%q",
+				q.bucketName(),
+				entry.virtualPath,
+				entry.localPath,
+			)
+			return nil
+		}
 		return err
 	}
 	if info.IsDir() {
@@ -238,6 +250,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		access.remoteKey(entry.virtualPath),
 		entry.localPath,
 		entry.taskID,
+		access.uploadWorkers,
 	)
 	if err != nil {
 		return err

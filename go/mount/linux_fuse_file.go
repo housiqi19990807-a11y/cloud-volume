@@ -18,13 +18,18 @@ import (
 )
 
 type linuxFuseFileHandle struct {
-	access      *bucketAccess
-	virtualPath string
-	localPath   string
-	file        *os.File
-	overlayOnly bool
-	writable    bool
-	dirty       bool
+	access           *bucketAccess
+	virtualPath      string
+	localPath        string
+	file             *os.File
+	overlayOnly      bool
+	writable         bool
+	dirty            bool
+	sequentialDirty  bool
+	sequentialEnd    int64
+	autoSyncedSize   int64
+	autoSyncDisabled bool
+	autoSyncQueued   bool
 
 	mu       sync.Mutex
 	released bool
@@ -123,6 +128,8 @@ func (h *linuxFuseFileHandle) Write(
 	count, err := h.file.WriteAt(data, off)
 	if count > 0 {
 		h.dirty = true
+		h.noteWriteRange(off, count)
+		h.scheduleAutoSyncLocked()
 	}
 	return uint32(count), gofusefs.ToErrno(err)
 }
@@ -131,7 +138,7 @@ func (h *linuxFuseFileHandle) Flush(_ context.Context) syscall.Errno {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	log.Printf("[mount/linux-file] flush path=%q dirty=%t overlay_only=%t", h.virtualPath, h.dirty, h.overlayOnly)
-	return h.publishLocked()
+	return 0
 }
 
 func (h *linuxFuseFileHandle) Release(_ context.Context) syscall.Errno {
@@ -174,6 +181,8 @@ func (h *linuxFuseFileHandle) Setattr(
 		return errno
 	}
 	h.dirty = true
+	h.autoSyncDisabled = true
+	h.autoSyncQueued = false
 	info, err := h.file.Stat()
 	if err != nil {
 		return gofusefs.ToErrno(err)
@@ -196,6 +205,7 @@ func (h *linuxFuseFileHandle) publishLocked() syscall.Errno {
 		h.localPath,
 		fileSize(h.localPath),
 	)
+	h.autoSyncQueued = false
 	h.access.registerLocalWrite(h.virtualPath, h.localPath, fileSize(h.localPath))
 	h.access.scheduleUpload(h.virtualPath, h.localPath)
 	h.dirty = false

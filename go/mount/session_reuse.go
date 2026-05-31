@@ -15,5 +15,7 @@ func mountSessionMatches(
 	normalized := cfg.Normalized()
 	return session.bucket == normalizeBucketName(bucket) &&
 		session.config == normalized &&
-		session.requestedPath == normalizeMountPath(options.MountPath)
+		session.requestedPath == normalizeMountPath(options.MountPath) &&
+		session.autoSync == options.AutoSync &&
+		session.uploadWorkers == options.UploadWorkers
 }

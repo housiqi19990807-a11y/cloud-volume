@@ -25,6 +25,8 @@ func runMountCommand(args []string) error {
 	configPath := flags.String("config", "", "config file path")
 	bucketName := flags.String("bucket", "", "bucket name")
 	mountPoint := flags.String("mount-point", "", "mount point path")
+	autoSync := flags.Bool("auto-sync", false, "pre-upload completed sequential parts during append-heavy writes")
+	uploadWorkers := flags.Int("worker", 0, "multipart upload workers, default uses CPU cores")
 	skipValidate := flags.Bool("skip-validate", false, "skip bucket reachability validation")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -35,6 +37,9 @@ func runMountCommand(args []string) error {
 	}
 	if err := ensureLinuxMountEnvironment(); err != nil {
 		return err
+	}
+	if *uploadWorkers < 0 {
+		return errors.New("--worker 不能小于 0")
 	}
 
 	store, _, err := openConfigStore(*configPath)
@@ -69,7 +74,9 @@ func runMountCommand(args []string) error {
 
 	log.Printf("[cli/mount] mount-start bucket=%q mount_point=%q", bucket, strings.TrimSpace(*mountPoint))
 	status, err := bucketmount.MountBucketWithOptions(cfg, bucket, bucketmount.MountOptions{
-		MountPath: strings.TrimSpace(*mountPoint),
+		MountPath:     strings.TrimSpace(*mountPoint),
+		AutoSync:      *autoSync,
+		UploadWorkers: *uploadWorkers,
 	})
 	if err != nil {
 		log.Printf("[cli/mount] mount-error bucket=%q mount_point=%q error=%v", bucket, strings.TrimSpace(*mountPoint), err)

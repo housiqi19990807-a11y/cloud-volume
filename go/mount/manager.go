@@ -217,6 +217,8 @@ func newMountSession(
 		bucket:        bucket,
 		rootPrefix:    normalizeRootPrefix(cfg.RootPrefix),
 		requestedPath: normalizeMountPath(options.MountPath),
+		autoSync:      options.AutoSync,
+		uploadWorkers: options.UploadWorkers,
 		mountTarget:   normalizeMountPath(options.MountPath),
 		access:        access,
 		backend:       backend,
@@ -225,6 +227,8 @@ func newMountSession(
 		_ = access.close()
 		return nil, err
 	}
+	access.autoSync = session.autoSync
+	access.uploadWorkers = session.uploadWorkers
 	return session, nil
 }
 

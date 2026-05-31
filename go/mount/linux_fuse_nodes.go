@@ -100,10 +100,13 @@ func (n *linuxFuseNode) Getattr(
 
 func (n *linuxFuseNode) Setattr(
 	ctx context.Context,
-	_ gofusefs.FileHandle,
+	f gofusefs.FileHandle,
 	in *fuse.SetAttrIn,
 	out *fuse.AttrOut,
 ) syscall.Errno {
+	if file, ok := f.(*linuxFuseFileHandle); ok {
+		return file.Setattr(ctx, in, out)
+	}
 	if n.dir || n.IsRoot() {
 		return n.Getattr(ctx, nil, out)
 	}

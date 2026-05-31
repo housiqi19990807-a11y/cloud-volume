@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Linux CLI FUSE 挂载新增 `--auto-sync` 和 `--worker`：顺序追加写现在可以在后台预上传已经完整落盘的 multipart 分块，最终仍保留 quiet-period 自动推送和卸载 drain 推送来补齐尾块并完成 multipart；multipart 并发默认按 CPU 核数动态收敛到 `4..10`，也可以通过 `--worker` 显式放大以适配更高的内网上传带宽。
+- Linux 挂载缓存文件路径现在按对象路径 hash 平铺到每个 bucket 的本地 `cache/` 目录，避免深层对象路径把本地写回缓存展开成层层子目录，同时保留原有远端 key 与桌面端逻辑不变。
+- Makefile 现在提供 `make cli` 作为本地 CLI 构建入口，并新增 `make cli-release` 一次性打包 Linux `amd64/arm64`、macOS `amd64/arm64`、Windows `amd64` 的 CLI 发布包，和现有 GitHub Actions CLI 发布矩阵保持一致。
 - Added `cloud-volume-cli` for headless Linux usage: `init` now prompts for endpoint / AK / SK / bucket / root-prefix / path-style config and saves to the existing TOML store, `mount` can foreground-mount a chosen bucket to either the default `~/Cloud Volume/<bucket>` path or a caller-specified empty directory without changing the existing desktop mount flow on macOS, Windows, or Flutter, and the CLI now also exposes `status` and `unmount` subcommands for scripted server-side mount management.
 - `cloud-volume-cli` now defaults into an interactive shell when started without arguments, keeps a current bucket plus remote working directory, supports `cd` / `pwd`, and adds direct object commands `put`, `get`, `ls`, and `list` on top of the existing S3 config and root-prefix rules.
 - `cloud-volume-cli` now also supports `mkdir` plus hard-delete `rm/delete`, recursive directory `put/get`, and shell-side persistent history plus tab completion for commands and remote paths.

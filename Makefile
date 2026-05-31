@@ -29,7 +29,7 @@ ifneq ($(BRIDGE_CXX),)
 BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
 endif
 
-.PHONY: bridge bridge-macos bridge-linux bridge-windows cli build-cli run-cli run run-macos run-linux build build-macos build-linux build-windows test analyze clean
+.PHONY: bridge bridge-macos bridge-linux bridge-windows cli build-cli cli-release cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64 run-cli run run-macos run-linux build build-macos build-linux build-windows test analyze clean
 
 bridge:
 ifeq ($(HOST_PLATFORM),macos)
@@ -65,6 +65,23 @@ build-cli:
 	go build -o $(CLI_OUT) ./cmd/cloud-volume-cli
 
 cli: build-cli
+
+cli-release: cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64
+
+cli-release-linux-amd64:
+	./scripts/build_cli_packages.sh --goos linux --goarch amd64 --version dev --output-dir dist/cli
+
+cli-release-linux-arm64:
+	./scripts/build_cli_packages.sh --goos linux --goarch arm64 --version dev --output-dir dist/cli
+
+cli-release-darwin-amd64:
+	./scripts/build_cli_packages.sh --goos darwin --goarch amd64 --version dev --output-dir dist/cli
+
+cli-release-darwin-arm64:
+	./scripts/build_cli_packages.sh --goos darwin --goarch arm64 --version dev --output-dir dist/cli
+
+cli-release-windows-amd64:
+	./scripts/build_cli_packages.sh --goos windows --goarch amd64 --version dev --output-dir dist/cli
 
 run-cli: build-cli
 	./$(CLI_OUT)
