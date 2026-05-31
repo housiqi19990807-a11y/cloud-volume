@@ -180,8 +180,7 @@
       border-radius: inherit;
       background: linear-gradient(90deg, var(--loader-accent) 0%, var(--loader-accent-soft) 100%);
       box-shadow: 0 0 22px rgba(37, 99, 235, 0.35);
-      transform-origin: left center;
-      animation: boot-progress 1.2s ease-in-out infinite;
+      transition: width 280ms ease;
     }
 
     .boot-note {
@@ -189,41 +188,6 @@
       color: var(--loader-muted);
       font-size: 12px;
       line-height: 1.6;
-    }
-
-    .boot-grid {
-      position: relative;
-      z-index: 1;
-      margin-top: 22px;
-      padding-top: 16px;
-      border-top: 1px solid var(--loader-line);
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .boot-pill {
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid rgba(37, 99, 235, 0.08);
-      color: var(--loader-muted);
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    .boot-pill strong {
-      display: block;
-      margin-bottom: 3px;
-      color: var(--loader-ink);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    @keyframes boot-progress {
-      0% { transform: scaleX(0.18); }
-      50% { transform: scaleX(0.74); }
-      100% { transform: scaleX(0.34); }
     }
 
     @media (max-width: 640px) {
@@ -238,10 +202,6 @@
 
       .boot-brand {
         align-items: flex-start;
-      }
-
-      .boot-grid {
-        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -271,19 +231,14 @@
       <div class="boot-status">
         <div class="boot-label">
           <span id="boot-status-text">正在准备界面资源</span>
-          <span class="boot-percent" id="boot-status-percent">18%</span>
+          <span class="boot-percent" id="boot-status-percent">0%</span>
         </div>
         <div class="boot-progress">
-          <div class="boot-progress-bar"></div>
+          <div class="boot-progress-bar" id="boot-progress-bar"></div>
         </div>
         <p class="boot-note">
           首次打开会加载字体、CanvasKit 与应用资源。加载完成后会自动进入控制台。
         </p>
-      </div>
-      <div class="boot-grid">
-        <div class="boot-pill"><strong>Web 控制台</strong>浏览器内管理远程存储</div>
-        <div class="boot-pill"><strong>Cookie 登录</strong>未登录先进入鉴权页</div>
-        <div class="boot-pill"><strong>WebDAV</strong>每个 bucket 提供独立访问地址</div>
       </div>
     </div>
   </div>
