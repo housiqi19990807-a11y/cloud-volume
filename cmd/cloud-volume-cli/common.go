@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
 )
 
 type bucketRequest struct {
@@ -47,15 +48,15 @@ func parseBucketRequest(command string, args []string) (bucketRequest, error) {
 
 	bucket := strings.TrimSpace(*bucketName)
 	if bucket == "" {
-		if activeShell != nil && strings.TrimSpace(activeShell.bucketOverride) != "" {
-			bucket = strings.TrimSpace(activeShell.bucketOverride)
-		} else {
-			bucket = strings.TrimSpace(loaded.cfg.Bucket)
+		selected, err := resolveActiveBucket(loaded, false)
+		if err != nil {
+			return bucketRequest{}, err
 		}
+		bucket = selected
 	}
 	resolvedMountPath := strings.TrimSpace(*mountPoint)
 	if bucket == "" && resolvedMountPath == "" {
-		return bucketRequest{}, errors.New("缺少 bucket，请通过 --bucket 指定、传入 mount point，或先在 init 中保存默认 bucket")
+		return bucketRequest{}, errors.New("缺少 bucket，请通过 --bucket 指定、传入 mount point，或先先选择一个 bucket")
 	}
 	return bucketRequest{
 		bucket:    bucket,
@@ -102,6 +103,49 @@ func loadConfiguredConfig(explicitPath string) (loadedConfig, error) {
 		return loadedConfig{}, errors.New("当前还没有完整配置，请先运行 cloud-volume-cli init")
 	}
 	return loaded, nil
+}
+
+func resolveActiveBucket(loaded loadedConfig, allowEmpty bool) (string, error) {
+	if activeShell != nil && strings.TrimSpace(activeShell.bucketOverride) != "" {
+		return strings.TrimSpace(activeShell.bucketOverride), nil
+	}
+	if strings.TrimSpace(loaded.cfg.Bucket) != "" {
+		return strings.TrimSpace(loaded.cfg.Bucket), nil
+	}
+	if allowEmpty {
+		return "", nil
+	}
+	selected, err := chooseBucketInteractively(loaded)
+	if err != nil {
+		return "", err
+	}
+	if activeShell != nil {
+		activeShell.bucketOverride = selected
+	}
+	return selected, nil
+}
+
+func chooseBucketInteractively(loaded loadedConfig) (string, error) {
+	buckets, err := s3ops.ListBuckets(loaded.cfg)
+	if err != nil {
+		return "", fmt.Errorf("拉取 bucket 列表失败: %w", err)
+	}
+	options := make([]string, 0, len(buckets))
+	for _, bucket := range buckets {
+		if strings.TrimSpace(bucket.Name) == "" {
+			continue
+		}
+		options = append(options, strings.TrimSpace(bucket.Name))
+	}
+	if len(options) == 0 {
+		return "", errors.New("当前账号下没有可用 bucket")
+	}
+	ui := newPromptUI()
+	selected, err := ui.askChoice("请选择 Bucket", options, "")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(selected), nil
 }
 
 func stdoutWriter() io.Writer {

@@ -41,9 +41,6 @@ func runInitCommand(args []string) error {
 	if cfg.Region, err = ui.askString("Region", cfg.Region, false); err != nil {
 		return err
 	}
-	if cfg.Bucket, err = ui.askString("默认 Bucket", cfg.Bucket, false); err != nil {
-		return err
-	}
 	if cfg.AccessKeyID, err = ui.askString("Access Key ID", cfg.AccessKeyID, true); err != nil {
 		return err
 	}
@@ -56,8 +53,34 @@ func runInitCommand(args []string) error {
 
 	cfg = cfg.Normalized()
 	if !*skipValidate {
-		fmt.Fprintln(ui.out, "正在校验连接...")
-		if err := s3ops.CheckBucketAccess(cfg, cfg.Bucket); err != nil {
+		fmt.Fprintln(ui.out, "正在拉取 bucket 列表...")
+		buckets, err := s3ops.ListBuckets(cfg)
+		if err != nil {
+			return fmt.Errorf("拉取 bucket 列表失败: %w", err)
+		}
+		if len(buckets) == 0 {
+			cfg.Bucket = ""
+			fmt.Fprintln(ui.out, "当前账号下没有可用 bucket。")
+		} else {
+			options := make([]string, 0, len(buckets))
+			for _, bucket := range buckets {
+				if strings.TrimSpace(bucket.Name) == "" {
+					continue
+				}
+				options = append(options, strings.TrimSpace(bucket.Name))
+			}
+			if len(options) == 0 {
+				cfg.Bucket = ""
+				fmt.Fprintln(ui.out, "当前账号下没有可用 bucket。")
+			} else {
+				selected, err := ui.askOptionalChoice("默认 Bucket", options, cfg.Bucket)
+				if err != nil {
+					return err
+				}
+				cfg.Bucket = strings.TrimSpace(selected)
+			}
+		}
+		if err := s3ops.CheckAccess(cfg); err != nil {
 			return fmt.Errorf("校验配置失败: %w", err)
 		}
 	}

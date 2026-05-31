@@ -107,8 +107,13 @@ make build-cli
 - `region`
 - `access key id`
 - `secret access key`
-- `bucket`
 - `use_path_style`
+
+初始化时会直接用新输入的 endpoint 和凭证发起 `ListBuckets` 请求：
+
+- 如果 bucket 列表可用，你可以用上下键选择一个默认 bucket
+- 也可以选择“暂不设置默认 Bucket”
+- 如果暂时没设置默认 bucket，后续第一次执行对象操作或挂载命令时，CLI 会再即时拉取 bucket 列表让你选
 
 默认会立即校验 endpoint、凭证和 bucket 可访问性；如果当前账号没有 `ListBuckets` 权限，或者你只是想先保存配置，可以改用：
 
@@ -144,6 +149,7 @@ make build-cli
 说明：
 
 - 不传 `--bucket` 时，会回退到 `~/.remote-storage/config.toml` 里的默认 `bucket`
+- 如果既没有传 `--bucket`，配置里也没有默认 bucket，CLI 会先拉取 bucket 列表让你选择
 - 不传 `--mount-point` 时，仍使用默认目录 `~/Cloud Volume/<bucket>`
 - `mount` 会前台常驻，按 `Ctrl+C` 会触发卸载
 - 自定义挂载目录必须为空目录；CLI 不会删除你自定义目录里的已有内容
