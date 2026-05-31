@@ -5,6 +5,7 @@ package mount
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -42,6 +43,7 @@ func (b *linuxFUSEBackend) Initialize(session *mountSession) error {
 }
 
 func (b *linuxFUSEBackend) Start(session *mountSession) error {
+	log.Printf("[mount/linux] start bucket=%q mount_path=%q", session.bucket, session.mountPath)
 	if err := prepareLinuxMountPath(session.mountPath, session.managedPath); err != nil {
 		return fmt.Errorf("create linux mount path: %w", err)
 	}
@@ -57,15 +59,18 @@ func (b *linuxFUSEBackend) Start(session *mountSession) error {
 		},
 	})
 	if err != nil {
+		log.Printf("[mount/linux] mount-error bucket=%q mount_path=%q error=%v", session.bucket, session.mountPath, err)
 		return fmt.Errorf("mount bucket with linux fuse: %w", err)
 	}
 
 	b.server = server
 	session.mounted = true
+	log.Printf("[mount/linux] start-done bucket=%q mount_path=%q", session.bucket, session.mountPath)
 	return nil
 }
 
 func (b *linuxFUSEBackend) Stop(session *mountSession) error {
+	log.Printf("[mount/linux] stop bucket=%q mount_path=%q", session.bucket, session.mountPath)
 	session.mounted = false
 
 	var firstErr error
@@ -89,6 +94,11 @@ func (b *linuxFUSEBackend) Stop(session *mountSession) error {
 		}
 	} else if err := os.MkdirAll(filepath.Clean(session.mountPath), 0o755); err != nil && firstErr == nil {
 		firstErr = err
+	}
+	if firstErr != nil {
+		log.Printf("[mount/linux] stop-error bucket=%q mount_path=%q error=%v", session.bucket, session.mountPath, firstErr)
+	} else {
+		log.Printf("[mount/linux] stop-done bucket=%q mount_path=%q", session.bucket, session.mountPath)
 	}
 	return firstErr
 }

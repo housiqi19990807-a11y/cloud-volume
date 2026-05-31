@@ -55,6 +55,14 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 	q.armTimerLocked(entry, writebackQuietPeriod)
 	q.entries[clean] = entry
 	q.persistEntryLocked(entry)
+	log.Printf(
+		"[mount/writeback] enqueue bucket=%q path=%q local_path=%q size=%d due_at=%s",
+		q.bucketName(),
+		entry.virtualPath,
+		entry.localPath,
+		entry.size,
+		entry.dueAt.Format(time.RFC3339Nano),
+	)
 	s3opsQueueTransferForEntry(q.currentAccess(), entry)
 	q.projectSyncState(entry.virtualPath, false)
 }
@@ -129,6 +137,12 @@ func (q *writebackQueue) enqueueReady(virtualPath string) {
 	entry.queued = true
 	queue := q.queue
 	q.mu.Unlock()
+	log.Printf(
+		"[mount/writeback] ready bucket=%q path=%q local_path=%q",
+		q.bucketName(),
+		entry.virtualPath,
+		entry.localPath,
+	)
 	queue <- entry
 }
 
@@ -150,6 +164,13 @@ func (q *writebackQueue) flush(entry *pendingWriteback) {
 	if !q.claim(entry) {
 		return
 	}
+	log.Printf(
+		"[mount/writeback] flush-start bucket=%q path=%q local_path=%q size=%d",
+		q.bucketName(),
+		entry.virtualPath,
+		entry.localPath,
+		entry.size,
+	)
 
 	err := q.flushNow(entry)
 	q.mu.Lock()
@@ -157,8 +178,21 @@ func (q *writebackQueue) flush(entry *pendingWriteback) {
 	discard := entry.discard
 	q.mu.Unlock()
 	if err != nil && !discard && !errors.Is(err, context.Canceled) {
+		log.Printf(
+			"[mount/writeback] flush-error bucket=%q path=%q local_path=%q error=%v",
+			q.bucketName(),
+			entry.virtualPath,
+			entry.localPath,
+			err,
+		)
 		q.requeue(entry, nextWritebackRetryDelay(entry.retryCount+1))
+		return
 	}
+	if discard {
+		log.Printf("[mount/writeback] flush-discard bucket=%q path=%q", q.bucketName(), entry.virtualPath)
+		return
+	}
+	log.Printf("[mount/writeback] flush-done bucket=%q path=%q", q.bucketName(), entry.virtualPath)
 }
 
 func (q *writebackQueue) requeue(entry *pendingWriteback, delay time.Duration) {

@@ -6,6 +6,7 @@ package mount
 import (
 	"context"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -129,6 +130,7 @@ func (h *linuxFuseFileHandle) Write(
 func (h *linuxFuseFileHandle) Flush(_ context.Context) syscall.Errno {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	log.Printf("[mount/linux-file] flush path=%q dirty=%t overlay_only=%t", h.virtualPath, h.dirty, h.overlayOnly)
 	return h.publishLocked()
 }
 
@@ -139,6 +141,7 @@ func (h *linuxFuseFileHandle) Release(_ context.Context) syscall.Errno {
 		return 0
 	}
 	h.released = true
+	log.Printf("[mount/linux-file] release path=%q dirty=%t overlay_only=%t", h.virtualPath, h.dirty, h.overlayOnly)
 
 	if errno := h.publishLocked(); errno != 0 {
 		_ = h.file.Close()
@@ -187,6 +190,12 @@ func (h *linuxFuseFileHandle) publishLocked() syscall.Errno {
 		return 0
 	}
 
+	log.Printf(
+		"[mount/linux-file] publish path=%q local_path=%q size=%d",
+		h.virtualPath,
+		h.localPath,
+		fileSize(h.localPath),
+	)
 	h.access.registerLocalWrite(h.virtualPath, h.localPath, fileSize(h.localPath))
 	h.access.scheduleUpload(h.virtualPath, h.localPath)
 	h.dirty = false

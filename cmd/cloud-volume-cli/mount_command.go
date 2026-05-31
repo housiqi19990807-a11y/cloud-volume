@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -57,18 +58,24 @@ func runMountCommand(args []string) error {
 	}
 
 	if !*skipValidate {
+		log.Printf("[cli/mount] validate-start bucket=%q", bucket)
 		fmt.Println("正在校验 Bucket 可访问性...")
 		if err := s3ops.CheckBucketAccess(cfg, bucket); err != nil {
+			log.Printf("[cli/mount] validate-error bucket=%q error=%v", bucket, err)
 			return fmt.Errorf("校验 bucket 失败: %w", err)
 		}
+		log.Printf("[cli/mount] validate-done bucket=%q", bucket)
 	}
 
+	log.Printf("[cli/mount] mount-start bucket=%q mount_point=%q", bucket, strings.TrimSpace(*mountPoint))
 	status, err := bucketmount.MountBucketWithOptions(cfg, bucket, bucketmount.MountOptions{
 		MountPath: strings.TrimSpace(*mountPoint),
 	})
 	if err != nil {
+		log.Printf("[cli/mount] mount-error bucket=%q mount_point=%q error=%v", bucket, strings.TrimSpace(*mountPoint), err)
 		return err
 	}
+	log.Printf("[cli/mount] mount-done bucket=%q mount_path=%q", bucket, status.MountPath)
 
 	fmt.Printf("Bucket %s 已挂载到 %s\n", bucket, status.MountPath)
 	fmt.Println("保持当前进程运行；按 Ctrl+C 可卸载并退出。")
@@ -121,15 +128,23 @@ func waitForMountedBucket(bucket string) error {
 	for {
 		select {
 		case sig := <-signalCh:
+			log.Printf("[cli/mount] signal bucket=%q signal=%s", bucket, sig)
 			fmt.Printf("收到信号 %s，开始卸载...\n", sig)
 			_, err := bucketmount.UnmountBucket(bucket)
+			if err != nil {
+				log.Printf("[cli/mount] unmount-error bucket=%q error=%v", bucket, err)
+			} else {
+				log.Printf("[cli/mount] unmount-done bucket=%q", bucket)
+			}
 			return err
 		case <-ticker.C:
 			status, err := bucketmount.GetBucketMountStatus(bucket)
 			if err != nil {
+				log.Printf("[cli/mount] status-error bucket=%q error=%v", bucket, err)
 				return err
 			}
 			if !status.Mounted {
+				log.Printf("[cli/mount] status-unmounted bucket=%q", bucket)
 				fmt.Println("挂载已结束。")
 				return nil
 			}
