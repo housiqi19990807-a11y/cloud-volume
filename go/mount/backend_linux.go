@@ -16,7 +16,12 @@ import (
 	storageconfig "remote-storage/go/config"
 )
 
-const linuxFuseAttrTTL = time.Second
+const (
+	linuxFuseAttrTTL       = time.Second
+	linuxFuseMaxBackground = 64
+	linuxFuseMaxWrite      = 1 << 20
+	linuxFuseMaxReadAhead  = 1 << 20
+)
 
 type linuxFUSEBackend struct {
 	server *fuse.Server
@@ -53,9 +58,17 @@ func (b *linuxFUSEBackend) Start(session *mountSession) error {
 		EntryTimeout: ptrDuration(linuxFuseAttrTTL),
 		AttrTimeout:  ptrDuration(linuxFuseAttrTTL),
 		MountOptions: fuse.MountOptions{
-			Name:          "cloud-volume",
-			FsName:        "cloud-volume:" + session.bucket,
-			DisableXAttrs: true,
+			Name:              "cloud-volume",
+			FsName:            "cloud-volume:" + session.bucket,
+			DisableXAttrs:     true,
+			MaxBackground:     linuxFuseMaxBackground,
+			MaxWrite:          linuxFuseMaxWrite,
+			MaxReadAhead:      linuxFuseMaxReadAhead,
+			ExtraCapabilities: fuse.CAP_WRITEBACK_CACHE,
+			Options: []string{
+				"default_permissions",
+				"writeback_cache",
+			},
 		},
 	})
 	if err != nil {

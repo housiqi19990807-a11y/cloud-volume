@@ -135,7 +135,7 @@ func (n *linuxFuseNode) Open(
 		return nil, 0, syscall.EISDIR
 	}
 	handle, errno := newLinuxFuseFileHandle(ctx, n.access, n.virtualPath(), flags, false, 0o644)
-	return handle, 0, errno
+	return handle, fuse.FOPEN_KEEP_CACHE, errno
 }
 
 func (n *linuxFuseNode) Create(
@@ -157,7 +157,7 @@ func (n *linuxFuseNode) Create(
 	}
 	fillLinuxFuseLocalAttr(&out.Attr, info, false)
 	child := n.NewInode(ctx, newLinuxFuseNode(n.access, false), linuxFuseStableAttr(virtualPath, false))
-	return child, handle, 0, 0
+	return child, handle, fuse.FOPEN_KEEP_CACHE, 0
 }
 
 func (n *linuxFuseNode) Mkdir(
