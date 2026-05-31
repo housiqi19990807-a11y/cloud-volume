@@ -228,7 +228,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		return q.refreshEntryFromDisk(entry, info, writebackQuietPeriod)
 	}
 
-	ctx, cancel := access.withTransferTimeout(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	err = s3ops.UploadFileContextResumable(

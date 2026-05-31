@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -20,6 +21,9 @@ import (
 const (
 	multipartUploadThreshold = 8 << 20
 	multipartUploadPartSize  = 8 << 20
+	minUploadRateBytesPerSec = 1 << 20
+	partUploadGracePeriod    = 2 * time.Minute
+	partUploadMinTimeout     = 5 * time.Minute
 )
 
 type resumableUploadState struct {
@@ -204,7 +208,8 @@ func uploadPendingParts(
 				onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
 			}
 		}
-		partOut, err := client.UploadPart(ctx, &s3.UploadPartInput{
+		partCtx, cancel := withPerPartUploadTimeout(ctx, expectedSize)
+		partOut, err := client.UploadPart(partCtx, &s3.UploadPartInput{
 			Bucket:        &bucket,
 			Key:           &key,
 			UploadId:      &state.UploadID,
@@ -212,6 +217,7 @@ func uploadPendingParts(
 			Body:          body,
 			ContentLength: aws.Int64(expectedSize),
 		})
+		cancel()
 		if err != nil {
 			return err
 		}
@@ -387,4 +393,27 @@ func partSizeFor(partNumber int32, totalSize int64) int64 {
 		return multipartUploadPartSize
 	}
 	return remaining
+}
+
+func withPerPartUploadTimeout(ctx context.Context, partSize int64) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	timeout := uploadTimeoutForBytes(partSize)
+	return context.WithTimeout(ctx, timeout)
+}
+
+func uploadTimeoutForBytes(size int64) time.Duration {
+	if size <= 0 {
+		return partUploadMinTimeout
+	}
+	seconds := size / minUploadRateBytesPerSec
+	if size%minUploadRateBytesPerSec != 0 {
+		seconds++
+	}
+	timeout := time.Duration(seconds)*time.Second + partUploadGracePeriod
+	if timeout < partUploadMinTimeout {
+		return partUploadMinTimeout
+	}
+	return timeout
 }

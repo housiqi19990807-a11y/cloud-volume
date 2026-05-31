@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	storageconfig "remote-storage/go/config"
 )
@@ -157,5 +158,24 @@ func TestUploadFileContextResumableSkipsCompletedPartsOnRetry(t *testing.T) {
 	}
 	if abortCalls != 0 {
 		t.Fatalf("expected no multipart abort, got %d", abortCalls)
+	}
+}
+
+func TestUploadTimeoutForBytesUsesRateFloorAndGrace(t *testing.T) {
+	t.Parallel()
+
+	if got, want := uploadTimeoutForBytes(0), partUploadMinTimeout; got != want {
+		t.Fatalf("zero-size timeout = %v, want %v", got, want)
+	}
+
+	oneMiB := int64(1 << 20)
+	if got, want := uploadTimeoutForBytes(oneMiB), partUploadMinTimeout; got != want {
+		t.Fatalf("1MiB timeout = %v, want %v", got, want)
+	}
+
+	fourGiB := int64(4 << 30)
+	want := time.Duration(fourGiB/minUploadRateBytesPerSec)*time.Second + partUploadGracePeriod
+	if got := uploadTimeoutForBytes(fourGiB); got != want {
+		t.Fatalf("4GiB timeout = %v, want %v", got, want)
 	}
 }
