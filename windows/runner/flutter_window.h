@@ -31,7 +31,7 @@ class FlutterWindow : public Win32Window {
   void RemoveTrayIcon();
   void HideToTray();
   void RestoreFromTray();
-  void ShowTrayContextMenu();
+  void ShowTrayContextMenu(POINT anchor);
   bool HandleTrayCommand(UINT command_id);
 
   // The project to run.

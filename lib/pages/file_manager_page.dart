@@ -23,6 +23,7 @@ import 'package:remote_storage/widgets/create_directory_dialog.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_manager_bucket_browser.dart';
+import 'package:remote_storage/widgets/file_manager_error_view.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/file_manager_trash_browser.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
@@ -46,11 +47,13 @@ class FileManagerPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.config,
+    required this.onEditConfig,
     this.homeView = FileManagerHomeView.files,
   });
 
   final RemoteStorageGateway api;
   final RemoteStorageConfig config;
+  final VoidCallback onEditConfig;
   final FileManagerHomeView homeView;
 
   @override
@@ -347,36 +350,14 @@ class _FileManagerPageState extends State<FileManagerPage> {
       );
     }
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.circleAlert,
-              size: 40,
-              color: theme.colorScheme.destructive,
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Text(
-                _error!,
-                style: TextStyle(
-                  color: theme.colorScheme.destructive,
-                  fontSize: 13,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ShadButton(
-              onPressed: _activeBucket == null
-                  ? () => unawaited(_loadBuckets())
-                  : () => unawaited(_loadObjects(_activeBucket!, _prefix)),
-              child: const Text('重试'),
-            ),
-          ],
-        ),
+      return FileManagerErrorView(
+        theme: theme,
+        message: _error!,
+        onRetry: _activeBucket == null
+            ? () => unawaited(_loadBuckets())
+            : () => unawaited(_loadObjects(_activeBucket!, _prefix)),
+        secondaryActionLabel: _activeBucket == null ? '重新配置认证信息' : null,
+        onSecondaryAction: _activeBucket == null ? widget.onEditConfig : null,
       );
     }
     if (_activeBucket == null) return _buildBucketView(theme);

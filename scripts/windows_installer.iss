@@ -34,6 +34,8 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 DefaultDirName={autopf}\{#AppInstallDirName}
+; Always show the directory page so upgrades can still override the remembered path.
+DisableDirPage=no
 DefaultGroupName={#AppName}
 ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}

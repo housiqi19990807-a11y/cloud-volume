@@ -1,6 +1,7 @@
 #include "flutter_window.h"
 
 #include <flutter/standard_method_codec.h>
+#include <windowsx.h>
 
 #include <optional>
 
@@ -13,6 +14,7 @@ constexpr UINT kTrayIconId = 1;
 constexpr UINT kTrayIconMessage = WM_APP + 1;
 constexpr UINT kTrayCommandShow = 1001;
 constexpr UINT kTrayCommandExit = 1002;
+constexpr UINT kTrayMenuAnchorBottom = 0xFFFF;
 constexpr wchar_t kTrayTooltip[] = L"Yunjuan";
 constexpr wchar_t kTrayShowLabel[] = L"\u663E\u793A\u4E3B\u7A97\u53E3";
 constexpr wchar_t kTrayExitLabel[] = L"\u9000\u51FA\u4E91\u5377";
@@ -84,15 +86,30 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
 
   switch (message) {
     case kTrayIconMessage:
-      switch (lparam) {
+      switch (LOWORD(lparam)) {
+        case NIN_SELECT:
+        case NIN_KEYSELECT:
         case WM_LBUTTONUP:
         case WM_LBUTTONDBLCLK:
           RestoreFromTray();
           return 0;
-        case WM_RBUTTONUP:
-        case WM_CONTEXTMENU:
-          ShowTrayContextMenu();
+        case WM_CONTEXTMENU: {
+          POINT anchor = {};
+          anchor.x = GET_X_LPARAM(wparam);
+          anchor.y = GET_Y_LPARAM(wparam);
+          if (anchor.x == -1 && anchor.y == kTrayMenuAnchorBottom) {
+            GetCursorPos(&anchor);
+          }
+          ShowTrayContextMenu(anchor);
           return 0;
+        }
+        case WM_RBUTTONUP:
+        case WM_RBUTTONDOWN: {
+          POINT anchor;
+          GetCursorPos(&anchor);
+          ShowTrayContextMenu(anchor);
+          return 0;
+        }
       }
       break;
 
@@ -190,7 +207,7 @@ void FlutterWindow::RestoreFromTray() {
   SetForegroundWindow(GetHandle());
 }
 
-void FlutterWindow::ShowTrayContextMenu() {
+void FlutterWindow::ShowTrayContextMenu(POINT anchor) {
   HMENU menu = CreatePopupMenu();
   if (menu == nullptr) {
     return;
@@ -200,11 +217,9 @@ void FlutterWindow::ShowTrayContextMenu() {
   AppendMenu(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenu(menu, MF_STRING, kTrayCommandExit, kTrayExitLabel);
 
-  POINT cursor;
-  GetCursorPos(&cursor);
   SetForegroundWindow(GetHandle());
   const UINT clicked = TrackPopupMenu(
-      menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON, cursor.x, cursor.y,
+      menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON, anchor.x, anchor.y,
       0, GetHandle(), nullptr);
   DestroyMenu(menu);
 

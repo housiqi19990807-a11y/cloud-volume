@@ -256,7 +256,11 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     return IndexedStack(
       index: index,
       children: [
-        FileManagerPage(api: widget.api, config: widget.state.config),
+        FileManagerPage(
+          api: widget.api,
+          config: widget.state.config,
+          onEditConfig: widget.onEditConfig,
+        ),
         GlobalTrashPage(api: widget.api, config: widget.state.config),
         ShareManagementPage(api: widget.api, config: widget.state.config),
         TransfersPage(
