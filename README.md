@@ -318,6 +318,7 @@ Linux 桌面版同时提供 `tar.gz` 和 `AppImage`：
 - `AppImage` 适合直接下载后单文件运行，不依赖目标机器的发行版包管理器。
 
 产物都包含对应平台的 Flutter 桌面壳和 Go bridge。
+发布流程会自动生成包含更新记录、macOS 打开提示处理方法、国内 GitHub 加速下载说明以及校验信息的 Release 文案。
 
 
 ## 许可证
