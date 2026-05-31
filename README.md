@@ -300,7 +300,7 @@ Web 端行为和桌面端有几个关键差异：
 
 推送形如 `v0.0.1` 的语义化版本标签后，会触发 GitHub Actions 构建并自动创建 / 更新对应 GitHub Release：
 
-- macOS `amd64` / `arm64`：桌面版 `dmg`、`zip`
+- macOS `universal` / `arm64`：桌面版 `dmg`、`zip`
 - Windows `amd64`：桌面版 `installer.exe`、`zip`
 - Linux `amd64`：桌面版 `tar.gz`、`AppImage`
 - Linux `amd64` / `arm64`：CLI `tar.gz`

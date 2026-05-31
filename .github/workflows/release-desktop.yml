@@ -81,8 +81,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: amd64
-            runner: macos-13
+          - arch: universal
+            runner: macos-14
           - arch: arm64
             runner: macos-14
     steps:
