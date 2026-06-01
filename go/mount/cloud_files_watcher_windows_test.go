@@ -504,3 +504,70 @@ func TestWindowsSyncWatcherCloseReturnsDuringHarvest(t *testing.T) {
 		t.Fatal("expected watcher close to finish while harvest goroutines are active")
 	}
 }
+
+func TestWindowsSyncWatcherRemoveCancelsPendingUpload(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	root := t.TempDir()
+	filePath := filepath.Join(root, "docs", "draft.txt")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		t.Fatalf("mkdir tree: %v", err)
+	}
+	if err := os.WriteFile(filePath, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	rawWatcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
+	}
+	defer rawWatcher.Close()
+
+	watcher := &windowsSyncWatcher{
+		root:   root,
+		access: access,
+		raw:    rawWatcher,
+		state: &windowsPathState{
+			ignored:      map[string]windowsIgnoredPath{},
+			hydrating:    map[string]bool{},
+			kinds:        map[string]bool{},
+			files:        map[string]windowsObservedFile{},
+			placeholders: map[string]bool{},
+		},
+		done: make(chan struct{}),
+	}
+
+	watcher.handleCreate(filePath, "docs/draft.txt")
+	if !access.writeback.hasPendingAtOrBelow("docs/draft.txt", false) {
+		t.Fatal("expected pending upload after create")
+	}
+
+	if err := os.Remove(filePath); err != nil {
+		t.Fatalf("remove file: %v", err)
+	}
+	watcher.handleEvent(fsnotify.Event{Name: filePath, Op: fsnotify.Remove})
+
+	if access.writeback.hasPendingAtOrBelow("docs/draft.txt", false) {
+		t.Fatal("expected remove event to cancel pending upload")
+	}
+}
+
+func TestWindowsLocalOnlyPathTreatsOfficeTempFilesAsEphemeral(t *testing.T) {
+	t.Parallel()
+
+	cases := []string{
+		"docs/~$report.docx",
+		"docs/~wrf1234.tmp",
+		"docs/~wrl4321.tmp",
+		"docs/~dfa12b.tmp",
+	}
+	for _, virtualPath := range cases {
+		if !isWindowsLocalOnlyPath(virtualPath) {
+			t.Fatalf("expected %q to stay local-only", virtualPath)
+		}
+	}
+	if isWindowsLocalOnlyPath("docs/report.docx") {
+		t.Fatal("expected normal document to stay syncable")
+	}
+}

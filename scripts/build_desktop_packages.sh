@@ -303,6 +303,12 @@ build_windows_installer() {
   if [[ "$ARCH" == "arm64" ]]; then
     installer_arch="arm64"
   fi
+  local sign_tool sign_pfx sign_password sign_timestamp sign_subject
+  sign_tool="${WINDOWS_SIGNTOOL_PATH:-}"
+  sign_pfx="${WINDOWS_SIGN_PFX_PATH:-}"
+  sign_password="${WINDOWS_SIGN_PFX_PASSWORD:-}"
+  sign_timestamp="${WINDOWS_SIGN_TIMESTAMP_URL:-http://timestamp.digicert.com}"
+  sign_subject="${WINDOWS_SIGN_SUBJECT:-}"
 
   powershell.exe -NoProfile -Command \
     "& '$compiler_win' /Qp \
@@ -315,6 +321,11 @@ build_windows_installer() {
       /DOutputBaseFilename='$installer_base' \
       /DArchitecturesAllowed='$installer_arch' \
       /DArchitecturesInstallIn64BitMode='$installer_arch' \
+      /DSignTool='$sign_tool' \
+      /DSignPfxPath='$(to_windows_path "$sign_pfx")' \
+      /DSignPfxPassword='$sign_password' \
+      /DSignTimestampUrl='$sign_timestamp' \
+      /DSignSubject='$sign_subject' \
       '$(to_windows_path "$ROOT_DIR/scripts/windows_installer.iss")'" >/dev/null
 }
 

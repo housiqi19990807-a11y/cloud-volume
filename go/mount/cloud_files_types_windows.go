@@ -108,6 +108,8 @@ func isWindowsLocalOnlyPath(virtualPath string) bool {
 		return true
 	case clean == "thumbs.db":
 		return true
+	case isEphemeralMountFilePath(clean):
+		return true
 	case strings.HasPrefix(clean, "$recycle.bin/"):
 		return true
 	case strings.HasPrefix(clean, "system volume information/"):

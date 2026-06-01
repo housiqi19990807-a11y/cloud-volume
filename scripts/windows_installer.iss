@@ -27,6 +27,21 @@
 #ifndef ArchitecturesInstallIn64BitMode
   #define ArchitecturesInstallIn64BitMode "x64compatible"
 #endif
+#ifndef SignTool
+  #define SignTool ""
+#endif
+#ifndef SignPfxPath
+  #define SignPfxPath ""
+#endif
+#ifndef SignPfxPassword
+  #define SignPfxPassword ""
+#endif
+#ifndef SignTimestampUrl
+  #define SignTimestampUrl "http://timestamp.digicert.com"
+#endif
+#ifndef SignSubject
+  #define SignSubject ""
+#endif
 
 [Setup]
 AppId={{B291B621-9AA2-4E6C-9D2A-1F7E44580757}
@@ -46,6 +61,13 @@ OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseFilename}
 WizardStyle=modern
 UninstallDisplayIcon={app}\remote_storage.exe
+#if SignTool != ""
+SignTool=signtool /f "{#SignPfxPath}" /p "{#SignPfxPassword}" /fd sha256 /tr "{#SignTimestampUrl}" /td sha256 $f
+#elif SignPfxPath != ""
+SignTool=signtool /f "{#SignPfxPath}" /p "{#SignPfxPassword}" /fd sha256 /tr "{#SignTimestampUrl}" /td sha256 $f
+#elif SignSubject != ""
+SignTool=signtool /n "{#SignSubject}" /fd sha256 /tr "{#SignTimestampUrl}" /td sha256 $f
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

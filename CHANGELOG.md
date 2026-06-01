@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Windows Cloud Files watcher 现在会把 Office `~$*.docx/xlsx/pptx` 锁文件和常见 `~wr*.tmp` 临时文件视为本地临时噪声，不再送进远端写回队列；同时本地文件若在 quiet period 内已被删除/改名，对应等待中的 writeback 任务会立即取消，不再残留成长期“等待同步”。
+- Windows 安装包构建链路现在支持注入 Authenticode 签名参数，便于在 release workflow 或本地发布时使用企业/EV 证书对 `installer.exe` 做签名和时间戳，减少 SmartScreen 把安装包判为未知发布者的概率。
 - 修复 `go/mount` 在 Windows 构建路径上的重复 `readRemoteRange` 声明，避免 CLI 打包与相关 CI workflow 在编译阶段直接失败。
 - GitHub Actions tag 发布现在会在部分矩阵任务失败时继续收集已成功构建的产物并创建 release，不再因为个别平台打包失败而整次发布中断；同时 CLI 发布矩阵会把 `lite/full` 变体正确传给打包脚本。
 - macOS WebDAV 挂载读取任务现在按“单个已打开文件”聚合到任务队列，不再把 Finder 的每次分块 range 读取都显示成一条独立下载任务；任务详情会额外显示当前访问的 `bytes=start-end` 范围，便于区分正常 lazy read 与异常循环读取。

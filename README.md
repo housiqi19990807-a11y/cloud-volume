@@ -250,6 +250,7 @@ CLI 发布产物命名：
 - `cloud-volume-cli-full` 对应 full 版，额外内嵌 Flutter web 静态资源并提供 `web` 子命令，可单文件启动浏览器控制台。
 - `cloud-volume-cli`、`cloud-volume-cli-full web` 和独立的 `cloud-volume-web` 入口都支持 `version` / `--version` 打印当前版本号。
 - 原有独立 Web 运行时产物 `yunjuan-web-linux-*` 仍会继续发布，适合单独部署 `cloud-volume-web`。
+- Windows 安装包仍由 Inno Setup 生成；如果要减少 SmartScreen/Defender 的“未知发布者”拦截，需要在构建环境里提供 Authenticode 代码签名证书，并通过 `WINDOWS_SIGN_PFX_PATH` + `WINDOWS_SIGN_PFX_PASSWORD` 或 `WINDOWS_SIGN_SUBJECT` 注入签名参数。
 
 本地如果需要构建 CLI 发布包，可以运行：
 
@@ -282,6 +283,8 @@ make run-web
 ```
 
 这个子命令会优先使用二进制内嵌的 Flutter web 静态资源，不依赖外部 `build/web` 目录。
+
+Windows Cloud Files 挂载会自动忽略 `desktop.ini`、`Thumbs.db`、Office `~$*.docx/xlsx/pptx` 锁文件和常见 `~wr*.tmp` 临时文件，避免这些短生命周期本地噪声进入远端同步队列。
 
 Web 端行为和桌面端有几个关键差异：
 

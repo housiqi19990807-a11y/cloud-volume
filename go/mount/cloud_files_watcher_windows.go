@@ -195,6 +195,7 @@ func (w *windowsSyncWatcher) handleEvent(event fsnotify.Event) {
 		w.handleWrite(localPath, virtualPath)
 	}
 	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+		w.cancelPendingUpload(localPath, virtualPath)
 		w.Forget(localPath)
 	}
 }
@@ -258,6 +259,19 @@ func (w *windowsSyncWatcher) scheduleUpload(
 	w.access.registerLocalWrite(clean, localPath, info.Size())
 	w.access.scheduleUpload(clean, localPath)
 	return true
+}
+
+func (w *windowsSyncWatcher) cancelPendingUpload(localPath, virtualPath string) {
+	clean := cleanVirtualPath(virtualPath)
+	if clean == "" {
+		return
+	}
+	isDir := w.IsDir(localPath) || strings.HasSuffix(clean, "/")
+	if isDir {
+		w.access.writeback.cancelAtOrBelow(clean, true)
+		return
+	}
+	w.access.writeback.cancel(clean)
 }
 
 func (w *windowsSyncWatcher) harvestDirectoryTree(localPath string) {
