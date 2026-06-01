@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
@@ -15,18 +16,42 @@ constexpr unsigned int kMinimumWindowHeight = 600;
 constexpr unsigned int kCompactFallbackWindowWidth = 820;
 constexpr unsigned int kCompactFallbackWindowHeight = 560;
 
-// Keep the Windows startup window slightly tighter than before so large and
-// mid-sized displays do not open an overly wide first-run layout.
-Win32Window::Size ResolveInitialWindowSize() {
+LONG PhysicalToLogicalPixels(LONG value, UINT dpi) {
+  if (dpi == 0) {
+    return value;
+  }
+  return MulDiv(value, 96, static_cast<int>(dpi));
+}
+
+bool GetPrimaryMonitorWorkArea(RECT& work_area, UINT& dpi) {
   MONITORINFO monitor_info = {};
   monitor_info.cbSize = sizeof(monitor_info);
   const HMONITOR monitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
   if (monitor == nullptr || !GetMonitorInfo(monitor, &monitor_info)) {
+    dpi = 96;
+    return false;
+  }
+  dpi = FlutterDesktopGetDpiForMonitor(monitor);
+  work_area = monitor_info.rcWork;
+  return true;
+}
+
+// Keep the Windows startup window slightly tighter than before so large and
+// mid-sized displays do not open an overly wide first-run layout.
+Win32Window::Size ResolveInitialWindowSize() {
+  RECT work_area = {};
+  UINT dpi = 96;
+  if (!GetPrimaryMonitorWorkArea(work_area, dpi)) {
     return Win32Window::Size(kDefaultWindowWidth, kDefaultWindowHeight);
   }
 
-  const LONG work_width = monitor_info.rcWork.right - monitor_info.rcWork.left;
-  const LONG work_height = monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+  // The Win32 host scales the origin and size it receives before calling
+  // CreateWindow, so startup sizing must be resolved in logical pixels rather
+  // than the physical work area returned by MonitorFromPoint/GetMonitorInfo.
+  const LONG work_width =
+      PhysicalToLogicalPixels(work_area.right - work_area.left, dpi);
+  const LONG work_height =
+      PhysicalToLogicalPixels(work_area.bottom - work_area.top, dpi);
   if (work_width <= 0 || work_height <= 0) {
     return Win32Window::Size(kDefaultWindowWidth, kDefaultWindowHeight);
   }
@@ -53,24 +78,27 @@ Win32Window::Size ResolveInitialWindowSize() {
 // Center the first window inside the primary monitor work area so the custom
 // titlebar does not appear detached in the top-left corner on every launch.
 Win32Window::Point ResolveInitialWindowOrigin(const Win32Window::Size& size) {
-  MONITORINFO monitor_info = {};
-  monitor_info.cbSize = sizeof(monitor_info);
-  const HMONITOR monitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
-  if (monitor == nullptr || !GetMonitorInfo(monitor, &monitor_info)) {
+  RECT work_area = {};
+  UINT dpi = 96;
+  if (!GetPrimaryMonitorWorkArea(work_area, dpi)) {
     return Win32Window::Point(10, 10);
   }
 
-  const LONG work_width = monitor_info.rcWork.right - monitor_info.rcWork.left;
-  const LONG work_height = monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+  const LONG logical_left = PhysicalToLogicalPixels(work_area.left, dpi);
+  const LONG logical_top = PhysicalToLogicalPixels(work_area.top, dpi);
+  const LONG work_width =
+      PhysicalToLogicalPixels(work_area.right - work_area.left, dpi);
+  const LONG work_height =
+      PhysicalToLogicalPixels(work_area.bottom - work_area.top, dpi);
   if (work_width <= 0 || work_height <= 0) {
     return Win32Window::Point(10, 10);
   }
 
   const LONG origin_x =
-      monitor_info.rcWork.left +
+      logical_left +
       std::max<LONG>(0, (work_width - static_cast<LONG>(size.width)) / 2);
   const LONG origin_y =
-      monitor_info.rcWork.top +
+      logical_top +
       std::max<LONG>(0, (work_height - static_cast<LONG>(size.height)) / 2);
   return Win32Window::Point(static_cast<unsigned int>(origin_x),
                             static_cast<unsigned int>(origin_y));
