@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 修复 `go/mount` 在 Windows 构建路径上的重复 `readRemoteRange` 声明，避免 CLI 打包与相关 CI workflow 在编译阶段直接失败。
+- GitHub Actions tag 发布现在会在部分矩阵任务失败时继续收集已成功构建的产物并创建 release，不再因为个别平台打包失败而整次发布中断；同时 CLI 发布矩阵会把 `lite/full` 变体正确传给打包脚本。
 - macOS WebDAV 挂载读取任务现在按“单个已打开文件”聚合到任务队列，不再把 Finder 的每次分块 range 读取都显示成一条独立下载任务；任务详情会额外显示当前访问的 `bytes=start-end` 范围，便于区分正常 lazy read 与异常循环读取。
 - macOS 挂载调试日志现在会显式记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 与 WebDAV mount probe 各阶段，并给相关系统命令加上超时，避免旧挂载残留或系统挂载命令卡住时前端只表现为一直转圈但 bridge 日志停在入口行。
 - “关于”页版本信息现在统一走构建时注入的 `APP_VERSION_LABEL`：本地开发构建默认显示 `dev`，CI/tag 发布构建会显示对应版本号，不再依赖平台包元信息。
