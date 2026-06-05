@@ -12,6 +12,7 @@ class CloudStorageAccountDraft {
     required this.region,
     required this.accessKey,
     required this.secretKey,
+    required this.usePathStyle,
     required this.webdavUsername,
     required this.webdavPassword,
   });
@@ -22,6 +23,7 @@ class CloudStorageAccountDraft {
   final String region;
   final String accessKey;
   final String secretKey;
+  final bool usePathStyle;
   final String webdavUsername;
   final String webdavPassword;
 }
@@ -52,6 +54,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   final _secretKeyController = TextEditingController();
   final _webdavUsernameController = TextEditingController();
   final _webdavPasswordController = TextEditingController();
+  bool _usePathStyle = true;
 
   @override
   void initState() {
@@ -64,6 +67,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _regionController.text = config.region.isEmpty ? 'auto' : config.region;
     _accessKeyController.text = config.accessKeyId;
     _webdavUsernameController.text = config.webdavUsername;
+    _usePathStyle = config.usePathStyle;
   }
 
   @override
@@ -150,6 +154,11 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         ),
         obscureText: true,
       ),
+      const SizedBox(height: 14),
+      _S3AdvancedOptions(
+        usePathStyle: _usePathStyle,
+        onPathStyleChanged: (value) => setState(() => _usePathStyle = value),
+      ),
     ];
   }
 
@@ -184,11 +193,52 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         region: _regionController.text,
         accessKey: _accessKeyController.text,
         secretKey: _secretKeyController.text,
+        usePathStyle: _usePathStyle,
         webdavUsername: _webdavUsernameController.text,
         webdavPassword: _webdavPasswordController.text,
       ),
     );
     if (saved && mounted) Navigator.of(context).pop();
+  }
+}
+
+class _S3AdvancedOptions extends StatelessWidget {
+  const _S3AdvancedOptions({
+    required this.usePathStyle,
+    required this.onPathStyleChanged,
+  });
+
+  final bool usePathStyle;
+  final ValueChanged<bool> onPathStyleChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ShadSwitch(
+        value: usePathStyle,
+        onChanged: onPathStyleChanged,
+        label: Text(
+          '使用路径风格访问',
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.foreground,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        sublabel: Text(
+          '推荐用于 MinIO、私有 S3 和多数兼容对象存储。',
+          style: TextStyle(
+            color: theme.colorScheme.mutedForeground,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
   }
 }
 

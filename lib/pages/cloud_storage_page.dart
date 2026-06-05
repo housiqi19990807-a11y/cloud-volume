@@ -135,6 +135,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       accessKeyId: draft.accessKey,
       secretAccessKey: draft.secretKey,
       hasSecretAccessKey: draft.secretKey.trim().isNotEmpty,
+      usePathStyle: draft.usePathStyle,
       webdavUsername: draft.storageType == StorageType.webdav
           ? draft.webdavUsername
           : draft.accessKey,
@@ -190,6 +191,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       secretAccessKey: draft.secretKey,
       hasSecretAccessKey:
           draft.secretKey.trim().isNotEmpty || existing.hasSecretAccessKey,
+      usePathStyle: draft.usePathStyle,
       webdavUsername: draft.storageType == StorageType.webdav
           ? draft.webdavUsername
           : draft.accessKey,
