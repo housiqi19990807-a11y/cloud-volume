@@ -48,3 +48,14 @@ func deleteTrashItem(args json.RawMessage) (any, error) {
 	}
 	return map[string]any{"ok": true}, nil
 }
+
+func clearTrash(args json.RawMessage) (any, error) {
+	var input trashListArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := s3ops.ClearTrash(input.Config, input.Bucket); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}

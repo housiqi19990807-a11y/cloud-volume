@@ -54,7 +54,7 @@ func DefaultConfig() RemoteStorageConfig {
 		HideDotFiles:                true,
 		FileOpenMode:                "double_click",
 		TrashDirectoryName:          ".trash",
-		TrashRetentionDays:          30,
+		TrashRetentionDays:          -1,
 		UsePathStyle:                true,
 		WindowsMountMode:            WindowsMountModeCloudFilesCached,
 		WindowsThisPcEntryEnabled:   true,

@@ -271,6 +271,14 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> clearTrash(RemoteStorageConfig config, String bucket) async {
+    await runBridgeCall('clear_trash', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+    });
+  }
+
+  @override
   Future<void> uploadFile(
     RemoteStorageConfig config,
     String bucket,

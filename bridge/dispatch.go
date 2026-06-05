@@ -65,6 +65,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return restoreTrashItem(args)
 	case "delete_trash_item":
 		return deleteTrashItem(args)
+	case "clear_trash":
+		return clearTrash(args)
 	case "create_share":
 		return createShare(args)
 	case "list_shares":

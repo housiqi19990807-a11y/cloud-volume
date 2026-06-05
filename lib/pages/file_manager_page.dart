@@ -329,6 +329,13 @@ class _FileManagerPageState extends State<FileManagerPage> {
           onCloseTrash: _activeBucket == null || _loading || !_showTrash
               ? null
               : _closeBucketTrash,
+          onClearTrash:
+              _activeBucket == null ||
+                  _loading ||
+                  !_showTrash ||
+                  (_trashItems?.isEmpty ?? true)
+              ? null
+              : _clearBucketTrash,
           onCreateDirectory: _showTrash || _activeBucket == null || _loading
               ? null
               : _createDirectory,

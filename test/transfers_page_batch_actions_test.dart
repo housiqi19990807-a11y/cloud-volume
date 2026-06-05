@@ -281,6 +281,10 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   ) async => throw UnimplementedError();
 
   @override
+  Future<void> clearTrash(RemoteStorageConfig config, String bucket) async =>
+      throw UnimplementedError();
+
+  @override
   Future<void> uploadFile(
     RemoteStorageConfig config,
     String bucket,

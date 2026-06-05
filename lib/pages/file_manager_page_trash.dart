@@ -95,6 +95,32 @@ extension _FileManagerPageTrash on _FileManagerPageState {
     }
   }
 
+  Future<void> _clearBucketTrash() async {
+    final bucket = _activeBucket;
+    if (bucket == null || (_trashItems?.isEmpty ?? true)) {
+      return;
+    }
+    final confirmed = await showClearTrashDialog(context, bucket);
+    if (!confirmed) {
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+      _selectedObjectKeys.clear();
+    });
+    try {
+      await widget.api.clearTrash(widget.config, bucket);
+      if (!mounted) return;
+      await _openBucketTrash(bucket);
+      _showPageSnack('已清空 $bucket 的回收站');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showPageError(error);
+    }
+  }
+
   Widget _buildTrashView(ShadThemeData theme) {
     final items = _filteredTrashItems;
     if (items.isEmpty) {

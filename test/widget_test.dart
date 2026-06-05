@@ -83,7 +83,7 @@ class _FakeApi implements RemoteStorageGateway {
             hideDotFiles: true,
             fileOpenMode: FileOpenMode.doubleClick,
             trashDirectoryName: '.trash',
-            trashRetentionDays: 30,
+            trashRetentionDays: -1,
             usePathStyle: true,
             windowsMountMode: WindowsMountMode.cloudFilesCached,
             windowsThisPcEntryEnabled: true,
@@ -272,6 +272,9 @@ class _FakeApi implements RemoteStorageGateway {
     String bucket,
     String trashId,
   ) async {}
+
+  @override
+  Future<void> clearTrash(RemoteStorageConfig config, String bucket) async {}
 
   @override
   Future<void> uploadFile(

@@ -19,6 +19,7 @@ class FileManagerActionBar extends StatelessWidget {
     this.onUpload,
     this.onOpenTrash,
     this.onCloseTrash,
+    this.onClearTrash,
     this.trashOpenLabel = '回收站',
     this.trashCloseLabel = '返回文件',
     this.onBatchDownload,
@@ -39,6 +40,7 @@ class FileManagerActionBar extends StatelessWidget {
   final VoidCallback? onUpload;
   final VoidCallback? onOpenTrash;
   final VoidCallback? onCloseTrash;
+  final VoidCallback? onClearTrash;
   final String trashOpenLabel;
   final String trashCloseLabel;
   final VoidCallback? onBatchDownload;
@@ -77,6 +79,7 @@ class FileManagerActionBar extends StatelessWidget {
                 onUpload: onUpload,
                 onOpenTrash: onOpenTrash,
                 onCloseTrash: onCloseTrash,
+                onClearTrash: onClearTrash,
                 trashOpenLabel: trashOpenLabel,
                 trashCloseLabel: trashCloseLabel,
                 onBatchDownload: onBatchDownload,
@@ -103,6 +106,7 @@ class _ActionButtons extends StatelessWidget {
     required this.onUpload,
     required this.onOpenTrash,
     required this.onCloseTrash,
+    required this.onClearTrash,
     required this.trashOpenLabel,
     required this.trashCloseLabel,
     required this.onBatchDownload,
@@ -120,6 +124,7 @@ class _ActionButtons extends StatelessWidget {
   final VoidCallback? onUpload;
   final VoidCallback? onOpenTrash;
   final VoidCallback? onCloseTrash;
+  final VoidCallback? onClearTrash;
   final String trashOpenLabel;
   final String trashCloseLabel;
   final VoidCallback? onBatchDownload;
@@ -170,6 +175,15 @@ class _ActionButtons extends StatelessWidget {
               icon: showingTrash ? LucideIcons.folderOpen : LucideIcons.trash2,
               color: primary,
               onPressed: showingTrash ? onCloseTrash : onOpenTrash,
+            ),
+          ],
+          if (showingTrash && onClearTrash != null) ...[
+            const SizedBox(width: 6),
+            _actionButton(
+              label: '清空回收站',
+              icon: LucideIcons.trash,
+              color: theme.colorScheme.destructive,
+              onPressed: onClearTrash,
             ),
           ],
           if (onCreateDirectory != null) ...[

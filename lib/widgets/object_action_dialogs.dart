@@ -283,3 +283,31 @@ Future<bool> showDeleteTrashItemsDialog(BuildContext context, int count) async {
       ) ??
       false;
 }
+
+Future<bool> showClearTrashDialog(BuildContext context, String bucket) async {
+  return await showShadDialog<bool>(
+        context: context,
+        builder: (dialogContext) => ShadDialog(
+          title: const Text('清空回收站'),
+          description: Text('将彻底删除「$bucket」回收站中的所有项目，之后无法恢复。'),
+          child: SizedBox(
+            width: 380,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ShadButton.outline(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 10),
+                ShadButton.destructive(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('清空回收站'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ) ??
+      false;
+}

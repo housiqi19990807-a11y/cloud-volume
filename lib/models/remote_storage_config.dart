@@ -115,7 +115,7 @@ class RemoteStorageConfig {
       hideDotFiles: true,
       fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: '.trash',
-      trashRetentionDays: 30,
+      trashRetentionDays: -1,
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
       windowsThisPcEntryEnabled: true,

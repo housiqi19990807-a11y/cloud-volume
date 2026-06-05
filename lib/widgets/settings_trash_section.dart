@@ -63,7 +63,7 @@ class _TrashSettingsSectionState extends State<TrashSettingsSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '删除对象时先移入存储桶级回收站目录。保留天数设置为 -1 表示永不自动清理。',
+          '删除对象时先移入存储桶级回收站目录。默认不自动清理；保留天数设置为非负数后才会按天自动清理。',
           style: TextStyle(
             fontSize: 12,
             height: 1.6,
@@ -79,7 +79,7 @@ class _TrashSettingsSectionState extends State<TrashSettingsSection> {
           placeholder: const Text('.trash'),
         ),
         const SizedBox(height: 14),
-        _buildLabel(theme, '自动清理保留天数'),
+        _buildLabel(theme, '自动清理保留天数（-1 为关闭）'),
         const SizedBox(height: 6),
         ShadInput(
           controller: _retentionController,

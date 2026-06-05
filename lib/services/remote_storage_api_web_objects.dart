@@ -169,4 +169,9 @@ mixin _RemoteStorageWebObjectApiMixin implements RemoteStorageGateway {
       'trashId': trashId,
     });
   }
+
+  @override
+  Future<void> clearTrash(RemoteStorageConfig config, String bucket) async {
+    await _invoke('clear_trash', <String, dynamic>{'bucket': bucket});
+  }
 }

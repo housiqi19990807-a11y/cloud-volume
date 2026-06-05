@@ -150,6 +150,7 @@ abstract class RemoteStorageGateway {
     String bucket,
     String trashId,
   );
+  Future<void> clearTrash(RemoteStorageConfig config, String bucket);
   Future<void> uploadFile(
     RemoteStorageConfig config,
     String bucket,

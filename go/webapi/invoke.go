@@ -227,6 +227,12 @@ func (s *Server) invokeMethod(
 	case "delete_trash_item":
 		err := s3ops.DeleteTrashItem(config, input.Bucket, input.TrashID)
 		return map[string]any{"ok": true}, http.StatusOK, err
+	case "clear_trash":
+		if config.Normalized().StorageType == storageconfig.StorageTypeWebDAV {
+			return map[string]any{"ok": true}, http.StatusOK, nil
+		}
+		err := s3ops.ClearTrash(config, input.Bucket)
+		return map[string]any{"ok": true}, http.StatusOK, err
 	case "create_share":
 		result, err := shareops.Create(
 			config,
