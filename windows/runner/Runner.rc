@@ -94,7 +94,7 @@ BEGIN
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "Yunjuan" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 3000y. All rights reserved." "\0"
-            VALUE "OriginalFilename", "remote_storage.exe" "\0"
+            VALUE "OriginalFilename", "cloud-volume.exe" "\0"
             VALUE "ProductName", "Yunjuan" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

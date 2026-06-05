@@ -20,7 +20,7 @@ func NewStore(configPath string) Store {
 	return Store{configPath: configPath}
 }
 
-// NewDefaultStore targets ~/.remote-storage/config.toml for normal app usage.
+// NewDefaultStore targets the platform default config.toml for normal app usage.
 func NewDefaultStore() (Store, error) {
 	configPath, err := DefaultConfigPath()
 	if err != nil {

@@ -225,8 +225,8 @@ extension _SettingsPageActions on _SettingsPageState {
         context,
         title: '残留进程已清理',
         message: count > 0
-            ? '已结束 $count 个残留 remote_storage.exe 进程。'
-            : '没有发现需要清理的残留 remote_storage.exe 进程。',
+            ? '已结束 $count 个残留 cloud-volume.exe 进程。'
+            : '没有发现需要清理的残留 cloud-volume.exe 进程。',
       );
     } catch (error) {
       if (!mounted) return;

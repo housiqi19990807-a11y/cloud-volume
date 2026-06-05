@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// CleanupStaleWindowsProcesses kills leftover remote_storage.exe processes that
+// CleanupStaleWindowsProcesses kills leftover cloud-volume.exe processes that
 // were launched from this repository's Windows runner output.
 func CleanupStaleWindowsProcesses() (int, error) {
 	exePath, err := exec.LookPath("powershell")
@@ -35,7 +35,7 @@ func CleanupStaleWindowsProcesses() (int, error) {
 $targetPrefix = '%s'
 $currentPid = %d
 $killed = 0
-$processes = Get-CimInstance Win32_Process -Filter "Name = 'remote_storage.exe'"
+$processes = Get-CimInstance Win32_Process -Filter "Name = 'cloud-volume.exe'"
 foreach ($process in $processes) {
   if ($process.ProcessId -eq $currentPid) { continue }
   $path = $process.ExecutablePath

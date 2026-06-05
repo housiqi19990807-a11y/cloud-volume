@@ -49,7 +49,7 @@
 
 ### 首次启动
 
-- 应用通过 Go FFI bridge 读取 `~/.remote-storage/config.toml`。
+- 应用通过 Go FFI bridge 读取默认配置：macOS/Linux 使用 `~/.cloud-volume/config.toml`，Windows 使用安装目录下、与 `cloud-volume.exe` 同级的 `config.toml`。
 - 如果配置缺失或不完整，会先进入初始化配置页。
 - Web 端首次初始化只要求填写 S3 `endpoint/region/bucket/access_key_id/secret_access_key`；如果没有单独设置 WebDAV 凭据，后端会默认把 `access_key_id/secret_access_key` 作为浏览器登录和标准 WebDAV 客户端共用账号密码，后续可在系统设置里再单独修改。
 - 如果访问密钥、签名或网络配置有误，初始化页会把常见 S3 / 网络错误转换成更友好的中文提示。
@@ -68,7 +68,7 @@ make run
 `make run` 是本仓库的标准启动方式：
 
 - macOS: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`，再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
-- macOS 调试挂载卡住时，可直接查看 `~/.remote-storage/runtime/logs/bridge.log`；当前版本会额外记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 等阶段日志，并为 `osascript` / `umount` / `diskutil` / `mount -t webdav` 加上超时，便于区分是旧挂载残留清理卡住，还是新挂载本身失败。
+- macOS 调试挂载卡住时，可直接查看 `~/.cloud-volume/runtime/logs/bridge.log`；当前版本会额外记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 等阶段日志，并为 `osascript` / `umount` / `diskutil` / `mount -t webdav` 加上超时，便于区分是旧挂载残留清理卡住，还是新挂载本身失败。
 - Linux: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.so`，并把它随 Linux bundle 一起安装后再启动 Flutter Linux 应用
 
 平台相关命令：
@@ -83,7 +83,7 @@ Windows 本地启动前提：
 - 需要可用的 MinGW-style C toolchain 供 Go `c-shared` bridge 使用，推荐 `MSYS2 UCRT64` 的 `gcc/g++`。
 - 如未把 `flutter` / `gcc` 放进 `PATH`，可以直接运行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_windows.ps1`；如果只想构建不启动，可用 `-Build`，现在也兼容 `--build`。
 
-Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，避免构建后 exe 因缺少 bridge 而无法启动。
+Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，生成的主程序文件名为 `cloud-volume.exe`，避免构建后 exe 因缺少 bridge 而无法启动。
 如果本机配置了 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，请确保 `NO_PROXY` 包含 `127.0.0.1,localhost`；仓库自带的 `scripts/run_windows.ps1` 会自动补上这两个值，避免 `flutter run` 通过代理去连接本地 Dart VM service 而导致调试连接提前断开。
 
 Linux 本地启动前提：
@@ -176,7 +176,7 @@ make cli
 
 说明：
 
-- 不传 `--bucket` 时，会回退到 `~/.remote-storage/config.toml` 里的默认 `bucket`
+- 不传 `--bucket` 时，会回退到 `~/.cloud-volume/config.toml` 里的默认 `bucket`
 - 如果既没有传 `--bucket`，配置里也没有默认 bucket，CLI 会先拉取 bucket 列表让你选择
 - 不传 `--mount-point` 时，仍使用默认目录 `~/Cloud Volume/<bucket>`
 - `mount` 会前台常驻；Linux CLI 下按 `Ctrl+C` 会先等待当前 bucket 里尚未推送完成的写回任务刷完，再执行卸载
@@ -185,7 +185,7 @@ make cli
 - `--worker` 可显式指定 multipart 上传并发；不指定时默认按 CPU 核数动态取值，最小 `4`、最大 `10`
 - `--auto-sync` 会在 Linux FUSE 检测到顺序追加写时，后台预上传已经完整落盘的 multipart 分块；遇到随机写、覆盖写、truncate 或显式属性改动时，会自动降级回原来的“本地落盘后异步整体写回”语义，避免破坏现有一致性
 - 即使启用了 `--auto-sync`，最终文件关闭后的 quiet-period 自动推送和卸载时的 drain 推送仍然保留，用于补齐最后不足一个完整分块的尾部数据并完成 multipart
-- Linux 挂载缓存文件现在按对象路径 hash 平铺到 `~/.remote-storage/runtime/mounts/<bucket>/cache/`，避免深层目录写入把本地缓存展开成一层层子目录
+- Linux 挂载缓存文件现在按对象路径 hash 平铺到 `~/.cloud-volume/runtime/mounts/<bucket>/cache/`，避免深层目录写入把本地缓存展开成一层层子目录
 - `put` / `get` 现在默认支持目录递归；上传目录时会同步创建远端目录占位符，下载目录时会在本地重建目录树
 - `rm` / `delete` 当前走硬删除，对象和前缀都会直接从 bucket 删除，不会进入应用级回收站
 
@@ -226,7 +226,7 @@ make cli
 - `mount --mount-point /mnt/media`：挂载当前 bucket
 - `status` / `unmount`：查看或卸载当前 bucket 的挂载
 - `Tab`：补全命令和远端路径
-- `Up/Down`：浏览历史记录，持久化到 `~/.remote-storage/runtime/cli_history`
+- `Up/Down`：浏览历史记录，持久化到 `~/.cloud-volume/runtime/cli_history`
 
 示例：
 
@@ -370,15 +370,15 @@ Windows now keeps three mount modes available side by side so behavior can be co
 
 The active mode is stored in config as `windows_mount_mode` and can be changed from Settings. Remount the bucket after switching modes.
 Mounted writeback uploads now also respect a configurable `windows_writeback_concurrency` setting. The default is `4`, and Settings exposes the same value so large Explorer copies do not fan out into hundreds of simultaneous upload tasks.
-The cached Cloud Files writeback path now persists queued uploads in per-process queue snapshots under `~/.remote-storage/runtime/mounts/<bucket>/writeback/queue-<pid>.json`, merges repeated writes by virtual path, compacts old queue files on remount, and resumes those pending uploads after a remount instead of dropping them with the old in-memory session queue.
+The cached Cloud Files writeback path now persists queued uploads in per-process queue snapshots under the install directory's `runtime/mounts/<bucket>/writeback/queue-<pid>.json`, merges repeated writes by virtual path, compacts old queue files on remount, and resumes those pending uploads after a remount instead of dropping them with the old in-memory session queue.
 Unmount now releases the Cloud Files shell, watcher, and sync-root registration without waiting for the full writeback queue to flush first. As long as the app process stays alive, delayed uploads continue in the background after unmount and still honor the normal quiet-period debouncing.
 Cloud Files mounts on Windows now keep a stable sync-root path at `~/Cloud Volume/<bucket>` instead of creating a timestamped directory on each mount, so Explorer shortcuts, task recovery, and user-visible mount paths stay deterministic across remounts.
 Settings also expose a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer writes.
-If a remount fails because `~/.remote-storage/runtime/mounts/<bucket>/writeback.db` is still locked by a leftover `remote_storage.exe`, the mount now returns a normal actionable error instead of panicking, and Windows Settings also expose an `结束残留占用进程` action to kill those stale local runner processes before retrying.
+If a remount fails because the install directory's `runtime/mounts/<bucket>/writeback.db` is still locked by a leftover `cloud-volume.exe`, the mount now returns a normal actionable error instead of panicking, and Windows Settings also expose an `结束残留占用进程` action to kill those stale local runner processes before retrying.
 The Cloud Files placeholder path now coalesces repeated directory fetch callbacks and skips placeholder creation for entries that already exist locally, which reduces Explorer browse loops and placeholder callback errors on busy folders.
 ## Runtime Logs
 
-Go bridge runtime logs are written to `~/.remote-storage/runtime/logs/bridge.log`, which now includes Windows Cloud Files fetch-data and placeholder diagnostics for mount failures.
+Go bridge runtime logs are written to `~/.cloud-volume/runtime/logs/bridge.log` on macOS/Linux and `runtime/logs/bridge.log` under the install directory on Windows, which now includes Windows Cloud Files fetch-data and placeholder diagnostics for mount failures.
 
 ## UI Responsiveness
 

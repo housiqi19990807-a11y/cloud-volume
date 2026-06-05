@@ -60,7 +60,7 @@ SolidCompression=yes
 OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseFilename}
 WizardStyle=modern
-UninstallDisplayIcon={app}\remote_storage.exe
+UninstallDisplayIcon={app}\cloud-volume.exe
 #if SignTool != ""
 SignTool=signtool /f "{#SignPfxPath}" /p "{#SignPfxPassword}" /fd sha256 /tr "{#SignTimestampUrl}" /td sha256 $f
 #elif SignPfxPath != ""
@@ -79,8 +79,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\remote_storage.exe"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\remote_storage.exe"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\cloud-volume.exe"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\cloud-volume.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\remote_storage.exe"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\cloud-volume.exe"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent

@@ -53,7 +53,7 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
         if (snapshot.connectionState != ConnectionState.done) {
           return const _BootstrapMessageView(
             title: '正在检查配置',
-            description: '正在读取 ~/.remote-storage/config.toml 并准备远程存储环境。',
+            description: '正在读取默认配置文件并准备远程存储环境。',
             loading: true,
           );
         }

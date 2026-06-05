@@ -1,5 +1,5 @@
 // Profile management for multi-gateway support.
-// Profiles live in ~/.remote-storage/profiles/<name>.toml.
+// Profiles live under the same app data root as the active config file.
 // The default profile is named "default" and maps to the existing config.toml.
 
 package config
@@ -19,13 +19,13 @@ type ProfileInfo struct {
 	Active bool   `json:"active"`
 }
 
-// ProfilesDir returns the path to ~/.remote-storage/profiles/.
+// ProfilesDir returns the path to the profile config directory.
 func ProfilesDir() (string, error) {
-	homePath, err := os.UserHomeDir()
+	rootPath, err := appDataRoot()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(homePath, configDirName, profilesDir), nil
+	return filepath.Join(rootPath, profilesDir), nil
 }
 
 // ProfileConfigPath returns the config file path for a named profile.
