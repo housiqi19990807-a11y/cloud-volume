@@ -16,6 +16,7 @@ import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -32,6 +33,11 @@ void main() {
   testWidgets('batch cancel from header cancels eligible selected tasks', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final api = _TransfersPageFakeApi();
     final queue = TransferQueue.instance;
     queue.bindApi(api);
@@ -64,7 +70,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('全选当前结果'));
+    await tester.tap(find.byType(ListSelectionControl).first);
     await tester.pump();
 
     expect(find.text('批量取消 2'), findsOneWidget);
@@ -79,6 +85,8 @@ void main() {
     expect(queue.statusOf(pendingUpload.id), TransferStatus.canceled);
     expect(queue.statusOf(runningDownload.id), TransferStatus.canceled);
     expect(queue.statusOf(doneUpload.id), TransferStatus.done);
+    await tester.pumpWidget(const SizedBox.shrink());
+    TransferQueue.instance.resetForTest();
   });
 }
 

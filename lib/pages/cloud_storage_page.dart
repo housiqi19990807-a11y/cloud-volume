@@ -73,7 +73,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
                 ),
               ),
               ShadButton(
-                onPressed: widget.onEditConfig,
+                onPressed: _busy ? null : _showAddAccountDialog,
                 child: const Text('新增账号'),
               ),
             ],
@@ -247,8 +247,194 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     }
   }
 
+  Future<void> _showAddAccountDialog() async {
+    final nameController = TextEditingController();
+    final endpointController = TextEditingController();
+    final regionController = TextEditingController(text: 'auto');
+    final accessKeyController = TextEditingController();
+    final secretKeyController = TextEditingController();
+    var provider = _selected;
+
+    await showShadDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return ShadDialog(
+              title: const Text('新增云存储账号'),
+              description: const Text('保存后会出现在对应上游类型的账号列表里。'),
+              child: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ProviderSegmentedControl(
+                      value: provider,
+                      onChanged: (value) =>
+                          setDialogState(() => provider = value),
+                    ),
+                    const SizedBox(height: 12),
+                    ShadInput(
+                      controller: nameController,
+                      placeholder: const Text('账号名称'),
+                    ),
+                    const SizedBox(height: 12),
+                    ShadInput(
+                      controller: endpointController,
+                      placeholder: const Text('https://s3.example.com'),
+                    ),
+                    const SizedBox(height: 12),
+                    ShadInput(
+                      controller: regionController,
+                      placeholder: const Text('Region，例如 auto'),
+                    ),
+                    const SizedBox(height: 12),
+                    ShadInput(
+                      controller: accessKeyController,
+                      placeholder: const Text('Access Key ID'),
+                    ),
+                    const SizedBox(height: 12),
+                    ShadInput(
+                      controller: secretKeyController,
+                      placeholder: const Text('Secret Access Key'),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ShadButton.outline(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: const Text('取消'),
+                        ),
+                        const SizedBox(width: 10),
+                        ShadButton(
+                          onPressed: () async {
+                            final saved = await _saveNewAccount(
+                              provider: provider,
+                              name: nameController.text,
+                              endpoint: endpointController.text,
+                              region: regionController.text,
+                              accessKey: accessKeyController.text,
+                              secretKey: secretKeyController.text,
+                            );
+                            if (saved && dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+                          },
+                          child: const Text('保存账号'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+    endpointController.dispose();
+    regionController.dispose();
+    accessKeyController.dispose();
+    secretKeyController.dispose();
+  }
+
+  Future<bool> _saveNewAccount({
+    required StorageProviderType provider,
+    required String name,
+    required String endpoint,
+    required String region,
+    required String accessKey,
+    required String secretKey,
+  }) async {
+    final label = name.trim().isEmpty ? accessKey.trim() : name.trim();
+    final config = RemoteStorageConfig.empty().copyWith(
+      providerType: provider,
+      displayName: label,
+      endpoint: endpoint,
+      region: region.trim().isEmpty ? 'auto' : region,
+      accessKeyId: accessKey,
+      secretAccessKey: secretKey,
+      hasSecretAccessKey: secretKey.trim().isNotEmpty,
+      webdavUsername: accessKey,
+      webdavPassword: secretKey,
+      hasWebdavPassword: secretKey.trim().isNotEmpty,
+    );
+    if (!config.isConfigured) {
+      showAppErrorToast(
+        context,
+        message: '请填写 Endpoint、Access Key 和 Secret Key。',
+      );
+      return false;
+    }
+    setState(() => _busy = true);
+    try {
+      await widget.api.saveProfile(_profileNameFor(label, provider), config);
+      if (!mounted) return false;
+      setState(() => _selected = provider);
+      showAppToast(context, title: '账号已保存', message: label);
+      widget.onRefresh();
+      return true;
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
+      return false;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _profileNameFor(String label, StorageProviderType provider) {
+    final normalized = label
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9_-]+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    final base = normalized.isEmpty ? provider.storageValue : normalized;
+    return '${provider.storageValue}-$base-${DateTime.now().millisecondsSinceEpoch}';
+  }
+
   String _maskedKey(String key) {
     if (key.length <= 6) return key.isEmpty ? '未保存 AK' : key;
     return '${key.substring(0, 4)}••••${key.substring(key.length - 2)}';
+  }
+}
+
+class _ProviderSegmentedControl extends StatelessWidget {
+  const _ProviderSegmentedControl({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final StorageProviderType value;
+  final ValueChanged<StorageProviderType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final item in StorageProviderType.values)
+          SizedBox(
+            height: 36,
+            child: ShadButton(
+              size: ShadButtonSize.sm,
+              onPressed: () => onChanged(item),
+              backgroundColor: item == value
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.secondary,
+              foregroundColor: item == value
+                  ? theme.colorScheme.primaryForeground
+                  : theme.colorScheme.foreground,
+              child: Text(item.label),
+            ),
+          ),
+      ],
+    );
   }
 }
