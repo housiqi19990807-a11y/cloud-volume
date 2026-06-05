@@ -89,7 +89,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                       size: gridIconSize,
                     ),
                     title: bucket.name,
-                    subtitle: sourceLabel,
+                    subtitle: '',
                     contentWidth: gridIconSize + 12,
                     onTap: () => _handleBucketTap(bucket.name),
                   ),
