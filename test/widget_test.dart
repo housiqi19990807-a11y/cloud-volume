@@ -34,7 +34,31 @@ void main() {
       RemoteStorageApp(apiFactory: () async => _FakeApi(configured: false)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('登录远程存储'), findsOneWidget);
+    expect(find.text('添加存储账号'), findsOneWidget);
+    expect(find.text('S3 对象存储'), findsOneWidget);
+    expect(find.text('WebDAV'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    TransferQueue.instance.resetForTest();
+  });
+
+  testWidgets('Setup page advances to WebDAV account form', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(
+      RemoteStorageApp(apiFactory: () async => _FakeApi(configured: false)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('WebDAV'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('下一步'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加 WebDAV 账号'), findsOneWidget);
+    expect(find.text('WebDAV 地址'), findsOneWidget);
+    expect(find.text('用户名'), findsOneWidget);
+    expect(find.text('密码'), findsOneWidget);
+    expect(find.text('确认添加'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     TransferQueue.instance.resetForTest();

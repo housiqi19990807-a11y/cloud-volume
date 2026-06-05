@@ -8,10 +8,13 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
+import 'package:remote_storage/widgets/config_storage_type_step.dart';
 
 // 首次运行预设默认值。
 const _kDefaultEndpoint = 'https://fgws3-ocloud.ihep.ac.cn';
 const _kDefaultRegion = 'auto';
+
+enum _SetupStep { chooseType, accountForm }
 
 class ConfigSetupPage extends StatefulWidget {
   const ConfigSetupPage({
@@ -34,7 +37,11 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   late final TextEditingController _regionController;
   late final TextEditingController _accessKeyController;
   late final TextEditingController _secretKeyController;
+  late final TextEditingController _webdavUsernameController;
+  late final TextEditingController _webdavPasswordController;
 
+  _SetupStep _step = _SetupStep.chooseType;
+  late StorageType _storageType;
   late bool _usePathStyle;
   bool _isSaving = false;
   String? _errorText;
@@ -43,17 +50,24 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   void initState() {
     super.initState();
     final config = widget.initialState.config;
+    _storageType = config.storageType;
     // 首次运行时使用默认值。
     _endpointController = TextEditingController(
       text: config.endpoint.trim().isNotEmpty
           ? config.endpoint
-          : _kDefaultEndpoint,
+          : config.storageType == StorageType.s3
+          ? _kDefaultEndpoint
+          : '',
     );
     _regionController = TextEditingController(
       text: config.region.trim().isNotEmpty ? config.region : _kDefaultRegion,
     );
     _accessKeyController = TextEditingController(text: config.accessKeyId);
     _secretKeyController = TextEditingController();
+    _webdavUsernameController = TextEditingController(
+      text: config.webdavUsername,
+    );
+    _webdavPasswordController = TextEditingController();
     _usePathStyle = config.usePathStyle;
   }
 
@@ -63,23 +77,45 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     _regionController.dispose();
     _accessKeyController.dispose();
     _secretKeyController.dispose();
+    _webdavUsernameController.dispose();
+    _webdavPasswordController.dispose();
     super.dispose();
   }
 
+  void _selectStorageType(StorageType type) {
+    setState(() {
+      _storageType = type;
+      if (type == StorageType.s3 && _endpointController.text.trim().isEmpty) {
+        _endpointController.text = _kDefaultEndpoint;
+      }
+      if (type == StorageType.webdav &&
+          _endpointController.text.trim() == _kDefaultEndpoint) {
+        _endpointController.clear();
+      }
+    });
+  }
+
   Future<void> _save() async {
+    final isWebDav = _storageType == StorageType.webdav;
     final config = RemoteStorageConfig(
       endpoint: _endpointController.text,
-      storageType: StorageType.s3,
+      storageType: _storageType,
       providerType: widget.initialState.config.providerType,
       displayName: widget.initialState.config.displayName,
       region: _regionController.text,
       bucket: widget.initialState.config.bucket,
-      accessKeyId: _accessKeyController.text,
-      secretAccessKey: _secretKeyController.text,
-      hasSecretAccessKey: widget.initialState.config.hasSecretAccessKey,
-      webdavUsername: widget.initialState.config.webdavUsername,
-      webdavPassword: '',
-      hasWebdavPassword: widget.initialState.config.hasWebdavPassword,
+      accessKeyId: isWebDav ? '' : _accessKeyController.text,
+      secretAccessKey: isWebDav ? '' : _secretKeyController.text,
+      hasSecretAccessKey:
+          !isWebDav && widget.initialState.config.hasSecretAccessKey,
+      webdavUsername: isWebDav
+          ? _webdavUsernameController.text
+          : _accessKeyController.text,
+      webdavPassword: isWebDav
+          ? _webdavPasswordController.text
+          : _secretKeyController.text,
+      hasWebdavPassword:
+          isWebDav && widget.initialState.config.hasWebdavPassword,
       rootPrefix: widget.initialState.config.rootPrefix,
       defaultDownloadDirectory:
           widget.initialState.config.defaultDownloadDirectory,
@@ -101,7 +137,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
 
     if (!config.isConfigured) {
       setState(() {
-        _errorText = '访问密钥 ID 和访问密钥为必填项。';
+        _errorText = isWebDav
+            ? '请填写 WebDAV 地址、用户名和密码。'
+            : '请填写 Endpoint、Access Key 和 Secret Key。';
       });
       return;
     }
@@ -139,22 +177,38 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
             child: ConfigLeftPanel(configPath: widget.initialState.configPath),
           ),
           Expanded(
-            child: ConfigRightFormPanel(
-              endpointController: _endpointController,
-              regionController: _regionController,
-              accessKeyController: _accessKeyController,
-              secretKeyController: _secretKeyController,
-              hasStoredSecretKey: widget.initialState.config.hasSecretAccessKey,
-              showWebDavFields: false,
-              webdavUsernameController: null,
-              webdavPasswordController: null,
-              hasStoredWebdavPassword: false,
-              usePathStyle: _usePathStyle,
-              onPathStyleChanged: (v) => setState(() => _usePathStyle = v),
-              isSaving: _isSaving,
-              errorText: _errorText,
-              onSave: _save,
-            ),
+            child: _step == _SetupStep.chooseType
+                ? ConfigStorageTypeStep(
+                    selectedType: _storageType,
+                    onTypeChanged: _selectStorageType,
+                    onNext: () => setState(() {
+                      _errorText = null;
+                      _step = _SetupStep.accountForm;
+                    }),
+                  )
+                : ConfigRightFormPanel(
+                    storageType: _storageType,
+                    endpointController: _endpointController,
+                    regionController: _regionController,
+                    accessKeyController: _accessKeyController,
+                    secretKeyController: _secretKeyController,
+                    hasStoredSecretKey:
+                        widget.initialState.config.hasSecretAccessKey,
+                    webdavUsernameController: _webdavUsernameController,
+                    webdavPasswordController: _webdavPasswordController,
+                    hasStoredWebdavPassword:
+                        widget.initialState.config.hasWebdavPassword,
+                    usePathStyle: _usePathStyle,
+                    onPathStyleChanged: (v) =>
+                        setState(() => _usePathStyle = v),
+                    isSaving: _isSaving,
+                    errorText: _errorText,
+                    onSave: _save,
+                    onBack: () => setState(() {
+                      _errorText = null;
+                      _step = _SetupStep.chooseType;
+                    }),
+                  ),
           ),
         ],
       ),

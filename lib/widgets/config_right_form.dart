@@ -4,18 +4,19 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 
 /// 配置页右侧完整表单。
 class ConfigRightFormPanel extends StatelessWidget {
   const ConfigRightFormPanel({
     super.key,
+    required this.storageType,
     required this.endpointController,
     required this.regionController,
     required this.accessKeyController,
     required this.secretKeyController,
     required this.hasStoredSecretKey,
-    required this.showWebDavFields,
     required this.webdavUsernameController,
     required this.webdavPasswordController,
     required this.hasStoredWebdavPassword,
@@ -24,14 +25,15 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.isSaving,
     required this.errorText,
     required this.onSave,
+    this.onBack,
   });
 
+  final StorageType storageType;
   final TextEditingController endpointController;
   final TextEditingController regionController;
   final TextEditingController accessKeyController;
   final TextEditingController secretKeyController;
   final bool hasStoredSecretKey;
-  final bool showWebDavFields;
   final TextEditingController? webdavUsernameController;
   final TextEditingController? webdavPasswordController;
   final bool hasStoredWebdavPassword;
@@ -40,10 +42,14 @@ class ConfigRightFormPanel extends StatelessWidget {
   final bool isSaving;
   final String? errorText;
   final VoidCallback onSave;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final isWebDav = storageType == StorageType.webdav;
+    final title = isWebDav ? '添加 WebDAV 账号' : '添加 S3 对象存储账号';
+    final subtitle = isWebDav ? '填写 WebDAV 服务地址和登录账号。' : '填写对象存储端点和访问密钥。';
 
     return Container(
       color: theme.colorScheme.background,
@@ -64,9 +70,27 @@ class ConfigRightFormPanel extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (onBack != null) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ShadButton.ghost(
+                            size: ShadButtonSize.sm,
+                            onPressed: isSaving ? null : onBack,
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.arrow_back, size: 15),
+                                SizedBox(width: 6),
+                                Text('返回'),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
                       // 标题。
                       Text(
-                        '登录远程存储',
+                        title,
                         style: theme.textTheme.h3.copyWith(
                           fontWeight: FontWeight.w700,
                           color: theme.colorScheme.foreground,
@@ -75,7 +99,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '输入你的认证信息以开始使用。',
+                        subtitle,
                         style: TextStyle(
                           color: theme.colorScheme.mutedForeground,
                           fontSize: 13,
@@ -85,51 +109,32 @@ class ConfigRightFormPanel extends StatelessWidget {
                       const SizedBox(height: 28),
                       _sectionLabel(context, '连接信息'),
                       const SizedBox(height: 16),
-                      _fieldLabel(context, '网关地址'),
+                      _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
                       const SizedBox(height: 6),
                       ShadInput(
                         controller: endpointController,
-                        placeholder: const Text('https://s3.example.com'),
+                        placeholder: Text(
+                          isWebDav
+                              ? 'https://dav.example.com/remote.php/dav/files/me'
+                              : 'https://s3.example.com',
+                        ),
                       ),
                       const SizedBox(height: 22),
                       // 认证字段和操作入口都保持在同一段自然流布局里，避免按钮被
                       // 挤到窗口底部。
                       _sectionLabel(context, '认证信息'),
                       const SizedBox(height: 16),
-                      // 访问密钥 ID。
-                      _fieldLabel(context, '访问密钥 ID'),
-                      const SizedBox(height: 6),
-                      ShadInput(
-                        controller: accessKeyController,
-                        placeholder: const Text('输入 Access Key ID'),
-                      ),
-                      const SizedBox(height: 18),
-                      // 访问密钥。
-                      _fieldLabel(context, '访问密钥'),
-                      const SizedBox(height: 6),
-                      ShadInput(
-                        controller: secretKeyController,
-                        placeholder: Text(
-                          hasStoredSecretKey
-                              ? '留空则保留当前已保存的 Secret Access Key'
-                              : '输入 Secret Access Key',
-                        ),
-                        obscureText: true,
-                      ),
-                      if (showWebDavFields &&
+                      if (isWebDav &&
                           webdavUsernameController != null &&
                           webdavPasswordController != null) ...[
-                        const SizedBox(height: 18),
-                        _sectionLabel(context, 'WebDAV 登录'),
-                        const SizedBox(height: 16),
-                        _fieldLabel(context, 'WebDAV 账号'),
+                        _fieldLabel(context, '用户名'),
                         const SizedBox(height: 6),
                         ShadInput(
                           controller: webdavUsernameController!,
-                          placeholder: const Text('输入 WebDAV 登录账号'),
+                          placeholder: const Text('输入 WebDAV 用户名'),
                         ),
                         const SizedBox(height: 18),
-                        _fieldLabel(context, 'WebDAV 密码'),
+                        _fieldLabel(context, '密码'),
                         const SizedBox(height: 6),
                         ShadInput(
                           controller: webdavPasswordController!,
@@ -140,14 +145,37 @@ class ConfigRightFormPanel extends StatelessWidget {
                           ),
                           obscureText: true,
                         ),
+                      ] else ...[
+                        // 访问密钥 ID。
+                        _fieldLabel(context, '访问密钥 ID'),
+                        const SizedBox(height: 6),
+                        ShadInput(
+                          controller: accessKeyController,
+                          placeholder: const Text('输入 Access Key ID'),
+                        ),
+                        const SizedBox(height: 18),
+                        // 访问密钥。
+                        _fieldLabel(context, '访问密钥'),
+                        const SizedBox(height: 6),
+                        ShadInput(
+                          controller: secretKeyController,
+                          placeholder: Text(
+                            hasStoredSecretKey
+                                ? '留空则保留当前已保存的 Secret Access Key'
+                                : '输入 Secret Access Key',
+                          ),
+                          obscureText: true,
+                        ),
                       ],
                       // 高级设置入口。
-                      const SizedBox(height: 18),
-                      _AdvancedSettingsLink(
-                        onTap: isSaving
-                            ? null
-                            : () => _openAdvancedDialog(context),
-                      ),
+                      if (!isWebDav) ...[
+                        const SizedBox(height: 18),
+                        _AdvancedSettingsLink(
+                          onTap: isSaving
+                              ? null
+                              : () => _openAdvancedDialog(context),
+                        ),
+                      ],
                       // 错误提示。
                       if (errorText != null) ...[
                         const SizedBox(height: 16),
@@ -178,7 +206,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                                   ],
                                 )
                               : const Text(
-                                  '保存并继续',
+                                  '确认添加',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,

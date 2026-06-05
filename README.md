@@ -56,8 +56,8 @@
 - 应用通过 Go FFI bridge 读取默认配置：macOS/Linux 使用 `~/.cloud-volume/config.toml`，Windows 使用安装目录下、与 `cloud-volume.exe` 同级的 `config.toml`。
 - 默认缓存目录跟随同一个工作路径：macOS/Linux 为 `~/.cloud-volume/cache`，Windows 为安装目录下与 `cloud-volume.exe` 同级的 `cache/`；也可以在设置页改到其他目录。
 - 升级启动时如果新位置还没有配置，会自动从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 复制到新位置；旧目录会保留作为回退备份。
-- 如果配置缺失或不完整，会先进入初始化配置页。
-- Web 端首次初始化只要求填写 S3 `endpoint/region/bucket/access_key_id/secret_access_key`；如果没有单独设置 WebDAV 凭据，后端会默认把 `access_key_id/secret_access_key` 作为浏览器登录和标准 WebDAV 客户端共用账号密码，后续可在系统设置里再单独修改。
+- 如果配置缺失或不完整，会先进入初始化配置页；初始化流程会先选择账号类型，目前支持 S3 对象存储和 WebDAV，再进入对应账号表单。
+- S3 对象存储初始化需要填写 `endpoint/access_key_id/secret_access_key`，高级设置里可调整 `region` 与 path-style URL；WebDAV 初始化需要填写服务地址、用户名和密码。
 - 如果访问密钥、签名或网络配置有误，初始化页会把常见 S3 / 网络错误转换成更友好的中文提示。
 - 保存后进入主界面，后续设置页可以再次修改下载目录、显示选项、回收站策略等内容。
 - 后续可在“账号管理”里同时维护多个上游账号；每个账号会保存为独立 profile，新增账号不会覆盖当前正在连接的账号。
@@ -302,17 +302,26 @@ Web 端行为和桌面端有几个关键差异：
 
 ## 配置项
 
-初始化页会保存这些 S3 兼容存储配置：
+初始化页会按账号类型保存连接配置。
+
+S3 对象存储账号包括：
 
 - `endpoint`：S3 兼容端点地址
 - `region`：区域
-- `bucket`：默认桶名
 - `access_key_id`：访问密钥 ID
 - `secret_access_key`：访问密钥 Secret
-- `root_prefix`：可选的根前缀
 - `use_path_style`：是否启用 path-style URL
-- `webdav_username`：可选；不填写时默认回退为 `access_key_id`
-- `webdav_password`：可选；不填写时默认回退为 `secret_access_key`
+
+WebDAV 账号包括：
+
+- `endpoint`：WebDAV 服务地址
+- `webdav_username`：WebDAV 用户名
+- `webdav_password`：WebDAV 密码
+
+通用存储配置还包括：
+
+- `bucket`：默认桶名
+- `root_prefix`：可选的根前缀
 
 其他应用级设置包括：
 
