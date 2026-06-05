@@ -47,7 +47,6 @@ func getBucketMountStatus(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	log.Printf("[bridge/mount] status bucket=%q", input.Bucket)
 	return bucketmount.GetBucketMountStatus(input.Bucket)
 }
 

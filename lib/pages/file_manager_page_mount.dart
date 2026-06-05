@@ -87,7 +87,11 @@ extension _FileManagerPageMount on _FileManagerPageState {
       return;
     }
     if (_activeBucket != null) {
-      await _refreshMountStatus(_activeBucket!);
+      final activeStatus = _bucketMountStatuses[_activeBucket!];
+      if (activeStatus?.mounted == true ||
+          _mountBusyBuckets.contains(_activeBucket!)) {
+        await _refreshMountStatus(_activeBucket!);
+      }
       return;
     }
     final mountedBucket = _currentMountedBucketName();
