@@ -24,12 +24,16 @@ class MainLayoutPage extends StatefulWidget {
     super.key,
     required this.state,
     required this.api,
+    required this.selectedItem,
+    required this.onSelectedItemChanged,
     required this.onEditConfig,
     required this.onRefresh,
   });
 
   final BootstrapState state;
   final RemoteStorageGateway api;
+  final SidebarItem selectedItem;
+  final ValueChanged<SidebarItem> onSelectedItemChanged;
   final VoidCallback onEditConfig;
   final VoidCallback onRefresh;
 
@@ -38,8 +42,6 @@ class MainLayoutPage extends StatefulWidget {
 }
 
 class _MainLayoutPageState extends State<MainLayoutPage> {
-  SidebarItem _selected = SidebarItem.fileManager;
-
   @override
   void initState() {
     super.initState();
@@ -184,7 +186,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   accent: ac,
                   muted: muted,
                   onTap: () =>
-                      setState(() => _selected = SidebarItem.transfers),
+                      widget.onSelectedItemChanged(SidebarItem.transfers),
                 ),
               ],
             ),
@@ -209,7 +211,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     Color ac,
     Color muted,
   ) {
-    final selected = _selected == item;
+    final selected = widget.selectedItem == item;
     final bg = selected ? ac.withValues(alpha: 0.1) : Colors.transparent;
     final fg = selected ? ac : muted;
     final border = selected
@@ -219,7 +221,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: GestureDetector(
-        onTap: () => setState(() => _selected = item),
+        onTap: () => widget.onSelectedItemChanged(item),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -251,7 +253,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   }
 
   Widget _buildContent() {
-    final index = switch (_selected) {
+    final index = switch (widget.selectedItem) {
       SidebarItem.fileManager => 0,
       SidebarItem.storage => 1,
       SidebarItem.trash => 2,
@@ -278,7 +280,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
         TransfersPage(
           api: widget.api,
           config: widget.state.config,
-          active: _selected == SidebarItem.transfers,
+          active: widget.selectedItem == SidebarItem.transfers,
         ),
         SettingsPage(
           state: widget.state,

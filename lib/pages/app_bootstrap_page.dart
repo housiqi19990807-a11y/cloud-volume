@@ -24,6 +24,7 @@ class AppBootstrapPage extends StatefulWidget {
 class _AppBootstrapPageState extends State<AppBootstrapPage> {
   late Future<_BootstrapSession> _sessionFuture;
   bool _showSetupAnyway = false;
+  SidebarItem _selectedSidebarItem = SidebarItem.fileManager;
 
   @override
   void initState() {
@@ -90,6 +91,9 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
         return MainLayoutPage(
           state: session.state,
           api: session.api,
+          selectedItem: _selectedSidebarItem,
+          onSelectedItemChanged: (item) =>
+              setState(() => _selectedSidebarItem = item),
           onEditConfig: () => setState(() => _showSetupAnyway = true),
           onRefresh: _reload,
         );
