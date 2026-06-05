@@ -1,4 +1,4 @@
-// 云存储上游总览用系统卡片样式承载一级入口与账号概览。
+// 账号上游总览用系统卡片样式承载一级入口与账号概览。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -23,7 +23,7 @@ class CloudStorageProviderOverview extends StatelessWidget {
       itemCount: StorageProviderType.values.length,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 360,
-        mainAxisExtent: 158,
+        mainAxisExtent: 176,
         mainAxisSpacing: 14,
         crossAxisSpacing: 14,
       ),
@@ -99,16 +99,7 @@ class _ProviderCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
-              Text(
-                '$count 个账号',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.foreground,
-                ),
-              ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 16),
               Text(
                 activeName.isEmpty ? '暂无已连接账号' : '已连接 $activeName',
                 style: TextStyle(
@@ -118,14 +109,37 @@ class _ProviderCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const Spacer(),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ShadButton.ghost(
-                  size: ShadButtonSize.sm,
-                  onPressed: onAddAccount,
-                  child: const Text('添加账号'),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$count 个账号',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.foreground,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  ShadButton.ghost(
+                    size: ShadButtonSize.sm,
+                    onPressed: onAddAccount,
+                    child: const Text('添加账号'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '点击查看账号列表',
+                style: TextStyle(
+                  color: theme.colorScheme.mutedForeground,
+                  fontSize: 11,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

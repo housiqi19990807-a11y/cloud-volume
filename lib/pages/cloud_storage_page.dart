@@ -1,4 +1,4 @@
-// 云存储管理页负责两级页面状态，并把具体卡片与列表交给 widgets 复用。
+// 账号管理页负责两级页面状态，并把具体卡片与列表交给 widgets 复用。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -194,7 +194,7 @@ class _PageHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '云存储管理',
+                '账号管理',
                 style: theme.textTheme.h3.copyWith(
                   fontWeight: FontWeight.w700,
                   fontSize: 22,

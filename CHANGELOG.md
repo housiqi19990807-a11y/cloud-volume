@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 云存储管理现在支持多个上游账号：账号 profile 会记录 OSCA、GFS、MinIO 或其他 S3 兼容类型，新增“云存储管理”侧边栏页面采用上游类型总览与类型内账号列表两级结构，一级复用系统卡片，二级复用固定表头列表，支持连接具体账号、退出账号，并提供固定布局的新增账号弹窗，避免内部下拉浮层撑开页面。
+- 账号管理现在支持多个上游账号：账号 profile 会记录 OSCA、GFS、MinIO 或其他 S3 兼容类型，新增“账号管理”侧边栏页面采用上游类型总览与类型内账号列表两级结构，一级复用系统卡片，二级复用固定表头列表，支持连接具体账号、退出账号，并提供固定布局的新增账号弹窗，避免内部下拉浮层撑开页面。
 - 默认配置与运行时目录现在统一改为 Cloud Volume 命名：macOS/Linux 使用 `~/.cloud-volume`，Windows 使用安装目录下与 `cloud-volume.exe` 同级的 `config.toml` 和 `runtime/`；升级启动时会从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 复制配置到新位置，Windows runner 与安装器入口文件也改名为 `cloud-volume.exe`。
 - Windows 启动窗口在高 DPI 小屏幕上的初始尺寸与居中坐标现在统一按逻辑像素计算，不再把物理工作区坐标再次按缩放倍率放大；因此首屏窗口不会再偏到屏幕右下角。
 - Windows Cloud Files watcher 现在会把 Office `~$*.docx/xlsx/pptx` 锁文件和常见 `~wr*.tmp` 临时文件视为本地临时噪声，不再送进远端写回队列；同时本地文件若在 quiet period 内已被删除/改名，对应等待中的 writeback 任务会立即取消，不再残留成长期“等待同步”。

@@ -146,7 +146,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                 ),
                 _navItem(
                   LucideIcons.cloudCog,
-                  '云存储管理',
+                  '账号管理',
                   SidebarItem.storage,
                   ac,
                   muted,
