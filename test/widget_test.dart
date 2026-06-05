@@ -65,6 +65,8 @@ class _FakeApi implements RemoteStorageGateway {
     config: configured
         ? const RemoteStorageConfig(
             endpoint: 'https://s3.example.com',
+            providerType: StorageProviderType.s3,
+            displayName: 'Test Account',
             region: 'us-east-1',
             bucket: 'test-bucket',
             accessKeyId: 'AKIA_TEST',
@@ -117,6 +119,16 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async => [];
+
+  @override
+  Future<void> saveProfile(String name, RemoteStorageConfig config) async {}
+
+  @override
+  Future<void> deleteProfile(String name) async {}
+
+  @override
+  Future<BootstrapState> setActiveProfile(String name) async =>
+      loadBootstrapState();
 
   @override
   Future<List<ObjectInfo>> listObjects(

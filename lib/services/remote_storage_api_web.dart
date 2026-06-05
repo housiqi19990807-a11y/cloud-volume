@@ -119,12 +119,10 @@ class RemoteStorageApi
   Future<AuthSessionState> loadAuthSession() async {
     final response = await _client.get(_apiUri('/api/auth/session'));
     if (response.statusCode == 401) {
-      return const AuthSessionState(
-        authenticated: false,
-        loginRequired: true,
-      );
+      return const AuthSessionState(authenticated: false, loginRequired: true);
     }
-    final payload = _decodeResponse(response) as Map<String, dynamic>? ??
+    final payload =
+        _decodeResponse(response) as Map<String, dynamic>? ??
         const <String, dynamic>{};
     return AuthSessionState.fromJson(payload);
   }
@@ -182,6 +180,28 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> saveProfile(String name, RemoteStorageConfig config) async {
+    await _invoke('save_profile', <String, dynamic>{
+      'name': name,
+      'config': config.toJson(),
+    });
+  }
+
+  @override
+  Future<void> deleteProfile(String name) async {
+    await _invoke('delete_profile', <String, dynamic>{'name': name});
+  }
+
+  @override
+  Future<BootstrapState> setActiveProfile(String name) async {
+    final payload =
+        await _invoke('set_active_profile', <String, dynamic>{'name': name})
+            as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    return BootstrapState.fromJson(payload);
+  }
+
+  @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
     final result = await _invoke('list_buckets');
     return _parseList(result, (m) => BucketInfo.fromJson(m));
@@ -207,11 +227,10 @@ class RemoteStorageApi
     String taskId, {
     String fileName = '',
   }) async {
-    final request = http.MultipartRequest('POST', _apiUri('/api/upload', {
-      'bucket': bucket,
-      'key': key,
-      'taskId': taskId,
-    }));
+    final request = http.MultipartRequest(
+      'POST',
+      _apiUri('/api/upload', {'bucket': bucket, 'key': key, 'taskId': taskId}),
+    );
     request.files.add(
       http.MultipartFile.fromBytes(
         'file',

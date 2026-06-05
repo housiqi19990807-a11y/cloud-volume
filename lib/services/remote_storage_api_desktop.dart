@@ -112,6 +112,30 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> saveProfile(String name, RemoteStorageConfig config) async {
+    await runBridgeCall('save_profile', <String, dynamic>{
+      'name': name,
+      'config': config.toJson(),
+    });
+  }
+
+  @override
+  Future<void> deleteProfile(String name) async {
+    await runBridgeCall('delete_profile', <String, dynamic>{'name': name});
+  }
+
+  @override
+  Future<BootstrapState> setActiveProfile(String name) async {
+    final payload =
+        await runBridgeCall('set_active_profile', <String, dynamic>{
+              'name': name,
+            })
+            as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    return BootstrapState.fromJson(payload);
+  }
+
+  @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
     final result = await runBridgeCall('list_buckets', <String, dynamic>{
       'config': config.toJson(),

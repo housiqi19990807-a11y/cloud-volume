@@ -5,6 +5,8 @@ import "strings"
 // RemoteStorageConfig stores the S3-compatible connection values persisted to TOML.
 type RemoteStorageConfig struct {
 	Endpoint                    string `json:"endpoint" toml:"endpoint"`
+	ProviderType                string `json:"providerType" toml:"provider_type"`
+	DisplayName                 string `json:"displayName" toml:"display_name"`
 	Region                      string `json:"region" toml:"region"`
 	Bucket                      string `json:"bucket" toml:"bucket"`
 	AccessKeyID                 string `json:"accessKeyId" toml:"access_key_id"`
@@ -59,6 +61,8 @@ func DefaultConfig() RemoteStorageConfig {
 func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 	return RemoteStorageConfig{
 		Endpoint:                    strings.TrimSpace(c.Endpoint),
+		ProviderType:                normalizeProviderType(c.ProviderType, c.Endpoint),
+		DisplayName:                 strings.TrimSpace(c.DisplayName),
 		Region:                      strings.TrimSpace(c.Region),
 		Bucket:                      strings.TrimSpace(c.Bucket),
 		AccessKeyID:                 strings.TrimSpace(c.AccessKeyID),
@@ -128,6 +132,21 @@ func (c RemoteStorageConfig) WithDefaultWebDAVCredentials() RemoteStorageConfig 
 	return normalized
 }
 
+// AccountLabel returns the user-facing account name for management views.
+func (c RemoteStorageConfig) AccountLabel(fallback string) string {
+	normalized := c.Normalized()
+	if normalized.DisplayName != "" {
+		return normalized.DisplayName
+	}
+	if normalized.AccessKeyID != "" {
+		return normalized.AccessKeyID
+	}
+	if fallback != "" {
+		return fallback
+	}
+	return "未命名账号"
+}
+
 // PublicSanitized clears secrets while preserving whether stored secrets exist.
 func (c RemoteStorageConfig) PublicSanitized() RemoteStorageConfig {
 	normalized := c.Normalized()
@@ -141,6 +160,27 @@ func normalizeFileOpenMode(value string) string {
 		return "single_click"
 	}
 	return "double_click"
+}
+
+func normalizeProviderType(value, endpoint string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
+	case "osca", "gfs", "minio", "s3":
+		return normalized
+	}
+	lowerEndpoint := strings.ToLower(endpoint)
+	switch {
+	case strings.Contains(lowerEndpoint, "fgws3") ||
+		strings.Contains(lowerEndpoint, "ocloud") ||
+		strings.Contains(lowerEndpoint, "osca"):
+		return "osca"
+	case strings.Contains(lowerEndpoint, "gfs"):
+		return "gfs"
+	case strings.Contains(lowerEndpoint, "minio"):
+		return "minio"
+	default:
+		return "s3"
+	}
 }
 
 func normalizeTrashRetentionDays(value int) int {

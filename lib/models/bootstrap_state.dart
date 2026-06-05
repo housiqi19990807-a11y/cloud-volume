@@ -4,16 +4,31 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 
 /// Stored profile info returned by the Go bridge.
 class ProfileInfo {
-  const ProfileInfo({required this.name, this.active = false});
+  const ProfileInfo({
+    required this.name,
+    required this.displayName,
+    required this.providerType,
+    required this.endpoint,
+    required this.accessKeyId,
+    this.active = false,
+  });
 
   factory ProfileInfo.fromJson(Map<String, dynamic> json) {
     return ProfileInfo(
       name: (json['name'] ?? '').toString(),
+      displayName: (json['displayName'] ?? '').toString(),
+      providerType: StorageProviderType.fromStorage(json['providerType']),
+      endpoint: (json['endpoint'] ?? '').toString(),
+      accessKeyId: (json['accessKeyId'] ?? '').toString(),
       active: json['active'] == true,
     );
   }
 
   final String name;
+  final String displayName;
+  final StorageProviderType providerType;
+  final String endpoint;
+  final String accessKeyId;
   final bool active;
 }
 

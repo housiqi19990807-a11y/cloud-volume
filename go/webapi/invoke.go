@@ -63,6 +63,8 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 	}
 	if method != "load_bootstrap_state" &&
 		method != "save_config" &&
+		method != "list_profiles" &&
+		method != "load_profile" &&
 		!s.authenticated(r) {
 		writeError(w, http.StatusUnauthorized, fmt.Errorf("login required"))
 		return
@@ -107,6 +109,28 @@ func (s *Server) invokeMethod(
 			return nil, http.StatusInternalServerError, err
 		}
 		return config.PublicSanitized(), http.StatusOK, nil
+	case "save_profile":
+		if strings.TrimSpace(input.Name) == "" {
+			return nil, http.StatusBadRequest, fmt.Errorf("missing profile name")
+		}
+		if err := storageconfig.SaveProfile(input.Name, input.Config); err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		return map[string]any{"ok": true}, http.StatusOK, nil
+	case "delete_profile":
+		if strings.TrimSpace(input.Name) == "" {
+			return nil, http.StatusBadRequest, fmt.Errorf("missing profile name")
+		}
+		if err := storageconfig.DeleteProfile(input.Name); err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		return map[string]any{"ok": true}, http.StatusOK, nil
+	case "set_active_profile":
+		if strings.TrimSpace(input.Name) == "" {
+			return nil, http.StatusBadRequest, fmt.Errorf("missing profile name")
+		}
+		state, err := setActiveWebProfile(input.Name)
+		return state, http.StatusOK, err
 	}
 	config, err := requireConfiguredStorage()
 	if err != nil {
@@ -260,8 +284,16 @@ func (s *Server) saveConfig(
 	if err := storageconfig.SaveProfile("default", config); err != nil {
 		return storageconfig.BootstrapState{}, err
 	}
+	_ = storageconfig.SetActiveProfile("default")
 	s.sessions.Reset()
 	if err := s.webdav.Reset(); err != nil {
+		return storageconfig.BootstrapState{}, err
+	}
+	return loadBootstrapState()
+}
+
+func setActiveWebProfile(name string) (storageconfig.BootstrapState, error) {
+	if err := storageconfig.SetActiveProfile(name); err != nil {
 		return storageconfig.BootstrapState{}, err
 	}
 	return loadBootstrapState()

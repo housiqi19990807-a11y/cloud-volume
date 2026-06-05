@@ -41,6 +41,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return saveProfile(args)
 	case "delete_profile":
 		return deleteProfile(args)
+	case "set_active_profile":
+		return setActiveProfile(args)
 	// S3 operations.
 	case "list_buckets":
 		return listBuckets(args)
@@ -114,8 +116,15 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	var config storageconfig.RemoteStorageConfig
 	var configPath string
 	if configured {
-		config, _ = storageconfig.LoadProfile(profiles[0].Name)
-		p, _ := storageconfig.ProfileConfigPath(profiles[0].Name)
+		activeName := profiles[0].Name
+		for _, profile := range profiles {
+			if profile.Active {
+				activeName = profile.Name
+				break
+			}
+		}
+		config, _ = storageconfig.LoadProfile(activeName)
+		p, _ := storageconfig.ProfileConfigPath(activeName)
 		configPath = p
 	} else {
 		config = storageconfig.DefaultConfig()
@@ -145,6 +154,7 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 	if err := storageconfig.SaveProfile("default", input.Config); err != nil {
 		return storageconfig.BootstrapState{}, err
 	}
+	_ = storageconfig.SetActiveProfile("default")
 	return loadBootstrapState()
 }
 
@@ -183,6 +193,17 @@ func deleteProfile(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+func setActiveProfile(args json.RawMessage) (any, error) {
+	var input profileNameArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := storageconfig.SetActiveProfile(input.Name); err != nil {
+		return nil, err
+	}
+	return loadBootstrapState()
 }
 
 // --- S3 operations ---

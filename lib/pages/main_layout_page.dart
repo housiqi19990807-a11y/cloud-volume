@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/pages/cloud_storage_page.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/pages/global_trash_page.dart';
 import 'package:remote_storage/pages/share_management_page.dart';
@@ -16,7 +17,7 @@ import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 侧边栏菜单项。
-enum SidebarItem { fileManager, trash, shares, transfers, settings }
+enum SidebarItem { fileManager, storage, trash, shares, transfers, settings }
 
 class MainLayoutPage extends StatefulWidget {
   const MainLayoutPage({
@@ -114,9 +115,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const AppBrandMark(height: 42, width: 210),
-                    ],
+                    children: [const AppBrandMark(height: 42, width: 210)],
                   ),
                 ),
                 Padding(
@@ -142,6 +141,13 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   LucideIcons.folderOpen,
                   '文件管理',
                   SidebarItem.fileManager,
+                  ac,
+                  muted,
+                ),
+                _navItem(
+                  LucideIcons.cloudCog,
+                  '云存储管理',
+                  SidebarItem.storage,
                   ac,
                   muted,
                 ),
@@ -247,10 +253,11 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   Widget _buildContent() {
     final index = switch (_selected) {
       SidebarItem.fileManager => 0,
-      SidebarItem.trash => 1,
-      SidebarItem.shares => 2,
-      SidebarItem.transfers => 3,
-      SidebarItem.settings => 4,
+      SidebarItem.storage => 1,
+      SidebarItem.trash => 2,
+      SidebarItem.shares => 3,
+      SidebarItem.transfers => 4,
+      SidebarItem.settings => 5,
     };
 
     return IndexedStack(
@@ -259,6 +266,12 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
         FileManagerPage(
           api: widget.api,
           config: widget.state.config,
+          onEditConfig: widget.onEditConfig,
+        ),
+        CloudStoragePage(
+          state: widget.state,
+          api: widget.api,
+          onRefresh: widget.onRefresh,
           onEditConfig: widget.onEditConfig,
         ),
         GlobalTrashPage(api: widget.api, config: widget.state.config),

@@ -16,12 +16,19 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	var config storageconfig.RemoteStorageConfig
 	var configPath string
 	if configured {
-		loadedConfig, err := storageconfig.LoadProfile(profiles[0].Name)
+		activeName := profiles[0].Name
+		for _, profile := range profiles {
+			if profile.Active {
+				activeName = profile.Name
+				break
+			}
+		}
+		loadedConfig, err := storageconfig.LoadProfile(activeName)
 		if err != nil {
 			return storageconfig.BootstrapState{}, err
 		}
 		config = loadedConfig
-		path, err := storageconfig.ProfileConfigPath(profiles[0].Name)
+		path, err := storageconfig.ProfileConfigPath(activeName)
 		if err != nil {
 			return storageconfig.BootstrapState{}, err
 		}
@@ -52,7 +59,14 @@ func loadCurrentConfig() (storageconfig.RemoteStorageConfig, error) {
 	if len(profiles) == 0 {
 		return storageconfig.DefaultConfig(), nil
 	}
-	return storageconfig.LoadProfile(profiles[0].Name)
+	activeName := profiles[0].Name
+	for _, profile := range profiles {
+		if profile.Active {
+			activeName = profile.Name
+			break
+		}
+	}
+	return storageconfig.LoadProfile(activeName)
 }
 
 func requireConfiguredStorage() (storageconfig.RemoteStorageConfig, error) {

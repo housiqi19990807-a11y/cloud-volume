@@ -13,12 +13,20 @@ import (
 	"strings"
 )
 
-const profilesDir = "profiles"
+const (
+	profilesDir           = "profiles"
+	activeProfileFileName = "active_profile"
+	defaultProfileName    = "default"
+)
 
 // ProfileInfo describes a stored profile for Flutter.
 type ProfileInfo struct {
-	Name   string `json:"name"`
-	Active bool   `json:"active"`
+	Name         string `json:"name"`
+	DisplayName  string `json:"displayName"`
+	ProviderType string `json:"providerType"`
+	Endpoint     string `json:"endpoint"`
+	AccessKeyID  string `json:"accessKeyId"`
+	Active       bool   `json:"active"`
 }
 
 // ProfilesDir returns the path to the profile config directory.
@@ -36,7 +44,16 @@ func ProfileConfigPath(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, name+".toml"), nil
+	return filepath.Join(dir, profileFileName(name)), nil
+}
+
+// ActiveProfilePath returns the file that stores the selected profile name.
+func ActiveProfilePath() (string, error) {
+	rootPath, err := appDataRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(rootPath, activeProfileFileName), nil
 }
 
 // MigrateDefault copies legacy config files into the current default locations.
@@ -58,14 +75,57 @@ func MigrateDefault() error {
 		return err
 	}
 
-	defaultProfilePath := filepath.Join(dir, "default.toml")
+	defaultProfilePath := filepath.Join(dir, profileFileName(defaultProfileName))
 	if pathExists(defaultProfilePath) || !pathExists(defaultPath) {
 		return nil
 	}
 	return copyFileIfMissing(defaultPath, defaultProfilePath)
 }
 
-// ListProfiles returns all stored profile names.
+// ActiveProfileName returns the selected profile name, falling back to default.
+func ActiveProfileName() (string, error) {
+	path, err := ActiveProfilePath()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return defaultProfileName, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	name := sanitizeProfileName(string(data))
+	if name == "" {
+		return defaultProfileName, nil
+	}
+	return name, nil
+}
+
+// SetActiveProfile persists the selected profile for the next bootstrap.
+func SetActiveProfile(name string) error {
+	cleanName := sanitizeProfileName(name)
+	if cleanName == "" {
+		return errors.New("profile name is empty")
+	}
+	path, err := ProfileConfigPath(cleanName)
+	if err != nil {
+		return err
+	}
+	if !pathExists(path) {
+		return os.ErrNotExist
+	}
+	activePath, err := ActiveProfilePath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(activePath), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(activePath, []byte(cleanName+"\n"), 0o600)
+}
+
+// ListProfiles returns all stored profile names and management metadata.
 func ListProfiles() ([]ProfileInfo, error) {
 	dir, err := ProfilesDir()
 	if err != nil {
@@ -81,13 +141,30 @@ func ListProfiles() ([]ProfileInfo, error) {
 		return nil, err
 	}
 
+	activeName, err := ActiveProfileName()
+	if err != nil {
+		return nil, err
+	}
+
 	var result []ProfileInfo
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
 			continue
 		}
 		name := strings.TrimSuffix(e.Name(), ".toml")
-		result = append(result, ProfileInfo{Name: name})
+		config, err := LoadProfile(name)
+		if err != nil {
+			return nil, err
+		}
+		normalized := config.Normalized()
+		result = append(result, ProfileInfo{
+			Name:         name,
+			DisplayName:  normalized.AccountLabel(name),
+			ProviderType: normalized.ProviderType,
+			Endpoint:     normalized.Endpoint,
+			AccessKeyID:  normalized.AccessKeyID,
+			Active:       name == activeName,
+		})
 	}
 
 	if result == nil {
@@ -95,7 +172,10 @@ func ListProfiles() ([]ProfileInfo, error) {
 	}
 
 	sort.Slice(result, func(i, j int) bool {
-		if result[i].Name == "default" {
+		if result[i].Active != result[j].Active {
+			return result[i].Active
+		}
+		if result[i].Name == defaultProfileName {
 			return true
 		}
 		return result[i].Name < result[j].Name
@@ -106,7 +186,11 @@ func ListProfiles() ([]ProfileInfo, error) {
 
 // SaveProfile persists a config under a named profile.
 func SaveProfile(name string, config RemoteStorageConfig) error {
-	path, err := ProfileConfigPath(name)
+	cleanName := sanitizeProfileName(name)
+	if cleanName == "" {
+		return errors.New("profile name is empty")
+	}
+	path, err := ProfileConfigPath(cleanName)
 	if err != nil {
 		return err
 	}
@@ -115,7 +199,7 @@ func SaveProfile(name string, config RemoteStorageConfig) error {
 
 // LoadProfile reads a config for a named profile.
 func LoadProfile(name string) (RemoteStorageConfig, error) {
-	path, err := ProfileConfigPath(name)
+	path, err := ProfileConfigPath(sanitizeProfileName(name))
 	if err != nil {
 		return DefaultConfig(), err
 	}
@@ -124,11 +208,24 @@ func LoadProfile(name string) (RemoteStorageConfig, error) {
 
 // DeleteProfile removes a profile file.
 func DeleteProfile(name string) error {
-	path, err := ProfileConfigPath(name)
+	cleanName := sanitizeProfileName(name)
+	path, err := ProfileConfigPath(cleanName)
 	if err != nil {
 		return err
 	}
-	return os.Remove(path)
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	activeName, err := ActiveProfileName()
+	if err != nil {
+		return err
+	}
+	if activeName == cleanName {
+		if activePath, err := ActiveProfilePath(); err == nil {
+			_ = os.Remove(activePath)
+		}
+	}
+	return nil
 }
 
 func migrateLegacyConfigRoot() error {
@@ -149,7 +246,7 @@ func migrateLegacyConfigRoot() error {
 		return err
 	}
 	legacyConfigPath := filepath.Join(legacyRoot, configFileName)
-	legacyDefaultProfilePath := filepath.Join(legacyRoot, profilesDir, "default.toml")
+	legacyDefaultProfilePath := filepath.Join(legacyRoot, profilesDir, profileFileName(defaultProfileName))
 	if !pathExists(currentConfigPath) {
 		if pathExists(legacyConfigPath) {
 			if err := copyFileIfMissing(legacyConfigPath, currentConfigPath); err != nil {
@@ -168,6 +265,21 @@ func migrateLegacyConfigRoot() error {
 		return err
 	}
 	return copyProfileFilesIfMissing(legacyProfilesDir, currentProfilesDir)
+}
+
+func profileFileName(name string) string {
+	cleanName := sanitizeProfileName(name)
+	if cleanName == "" {
+		cleanName = defaultProfileName
+	}
+	return cleanName + ".toml"
+}
+
+func sanitizeProfileName(name string) string {
+	cleanName := strings.TrimSpace(name)
+	cleanName = filepath.Base(cleanName)
+	cleanName = strings.TrimSuffix(cleanName, ".toml")
+	return strings.TrimSpace(cleanName)
 }
 
 func copyProfileFilesIfMissing(srcDir, dstDir string) error {

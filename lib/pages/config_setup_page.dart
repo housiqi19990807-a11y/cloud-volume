@@ -69,6 +69,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   Future<void> _save() async {
     final config = RemoteStorageConfig(
       endpoint: _endpointController.text,
+      providerType: widget.initialState.config.providerType,
+      displayName: widget.initialState.config.displayName,
       region: _regionController.text,
       bucket: widget.initialState.config.bucket,
       accessKeyId: _accessKeyController.text,
