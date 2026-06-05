@@ -26,7 +26,7 @@
 - 文件管理同步提示：进入已挂载桶时，顶部挂载状态会直接显示 `等待同步 N` / `同步中 N`，便于判断桌面写入是否已经回传远端。
 - 文件列表同步状态：进入已挂载桶的文件列表后，会直接包含待同步的本地写回项，并在独立状态列显示 `已同步`、`等待同步` 或 `同步中`；名称下方不再重复放同步文案，目录会按子项聚合同步状态。
 - Windows Cloud Files 原生状态：默认的 `Cloud Files + 本地缓存/异步同步` 模式现在会把写回队列状态投影回 Explorer 的 sync root，待同步文件会显示 Cloud Files 的未同步状态，上传完成后恢复为已同步状态。
-- Windows 卸载与回写恢复：Cloud Files 挂载写回现在会先持久化到每个 bucket 的本地队列库，再按路径合并等待 quiet period；卸载时不会再同步 flush 整个写回队列，只要应用进程还在，后台会继续把已排队文件回传远端，重新挂载同一 bucket 时也会恢复未完成写回。
+- 卸载与回写恢复：挂载写回现在会先持久化到每个 bucket 的本地队列库，再按路径合并等待异步推送时间；默认等待 10 秒，也可以在设置页调整，卸载后只要应用进程还在，后台会继续把已排队文件回传远端。
 - 断点续传：大文件挂载上传支持可恢复 multipart writeback，挂载下载支持复用完整缓存与 `.downloading` 分片续传。
 - 回收站：应用级软删除、全局回收站 / 桶级回收站、恢复、手动彻底删除、批量删除、一键清空、分页与无限滚动。
 - 分享管理：为文件创建预签名下载链接，集中管理分享记录、续期、复制与删除。
@@ -45,6 +45,7 @@
 - 账号管理页直接展示所有账号，并保留和桶列表一致的卡片 / 表格视图切换；新增和编辑账号时第一步选择存储类型，目前支持 S3 对象存储和 WebDAV，上游类型不再作为页面分组。
 - 文件管理首页的桶列表会显示当前来源账号和存储类型，方便多账号切换后确认每个桶来自哪个上游。
 - 设置页可配置缓存目录；未自定义时使用工作路径下的 `cache/`，文件预览缓存和挂载读写缓存都会归到这个根目录下。
+- 设置页可配置挂载写入后的异步推送等待时间，默认 10 秒，适合想让本地保存更快回传远端的桌面工作流。
 - 设置页现在额外提供独立的“关于”子 Tab，集中展示应用版本、作者版权 `三千` 与 QQ 交流群 `572532027`。
 - “关于”页的版本号现在统一来自构建时注入：本地开发默认显示 `dev`，CI/tag 发布构建会显示对应版本号。
 
@@ -375,9 +376,9 @@ Windows now keeps three mount modes available side by side so behavior can be co
 - `webdav`: keeps the mapped-drive fallback that mounts the local WebDAV server into Explorer as a network drive.
 
 The active mode is stored in config as `windows_mount_mode` and can be changed from Settings. Remount the bucket after switching modes.
-Mounted writeback uploads now also respect a configurable `windows_writeback_concurrency` setting. The default is `4`, and Settings exposes the same value so large Explorer copies do not fan out into hundreds of simultaneous upload tasks.
+Mounted writeback uploads now also respect configurable `writeback_quiet_seconds` and `windows_writeback_concurrency` settings. The default quiet wait is `10` seconds, and the default Windows upload concurrency is `4`.
 The cached Cloud Files writeback path now persists queued uploads in per-process queue snapshots under the install directory's `runtime/mounts/<bucket>/writeback/queue-<pid>.json`, merges repeated writes by virtual path, compacts old queue files on remount, and resumes those pending uploads after a remount instead of dropping them with the old in-memory session queue.
-Unmount now releases the Cloud Files shell, watcher, and sync-root registration without waiting for the full writeback queue to flush first. As long as the app process stays alive, delayed uploads continue in the background after unmount and still honor the normal quiet-period debouncing.
+Unmount now releases the Cloud Files shell, watcher, and sync-root registration without waiting for the full writeback queue to flush first. As long as the app process stays alive, delayed uploads continue in the background after unmount and still honor the configured quiet-period debouncing.
 Cloud Files mounts on Windows now keep a stable sync-root path at `~/Cloud Volume/<bucket>` instead of creating a timestamped directory on each mount, so Explorer shortcuts, task recovery, and user-visible mount paths stay deterministic across remounts.
 Settings also expose a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer writes.
 If a remount fails because the install directory's `runtime/mounts/<bucket>/writeback.db` is still locked by a leftover `cloud-volume.exe`, the mount now returns a normal actionable error instead of panicking, and Windows Settings also expose an `结束残留占用进程` action to kill those stale local runner processes before retrying.

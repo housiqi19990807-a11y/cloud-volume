@@ -98,6 +98,33 @@ extension _SettingsPageActions on _SettingsPageState {
     }
   }
 
+  Future<void> _saveWritebackQuietSeconds(
+    RemoteStorageConfig config,
+    int seconds,
+  ) async {
+    if (seconds == config.writebackQuietSeconds) {
+      return;
+    }
+    _updateState(() {
+      _savingWritebackQuietSeconds = true;
+      _writebackQuietSecondsError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(writebackQuietSeconds: seconds),
+      );
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _writebackQuietSecondsError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _savingWritebackQuietSeconds = false);
+      }
+    }
+  }
+
   Future<void> _saveWebdavCredentials(
     RemoteStorageConfig config,
     String username,

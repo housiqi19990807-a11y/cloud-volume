@@ -43,6 +43,7 @@ func newBucketAccess(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) (*bucketAccess, error) {
+	cfg = cfg.Normalized()
 	mountRoot, err := storageconfig.MountRuntimeDir()
 	if err != nil {
 		return nil, err
@@ -144,6 +145,7 @@ type writebackQueue struct {
 	drainErr error
 	queue    chan *pendingWriteback
 	pool     *ants.Pool
+	quiet    time.Duration
 	wg       sync.WaitGroup
 }
 

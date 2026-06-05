@@ -129,6 +129,36 @@ func TestNormalizeWindowsWritebackConcurrency(t *testing.T) {
 	}
 }
 
+func TestNormalizeWritebackQuietSeconds(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{name: "zero falls back to ten seconds", input: 0, want: 10},
+		{name: "negative falls back to ten seconds", input: -1, want: 10},
+		{name: "small positive stays unchanged", input: 3, want: 3},
+		{name: "large values are capped", input: 999, want: 300},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeWritebackQuietSeconds(tc.input); got != tc.want {
+				t.Fatalf(
+					"normalizeWritebackQuietSeconds(%d) = %d, want %d",
+					tc.input,
+					got,
+					tc.want,
+				)
+			}
+		})
+	}
+}
+
 func TestWithDefaultWebDAVCredentialsFallsBackToAccessKeys(t *testing.T) {
 	t.Parallel()
 

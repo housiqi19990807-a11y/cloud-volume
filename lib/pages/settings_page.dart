@@ -17,6 +17,7 @@ import 'package:remote_storage/widgets/settings_sections.dart'
         ThemePicker,
         VisibilitySection,
         WebDavCredentialsSection;
+import 'package:remote_storage/widgets/settings_sync_section.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:remote_storage/widgets/windows_settings_sections.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -53,6 +54,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _visibilityError;
   bool _savingTrashSettings = false;
   String? _trashSettingsError;
+  bool _savingWritebackQuietSeconds = false;
+  String? _writebackQuietSecondsError;
   bool _savingWebdavCredentials = false;
   String? _webdavCredentialsError;
   bool _savingWindowsMountMode = false;
@@ -185,6 +188,18 @@ class _SettingsPageState extends State<SettingsPage> {
           saving: _savingVisibility,
           errorText: _visibilityError,
           onChanged: (value) => _saveHideDotFiles(config, value),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '同步设置',
+        WritebackQuietSecondsSection(
+          theme: theme,
+          seconds: config.writebackQuietSeconds,
+          saving: _savingWritebackQuietSeconds,
+          errorText: _writebackQuietSecondsError,
+          onChanged: (value) => _saveWritebackQuietSeconds(config, value),
         ),
       ),
       const SizedBox(height: 20),

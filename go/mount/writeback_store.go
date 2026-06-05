@@ -116,6 +116,7 @@ func (q *writebackQueue) attach(access *bucketAccess) {
 	if access == nil {
 		return
 	}
+	q.setQuietPeriod(access.config)
 	q.accessMu.Lock()
 	q.access = access
 	q.accessMu.Unlock()

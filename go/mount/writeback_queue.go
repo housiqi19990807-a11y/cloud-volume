@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
 )
 
@@ -18,6 +19,25 @@ const (
 	writebackRetryBaseDelay = 15 * time.Second
 	writebackRetryMaxDelay  = 2 * time.Minute
 )
+
+func (q *writebackQueue) setQuietPeriod(config storageconfig.RemoteStorageConfig) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.quiet = time.Duration(config.Normalized().WritebackQuietSeconds) * time.Second
+}
+
+func (q *writebackQueue) quietPeriod() time.Duration {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.quietPeriodLocked()
+}
+
+func (q *writebackQueue) quietPeriodLocked() time.Duration {
+	if q.quiet <= 0 {
+		return 10 * time.Second
+	}
+	return q.quiet
+}
 
 func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 	var modTimeUnixNano int64
@@ -52,7 +72,7 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 		size:            size,
 		modTimeUnixNano: modTimeUnixNano,
 	}
-	q.armTimerLocked(entry, writebackQuietPeriod)
+	q.armTimerLocked(entry, q.quietPeriodLocked())
 	q.entries[clean] = entry
 	q.persistEntryLocked(entry)
 	log.Printf(
@@ -240,7 +260,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		return fmt.Errorf("writeback source became directory: %s", entry.localPath)
 	}
 	if q.shouldRefreshEntry(entry, info) {
-		return q.refreshEntryFromDisk(entry, info, writebackQuietPeriod)
+		return q.refreshEntryFromDisk(entry, info, q.quietPeriod())
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

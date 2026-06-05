@@ -88,6 +88,7 @@ class RemoteStorageConfig {
     required this.fileOpenMode,
     required this.trashDirectoryName,
     required this.trashRetentionDays,
+    required this.writebackQuietSeconds,
     required this.usePathStyle,
     required this.windowsMountMode,
     required this.windowsThisPcEntryEnabled,
@@ -116,6 +117,7 @@ class RemoteStorageConfig {
       fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: '.trash',
       trashRetentionDays: -1,
+      writebackQuietSeconds: 10,
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
       windowsThisPcEntryEnabled: false,
@@ -186,7 +188,12 @@ class RemoteStorageConfig {
           _intFromDynamic(
             json['trashRetentionDays'] ?? json['trash_retention_days'],
           ) ??
-          30,
+          -1,
+      writebackQuietSeconds:
+          _intFromDynamic(
+            json['writebackQuietSeconds'] ?? json['writeback_quiet_seconds'],
+          ) ??
+          10,
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
@@ -228,6 +235,7 @@ class RemoteStorageConfig {
   final FileOpenMode fileOpenMode;
   final String trashDirectoryName;
   final int trashRetentionDays;
+  final int writebackQuietSeconds;
   final bool usePathStyle;
   final WindowsMountMode windowsMountMode;
   final bool windowsThisPcEntryEnabled;
@@ -271,6 +279,7 @@ class RemoteStorageConfig {
       'fileOpenMode': fileOpenMode.storageValue,
       'trashDirectoryName': trashDirectoryName.trim(),
       'trashRetentionDays': trashRetentionDays,
+      'writebackQuietSeconds': writebackQuietSeconds,
       'usePathStyle': usePathStyle,
       'windowsMountMode': windowsMountMode.storageValue,
       'windowsThisPcEntryEnabled': windowsThisPcEntryEnabled,
@@ -299,6 +308,7 @@ class RemoteStorageConfig {
     FileOpenMode? fileOpenMode,
     String? trashDirectoryName,
     int? trashRetentionDays,
+    int? writebackQuietSeconds,
     bool? usePathStyle,
     WindowsMountMode? windowsMountMode,
     bool? windowsThisPcEntryEnabled,
@@ -327,6 +337,8 @@ class RemoteStorageConfig {
       fileOpenMode: fileOpenMode ?? this.fileOpenMode,
       trashDirectoryName: trashDirectoryName ?? this.trashDirectoryName,
       trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
+      writebackQuietSeconds:
+          writebackQuietSeconds ?? this.writebackQuietSeconds,
       usePathStyle: usePathStyle ?? this.usePathStyle,
       windowsMountMode: windowsMountMode ?? this.windowsMountMode,
       windowsThisPcEntryEnabled:

@@ -185,6 +185,41 @@ func TestWritebackQueueUsesConfiguredConcurrency(t *testing.T) {
 	}
 }
 
+func TestWritebackQueueUsesConfiguredQuietSeconds(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	access.config.WritebackQuietSeconds = 3
+	access.writeback.setQuietPeriod(access.config)
+	localPath := filepath.Join(access.cacheRoot, "archive", "output.zip")
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		t.Fatalf("mkdir local path: %v", err)
+	}
+	if err := os.WriteFile(localPath, []byte("payload"), 0o644); err != nil {
+		t.Fatalf("write staged file: %v", err)
+	}
+
+	startedAt := time.Now()
+	access.writeback.enqueue("archive/output.zip", localPath, 7)
+	entry := access.writeback.entries["archive/output.zip"]
+	if entry == nil {
+		t.Fatal("expected queued writeback entry")
+	}
+	delay := entry.dueAt.Sub(startedAt)
+	if delay < 2500*time.Millisecond || delay > 4*time.Second {
+		t.Fatalf("expected due time near 3s, got %v", delay)
+	}
+}
+
+func TestWritebackQueueDefaultsQuietSecondsToTen(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	if got := access.writeback.quietPeriod(); got != 10*time.Second {
+		t.Fatalf("expected default quiet period 10s, got %v", got)
+	}
+}
+
 func TestWritebackQueueRestoresPersistedEntries(t *testing.T) {
 	t.Parallel()
 

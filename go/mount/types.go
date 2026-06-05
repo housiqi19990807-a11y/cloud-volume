@@ -13,7 +13,6 @@ const (
 	defaultTransferTimeout = 300
 	defaultCacheTTL        = 15
 	defaultPrefetchTTL     = 10
-	writebackQuietPeriod   = time.Minute
 	mountProbeCacheTTL     = 1200 * time.Millisecond
 )
 

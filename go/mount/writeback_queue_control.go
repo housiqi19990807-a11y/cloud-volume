@@ -108,7 +108,7 @@ func (q *writebackQueue) rename(oldVirtualPath, newVirtualPath string, isDir boo
 		}
 		delete(q.entries, oldClean)
 		entry.virtualPath = newClean
-		q.armTimerLocked(entry, writebackQuietPeriod)
+		q.armTimerLocked(entry, q.quietPeriodLocked())
 		q.entries[newClean] = entry
 		q.persistEntryLocked(entry)
 		_ = q.store.delete(oldClean)
@@ -128,7 +128,7 @@ func (q *writebackQueue) rename(oldVirtualPath, newVirtualPath string, isDir boo
 		delete(q.entries, key)
 		entry.virtualPath = newPrefix + strings.TrimPrefix(key, oldPrefix)
 		nextKey := entry.virtualPath
-		q.armTimerLocked(entry, writebackQuietPeriod)
+		q.armTimerLocked(entry, q.quietPeriodLocked())
 		q.entries[nextKey] = entry
 		q.persistEntryLocked(entry)
 		_ = q.store.delete(key)

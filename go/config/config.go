@@ -24,6 +24,7 @@ type RemoteStorageConfig struct {
 	FileOpenMode                string `json:"fileOpenMode" toml:"file_open_mode"`
 	TrashDirectoryName          string `json:"trashDirectoryName" toml:"trash_directory_name"`
 	TrashRetentionDays          int    `json:"trashRetentionDays" toml:"trash_retention_days"`
+	WritebackQuietSeconds       int    `json:"writebackQuietSeconds" toml:"writeback_quiet_seconds"`
 	UsePathStyle                bool   `json:"usePathStyle" toml:"use_path_style"`
 	WindowsMountMode            string `json:"windowsMountMode" toml:"windows_mount_mode"`
 	WindowsThisPcEntryEnabled   bool   `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
@@ -36,6 +37,8 @@ const (
 	WindowsMountModeCloudFilesCached   = "cloud_files_cached"
 	WindowsMountModeCloudFilesDirect   = "cloud_files_direct"
 	WindowsMountModeWebDAV             = "webdav"
+	defaultWritebackQuietSeconds       = 10
+	maxWritebackQuietSeconds           = 300
 	defaultWindowsWritebackConcurrency = 4
 	maxWindowsWritebackConcurrency     = 32
 )
@@ -55,6 +58,7 @@ func DefaultConfig() RemoteStorageConfig {
 		FileOpenMode:                "double_click",
 		TrashDirectoryName:          ".trash",
 		TrashRetentionDays:          -1,
+		WritebackQuietSeconds:       defaultWritebackQuietSeconds,
 		UsePathStyle:                true,
 		WindowsMountMode:            WindowsMountModeCloudFilesCached,
 		WindowsThisPcEntryEnabled:   false,
@@ -85,6 +89,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		FileOpenMode:                normalizeFileOpenMode(c.FileOpenMode),
 		TrashDirectoryName:          normalizeTrashDirectoryName(c.TrashDirectoryName),
 		TrashRetentionDays:          normalizeTrashRetentionDays(c.TrashRetentionDays),
+		WritebackQuietSeconds:       normalizeWritebackQuietSeconds(c.WritebackQuietSeconds),
 		UsePathStyle:                c.UsePathStyle,
 		WindowsMountMode:            normalizeWindowsMountMode(c.WindowsMountMode),
 		WindowsThisPcEntryEnabled:   c.WindowsThisPcEntryEnabled,
@@ -229,6 +234,17 @@ func normalizeTrashRetentionDays(value int) int {
 		return -1
 	case value == 0:
 		return 30
+	default:
+		return value
+	}
+}
+
+func normalizeWritebackQuietSeconds(value int) int {
+	switch {
+	case value <= 0:
+		return defaultWritebackQuietSeconds
+	case value > maxWritebackQuietSeconds:
+		return maxWritebackQuietSeconds
 	default:
 		return value
 	}
