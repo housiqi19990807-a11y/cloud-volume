@@ -26,6 +26,7 @@ import 'package:remote_storage/widgets/file_manager_bucket_browser.dart';
 import 'package:remote_storage/widgets/file_manager_error_view.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/file_manager_trash_browser.dart';
+import 'package:remote_storage/widgets/mount_bucket_dialog.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:remote_storage/widgets/share_dialogs.dart';
 import 'package:path/path.dart' as path;

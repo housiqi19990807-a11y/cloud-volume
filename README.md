@@ -19,7 +19,7 @@
 ## 核心能力
 
 - 文件管理：桶列表、目录浏览、列表/网格视图、右键操作、搜索、多选、批量下载/删除。
-- 挂载访问：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV 与 Cloud Files 方案，三端都复用本地缓存、overlay 与异步写回链路。
+- 挂载访问：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV 与 Cloud Files 方案；挂载前可选择默认或自定义路径，也可切换只读挂载，三端都复用本地缓存、overlay 与异步写回链路。
 - Web 控制台：浏览器端不再尝试本地挂载，而是通过 Go HTTP 服务提供登录态、对象管理 API、浏览器上传/下载，以及按 bucket 暴露的 WebDAV 入口。
 - Windows WebDAV 挂载：把当前桶映射成 Windows WebDAV 网络驱动器，并复用现有本地优先读写与任务队列逻辑；Explorer “此电脑”入口默认不注册，可在 Windows 设置里手动开启。
 - 本地优先：挂载写入、删除、改名、移动先落本地缓存与 overlay，再异步回写远端。

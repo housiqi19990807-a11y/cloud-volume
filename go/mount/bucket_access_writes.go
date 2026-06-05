@@ -17,7 +17,17 @@ import (
 	s3ops "remote-storage/go/s3"
 )
 
+func (a *bucketAccess) readOnlyError() error {
+	if a != nil && a.readOnly {
+		return fmt.Errorf("mount is read-only")
+	}
+	return nil
+}
+
 func (a *bucketAccess) registerLocalWrite(virtualPath, localPath string, size int64) {
+	if a != nil && a.readOnly {
+		return
+	}
 	info := s3ops.ObjectInfo{
 		Key:          cleanVirtualPath(virtualPath),
 		Size:         size,
@@ -28,6 +38,9 @@ func (a *bucketAccess) registerLocalWrite(virtualPath, localPath string, size in
 }
 
 func (a *bucketAccess) scheduleUpload(virtualPath, localPath string) {
+	if a != nil && a.readOnly {
+		return
+	}
 	log.Printf(
 		"[mount/writeback] enqueue-request bucket=%q path=%q local_path=%q size=%d",
 		a.bucket,
@@ -43,6 +56,9 @@ func (a *bucketAccess) createDirectory(
 	virtualPath string,
 ) error {
 	clean := cleanVirtualPath(virtualPath)
+	if err := a.readOnlyError(); err != nil {
+		return err
+	}
 	if err := a.hiddenTrashError(clean); err != nil {
 		return err
 	}
@@ -62,6 +78,9 @@ func (a *bucketAccess) deletePath(
 	isDir bool,
 ) error {
 	_ = ctx
+	if err := a.readOnlyError(); err != nil {
+		return err
+	}
 	if err := a.hiddenTrashError(virtualPath); err != nil {
 		return err
 	}
@@ -90,6 +109,9 @@ func (a *bucketAccess) renamePath(
 ) error {
 	oldClean := cleanVirtualPath(oldVirtualPath)
 	newClean := cleanVirtualPath(newVirtualPath)
+	if err := a.readOnlyError(); err != nil {
+		return err
+	}
 	if a.overlay.isTrashPath(newClean) {
 		return a.deletePath(ctx, oldClean, isDir)
 	}

@@ -33,7 +33,7 @@ func (s *mountSession) start() error {
 		port,
 	)
 
-	mountPath, err := mountWebDAV(serverURL)
+	mountPath, err := mountWebDAV(serverURL, s.requestedPath)
 	if err != nil {
 		s.lastError = err.Error()
 		return err
@@ -88,7 +88,24 @@ func (s *mountSession) stop() error {
 	return nil
 }
 
-func mountWebDAV(serverURL string) (string, error) {
+func mountWebDAV(serverURL, requestedPath string) (string, error) {
+	if strings.TrimSpace(requestedPath) != "" {
+		mountPath := filepath.Clean(requestedPath)
+		if err := os.MkdirAll(mountPath, 0o755); err != nil {
+			return "", err
+		}
+		output, err := runLoggedCommand(
+			macosMountCommandTimeout,
+			"mount-webdav-path",
+			"/sbin/mount_webdav",
+			serverURL,
+			mountPath,
+		)
+		if err != nil {
+			return "", fmt.Errorf("mount bucket with macOS mount_webdav: %w: %s", err, string(output))
+		}
+		return mountPath, nil
+	}
 	script := fmt.Sprintf(
 		"POSIX path of (mount volume %s)",
 		appleScriptStringLiteral(serverURL),

@@ -313,6 +313,7 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
     String bucket,
+    MountBucketOptions options,
   ) async => throw UnimplementedError();
 
   @override

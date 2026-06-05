@@ -21,7 +21,11 @@ func newPlatformMountBackend(_ storageconfig.RemoteStorageConfig) (mountBackend,
 
 func (b *macOSWebDAVBackend) Initialize(session *mountSession) error {
 	session.mountName = managedMountPrefix + session.bucket
-	session.mountPath = filepath.Join("/Volumes", session.mountName)
+	if session.requestedPath != "" {
+		session.mountPath = session.requestedPath
+	} else {
+		session.mountPath = filepath.Join("/Volumes", session.mountName)
+	}
 	session.mountTarget = session.mountPath
 	return nil
 }

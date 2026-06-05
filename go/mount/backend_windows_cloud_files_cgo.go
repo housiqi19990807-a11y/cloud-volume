@@ -36,6 +36,9 @@ func (b *windowsCloudFilesBackend) Initialize(session *mountSession) error {
 	if err != nil {
 		return err
 	}
+	if session.requestedPath != "" {
+		mountPath = session.requestedPath
+	}
 	session.mountPath = mountPath
 	session.mountTarget = session.mountPath
 	return nil
@@ -120,14 +123,16 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 	b.hydrator = hydrator
 	b.watcher = watcher
 	b.resetHealthState()
-	if err := b.checkHealthy(session, true); err != nil {
-		log.Printf(
-			"[mount/cloud-files] start-health-check bucket=%q mode=%q error=%v",
-			session.bucket,
-			b.mode,
-			err,
-		)
-		return err
+	if !session.readOnly {
+		if err := b.checkHealthy(session, true); err != nil {
+			log.Printf(
+				"[mount/cloud-files] start-health-check bucket=%q mode=%q error=%v",
+				session.bucket,
+				b.mode,
+				err,
+			)
+			return err
+		}
 	}
 	session.mounted = true
 	log.Printf(
@@ -260,6 +265,9 @@ func (b *windowsCloudFilesBackend) handleDelete(
 	watcher *windowsSyncWatcher,
 ) func(localPath string) {
 	return func(localPath string) {
+		if session.readOnly {
+			return
+		}
 		virtualPath := cloudFilesLocalPathToVirtual(session.mountPath, localPath)
 		if isWindowsLocalOnlyPath(virtualPath) {
 			return
@@ -277,6 +285,9 @@ func (b *windowsCloudFilesBackend) handleRename(
 	watcher *windowsSyncWatcher,
 ) func(oldPath, newPath string) {
 	return func(oldPath, newPath string) {
+		if session.readOnly {
+			return
+		}
 		oldVirtual := cloudFilesLocalPathToVirtual(session.mountPath, oldPath)
 		newVirtual := cloudFilesLocalPathToVirtual(session.mountPath, newPath)
 		if isWindowsLocalOnlyPath(oldVirtual) || isWindowsLocalOnlyPath(newVirtual) {

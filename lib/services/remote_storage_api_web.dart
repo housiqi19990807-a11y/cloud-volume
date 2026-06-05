@@ -294,9 +294,11 @@ class RemoteStorageApi
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
     String bucket,
+    MountBucketOptions options,
   ) async {
     final result = await _invoke('mount_bucket', <String, dynamic>{
       'bucket': bucket,
+      'options': options.toJson(),
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }

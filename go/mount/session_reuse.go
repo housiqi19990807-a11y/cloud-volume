@@ -16,6 +16,7 @@ func mountSessionMatches(
 	return session.bucket == normalizeBucketName(bucket) &&
 		session.config == normalized &&
 		session.requestedPath == normalizeMountPath(options.MountPath) &&
+		session.readOnly == options.ReadOnly &&
 		session.autoSync == options.AutoSync &&
 		session.uploadWorkers == options.UploadWorkers
 }

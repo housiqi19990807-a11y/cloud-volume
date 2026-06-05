@@ -110,6 +110,9 @@ func (n *linuxFuseNode) Setattr(
 	if n.dir || n.IsRoot() {
 		return n.Getattr(ctx, nil, out)
 	}
+	if n.access.readOnly {
+		return syscall.EROFS
+	}
 	virtualPath := n.virtualPath()
 	localPath, overlayOnly, errno := linuxEnsureWritableLocalPath(ctx, n.access, virtualPath, 0, false)
 	if errno != 0 {

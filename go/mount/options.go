@@ -10,6 +10,7 @@ import (
 // changing the desktop bridge contract.
 type MountOptions struct {
 	MountPath     string
+	ReadOnly      bool
 	AutoSync      bool
 	UploadWorkers int
 }

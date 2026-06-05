@@ -27,6 +27,7 @@ type bucketAccess struct {
 	prefetchTTL     time.Duration
 	allowPrefetch   bool
 	autoSync        bool
+	readOnly        bool
 	uploadWorkers   int
 
 	group singleflight.Group

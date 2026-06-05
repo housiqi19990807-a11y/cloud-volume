@@ -332,6 +332,7 @@ class _FakeApi implements RemoteStorageGateway {
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
     String bucket,
+    MountBucketOptions options,
   ) async => const BucketMountStatus(
     mounted: false,
     bucket: '',

@@ -9,8 +9,9 @@ import (
 )
 
 type mountBucketArgs struct {
-	Config storageconfig.RemoteStorageConfig `json:"config"`
-	Bucket string                            `json:"bucket"`
+	Config  storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket  string                            `json:"bucket"`
+	Options bucketmount.MountOptions          `json:"options"`
 }
 
 type bucketMountArgs struct {
@@ -23,8 +24,13 @@ func mountBucket(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	log.Printf("[bridge/mount] mount bucket=%q", input.Bucket)
-	return bucketmount.MountBucket(input.Config, input.Bucket)
+	log.Printf(
+		"[bridge/mount] mount bucket=%q path=%q read_only=%t",
+		input.Bucket,
+		input.Options.MountPath,
+		input.Options.ReadOnly,
+	)
+	return bucketmount.MountBucketWithOptions(input.Config, input.Bucket, input.Options)
 }
 
 func unmountBucket(args json.RawMessage) (any, error) {

@@ -69,7 +69,9 @@ extension _FileManagerPageMount on _FileManagerPageState {
     if (!widget.api.capabilities.supportsMounts) {
       return;
     }
-    if (_loading || _mountStatusRefreshInFlight || _mountBusyBuckets.isNotEmpty) {
+    if (_loading ||
+        _mountStatusRefreshInFlight ||
+        _mountBusyBuckets.isNotEmpty) {
       return;
     }
     _mountStatusRefreshInFlight = true;
@@ -131,9 +133,17 @@ extension _FileManagerPageMount on _FileManagerPageState {
     if (targetBucket == null || _mountBusyBuckets.contains(targetBucket)) {
       return;
     }
+    final options = await showMountBucketDialog(context, bucket: targetBucket);
+    if (options == null) {
+      return;
+    }
     setState(() => _mountBusyBuckets.add(targetBucket));
     try {
-      final status = await widget.api.mountBucket(widget.config, targetBucket);
+      final status = await widget.api.mountBucket(
+        widget.config,
+        targetBucket,
+        options,
+      );
       if (!mounted) return;
       _applyMountStatus(status);
     } catch (error) {

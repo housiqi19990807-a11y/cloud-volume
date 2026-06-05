@@ -181,6 +181,7 @@ abstract class RemoteStorageGateway {
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
     String bucket,
+    MountBucketOptions options,
   );
   Future<void> cleanupMounts();
   Future<int> cleanupStaleWindowsProcesses();
@@ -190,3 +191,17 @@ abstract class RemoteStorageGateway {
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
+
+class MountBucketOptions {
+  const MountBucketOptions({this.mountPath = '', this.readOnly = false});
+
+  final String mountPath;
+  final bool readOnly;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'mountPath': mountPath.trim(),
+      'readOnly': readOnly,
+    };
+  }
+}

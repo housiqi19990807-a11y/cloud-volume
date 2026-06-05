@@ -51,6 +51,9 @@ func newLinuxFuseFileHandle(
 	perm os.FileMode,
 ) (*linuxFuseFileHandle, syscall.Errno) {
 	writable := linuxFuseFlagsWritable(flags) || create
+	if access.readOnly && writable {
+		return nil, syscall.EROFS
+	}
 	if perm.Perm() == 0 {
 		perm = 0o644
 	}
