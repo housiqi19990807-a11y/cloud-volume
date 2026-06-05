@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	configDirName  = ".cloud-volume"
-	configFileName = "config.toml"
+	configDirName       = ".cloud-volume"
+	legacyConfigDirName = ".remote-storage"
+	configFileName      = "config.toml"
 )
 
 // DefaultConfigPath resolves the TOML path used by the desktop app and CLI.
@@ -36,4 +37,13 @@ func appDataRoot() (string, error) {
 		return "", fmt.Errorf("resolve user home: %w", err)
 	}
 	return filepath.Join(homePath, configDirName), nil
+}
+
+// legacyAppDataRoot returns the pre-Cloud Volume config root for upgrades.
+func legacyAppDataRoot() (string, error) {
+	homePath, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user home: %w", err)
+	}
+	return filepath.Join(homePath, legacyConfigDirName), nil
 }

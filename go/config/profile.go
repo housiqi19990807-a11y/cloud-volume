@@ -5,6 +5,8 @@
 package config
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -37,9 +39,13 @@ func ProfileConfigPath(name string) (string, error) {
 	return filepath.Join(dir, name+".toml"), nil
 }
 
-// MigrateDefault moves the legacy config.toml to profiles/default.toml if needed.
+// MigrateDefault copies legacy config files into the current default locations.
 func MigrateDefault() error {
-	legacyPath, err := DefaultConfigPath()
+	if err := migrateLegacyConfigRoot(); err != nil {
+		return err
+	}
+
+	defaultPath, err := DefaultConfigPath()
 	if err != nil {
 		return err
 	}
@@ -48,22 +54,15 @@ func MigrateDefault() error {
 		return err
 	}
 
-	// If profiles dir already exists, nothing to migrate.
-	if _, err := os.Stat(dir); err == nil {
-		return nil
-	}
-
-	// Create profiles dir.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 
-	// If legacy file exists, move it to profiles/default.toml.
-	if _, err := os.Stat(legacyPath); err == nil {
-		dst := filepath.Join(dir, "default.toml")
-		return os.Rename(legacyPath, dst)
+	defaultProfilePath := filepath.Join(dir, "default.toml")
+	if pathExists(defaultProfilePath) || !pathExists(defaultPath) {
+		return nil
 	}
-	return nil
+	return copyFileIfMissing(defaultPath, defaultProfilePath)
 }
 
 // ListProfiles returns all stored profile names.
@@ -130,4 +129,97 @@ func DeleteProfile(name string) error {
 		return err
 	}
 	return os.Remove(path)
+}
+
+func migrateLegacyConfigRoot() error {
+	legacyRoot, err := legacyAppDataRoot()
+	if err != nil {
+		return err
+	}
+	currentRoot, err := appDataRoot()
+	if err != nil {
+		return err
+	}
+	if filepath.Clean(legacyRoot) == filepath.Clean(currentRoot) {
+		return nil
+	}
+
+	currentConfigPath, err := DefaultConfigPath()
+	if err != nil {
+		return err
+	}
+	legacyConfigPath := filepath.Join(legacyRoot, configFileName)
+	legacyDefaultProfilePath := filepath.Join(legacyRoot, profilesDir, "default.toml")
+	if !pathExists(currentConfigPath) {
+		if pathExists(legacyConfigPath) {
+			if err := copyFileIfMissing(legacyConfigPath, currentConfigPath); err != nil {
+				return err
+			}
+		} else if pathExists(legacyDefaultProfilePath) {
+			if err := copyFileIfMissing(legacyDefaultProfilePath, currentConfigPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	legacyProfilesDir := filepath.Join(legacyRoot, profilesDir)
+	currentProfilesDir, err := ProfilesDir()
+	if err != nil {
+		return err
+	}
+	return copyProfileFilesIfMissing(legacyProfilesDir, currentProfilesDir)
+}
+
+func copyProfileFilesIfMissing(srcDir, dstDir string) error {
+	entries, err := os.ReadDir(srcDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dstDir, 0o700); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".toml") {
+			continue
+		}
+		src := filepath.Join(srcDir, entry.Name())
+		dst := filepath.Join(dstDir, entry.Name())
+		if err := copyFileIfMissing(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFileIfMissing(src, dst string) error {
+	if pathExists(dst) {
+		return nil
+	}
+	input, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+		return err
+	}
+	output, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(output, input); err != nil {
+		_ = output.Close()
+		return err
+	}
+	return output.Close()
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 默认配置与运行时目录现在统一改为 Cloud Volume 命名：macOS/Linux 使用 `~/.cloud-volume`，Windows 使用安装目录下与 `cloud-volume.exe` 同级的 `config.toml` 和 `runtime/`；Windows runner 与安装器入口文件也改名为 `cloud-volume.exe`。
+- 默认配置与运行时目录现在统一改为 Cloud Volume 命名：macOS/Linux 使用 `~/.cloud-volume`，Windows 使用安装目录下与 `cloud-volume.exe` 同级的 `config.toml` 和 `runtime/`；升级启动时会从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 复制配置到新位置，Windows runner 与安装器入口文件也改名为 `cloud-volume.exe`。
 - Windows 启动窗口在高 DPI 小屏幕上的初始尺寸与居中坐标现在统一按逻辑像素计算，不再把物理工作区坐标再次按缩放倍率放大；因此首屏窗口不会再偏到屏幕右下角。
 - Windows Cloud Files watcher 现在会把 Office `~$*.docx/xlsx/pptx` 锁文件和常见 `~wr*.tmp` 临时文件视为本地临时噪声，不再送进远端写回队列；同时本地文件若在 quiet period 内已被删除/改名，对应等待中的 writeback 任务会立即取消，不再残留成长期“等待同步”。
 - Windows 安装包构建链路现在支持注入 Authenticode 签名参数，便于在 release workflow 或本地发布时使用企业/EV 证书对 `installer.exe` 做签名和时间戳，减少 SmartScreen 把安装包判为未知发布者的概率。
