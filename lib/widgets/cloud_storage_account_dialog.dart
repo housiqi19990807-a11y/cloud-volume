@@ -7,7 +7,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class CloudStorageAccountDraft {
   const CloudStorageAccountDraft({
     required this.storageType,
-    required this.provider,
     required this.name,
     required this.endpoint,
     required this.region,
@@ -18,7 +17,6 @@ class CloudStorageAccountDraft {
   });
 
   final StorageType storageType;
-  final StorageProviderType provider;
   final String name;
   final String endpoint;
   final String region;
@@ -40,7 +38,6 @@ class CloudStorageAccountDialog extends StatefulWidget {
 
 class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   StorageType _storageType = StorageType.s3;
-  StorageProviderType _provider = StorageProviderType.s3;
   final _nameController = TextEditingController();
   final _endpointController = TextEditingController();
   final _regionController = TextEditingController(text: 'auto');
@@ -106,11 +103,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   List<Widget> _s3Fields() {
     return [
-      _S3ProviderSegmentedControl(
-        value: _provider,
-        onChanged: (value) => setState(() => _provider = value),
-      ),
-      const SizedBox(height: 12),
       ShadInput(
         controller: _endpointController,
         placeholder: const Text('https://s3.example.com'),
@@ -160,7 +152,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     final saved = await widget.onSave(
       CloudStorageAccountDraft(
         storageType: _storageType,
-        provider: _provider,
         name: _nameController.text,
         endpoint: _endpointController.text,
         region: _regionController.text,
@@ -204,42 +195,6 @@ class _StorageTypeSegmentedControl extends StatelessWidget {
           ),
           if (item != StorageType.values.last) const SizedBox(width: 8),
         ],
-      ],
-    );
-  }
-}
-
-class _S3ProviderSegmentedControl extends StatelessWidget {
-  const _S3ProviderSegmentedControl({
-    required this.value,
-    required this.onChanged,
-  });
-
-  final StorageProviderType value;
-  final ValueChanged<StorageProviderType> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final item in StorageProviderType.values)
-          SizedBox(
-            height: 36,
-            child: ShadButton(
-              size: ShadButtonSize.sm,
-              onPressed: () => onChanged(item),
-              backgroundColor: item == value
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.secondary,
-              foregroundColor: item == value
-                  ? theme.colorScheme.primaryForeground
-                  : theme.colorScheme.foreground,
-              child: Text(item.label),
-            ),
-          ),
       ],
     );
   }

@@ -104,7 +104,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     final label = draft.name.trim().isEmpty ? fallback : draft.name.trim();
     final config = RemoteStorageConfig.empty().copyWith(
       storageType: draft.storageType,
-      providerType: draft.provider,
+      providerType: StorageProviderType.s3,
       displayName: label,
       endpoint: draft.endpoint,
       region: draft.region.trim().isEmpty ? 'auto' : draft.region,

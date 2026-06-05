@@ -55,24 +55,14 @@ enum StorageType {
 }
 
 enum StorageProviderType {
-  osca('osca', 'OSCA'),
-  gfs('gfs', 'GFS'),
-  minio('minio', 'MinIO'),
-  s3('s3', '其他 S3 兼容');
+  s3('s3');
 
-  const StorageProviderType(this.storageValue, this.label);
+  const StorageProviderType(this.storageValue);
 
   final String storageValue;
-  final String label;
 
   static StorageProviderType fromStorage(Object? value) {
-    final normalized = (value ?? '').toString().trim().toLowerCase();
-    return switch (normalized) {
-      'osca' => StorageProviderType.osca,
-      'gfs' => StorageProviderType.gfs,
-      'minio' => StorageProviderType.minio,
-      _ => StorageProviderType.s3,
-    };
+    return StorageProviderType.s3;
   }
 }
 
@@ -106,7 +96,7 @@ class RemoteStorageConfig {
     return const RemoteStorageConfig(
       endpoint: '',
       storageType: StorageType.s3,
-      providerType: StorageProviderType.osca,
+      providerType: StorageProviderType.s3,
       displayName: '',
       region: '',
       bucket: '',

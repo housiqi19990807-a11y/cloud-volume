@@ -109,10 +109,7 @@ class CloudStorageAccountList extends StatelessWidget {
   }
 
   static String _storageLabel(ProfileInfo profile) {
-    if (profile.storageType == StorageType.webdav) {
-      return profile.storageType.label;
-    }
-    return profile.providerType.label;
+    return profile.storageType.label;
   }
 }
 
