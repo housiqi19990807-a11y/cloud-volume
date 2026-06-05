@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 账号管理现在支持多个上游账号：账号 profile 会记录存储类型，页面直接以固定表头列表展示所有账号，不再按上游类型分组；新增账号时先选择 S3 对象存储或 WebDAV，后端文件浏览、上传、下载、复制、移动等基础存储操作已抽象到统一 storage backend，并新增 WebDAV 上游实现。
+- 账号管理现在支持多个上游账号：账号 profile 会记录存储类型，页面直接展示所有账号，不再按上游类型分组，并保留和桶列表一致的卡片 / 表格视图切换；新增账号时先选择 S3 对象存储或 WebDAV，后端文件浏览、上传、下载、复制、移动等基础存储操作已抽象到统一 storage backend，并新增 WebDAV 上游实现。
 - 默认配置与运行时目录现在统一改为 Cloud Volume 命名：macOS/Linux 使用 `~/.cloud-volume`，Windows 使用安装目录下与 `cloud-volume.exe` 同级的 `config.toml` 和 `runtime/`；升级启动时会从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 复制配置到新位置，Windows runner 与安装器入口文件也改名为 `cloud-volume.exe`。
 - Windows 启动窗口在高 DPI 小屏幕上的初始尺寸与居中坐标现在统一按逻辑像素计算，不再把物理工作区坐标再次按缩放倍率放大；因此首屏窗口不会再偏到屏幕右下角。
 - Windows Cloud Files watcher 现在会把 Office `~$*.docx/xlsx/pptx` 锁文件和常见 `~wr*.tmp` 临时文件视为本地临时噪声，不再送进远端写回队列；同时本地文件若在 quiet period 内已被删除/改名，对应等待中的 writeback 任务会立即取消，不再残留成长期“等待同步”。

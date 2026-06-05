@@ -1,4 +1,4 @@
-// 账号管理列表复用文件列表行，直接展示所有账号而不再按类型分组。
+// 账号管理列表提供和桶列表一致的卡片/表格双视图。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -14,12 +14,14 @@ class CloudStorageAccountList extends StatelessWidget {
   const CloudStorageAccountList({
     super.key,
     required this.accounts,
+    required this.isGrid,
     required this.busy,
     required this.onActivate,
     required this.onDelete,
   });
 
   final List<ProfileInfo> accounts;
+  final bool isGrid;
   final bool busy;
   final ValueChanged<ProfileInfo> onActivate;
   final ValueChanged<ProfileInfo> onDelete;
@@ -27,44 +29,75 @@ class CloudStorageAccountList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    if (accounts.isEmpty) {
+      return Center(
+        child: Text(
+          '还没有账号。',
+          style: TextStyle(color: theme.colorScheme.mutedForeground),
+        ),
+      );
+    }
+    if (isGrid) return _buildGrid(context);
+    return _buildTable(context);
+  }
+
+  Widget _buildGrid(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = (constraints.maxWidth / 288).floor().clamp(2, 5);
+        return GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisExtent: 154,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+          ),
+          itemCount: accounts.length,
+          itemBuilder: (context, index) {
+            final profile = accounts[index];
+            return _AccountCard(
+              profile: profile,
+              busy: busy,
+              onActivate: onActivate,
+              onDelete: onDelete,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTable(BuildContext context) {
+    final theme = ShadTheme.of(context);
     return ShadCard(
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
           _AccountTableHeader(theme: theme),
           Expanded(
-            child: accounts.isEmpty
-                ? Center(
-                    child: Text(
-                      '还没有账号。',
-                      style: TextStyle(
-                        color: theme.colorScheme.mutedForeground,
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: accounts.length,
-                    itemBuilder: (context, index) {
-                      final profile = accounts[index];
-                      return FileListTile(
-                        leading: _AccountIcon(profile: profile),
-                        title: _profileTitle(profile),
-                        subtitleLabel: profile.endpoint,
-                        sizeLabel: _storageLabel(profile),
-                        sizeColumnWidthOverride: _typeColumnWidth,
-                        statusWidget: _AccountStatus(active: profile.active),
-                        trailing: _AccountActions(
-                          profile: profile,
-                          busy: busy,
-                          onActivate: onActivate,
-                          onDelete: onDelete,
-                        ),
-                        onTap: () {},
-                        showDivider: index != accounts.length - 1,
-                        deleting: busy,
-                      );
-                    },
+            child: ListView.builder(
+              itemCount: accounts.length,
+              itemBuilder: (context, index) {
+                final profile = accounts[index];
+                return FileListTile(
+                  leading: _AccountIcon(profile: profile),
+                  title: _profileTitle(profile),
+                  subtitleLabel: profile.endpoint,
+                  sizeLabel: _storageLabel(profile),
+                  sizeColumnWidthOverride: _typeColumnWidth,
+                  statusWidget: _AccountStatus(active: profile.active),
+                  trailing: _AccountActions(
+                    profile: profile,
+                    busy: busy,
+                    onActivate: onActivate,
+                    onDelete: onDelete,
                   ),
+                  onTap: () {},
+                  showDivider: index != accounts.length - 1,
+                  deleting: busy,
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -80,6 +113,90 @@ class CloudStorageAccountList extends StatelessWidget {
       return profile.storageType.label;
     }
     return profile.providerType.label;
+  }
+}
+
+class _AccountCard extends StatelessWidget {
+  const _AccountCard({
+    required this.profile,
+    required this.busy,
+    required this.onActivate,
+    required this.onDelete,
+  });
+
+  final ProfileInfo profile;
+  final bool busy;
+  final ValueChanged<ProfileInfo> onActivate;
+  final ValueChanged<ProfileInfo> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return ShadCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _AccountIcon(profile: profile),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  CloudStorageAccountList._profileTitle(profile),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              _AccountStatus(active: profile.active),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            CloudStorageAccountList._storageLabel(profile),
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.mutedForeground,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            profile.endpoint,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: theme.colorScheme.mutedForeground,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (!profile.active) ...[
+                ShadButton.outline(
+                  size: ShadButtonSize.sm,
+                  onPressed: busy ? null : () => onActivate(profile),
+                  child: const Text('连接'),
+                ),
+                const SizedBox(width: 6),
+              ],
+              ShadButton.destructive(
+                size: ShadButtonSize.sm,
+                onPressed: busy ? null : () => onDelete(profile),
+                child: const Text('退出'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

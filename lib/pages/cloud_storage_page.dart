@@ -7,7 +7,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_list.dart';
-import 'package:remote_storage/widgets/cloud_storage_provider_overview.dart';
+import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CloudStoragePage extends StatefulWidget {
@@ -27,6 +27,7 @@ class CloudStoragePage extends StatefulWidget {
 }
 
 class _CloudStoragePageState extends State<CloudStoragePage> {
+  bool _isGrid = false;
   bool _busy = false;
 
   @override
@@ -39,12 +40,18 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _PageHeader(theme: theme, onAddAccount: _showAddAccountDialog),
-          const SizedBox(height: 18),
-          CloudStorageProviderOverview(profiles: widget.state.profiles),
           const SizedBox(height: 14),
+          FileManagerActionBar(
+            theme: theme,
+            isGrid: _isGrid,
+            searchEnabled: !_busy,
+            onToggleView: () => setState(() => _isGrid = !_isGrid),
+          ),
+          const SizedBox(height: 12),
           Expanded(
             child: CloudStorageAccountList(
               accounts: widget.state.profiles,
+              isGrid: _isGrid,
               busy: _busy,
               onActivate: _activate,
               onDelete: _delete,
