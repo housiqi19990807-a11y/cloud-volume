@@ -13,6 +13,7 @@ import (
 	bucketmount "remote-storage/go/mount"
 	s3ops "remote-storage/go/s3"
 	shareops "remote-storage/go/share"
+	storageops "remote-storage/go/storage"
 )
 
 type invokeEnvelope struct {
@@ -139,20 +140,22 @@ func (s *Server) invokeMethod(
 
 	switch method {
 	case "list_buckets":
-		result, err := s3ops.ListBuckets(config)
+		result, err := storageops.ForConfig(config).ListBuckets(ctx)
 		return result, http.StatusOK, err
 	case "list_object_page":
-		if page, handled, err := bucketmount.ListMountedObjectPage(
-			config,
-			input.Bucket,
-			input.Prefix,
-			input.NextToken,
-			input.PageSize,
-		); handled || err != nil {
-			return page, http.StatusOK, err
+		if config.Normalized().StorageType != storageconfig.StorageTypeWebDAV {
+			if page, handled, err := bucketmount.ListMountedObjectPage(
+				config,
+				input.Bucket,
+				input.Prefix,
+				input.NextToken,
+				input.PageSize,
+			); handled || err != nil {
+				return page, http.StatusOK, err
+			}
 		}
-		result, err := s3ops.ListObjectsPage(
-			config,
+		result, err := storageops.ForConfig(config).ListObjectsPage(
+			ctx,
 			input.Bucket,
 			input.Prefix,
 			input.NextToken,
@@ -160,15 +163,14 @@ func (s *Server) invokeMethod(
 		)
 		return result, http.StatusOK, err
 	case "head_object":
-		result, err := s3ops.HeadObject(config, input.Bucket, input.Key)
+		result, err := storageops.ForConfig(config).HeadObject(ctx, input.Bucket, input.Key)
 		return result, http.StatusOK, err
 	case "create_directory":
-		err := s3ops.CreateDirectory(config, input.Bucket, input.Prefix, input.Name)
+		err := storageops.ForConfig(config).CreateDirectory(ctx, input.Bucket, input.Prefix, input.Name)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "delete_object":
-		err := s3ops.DeleteObjectContextWithTask(
+		err := storageops.ForConfig(config).DeleteObject(
 			ctx,
-			config,
 			input.Bucket,
 			input.Key,
 			input.IsDirectory,
@@ -176,8 +178,8 @@ func (s *Server) invokeMethod(
 		)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "rename_object":
-		err := s3ops.RenameObject(
-			config,
+		err := storageops.ForConfig(config).RenameObject(
+			ctx,
 			input.Bucket,
 			input.Key,
 			input.IsDirectory,
@@ -185,8 +187,8 @@ func (s *Server) invokeMethod(
 		)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "copy_object":
-		err := s3ops.CopyObject(
-			config,
+		err := storageops.ForConfig(config).CopyObject(
+			ctx,
 			input.Bucket,
 			input.SourceKey,
 			input.TargetKey,
@@ -195,8 +197,8 @@ func (s *Server) invokeMethod(
 		)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "move_object":
-		err := s3ops.MoveObjectWithTask(
-			config,
+		err := storageops.ForConfig(config).MoveObject(
+			ctx,
 			input.Bucket,
 			input.SourceKey,
 			input.TargetKey,
@@ -205,6 +207,9 @@ func (s *Server) invokeMethod(
 		)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "list_trash_page":
+		if config.Normalized().StorageType == storageconfig.StorageTypeWebDAV {
+			return s3ops.TrashPage{Items: []s3ops.TrashItem{}}, http.StatusOK, nil
+		}
 		result, err := s3ops.ListTrashPage(
 			config,
 			input.Bucket,

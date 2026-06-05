@@ -36,6 +36,24 @@ enum WindowsMountMode {
   }
 }
 
+enum StorageType {
+  s3('s3', 'S3 对象存储'),
+  webdav('webdav', 'WebDAV');
+
+  const StorageType(this.storageValue, this.label);
+
+  final String storageValue;
+  final String label;
+
+  static StorageType fromStorage(Object? value) {
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    return switch (normalized) {
+      'webdav' => StorageType.webdav,
+      _ => StorageType.s3,
+    };
+  }
+}
+
 enum StorageProviderType {
   osca('osca', 'OSCA'),
   gfs('gfs', 'GFS'),
@@ -61,6 +79,7 @@ enum StorageProviderType {
 class RemoteStorageConfig {
   const RemoteStorageConfig({
     required this.endpoint,
+    required this.storageType,
     required this.providerType,
     required this.displayName,
     required this.region,
@@ -86,6 +105,7 @@ class RemoteStorageConfig {
   factory RemoteStorageConfig.empty() {
     return const RemoteStorageConfig(
       endpoint: '',
+      storageType: StorageType.s3,
       providerType: StorageProviderType.osca,
       displayName: '',
       region: '',
@@ -116,6 +136,9 @@ class RemoteStorageConfig {
         (json['webdavPassword'] ?? json['webdav_password'] ?? '').toString();
     return RemoteStorageConfig(
       endpoint: (json['endpoint'] ?? '').toString(),
+      storageType: StorageType.fromStorage(
+        json['storageType'] ?? json['storage_type'],
+      ),
       providerType: StorageProviderType.fromStorage(
         json['providerType'] ?? json['provider_type'],
       ),
@@ -183,6 +206,7 @@ class RemoteStorageConfig {
   }
 
   final String endpoint;
+  final StorageType storageType;
   final StorageProviderType providerType;
   final String displayName;
   final String region;
@@ -206,6 +230,11 @@ class RemoteStorageConfig {
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
+    if (storageType == StorageType.webdav) {
+      return endpoint.trim().isNotEmpty &&
+          webdavUsername.trim().isNotEmpty &&
+          (webdavPassword.isNotEmpty || hasWebdavPassword);
+    }
     return endpoint.trim().isNotEmpty &&
         accessKeyId.trim().isNotEmpty &&
         (secretAccessKey.trim().isNotEmpty || hasSecretAccessKey);
@@ -219,6 +248,7 @@ class RemoteStorageConfig {
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'endpoint': endpoint.trim(),
+      'storageType': storageType.storageValue,
       'providerType': providerType.storageValue,
       'displayName': displayName.trim(),
       'region': region.trim(),
@@ -244,6 +274,7 @@ class RemoteStorageConfig {
 
   RemoteStorageConfig copyWith({
     String? endpoint,
+    StorageType? storageType,
     StorageProviderType? providerType,
     String? displayName,
     String? region,
@@ -267,6 +298,7 @@ class RemoteStorageConfig {
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
+      storageType: storageType ?? this.storageType,
       providerType: providerType ?? this.providerType,
       displayName: displayName ?? this.displayName,
       region: region ?? this.region,

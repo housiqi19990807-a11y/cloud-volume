@@ -23,6 +23,7 @@ const (
 type ProfileInfo struct {
 	Name         string `json:"name"`
 	DisplayName  string `json:"displayName"`
+	StorageType  string `json:"storageType"`
 	ProviderType string `json:"providerType"`
 	Endpoint     string `json:"endpoint"`
 	AccessKeyID  string `json:"accessKeyId"`
@@ -160,6 +161,7 @@ func ListProfiles() ([]ProfileInfo, error) {
 		result = append(result, ProfileInfo{
 			Name:         name,
 			DisplayName:  normalized.AccountLabel(name),
+			StorageType:  normalized.StorageType,
 			ProviderType: normalized.ProviderType,
 			Endpoint:     normalized.Endpoint,
 			AccessKeyID:  normalized.AccessKeyID,

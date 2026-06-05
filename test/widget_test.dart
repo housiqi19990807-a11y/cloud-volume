@@ -65,6 +65,7 @@ class _FakeApi implements RemoteStorageGateway {
     config: configured
         ? const RemoteStorageConfig(
             endpoint: 'https://s3.example.com',
+            storageType: StorageType.s3,
             providerType: StorageProviderType.s3,
             displayName: 'Test Account',
             region: 'us-east-1',

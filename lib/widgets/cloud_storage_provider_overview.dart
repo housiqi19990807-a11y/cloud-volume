@@ -1,4 +1,4 @@
-// 账号上游总览用系统卡片样式承载一级入口与账号概览。
+// 账号统计条保留轻量概览，不再作为分组导航入口。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -6,172 +6,71 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CloudStorageProviderOverview extends StatelessWidget {
-  const CloudStorageProviderOverview({
-    super.key,
-    required this.profiles,
-    required this.onOpenProvider,
-    required this.onAddAccount,
-  });
+  const CloudStorageProviderOverview({super.key, required this.profiles});
 
   final List<ProfileInfo> profiles;
-  final ValueChanged<StorageProviderType> onOpenProvider;
-  final ValueChanged<StorageProviderType> onAddAccount;
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      itemCount: StorageProviderType.values.length,
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 360,
-        mainAxisExtent: 176,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-      ),
-      itemBuilder: (context, index) {
-        final provider = StorageProviderType.values[index];
-        final providerProfiles = profiles
-            .where((profile) => profile.providerType == provider)
-            .toList(growable: false);
-        final active = providerProfiles.where((p) => p.active).firstOrNull;
-        return _ProviderCard(
-          provider: provider,
-          count: providerProfiles.length,
-          activeName: active == null
-              ? ''
-              : active.displayName.isEmpty
-              ? active.name
-              : active.displayName,
-          onOpen: () => onOpenProvider(provider),
-          onAddAccount: () => onAddAccount(provider),
-        );
-      },
+    final s3Count = profiles
+        .where((p) => p.storageType == StorageType.s3)
+        .length;
+    final webdavCount = profiles
+        .where((p) => p.storageType == StorageType.webdav)
+        .length;
+    return Row(
+      children: [
+        _StatCard(
+          icon: LucideIcons.cloud,
+          label: StorageType.s3.label,
+          count: s3Count,
+        ),
+        const SizedBox(width: 12),
+        _StatCard(
+          icon: LucideIcons.server,
+          label: StorageType.webdav.label,
+          count: webdavCount,
+        ),
+      ],
     );
   }
 }
 
-class _ProviderCard extends StatelessWidget {
-  const _ProviderCard({
-    required this.provider,
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.icon,
+    required this.label,
     required this.count,
-    required this.activeName,
-    required this.onOpen,
-    required this.onAddAccount,
   });
 
-  final StorageProviderType provider;
+  final IconData icon;
+  final String label;
   final int count;
-  final String activeName;
-  final VoidCallback onOpen;
-  final VoidCallback onAddAccount;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return ShadCard(
-      padding: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onOpen,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _ProviderIcon(provider: provider, size: 34),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      provider.label,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(
-                    LucideIcons.chevronRight,
-                    size: 18,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                activeName.isEmpty ? '暂无已连接账号' : '已连接 $activeName',
-                style: TextStyle(
-                  color: theme.colorScheme.mutedForeground,
-                  fontSize: 12,
-                ),
+    return Expanded(
+      child: ShadCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w600),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '$count 个账号',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.foreground,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  ShadButton.ghost(
-                    size: ShadButtonSize.sm,
-                    onPressed: onAddAccount,
-                    child: const Text('添加账号'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '点击查看账号列表',
-                style: TextStyle(
-                  color: theme.colorScheme.mutedForeground,
-                  fontSize: 11,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+            ),
+            Text(
+              '$count',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-}
-
-class _ProviderIcon extends StatelessWidget {
-  const _ProviderIcon({required this.provider, required this.size});
-
-  final StorageProviderType provider;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.border),
-      ),
-      child: Icon(
-        provider == StorageProviderType.minio
-            ? LucideIcons.database
-            : LucideIcons.cloud,
-        size: 18,
-        color: theme.colorScheme.primary,
       ),
     );
   }

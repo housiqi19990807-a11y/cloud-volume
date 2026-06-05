@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	s3ops "remote-storage/go/s3"
+	storageops "remote-storage/go/storage"
 )
 
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
@@ -40,9 +40,8 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	if err := s3ops.UploadReader(
+	if err := storageops.ForConfig(config).UploadReader(
 		r.Context(),
-		config,
 		bucket,
 		key,
 		file,
@@ -77,7 +76,7 @@ func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	inline := r.URL.Query().Get("inline") == "1"
-	if err := s3ops.StreamObjectToHTTP(r.Context(), config, bucket, key, inline, w); err != nil {
+	if err := storageops.ForConfig(config).StreamObjectToHTTP(r.Context(), bucket, key, inline, w); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 	}
 }

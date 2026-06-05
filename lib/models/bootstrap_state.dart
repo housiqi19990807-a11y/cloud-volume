@@ -7,6 +7,7 @@ class ProfileInfo {
   const ProfileInfo({
     required this.name,
     required this.displayName,
+    required this.storageType,
     required this.providerType,
     required this.endpoint,
     required this.accessKeyId,
@@ -17,6 +18,7 @@ class ProfileInfo {
     return ProfileInfo(
       name: (json['name'] ?? '').toString(),
       displayName: (json['displayName'] ?? '').toString(),
+      storageType: StorageType.fromStorage(json['storageType']),
       providerType: StorageProviderType.fromStorage(json['providerType']),
       endpoint: (json['endpoint'] ?? '').toString(),
       accessKeyId: (json['accessKeyId'] ?? '').toString(),
@@ -26,6 +28,7 @@ class ProfileInfo {
 
   final String name;
   final String displayName;
+  final StorageType storageType;
   final StorageProviderType providerType;
   final String endpoint;
   final String accessKeyId;

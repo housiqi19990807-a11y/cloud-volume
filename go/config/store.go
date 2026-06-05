@@ -77,6 +77,9 @@ func (s Store) Save(config RemoteStorageConfig) error {
 	}
 	normalized := config.MergeStoredSecrets(existing).WithDefaultWebDAVCredentials()
 	if !normalized.IsConfigured() {
+		if normalized.StorageType == StorageTypeWebDAV {
+			return errors.New("WebDAV 地址、用户名和密码为必填项")
+		}
 		return errors.New("端点地址、访问密钥 ID 和访问密钥为必填项")
 	}
 	if err := os.MkdirAll(filepath.Dir(s.configPath), 0o700); err != nil {

@@ -8,6 +8,7 @@ import (
 	storageconfig "remote-storage/go/config"
 	bucketmount "remote-storage/go/mount"
 	s3ops "remote-storage/go/s3"
+	storageops "remote-storage/go/storage"
 )
 
 type saveConfigArgs struct {
@@ -43,7 +44,7 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return deleteProfile(args)
 	case "set_active_profile":
 		return setActiveProfile(args)
-	// S3 operations.
+	// Storage operations.
 	case "list_buckets":
 		return listBuckets(args)
 	case "list_objects":
@@ -206,7 +207,7 @@ func setActiveProfile(args json.RawMessage) (any, error) {
 	return loadBootstrapState()
 }
 
-// --- S3 operations ---
+// --- Storage operations ---
 
 type bucketArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`
@@ -272,7 +273,7 @@ func listBuckets(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	return s3ops.ListBuckets(input.Config)
+	return storageops.ForConfig(input.Config).ListBuckets(context.Background())
 }
 
 func listObjects(args json.RawMessage) (any, error) {
@@ -280,7 +281,17 @@ func listObjects(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	return s3ops.ListObjects(input.Config, input.Bucket, input.Prefix)
+	page, err := storageops.ForConfig(input.Config).ListObjectsPage(
+		context.Background(),
+		input.Bucket,
+		input.Prefix,
+		"",
+		1000,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return page.Items, nil
 }
 
 func headObject(args json.RawMessage) (any, error) {
@@ -288,7 +299,7 @@ func headObject(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	return s3ops.HeadObject(input.Config, input.Bucket, input.Key)
+	return storageops.ForConfig(input.Config).HeadObject(context.Background(), input.Bucket, input.Key)
 }
 
 func createDirectory(args json.RawMessage) (any, error) {
@@ -296,8 +307,8 @@ func createDirectory(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.CreateDirectory(
-		input.Config,
+	if err := storageops.ForConfig(input.Config).CreateDirectory(
+		context.Background(),
 		input.Bucket,
 		input.Prefix,
 		input.Name,
@@ -312,9 +323,8 @@ func deleteObject(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.DeleteObjectContextWithTask(
+	if err := storageops.ForConfig(input.Config).DeleteObject(
 		context.Background(),
-		input.Config,
 		input.Bucket,
 		input.Key,
 		input.IsDirectory,
@@ -330,8 +340,8 @@ func renameObject(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.RenameObject(
-		input.Config,
+	if err := storageops.ForConfig(input.Config).RenameObject(
+		context.Background(),
 		input.Bucket,
 		input.Key,
 		input.IsDirectory,
@@ -347,8 +357,8 @@ func uploadFile(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.UploadFile(
-		input.Config,
+	if err := storageops.ForConfig(input.Config).UploadFile(
+		context.Background(),
 		input.Bucket,
 		input.Key,
 		input.LocalPath,
@@ -364,8 +374,8 @@ func downloadFile(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := s3ops.DownloadFile(
-		input.Config,
+	if err := storageops.ForConfig(input.Config).DownloadFile(
+		context.Background(),
 		input.Bucket,
 		input.Key,
 		input.LocalPath,

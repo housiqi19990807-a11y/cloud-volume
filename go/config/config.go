@@ -2,9 +2,10 @@ package config
 
 import "strings"
 
-// RemoteStorageConfig stores the S3-compatible connection values persisted to TOML.
+// RemoteStorageConfig stores account connection values persisted to TOML.
 type RemoteStorageConfig struct {
 	Endpoint                    string `json:"endpoint" toml:"endpoint"`
+	StorageType                 string `json:"storageType" toml:"storage_type"`
 	ProviderType                string `json:"providerType" toml:"provider_type"`
 	DisplayName                 string `json:"displayName" toml:"display_name"`
 	Region                      string `json:"region" toml:"region"`
@@ -28,6 +29,8 @@ type RemoteStorageConfig struct {
 }
 
 const (
+	StorageTypeS3                      = "s3"
+	StorageTypeWebDAV                  = "webdav"
 	WindowsMountModeCloudFilesCached   = "cloud_files_cached"
 	WindowsMountModeCloudFilesDirect   = "cloud_files_direct"
 	WindowsMountModeWebDAV             = "webdav"
@@ -61,6 +64,7 @@ func DefaultConfig() RemoteStorageConfig {
 func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 	return RemoteStorageConfig{
 		Endpoint:                    strings.TrimSpace(c.Endpoint),
+		StorageType:                 normalizeStorageType(c.StorageType),
 		ProviderType:                normalizeProviderType(c.ProviderType, c.Endpoint),
 		DisplayName:                 strings.TrimSpace(c.DisplayName),
 		Region:                      strings.TrimSpace(c.Region),
@@ -88,8 +92,14 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 // Bucket and root prefix are optional — only endpoint + auth keys are required.
 func (c RemoteStorageConfig) IsConfigured() bool {
 	normalized := c.Normalized()
-	return normalized.Endpoint != "" &&
-		normalized.AccessKeyID != "" &&
+	if normalized.Endpoint == "" {
+		return false
+	}
+	if normalized.StorageType == StorageTypeWebDAV {
+		return normalized.WebDAVUsername != "" &&
+			(normalized.WebDAVPassword != "" || normalized.HasWebDAVPassword)
+	}
+	return normalized.AccessKeyID != "" &&
 		(normalized.SecretAccessKey != "" || normalized.HasSecretAccessKey)
 }
 
@@ -122,6 +132,9 @@ func (c RemoteStorageConfig) MergeStoredSecrets(existing RemoteStorageConfig) Re
 // WithDefaultWebDAVCredentials falls back to AK/SK when web credentials are omitted.
 func (c RemoteStorageConfig) WithDefaultWebDAVCredentials() RemoteStorageConfig {
 	normalized := c.Normalized()
+	if normalized.StorageType == StorageTypeWebDAV {
+		return normalized
+	}
 	if normalized.WebDAVUsername == "" {
 		normalized.WebDAVUsername = normalized.AccessKeyID
 	}
@@ -140,6 +153,9 @@ func (c RemoteStorageConfig) AccountLabel(fallback string) string {
 	}
 	if normalized.AccessKeyID != "" {
 		return normalized.AccessKeyID
+	}
+	if normalized.WebDAVUsername != "" {
+		return normalized.WebDAVUsername
 	}
 	if fallback != "" {
 		return fallback
@@ -160,6 +176,15 @@ func normalizeFileOpenMode(value string) string {
 		return "single_click"
 	}
 	return "double_click"
+}
+
+func normalizeStorageType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case StorageTypeWebDAV:
+		return StorageTypeWebDAV
+	default:
+		return StorageTypeS3
+	}
 }
 
 func normalizeProviderType(value, endpoint string) string {

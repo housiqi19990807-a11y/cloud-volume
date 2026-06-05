@@ -1,0 +1,378 @@
+// WebDAV backend lets account profiles browse and mutate a remote WebDAV tree.
+package storage
+
+import (
+	"context"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	storageconfig "remote-storage/go/config"
+)
+
+const webDAVRootBucket = "WebDAV"
+
+type webDAVBackend struct {
+	cfg    storageconfig.RemoteStorageConfig
+	client *http.Client
+}
+
+func NewWebDAVBackend(cfg storageconfig.RemoteStorageConfig) Backend {
+	return webDAVBackend{
+		cfg:    cfg.Normalized(),
+		client: &http.Client{Timeout: 60 * time.Second},
+	}
+}
+
+func (b webDAVBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
+	return []BucketInfo{{Name: webDAVRootBucket}}, nil
+}
+
+func (b webDAVBackend) ListObjectsPage(
+	ctx context.Context,
+	_, prefix, _ string,
+	_ int32,
+) (ObjectPage, error) {
+	entries, err := b.propfind(ctx, prefix, "1")
+	if err != nil {
+		return ObjectPage{}, err
+	}
+	base := cleanRemotePath(prefix)
+	items := make([]ObjectInfo, 0, len(entries))
+	for _, entry := range entries {
+		info, ok := b.objectInfoFromResponse(entry, base)
+		if ok {
+			items = append(items, info)
+		}
+	}
+	return ObjectPage{Items: items}, nil
+}
+
+func (b webDAVBackend) HeadObject(ctx context.Context, _, key string) (ObjectInfo, error) {
+	entries, err := b.propfind(ctx, key, "0")
+	if err != nil {
+		return ObjectInfo{}, err
+	}
+	for _, entry := range entries {
+		if info, ok := b.objectInfoFromResponse(entry, cleanRemotePath(key)); ok {
+			return info, nil
+		}
+	}
+	return ObjectInfo{}, os.ErrNotExist
+}
+
+func (b webDAVBackend) CreateDirectory(ctx context.Context, _, prefix, name string) error {
+	dir := path.Join(cleanRemotePath(prefix), strings.Trim(strings.TrimSpace(name), "/"))
+	if dir == "." || dir == "" {
+		return fmt.Errorf("directory name is required")
+	}
+	req, err := b.request(ctx, "MKCOL", dir+"/", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 || resp.StatusCode == http.StatusMethodNotAllowed {
+		return nil
+	}
+	return fmt.Errorf("webdav mkcol: %s", resp.Status)
+}
+
+func (b webDAVBackend) DeleteObject(ctx context.Context, _, key string, _ bool, _ string) error {
+	req, err := b.request(ctx, "DELETE", key, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("webdav delete: %s", resp.Status)
+}
+
+func (b webDAVBackend) RenameObject(ctx context.Context, bucket, key string, isDirectory bool, newName string) error {
+	target, err := renamedWebDAVTarget(key, isDirectory, newName)
+	if err != nil {
+		return err
+	}
+	return b.MoveObject(ctx, bucket, key, target, isDirectory, "")
+}
+
+func (b webDAVBackend) CopyObject(ctx context.Context, _, sourceKey, targetKey string, _ bool, _ string) error {
+	return b.copyMove(ctx, "COPY", sourceKey, targetKey)
+}
+
+func (b webDAVBackend) MoveObject(ctx context.Context, _, sourceKey, targetKey string, _ bool, _ string) error {
+	return b.copyMove(ctx, "MOVE", sourceKey, targetKey)
+}
+
+func (b webDAVBackend) UploadFile(ctx context.Context, _, key, localPath, _ string) error {
+	file, err := os.Open(localPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return b.put(ctx, key, file)
+}
+
+func (b webDAVBackend) UploadReader(
+	ctx context.Context,
+	_, key string,
+	body io.Reader,
+	_ int64,
+	_, _ string,
+) error {
+	return b.put(ctx, key, body)
+}
+
+func (b webDAVBackend) DownloadFile(ctx context.Context, _, key, localPath, _ string) error {
+	req, err := b.request(ctx, http.MethodGet, key, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("webdav get: %s", resp.Status)
+	}
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		return err
+	}
+	out, err := os.Create(localPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+func (b webDAVBackend) StreamObjectToHTTP(ctx context.Context, _, key string, _ bool, w http.ResponseWriter) error {
+	req, err := b.request(ctx, http.MethodGet, key, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("webdav get: %s", resp.Status)
+	}
+	_, err = io.Copy(w, resp.Body)
+	return err
+}
+
+func (b webDAVBackend) propfind(ctx context.Context, key, depth string) ([]webDAVResponse, error) {
+	req, err := b.request(ctx, "PROPFIND", key, strings.NewReader(webDAVPropfindBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Depth", depth)
+	req.Header.Set("Content-Type", `application/xml; charset="utf-8"`)
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("webdav propfind: %s", resp.Status)
+	}
+	var multi webDAVMultistatus
+	if err := xml.NewDecoder(resp.Body).Decode(&multi); err != nil {
+		return nil, err
+	}
+	return multi.Responses, nil
+}
+
+func (b webDAVBackend) put(ctx context.Context, key string, body io.Reader) error {
+	req, err := b.request(ctx, http.MethodPut, key, body)
+	if err != nil {
+		return err
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("webdav put: %s", resp.Status)
+}
+
+func (b webDAVBackend) copyMove(ctx context.Context, method, sourceKey, targetKey string) error {
+	req, err := b.request(ctx, method, sourceKey, nil)
+	if err != nil {
+		return err
+	}
+	destination, err := b.remoteURL(targetKey)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Destination", destination)
+	req.Header.Set("Overwrite", "T")
+	resp, err := b.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+	return fmt.Errorf("webdav %s: %s", strings.ToLower(method), resp.Status)
+}
+
+func (b webDAVBackend) request(ctx context.Context, method, key string, body io.Reader) (*http.Request, error) {
+	remoteURL, err := b.remoteURL(key)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, remoteURL, body)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(b.cfg.WebDAVUsername, b.cfg.WebDAVPassword)
+	return req, nil
+}
+
+func (b webDAVBackend) remoteURL(key string) (string, error) {
+	base, err := url.Parse(b.cfg.Endpoint)
+	if err != nil {
+		return "", err
+	}
+	base.Path = strings.TrimRight(base.Path, "/") + "/" + cleanRemotePath(key)
+	return base.String(), nil
+}
+
+func (b webDAVBackend) objectInfoFromResponse(resp webDAVResponse, base string) (ObjectInfo, bool) {
+	key, ok := b.keyFromHref(resp.Href)
+	if !ok || key == base || strings.TrimSuffix(key, "/") == strings.TrimSuffix(base, "/") {
+		return ObjectInfo{}, false
+	}
+	prop := resp.firstProp()
+	isDir := prop.ResourceType.Collection != nil || strings.HasSuffix(key, "/")
+	if isDir && !strings.HasSuffix(key, "/") {
+		key += "/"
+	}
+	size, _ := strconv.ParseInt(strings.TrimSpace(prop.ContentLength), 10, 64)
+	return ObjectInfo{
+		Key:          key,
+		Size:         size,
+		LastModified: parseHTTPTime(prop.LastModified),
+		IsDir:        isDir,
+	}, true
+}
+
+func (b webDAVBackend) keyFromHref(href string) (string, bool) {
+	value, err := url.QueryUnescape(strings.TrimSpace(href))
+	if err != nil {
+		value = strings.TrimSpace(href)
+	}
+	base, err := url.Parse(b.cfg.Endpoint)
+	if err != nil {
+		return "", false
+	}
+	parsed, err := url.Parse(value)
+	if err == nil && parsed.Path != "" {
+		value = parsed.Path
+	}
+	trimmedBase := strings.TrimRight(base.Path, "/")
+	key := strings.TrimPrefix(value, trimmedBase)
+	key = strings.TrimPrefix(key, "/")
+	return key, true
+}
+
+func cleanRemotePath(value string) string {
+	return strings.Trim(strings.TrimSpace(value), "/")
+}
+
+func renamedWebDAVTarget(key string, isDirectory bool, newName string) (string, error) {
+	trimmedName := strings.Trim(strings.TrimSpace(newName), "/")
+	if trimmedName == "" {
+		return "", fmt.Errorf("new name is required")
+	}
+	clean := cleanRemotePath(key)
+	if !isDirectory {
+		dir := path.Dir(clean)
+		if dir == "." {
+			return trimmedName, nil
+		}
+		return path.Join(dir, trimmedName), nil
+	}
+	dir := path.Dir(strings.TrimSuffix(clean, "/"))
+	if dir == "." {
+		return trimmedName + "/", nil
+	}
+	return path.Join(dir, trimmedName) + "/", nil
+}
+
+func parseHTTPTime(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := http.ParseTime(trimmed)
+	if err != nil {
+		return trimmed
+	}
+	return parsed.Format("2006-01-02 15:04:05")
+}
+
+const webDAVPropfindBody = `<?xml version="1.0" encoding="utf-8"?>
+<D:propfind xmlns:D="DAV:">
+  <D:prop>
+    <D:resourcetype/>
+    <D:getcontentlength/>
+    <D:getlastmodified/>
+  </D:prop>
+</D:propfind>`
+
+type webDAVMultistatus struct {
+	Responses []webDAVResponse `xml:"response"`
+}
+
+type webDAVResponse struct {
+	Href     string        `xml:"href"`
+	Propstat []webDAVProps `xml:"propstat"`
+}
+
+func (r webDAVResponse) firstProp() webDAVProp {
+	if len(r.Propstat) == 0 {
+		return webDAVProp{}
+	}
+	return r.Propstat[0].Prop
+}
+
+type webDAVProps struct {
+	Prop webDAVProp `xml:"prop"`
+}
+
+type webDAVProp struct {
+	ResourceType  webDAVResourceType `xml:"resourcetype"`
+	ContentLength string             `xml:"getcontentlength"`
+	LastModified  string             `xml:"getlastmodified"`
+}
+
+type webDAVResourceType struct {
+	Collection *struct{} `xml:"collection"`
+}
