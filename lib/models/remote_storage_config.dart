@@ -82,6 +82,8 @@ class RemoteStorageConfig {
     required this.hasWebdavPassword,
     required this.rootPrefix,
     required this.defaultDownloadDirectory,
+    required this.cacheDirectory,
+    required this.resolvedCacheDirectory,
     required this.hideDotFiles,
     required this.fileOpenMode,
     required this.trashDirectoryName,
@@ -108,6 +110,8 @@ class RemoteStorageConfig {
       hasWebdavPassword: false,
       rootPrefix: '',
       defaultDownloadDirectory: '',
+      cacheDirectory: '',
+      resolvedCacheDirectory: '',
       hideDotFiles: true,
       fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: '.trash',
@@ -156,6 +160,15 @@ class RemoteStorageConfig {
       defaultDownloadDirectory:
           (json['defaultDownloadDirectory'] ??
                   json['default_download_directory'] ??
+                  '')
+              .toString(),
+      cacheDirectory: (json['cacheDirectory'] ?? json['cache_directory'] ?? '')
+          .toString(),
+      resolvedCacheDirectory:
+          (json['resolvedCacheDirectory'] ??
+                  json['resolved_cache_directory'] ??
+                  json['cacheDirectory'] ??
+                  json['cache_directory'] ??
                   '')
               .toString(),
       hideDotFiles:
@@ -209,6 +222,8 @@ class RemoteStorageConfig {
   final bool hasWebdavPassword;
   final String rootPrefix;
   final String defaultDownloadDirectory;
+  final String cacheDirectory;
+  final String resolvedCacheDirectory;
   final bool hideDotFiles;
   final FileOpenMode fileOpenMode;
   final String trashDirectoryName;
@@ -251,6 +266,7 @@ class RemoteStorageConfig {
       'hasWebdavPassword': hasWebdavPassword || webdavPassword.isNotEmpty,
       'rootPrefix': rootPrefix.trim(),
       'defaultDownloadDirectory': defaultDownloadDirectory.trim(),
+      'cacheDirectory': cacheDirectory.trim(),
       'hideDotFiles': hideDotFiles,
       'fileOpenMode': fileOpenMode.storageValue,
       'trashDirectoryName': trashDirectoryName.trim(),
@@ -277,6 +293,8 @@ class RemoteStorageConfig {
     bool? hasWebdavPassword,
     String? rootPrefix,
     String? defaultDownloadDirectory,
+    String? cacheDirectory,
+    String? resolvedCacheDirectory,
     bool? hideDotFiles,
     FileOpenMode? fileOpenMode,
     String? trashDirectoryName,
@@ -302,6 +320,9 @@ class RemoteStorageConfig {
       rootPrefix: rootPrefix ?? this.rootPrefix,
       defaultDownloadDirectory:
           defaultDownloadDirectory ?? this.defaultDownloadDirectory,
+      cacheDirectory: cacheDirectory ?? this.cacheDirectory,
+      resolvedCacheDirectory:
+          resolvedCacheDirectory ?? this.resolvedCacheDirectory,
       hideDotFiles: hideDotFiles ?? this.hideDotFiles,
       fileOpenMode: fileOpenMode ?? this.fileOpenMode,
       trashDirectoryName: trashDirectoryName ?? this.trashDirectoryName,

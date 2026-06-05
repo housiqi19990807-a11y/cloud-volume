@@ -11,11 +11,14 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 
+part 'file_manager_bucket_source_actions.dart';
+
 const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
   static const double _bucketActionColumnWidth = 244;
   static const double _bucketTypeColumnWidth = 72;
+  static const double _bucketSourceColumnWidth = 172;
   static const double _bucketActionHeaderInset = 14;
 
   const FileManagerBucketBrowser({
@@ -27,6 +30,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
     required this.onOpenBucket,
     required this.mountStatuses,
     required this.busyBuckets,
+    required this.sourceLabel,
     this.showActionColumn = true,
     this.actionColumnLabel = '操作',
     this.onOpenTrashBucket,
@@ -44,6 +48,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
   final ValueChanged<String> onOpenBucket;
   final Map<String, BucketMountStatus> mountStatuses;
   final Set<String> busyBuckets;
+  final String sourceLabel;
   final bool showActionColumn;
   final String actionColumnLabel;
   final ValueChanged<String>? onOpenTrashBucket;
@@ -84,7 +89,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                       size: gridIconSize,
                     ),
                     title: bucket.name,
-                    subtitle: '',
+                    subtitle: sourceLabel,
                     contentWidth: gridIconSize + 12,
                     onTap: () => _handleBucketTap(bucket.name),
                   ),
@@ -133,6 +138,15 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     style: headerTextStyle,
                   ),
                 ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: _bucketSourceColumnWidth,
+                  child: Text(
+                    '来源',
+                    textAlign: TextAlign.right,
+                    style: headerTextStyle,
+                  ),
+                ),
                 if (showActionColumn) ...[
                   const SizedBox(width: 16),
                   SizedBox(
@@ -170,25 +184,23 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     sizeColumnWidthOverride: _bucketTypeColumnWidth,
                     onTap: () => _handleBucketTap(bucket.name),
                     showDivider: index != buckets.length - 1,
-                    trailing: showActionColumn
-                        ? SizedBox(
-                            width: _bucketActionColumnWidth,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: _BucketMountActions(
-                                bucket: bucket.name,
-                                status: mountStatuses[bucket.name],
-                                busy: busyBuckets.contains(bucket.name),
-                                onOpenTrashBucket: onOpenTrashBucket,
-                                onMountBucket: onMountBucket,
-                                onUnmountBucket: onUnmountBucket,
-                                onOpenMountedBucket: onOpenMountedBucket,
-                                onOpenWebDavBucket: onOpenWebDavBucket,
-                                webDavActionLabel: webDavActionLabel,
-                              ),
-                            ),
-                          )
-                        : null,
+                    trailing: _BucketSourceAndActions(
+                      sourceLabel: sourceLabel,
+                      showActionColumn: showActionColumn,
+                      actionColumnWidth: _bucketActionColumnWidth,
+                      sourceColumnWidth: _bucketSourceColumnWidth,
+                      child: _BucketMountActions(
+                        bucket: bucket.name,
+                        status: mountStatuses[bucket.name],
+                        busy: busyBuckets.contains(bucket.name),
+                        onOpenTrashBucket: onOpenTrashBucket,
+                        onMountBucket: onMountBucket,
+                        onUnmountBucket: onUnmountBucket,
+                        onOpenMountedBucket: onOpenMountedBucket,
+                        onOpenWebDavBucket: onOpenWebDavBucket,
+                        webDavActionLabel: webDavActionLabel,
+                      ),
+                    ),
                   ),
                 );
               },

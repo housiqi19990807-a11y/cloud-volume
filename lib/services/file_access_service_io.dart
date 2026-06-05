@@ -26,6 +26,7 @@ class FileAccessService {
   }) async {
     final remoteObject = await api.headObject(config, bucket, object.key);
     final cachedPath = await _cacheStore.findUsableCachePath(
+      config.resolvedCacheDirectory,
       bucket,
       remoteObject,
     );
@@ -34,7 +35,11 @@ class FileAccessService {
       return;
     }
 
-    final cachePath = await _cacheStore.cachePathFor(bucket, object.key);
+    final cachePath = await _cacheStore.cachePathFor(
+      config.resolvedCacheDirectory,
+      bucket,
+      object.key,
+    );
     final existingTask = TransferQueue.instance.findActiveTask(
       kind: TransferKind.download,
       bucket: bucket,
@@ -127,6 +132,7 @@ class FileAccessService {
   }
 
   Future<void> evictCacheForObject({
+    required RemoteStorageConfig config,
     required String bucket,
     required ObjectInfo object,
   }) async {

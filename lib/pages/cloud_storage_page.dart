@@ -53,6 +53,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
               accounts: widget.state.profiles,
               isGrid: _isGrid,
               busy: _busy,
+              onEdit: _showEditAccountDialog,
               onActivate: _activate,
               onDelete: _delete,
             ),
@@ -97,6 +98,29 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     );
   }
 
+  Future<void> _showEditAccountDialog(ProfileInfo profile) async {
+    setState(() => _busy = true);
+    try {
+      final config = await widget.api.loadProfile(profile.name);
+      if (!mounted) return;
+      setState(() => _busy = false);
+      await showShadDialog<void>(
+        context: context,
+        builder: (_) => CloudStorageAccountDialog(
+          initialConfig: config,
+          editing: true,
+          onSave: (draft) => _saveEditedAccount(profile, config, draft),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        showAppErrorToast(context, message: error.toString());
+      }
+    } finally {
+      if (mounted && _busy) setState(() => _busy = false);
+    }
+  }
+
   Future<bool> _saveNewAccount(CloudStorageAccountDraft draft) async {
     final fallback = draft.storageType == StorageType.webdav
         ? draft.webdavUsername.trim()
@@ -138,6 +162,53 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       );
       if (!mounted) return false;
       showAppToast(context, title: '账号已保存', message: label);
+      widget.onRefresh();
+      return true;
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
+      return false;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<bool> _saveEditedAccount(
+    ProfileInfo profile,
+    RemoteStorageConfig existing,
+    CloudStorageAccountDraft draft,
+  ) async {
+    final label = draft.name.trim().isEmpty
+        ? _profileTitle(profile)
+        : draft.name.trim();
+    final config = existing.copyWith(
+      storageType: draft.storageType,
+      providerType: StorageProviderType.s3,
+      displayName: label,
+      endpoint: draft.endpoint,
+      region: draft.region.trim().isEmpty ? 'auto' : draft.region,
+      accessKeyId: draft.accessKey,
+      secretAccessKey: draft.secretKey,
+      hasSecretAccessKey:
+          draft.secretKey.trim().isNotEmpty || existing.hasSecretAccessKey,
+      webdavUsername: draft.storageType == StorageType.webdav
+          ? draft.webdavUsername
+          : draft.accessKey,
+      webdavPassword: draft.storageType == StorageType.webdav
+          ? draft.webdavPassword
+          : draft.secretKey,
+      hasWebdavPassword: draft.storageType == StorageType.webdav
+          ? draft.webdavPassword.trim().isNotEmpty || existing.hasWebdavPassword
+          : draft.secretKey.trim().isNotEmpty || existing.hasSecretAccessKey,
+    );
+    if (!config.isConfigured) {
+      showAppErrorToast(context, message: '请补全账号连接信息。');
+      return false;
+    }
+    setState(() => _busy = true);
+    try {
+      await widget.api.saveProfile(profile.name, config);
+      if (!mounted) return false;
+      showAppToast(context, title: '账号已更新', message: label);
       widget.onRefresh();
       return true;
     } catch (error) {

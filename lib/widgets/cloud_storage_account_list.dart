@@ -9,13 +9,14 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 class CloudStorageAccountList extends StatelessWidget {
   static const double _typeColumnWidth = 104;
   static const double _statusColumnWidth = 92;
-  static const double _actionColumnWidth = 156;
+  static const double _actionColumnWidth = 212;
 
   const CloudStorageAccountList({
     super.key,
     required this.accounts,
     required this.isGrid,
     required this.busy,
+    required this.onEdit,
     required this.onActivate,
     required this.onDelete,
   });
@@ -23,6 +24,7 @@ class CloudStorageAccountList extends StatelessWidget {
   final List<ProfileInfo> accounts;
   final bool isGrid;
   final bool busy;
+  final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onActivate;
   final ValueChanged<ProfileInfo> onDelete;
 
@@ -58,6 +60,7 @@ class CloudStorageAccountList extends StatelessWidget {
             return _AccountCard(
               profile: profile,
               busy: busy,
+              onEdit: onEdit,
               onActivate: onActivate,
               onDelete: onDelete,
             );
@@ -89,6 +92,7 @@ class CloudStorageAccountList extends StatelessWidget {
                   trailing: _AccountActions(
                     profile: profile,
                     busy: busy,
+                    onEdit: onEdit,
                     onActivate: onActivate,
                     onDelete: onDelete,
                   ),
@@ -117,12 +121,14 @@ class _AccountCard extends StatelessWidget {
   const _AccountCard({
     required this.profile,
     required this.busy,
+    required this.onEdit,
     required this.onActivate,
     required this.onDelete,
   });
 
   final ProfileInfo profile;
   final bool busy;
+  final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onActivate;
   final ValueChanged<ProfileInfo> onDelete;
 
@@ -176,18 +182,25 @@ class _AccountCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              _AccountActionButton(
+                label: '编辑',
+                icon: LucideIcons.pencil,
+                onPressed: busy ? null : () => onEdit(profile),
+              ),
+              const SizedBox(width: 6),
               if (!profile.active) ...[
-                ShadButton.outline(
-                  size: ShadButtonSize.sm,
+                _AccountActionButton(
+                  label: '连接',
+                  icon: LucideIcons.plug,
                   onPressed: busy ? null : () => onActivate(profile),
-                  child: const Text('连接'),
                 ),
                 const SizedBox(width: 6),
               ],
-              ShadButton.destructive(
-                size: ShadButtonSize.sm,
+              _AccountActionButton(
+                label: '退出',
+                icon: LucideIcons.logOut,
+                destructive: true,
                 onPressed: busy ? null : () => onDelete(profile),
-                child: const Text('退出'),
               ),
             ],
           ),
@@ -247,12 +260,14 @@ class _AccountActions extends StatelessWidget {
   const _AccountActions({
     required this.profile,
     required this.busy,
+    required this.onEdit,
     required this.onActivate,
     required this.onDelete,
   });
 
   final ProfileInfo profile;
   final bool busy;
+  final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onActivate;
   final ValueChanged<ProfileInfo> onDelete;
 
@@ -263,19 +278,60 @@ class _AccountActions extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          _AccountActionButton(
+            label: '编辑',
+            icon: LucideIcons.pencil,
+            onPressed: busy ? null : () => onEdit(profile),
+          ),
+          const SizedBox(width: 6),
           if (!profile.active) ...[
-            ShadButton.outline(
-              size: ShadButtonSize.sm,
+            _AccountActionButton(
+              label: '连接',
+              icon: LucideIcons.plug,
               onPressed: busy ? null : () => onActivate(profile),
-              child: const Text('连接'),
             ),
             const SizedBox(width: 6),
           ],
-          ShadButton.destructive(
-            size: ShadButtonSize.sm,
+          _AccountActionButton(
+            label: '退出',
+            icon: LucideIcons.logOut,
+            destructive: true,
             onPressed: busy ? null : () => onDelete(profile),
-            child: const Text('退出'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountActionButton extends StatelessWidget {
+  const _AccountActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.destructive = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final color = destructive
+        ? theme.colorScheme.destructive
+        : theme.colorScheme.primary;
+    return ShadButton.ghost(
+      size: ShadButtonSize.sm,
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 11.5, color: color)),
         ],
       ),
     );

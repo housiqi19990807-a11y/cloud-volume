@@ -2,9 +2,13 @@ package config
 
 import (
 	"path/filepath"
+	"strings"
 )
 
-const runtimeDirName = "runtime"
+const (
+	runtimeDirName = "runtime"
+	cacheDirName   = "cache"
+)
 
 // RuntimeDir returns the runtime directory used for mount state, temporary
 // transfer buffers, and other non-config app data.
@@ -14,6 +18,24 @@ func RuntimeDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(rootPath, runtimeDirName), nil
+}
+
+// DefaultCacheDir returns the cache root under the platform app work path.
+func DefaultCacheDir() (string, error) {
+	rootPath, err := appDataRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(rootPath, cacheDirName), nil
+}
+
+// ResolveCacheDir applies the configured cache override or falls back to workpath/cache.
+func ResolveCacheDir(config RemoteStorageConfig) (string, error) {
+	cacheDir := strings.TrimSpace(config.CacheDirectory)
+	if cacheDir != "" {
+		return filepath.Clean(cacheDir), nil
+	}
+	return DefaultCacheDir()
 }
 
 // MountRuntimeDir returns the directory used by mount helpers for cache files

@@ -132,11 +132,15 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 		p, _ := storageconfig.DefaultConfigPath()
 		configPath = p
 	}
+	publicConfig, err := config.WithResolvedCacheDirectory()
+	if err != nil {
+		return storageconfig.BootstrapState{}, err
+	}
 
 	return storageconfig.BootstrapState{
 		ConfigPath: configPath,
 		Configured: config.IsConfigured(),
-		Config:     config,
+		Config:     publicConfig,
 		Profiles:   profiles,
 	}, nil
 }
@@ -171,7 +175,11 @@ func loadProfile(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	return storageconfig.LoadProfile(input.Name)
+	config, err := storageconfig.LoadProfile(input.Name)
+	if err != nil {
+		return nil, err
+	}
+	return config.WithResolvedCacheDirectory()
 }
 
 func saveProfile(args json.RawMessage) (any, error) {

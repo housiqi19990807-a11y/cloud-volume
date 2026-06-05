@@ -13,6 +13,7 @@ import 'package:remote_storage/widgets/settings_about_section.dart';
 import 'package:remote_storage/widgets/settings_sections.dart'
     show
         DownloadDirectorySection,
+        CacheDirectorySection,
         ThemePicker,
         VisibilitySection,
         WebDavCredentialsSection;
@@ -46,6 +47,8 @@ class _SettingsPageState extends State<SettingsPage> {
   _SettingsTab _activeTab = _SettingsTab.general;
   bool _savingDownloadDirectory = false;
   String? _downloadDirectoryError;
+  bool _savingCacheDirectory = false;
+  String? _cacheDirectoryError;
   bool _savingVisibility = false;
   String? _visibilityError;
   bool _savingTrashSettings = false;
@@ -158,6 +161,20 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
       ],
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '缓存设置',
+        CacheDirectorySection(
+          theme: theme,
+          displayPath: config.resolvedCacheDirectory,
+          hasCustomPath: config.cacheDirectory.trim().isNotEmpty,
+          saving: _savingCacheDirectory,
+          errorText: _cacheDirectoryError,
+          onPickDirectory: () => _pickCacheDirectory(config),
+          onResetDirectory: () => _resetCacheDirectory(config),
+        ),
+      ),
       const SizedBox(height: 20),
       _buildCard(
         theme,
@@ -281,6 +298,8 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 8),
         _infoRow(theme, '配置路径', widget.state.configPath),
         const SizedBox(height: 8),
+        _infoRow(theme, '缓存目录', config.resolvedCacheDirectory),
+        const SizedBox(height: 8),
         _infoRow(theme, '访问密钥 ID', _maskedKey(config.accessKeyId)),
         const SizedBox(height: 8),
         _infoRow(
@@ -342,6 +361,24 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _resetDownloadDirectory(RemoteStorageConfig config) async {
     await _saveDownloadDirectory(config, '');
+  }
+
+  Future<void> _pickCacheDirectory(RemoteStorageConfig config) async {
+    final initialDirectory = config.resolvedCacheDirectory.trim().isNotEmpty
+        ? config.resolvedCacheDirectory.trim()
+        : null;
+    final path = await FilePicker.getDirectoryPath(
+      dialogTitle: '选择缓存目录',
+      initialDirectory: initialDirectory,
+    );
+    if (path == null || path.trim().isEmpty) {
+      return;
+    }
+    await _saveCacheDirectory(config, path.trim());
+  }
+
+  Future<void> _resetCacheDirectory(RemoteStorageConfig config) async {
+    await _saveCacheDirectory(config, '');
   }
 
   Widget _infoRow(ShadThemeData theme, String label, String value) {

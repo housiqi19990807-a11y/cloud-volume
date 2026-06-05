@@ -27,9 +27,16 @@ class CloudStorageAccountDraft {
 }
 
 class CloudStorageAccountDialog extends StatefulWidget {
-  const CloudStorageAccountDialog({super.key, required this.onSave});
+  const CloudStorageAccountDialog({
+    super.key,
+    required this.onSave,
+    this.initialConfig,
+    this.editing = false,
+  });
 
   final Future<bool> Function(CloudStorageAccountDraft draft) onSave;
+  final RemoteStorageConfig? initialConfig;
+  final bool editing;
 
   @override
   State<CloudStorageAccountDialog> createState() =>
@@ -47,6 +54,19 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   final _webdavPasswordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    final config = widget.initialConfig;
+    if (config == null) return;
+    _storageType = config.storageType;
+    _nameController.text = config.displayName;
+    _endpointController.text = config.endpoint;
+    _regionController.text = config.region.isEmpty ? 'auto' : config.region;
+    _accessKeyController.text = config.accessKeyId;
+    _webdavUsernameController.text = config.webdavUsername;
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _endpointController.dispose();
@@ -61,8 +81,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   @override
   Widget build(BuildContext context) {
     return ShadDialog(
-      title: const Text('新增账号'),
-      description: const Text('先选择存储类型，再填写对应的连接信息。'),
+      title: Text(widget.editing ? '编辑账号' : '新增账号'),
+      description: Text(
+        widget.editing ? '修改账号连接信息；密钥或密码留空则保留当前保存值。' : '先选择存储类型，再填写对应的连接信息。',
+      ),
       child: SizedBox(
         width: 440,
         child: Column(
@@ -92,7 +114,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
                   child: const Text('取消'),
                 ),
                 const SizedBox(width: 10),
-                ShadButton(onPressed: _submit, child: const Text('保存账号')),
+                ShadButton(
+                  onPressed: _submit,
+                  child: Text(widget.editing ? '保存修改' : '保存账号'),
+                ),
               ],
             ),
           ],
@@ -120,7 +145,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       const SizedBox(height: 12),
       ShadInput(
         controller: _secretKeyController,
-        placeholder: const Text('Secret Access Key'),
+        placeholder: Text(
+          widget.editing ? '留空则保留当前 Secret Key' : 'Secret Access Key',
+        ),
         obscureText: true,
       ),
     ];
@@ -142,7 +169,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       const SizedBox(height: 12),
       ShadInput(
         controller: _webdavPasswordController,
-        placeholder: const Text('WebDAV 密码'),
+        placeholder: Text(widget.editing ? '留空则保留当前 WebDAV 密码' : 'WebDAV 密码'),
         obscureText: true,
       ),
     ];

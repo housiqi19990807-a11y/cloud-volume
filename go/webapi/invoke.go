@@ -109,7 +109,11 @@ func (s *Server) invokeMethod(
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
-		return config.PublicSanitized(), http.StatusOK, nil
+		publicConfig, err := config.PublicSanitized().WithResolvedCacheDirectory()
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		return publicConfig, http.StatusOK, nil
 	case "save_profile":
 		if strings.TrimSpace(input.Name) == "" {
 			return nil, http.StatusBadRequest, fmt.Errorf("missing profile name")

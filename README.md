@@ -42,7 +42,9 @@
 - 内嵌 `Source Han Sans CN`，减少不同平台的中文显示漂移。
 - UI 基于 `shadcn_ui`，避免混用多套桌面/Material 风格控件。
 - 主界面围绕“文件管理、账号管理、任务队列、回收站、分享管理、系统设置”六类核心页面展开。
-- 账号管理页直接展示所有账号，并保留和桶列表一致的卡片 / 表格视图切换；新增账号时第一步选择存储类型，目前支持 S3 对象存储和 WebDAV，上游类型不再作为页面分组。
+- 账号管理页直接展示所有账号，并保留和桶列表一致的卡片 / 表格视图切换；新增和编辑账号时第一步选择存储类型，目前支持 S3 对象存储和 WebDAV，上游类型不再作为页面分组。
+- 文件管理首页的桶列表会显示当前来源账号和存储类型，方便多账号切换后确认每个桶来自哪个上游。
+- 设置页可配置缓存目录；未自定义时使用工作路径下的 `cache/`，文件预览缓存和挂载读写缓存都会归到这个根目录下。
 - 设置页现在额外提供独立的“关于”子 Tab，集中展示应用版本、作者版权 `三千` 与 QQ 交流群 `572532027`。
 - “关于”页的版本号现在统一来自构建时注入：本地开发默认显示 `dev`，CI/tag 发布构建会显示对应版本号。
 
@@ -51,6 +53,7 @@
 ### 首次启动
 
 - 应用通过 Go FFI bridge 读取默认配置：macOS/Linux 使用 `~/.cloud-volume/config.toml`，Windows 使用安装目录下、与 `cloud-volume.exe` 同级的 `config.toml`。
+- 默认缓存目录跟随同一个工作路径：macOS/Linux 为 `~/.cloud-volume/cache`，Windows 为安装目录下与 `cloud-volume.exe` 同级的 `cache/`；也可以在设置页改到其他目录。
 - 升级启动时如果新位置还没有配置，会自动从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 复制到新位置；旧目录会保留作为回退备份。
 - 如果配置缺失或不完整，会先进入初始化配置页。
 - Web 端首次初始化只要求填写 S3 `endpoint/region/bucket/access_key_id/secret_access_key`；如果没有单独设置 WebDAV 凭据，后端会默认把 `access_key_id/secret_access_key` 作为浏览器登录和标准 WebDAV 客户端共用账号密码，后续可在系统设置里再单独修改。
@@ -188,7 +191,7 @@ make cli
 - `--worker` 可显式指定 multipart 上传并发；不指定时默认按 CPU 核数动态取值，最小 `4`、最大 `10`
 - `--auto-sync` 会在 Linux FUSE 检测到顺序追加写时，后台预上传已经完整落盘的 multipart 分块；遇到随机写、覆盖写、truncate 或显式属性改动时，会自动降级回原来的“本地落盘后异步整体写回”语义，避免破坏现有一致性
 - 即使启用了 `--auto-sync`，最终文件关闭后的 quiet-period 自动推送和卸载时的 drain 推送仍然保留，用于补齐最后不足一个完整分块的尾部数据并完成 multipart
-- Linux 挂载缓存文件现在按对象路径 hash 平铺到 `~/.cloud-volume/runtime/mounts/<bucket>/cache/`，避免深层目录写入把本地缓存展开成一层层子目录
+- Linux 挂载缓存文件现在默认落到 `~/.cloud-volume/cache/mounts/<bucket>/`，也会跟随设置页里的自定义缓存目录变化
 - `put` / `get` 现在默认支持目录递归；上传目录时会同步创建远端目录占位符，下载目录时会在本地重建目录树
 - `rm` / `delete` 当前走硬删除，对象和前缀都会直接从 bucket 删除，不会进入应用级回收站
 

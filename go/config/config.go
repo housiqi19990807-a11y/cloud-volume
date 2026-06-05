@@ -18,6 +18,8 @@ type RemoteStorageConfig struct {
 	HasWebDAVPassword           bool   `json:"hasWebdavPassword" toml:"-"`
 	RootPrefix                  string `json:"rootPrefix" toml:"root_prefix"`
 	DefaultDownloadDirectory    string `json:"defaultDownloadDirectory" toml:"default_download_directory"`
+	CacheDirectory              string `json:"cacheDirectory" toml:"cache_directory"`
+	ResolvedCacheDirectory      string `json:"resolvedCacheDirectory" toml:"-"`
 	HideDotFiles                bool   `json:"hideDotFiles" toml:"hide_dot_files"`
 	FileOpenMode                string `json:"fileOpenMode" toml:"file_open_mode"`
 	TrashDirectoryName          string `json:"trashDirectoryName" toml:"trash_directory_name"`
@@ -77,6 +79,8 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		HasWebDAVPassword:           strings.TrimSpace(c.WebDAVPassword) != "" || c.HasWebDAVPassword,
 		RootPrefix:                  strings.Trim(strings.TrimSpace(c.RootPrefix), "/"),
 		DefaultDownloadDirectory:    strings.TrimSpace(c.DefaultDownloadDirectory),
+		CacheDirectory:              strings.TrimSpace(c.CacheDirectory),
+		ResolvedCacheDirectory:      strings.TrimSpace(c.ResolvedCacheDirectory),
 		HideDotFiles:                c.HideDotFiles,
 		FileOpenMode:                normalizeFileOpenMode(c.FileOpenMode),
 		TrashDirectoryName:          normalizeTrashDirectoryName(c.TrashDirectoryName),
@@ -86,6 +90,17 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		WindowsThisPcEntryEnabled:   c.WindowsThisPcEntryEnabled,
 		WindowsWritebackConcurrency: normalizeWindowsWritebackConcurrency(c.WindowsWritebackConcurrency),
 	}
+}
+
+// WithResolvedCacheDirectory fills the platform default cache path for UI/runtime use.
+func (c RemoteStorageConfig) WithResolvedCacheDirectory() (RemoteStorageConfig, error) {
+	normalized := c.Normalized()
+	cacheDir, err := ResolveCacheDir(normalized)
+	if err != nil {
+		return RemoteStorageConfig{}, err
+	}
+	normalized.ResolvedCacheDirectory = cacheDir
+	return normalized, nil
 }
 
 // IsConfigured defines the minimum first-run fields required to leave setup mode.

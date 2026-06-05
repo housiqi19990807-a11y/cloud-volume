@@ -385,6 +385,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           ? const <String, BucketMountStatus>{}
           : _bucketMountStatuses,
       busyBuckets: _isTrashHome ? const <String>{} : _mountBusyBuckets,
+      sourceLabel: _bucketSourceLabel,
       showActionColumn: !_isTrashHome,
       onOpenTrashBucket: _isTrashHome
           ? null
@@ -411,6 +412,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
           : null,
       webDavActionLabel: 'WebDAV',
     );
+  }
+
+  String get _bucketSourceLabel {
+    final name = widget.config.displayName.trim().isNotEmpty
+        ? widget.config.displayName.trim()
+        : widget.config.storageType == StorageType.webdav
+        ? widget.config.webdavUsername.trim()
+        : widget.config.accessKeyId.trim();
+    final label = name.isEmpty ? '当前账号' : name;
+    return '$label · ${widget.config.storageType.label}';
   }
 
   Widget _buildObjectView(ShadThemeData theme) {

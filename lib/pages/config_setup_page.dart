@@ -83,6 +83,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       rootPrefix: widget.initialState.config.rootPrefix,
       defaultDownloadDirectory:
           widget.initialState.config.defaultDownloadDirectory,
+      cacheDirectory: widget.initialState.config.cacheDirectory,
+      resolvedCacheDirectory: widget.initialState.config.resolvedCacheDirectory,
       hideDotFiles: widget.initialState.config.hideDotFiles,
       // 文件浏览固定为单击打开，配置阶段不再暴露这个开关。
       fileOpenMode: FileOpenMode.singleClick,

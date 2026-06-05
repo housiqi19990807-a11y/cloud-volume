@@ -26,6 +26,28 @@ extension _SettingsPageActions on _SettingsPageState {
     }
   }
 
+  Future<void> _saveCacheDirectory(
+    RemoteStorageConfig config,
+    String path,
+  ) async {
+    _updateState(() {
+      _savingCacheDirectory = true;
+      _cacheDirectoryError = null;
+    });
+    try {
+      await widget.api.saveConfig(config.copyWith(cacheDirectory: path));
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _cacheDirectoryError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _savingCacheDirectory = false);
+      }
+    }
+  }
+
   Future<void> _saveHideDotFiles(
     RemoteStorageConfig config,
     bool hideDotFiles,

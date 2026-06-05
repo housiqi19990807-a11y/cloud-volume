@@ -41,11 +41,15 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 		}
 		configPath = path
 	}
+	publicConfig, err := config.PublicSanitized().WithResolvedCacheDirectory()
+	if err != nil {
+		return storageconfig.BootstrapState{}, err
+	}
 
 	return storageconfig.BootstrapState{
 		ConfigPath: configPath,
 		Configured: isWebConfigured(config),
-		Config:     config.PublicSanitized(),
+		Config:     publicConfig,
 		Profiles:   profiles,
 	}, nil
 }

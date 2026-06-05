@@ -78,6 +78,8 @@ class _FakeApi implements RemoteStorageGateway {
             hasWebdavPassword: true,
             rootPrefix: '',
             defaultDownloadDirectory: '',
+            cacheDirectory: '',
+            resolvedCacheDirectory: '/tmp/.remote-storage/cache',
             hideDotFiles: true,
             fileOpenMode: FileOpenMode.doubleClick,
             trashDirectoryName: '.trash',

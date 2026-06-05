@@ -47,8 +47,12 @@ func newBucketAccess(
 	if err != nil {
 		return nil, err
 	}
+	cacheBase, err := storageconfig.ResolveCacheDir(cfg)
+	if err != nil {
+		return nil, err
+	}
 	sessionRoot := filepath.Join(mountRoot, safeSegment(bucket))
-	cacheRoot := filepath.Join(sessionRoot, "cache")
+	cacheRoot := filepath.Join(cacheBase, "mounts", safeSegment(bucket))
 	stageRoot := filepath.Join(sessionRoot, "staging")
 	overlayRoot := filepath.Join(sessionRoot, "overlay")
 	if err := os.MkdirAll(sessionRoot, 0o755); err != nil {

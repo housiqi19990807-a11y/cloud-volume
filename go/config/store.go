@@ -35,10 +35,14 @@ func (s Store) LoadBootstrapState() (BootstrapState, error) {
 	if err != nil {
 		return BootstrapState{}, err
 	}
+	publicConfig, err := config.WithResolvedCacheDirectory()
+	if err != nil {
+		return BootstrapState{}, err
+	}
 	return BootstrapState{
 		ConfigPath: s.configPath,
 		Configured: config.IsConfigured(),
-		Config:     config,
+		Config:     publicConfig,
 	}, nil
 }
 

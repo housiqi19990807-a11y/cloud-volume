@@ -222,6 +222,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
               task.id,
             );
             await FileAccessService.instance.evictCacheForObject(
+              config: widget.config,
               bucket: _activeBucket!,
               object: object,
             );
@@ -257,6 +258,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
           newName,
         );
         await FileAccessService.instance.evictCacheForObject(
+          config: widget.config,
           bucket: _activeBucket!,
           object: object,
         );
@@ -384,6 +386,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
         task.id,
       );
       await FileAccessService.instance.evictCacheForObject(
+        config: widget.config,
         bucket: bucket,
         object: object,
       );

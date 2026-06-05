@@ -1,7 +1,10 @@
 // Config tests pin trash-directory normalization and reserved alias behavior.
 package config
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestTrashDirectoryAliases(t *testing.T) {
 	t.Parallel()
@@ -72,6 +75,19 @@ func TestNormalizeWindowsMountMode(t *testing.T) {
 				t.Fatalf("normalizeWindowsMountMode(%q) = %q, want %q", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestResolveCacheDirUsesConfiguredPath(t *testing.T) {
+	t.Parallel()
+
+	rawPath := filepath.Join(t.TempDir(), "cache", "nested", "..")
+	got, err := ResolveCacheDir(RemoteStorageConfig{CacheDirectory: " " + rawPath + " "})
+	if err != nil {
+		t.Fatalf("ResolveCacheDir returned error: %v", err)
+	}
+	if got != filepath.Clean(rawPath) {
+		t.Fatalf("ResolveCacheDir = %q, want %q", got, filepath.Clean(rawPath))
 	}
 }
 
