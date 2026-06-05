@@ -230,8 +230,6 @@ class _SettingsPageState extends State<SettingsPage> {
               _saveWebdavCredentials(config, username, password),
         ),
       ),
-      const SizedBox(height: 20),
-      _buildCard(theme, '连接信息', _buildConnectionInfo(theme, config)),
     ];
     return sections;
   }
@@ -302,32 +300,6 @@ class _SettingsPageState extends State<SettingsPage> {
     ];
   }
 
-  Widget _buildConnectionInfo(ShadThemeData theme, RemoteStorageConfig config) {
-    return Column(
-      children: [
-        _infoRow(theme, '端点地址', config.endpoint),
-        const SizedBox(height: 8),
-        _infoRow(theme, '区域', config.region.isEmpty ? 'auto' : config.region),
-        const SizedBox(height: 8),
-        _infoRow(theme, '路径风格', config.usePathStyle ? '启用' : '禁用'),
-        const SizedBox(height: 8),
-        _infoRow(theme, '配置路径', widget.state.configPath),
-        const SizedBox(height: 8),
-        _infoRow(theme, '缓存目录', config.resolvedCacheDirectory),
-        const SizedBox(height: 8),
-        _infoRow(theme, '访问密钥 ID', _maskedKey(config.accessKeyId)),
-        const SizedBox(height: 8),
-        _infoRow(
-          theme,
-          'WebDAV 账号',
-          config.webdavUsername.isEmpty ? '未配置' : config.webdavUsername,
-        ),
-        const SizedBox(height: 8),
-        _infoRow(theme, 'WebDAV 密码', config.hasWebdavPassword ? '已保存' : '未配置'),
-      ],
-    );
-  }
-
   Widget _buildFooterActions() {
     return Row(
       children: [
@@ -394,38 +366,5 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _resetCacheDirectory(RemoteStorageConfig config) async {
     await _saveCacheDirectory(config, '');
-  }
-
-  Widget _infoRow(ShadThemeData theme, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-        ),
-        Expanded(
-          child: SelectableText(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.foreground,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _maskedKey(String key) {
-    if (key.length <= 6) return key;
-    return '${key.substring(0, 4)}${'•' * (key.length - 6)}${key.substring(key.length - 2)}';
   }
 }
