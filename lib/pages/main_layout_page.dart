@@ -272,7 +272,6 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           state: widget.state,
           api: widget.api,
           onRefresh: widget.onRefresh,
-          onEditConfig: widget.onEditConfig,
         ),
         GlobalTrashPage(api: widget.api, config: widget.state.config),
         ShareManagementPage(api: widget.api, config: widget.state.config),
