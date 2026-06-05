@@ -1,6 +1,7 @@
 // Browser file access uses server download URLs instead of local cache paths.
 
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
@@ -10,6 +11,19 @@ class FileAccessService {
   FileAccessService._();
 
   static final FileAccessService instance = FileAccessService._();
+
+  Future<FilePreviewSource> preparePreviewSource({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    final target = api.objectDownloadUri(bucket, object.key, inline: true);
+    if (target == null) {
+      throw UnsupportedError('当前客户端不支持浏览器内预览');
+    }
+    return FilePreviewSource(uri: target);
+  }
 
   Future<void> openObject({
     required RemoteStorageGateway api,
@@ -25,6 +39,21 @@ class FileAccessService {
   }
 
   Future<void> downloadObjectWithPicker({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    await downloadObjectToPath(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+      savePath: object.displayName,
+    );
+  }
+
+  Future<void> downloadObjectToDefaultDirectory({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,

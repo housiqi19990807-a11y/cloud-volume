@@ -127,8 +127,69 @@ extension _FileManagerPageActions on _FileManagerPageState {
 
   Future<void> _openObject(ObjectInfo object) async {
     if (_activeBucket == null) return;
+    await _showObjectPreview(object);
+  }
+
+  Future<void> _showObjectPreview(ObjectInfo object) async {
+    final bucket = _activeBucket;
+    if (bucket == null) return;
+    final kind = previewKindForName(object.displayName);
+    var loading = kind == FilePreviewKind.image;
+    FilePreviewSource? source;
+    String? errorText;
+
+    await showShadDialog(
+      context: context,
+      builder: (dialogContext) {
+        var started = false;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            if (loading && !started) {
+              started = true;
+              unawaited(
+                FileAccessService.instance
+                    .preparePreviewSource(
+                      api: widget.api,
+                      config: widget.config,
+                      bucket: bucket,
+                      object: object,
+                    )
+                    .then((value) {
+                      if (!dialogContext.mounted) return;
+                      setDialogState(() {
+                        source = value;
+                        loading = false;
+                      });
+                    })
+                    .catchError((error) {
+                      if (!dialogContext.mounted) return;
+                      setDialogState(() {
+                        errorText = describeBridgeError(error);
+                        loading = false;
+                      });
+                    }),
+              );
+            }
+            return FilePreviewDialog(
+              object: object,
+              kind: kind,
+              source: source,
+              loading: loading,
+              errorText: errorText,
+              onSaveAs: () => unawaited(_downloadObject(object)),
+              onDownload: () =>
+                  unawaited(_downloadObjectToDefaultDirectory(object)),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadObjectToDefaultDirectory(ObjectInfo object) async {
+    if (_activeBucket == null) return;
     try {
-      await FileAccessService.instance.openObject(
+      await FileAccessService.instance.downloadObjectToDefaultDirectory(
         api: widget.api,
         config: widget.config,
         bucket: _activeBucket!,

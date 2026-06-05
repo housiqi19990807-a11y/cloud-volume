@@ -3,6 +3,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/file_cache_store.dart';
@@ -10,6 +11,7 @@ import 'package:remote_storage/services/local_file_opener.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
+import 'package:path/path.dart' as path;
 
 class FileAccessService {
   FileAccessService._();
@@ -18,7 +20,37 @@ class FileAccessService {
 
   final FileCacheStore _cacheStore = FileCacheStore.instance;
 
+  Future<FilePreviewSource> preparePreviewSource({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    final cachePath = await _ensureCachedObject(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+    return FilePreviewSource(bytes: await File(cachePath).readAsBytes());
+  }
+
   Future<void> openObject({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    final cachePath = await _ensureCachedObject(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+    await LocalFileOpener.openPath(cachePath);
+  }
+
+  Future<String> _ensureCachedObject({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,
@@ -31,8 +63,7 @@ class FileAccessService {
       remoteObject,
     );
     if (cachedPath != null) {
-      await LocalFileOpener.openPath(cachedPath);
-      return;
+      return cachedPath;
     }
 
     final cachePath = await _cacheStore.cachePathFor(
@@ -47,7 +78,7 @@ class FileAccessService {
       localPath: cachePath,
     );
     if (existingTask != null) {
-      return;
+      throw StateError('文件正在下载，完成后再预览。');
     }
 
     final task = TransferQueue.instance.startTask(
@@ -66,7 +97,6 @@ class FileAccessService {
           object: remoteObject,
           localPath: cachePath,
         );
-        await LocalFileOpener.openPath(cachePath);
       },
       onFailure: () async {
         await _cacheStore.removeCacheRecord(
@@ -77,6 +107,7 @@ class FileAccessService {
         );
       },
     );
+    return cachePath;
   }
 
   Future<void> downloadObjectWithPicker({
@@ -103,6 +134,27 @@ class FileAccessService {
       bucket: bucket,
       object: object,
       savePath: savePath,
+    );
+  }
+
+  Future<void> downloadObjectToDefaultDirectory({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    final directory = await resolveDefaultDownloadDirectory(
+      config.defaultDownloadDirectory,
+    );
+    if (directory == null || directory.trim().isEmpty) {
+      throw StateError('无法解析默认下载目录，请使用另存为选择保存位置。');
+    }
+    await downloadObjectToPath(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+      savePath: _uniqueDownloadPath(directory, object.displayName),
     );
   }
 
@@ -187,5 +239,24 @@ class FileAccessService {
     if (await file.exists()) {
       await file.delete();
     }
+  }
+
+  String _uniqueDownloadPath(String directory, String fileName) {
+    var candidate = path.join(directory, fileName);
+    if (!File(candidate).existsSync()) {
+      return candidate;
+    }
+    final extension = path.extension(fileName);
+    final baseName = path.basenameWithoutExtension(fileName);
+    for (var index = 1; index < 1000; index += 1) {
+      candidate = path.join(directory, '$baseName ($index)$extension');
+      if (!File(candidate).existsSync()) {
+        return candidate;
+      }
+    }
+    return path.join(
+      directory,
+      '$baseName-${DateTime.now().millisecondsSinceEpoch}$extension',
+    );
   }
 }
