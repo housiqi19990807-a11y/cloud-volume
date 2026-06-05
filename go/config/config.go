@@ -57,7 +57,7 @@ func DefaultConfig() RemoteStorageConfig {
 		TrashRetentionDays:          -1,
 		UsePathStyle:                true,
 		WindowsMountMode:            WindowsMountModeCloudFilesCached,
-		WindowsThisPcEntryEnabled:   true,
+		WindowsThisPcEntryEnabled:   false,
 		WindowsWritebackConcurrency: defaultWindowsWritebackConcurrency,
 	}
 }
