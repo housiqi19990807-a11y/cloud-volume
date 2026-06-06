@@ -12,26 +12,44 @@ extension _FileManagerPageActions on _FileManagerPageState {
       withData: widget.api.capabilities.supportsBrowserTransfers,
     );
     if (result == null || result.files.isEmpty) return;
-    final bucket = _activeBucket!;
     for (final file in result.files) {
-      final key = _prefix + file.name;
       final path = file.path;
       final bytes = file.bytes;
       if (path == null && bytes == null) {
         continue;
       }
-      final task = TransferQueue.instance.startTask(
-        kind: TransferKind.upload,
-        bucket: bucket,
-        key: key,
-        localPath: path ?? file.name,
-      );
       if (bytes != null) {
-        unawaited(_runBrowserUploadTask(task, bucket, bytes, file.name));
-      } else {
-        unawaited(_runUploadTask(task, bucket));
+        _queueBrowserUpload(file.name, bytes);
+      } else if (path != null) {
+        _queueLocalUpload(path);
       }
     }
+  }
+
+  void _queueLocalUpload(String localPath) {
+    if (_activeBucket == null || localPath.trim().isEmpty) return;
+    final bucket = _activeBucket!;
+    final key = _prefix + path.basename(localPath);
+    final task = TransferQueue.instance.startTask(
+      kind: TransferKind.upload,
+      bucket: bucket,
+      key: key,
+      localPath: localPath,
+    );
+    unawaited(_runUploadTask(task, bucket));
+  }
+
+  void _queueBrowserUpload(String fileName, Uint8List bytes) {
+    if (_activeBucket == null) return;
+    final bucket = _activeBucket!;
+    final key = _prefix + fileName;
+    final task = TransferQueue.instance.startTask(
+      kind: TransferKind.upload,
+      bucket: bucket,
+      key: key,
+      localPath: fileName,
+    );
+    unawaited(_runBrowserUploadTask(task, bucket, bytes, fileName));
   }
 
   Future<void> _createDirectory() async {
@@ -378,87 +396,5 @@ extension _FileManagerPageActions on _FileManagerPageState {
         ),
       ),
     );
-  }
-
-  void _showWebDavEntry(String bucket) {
-    final uri = widget.api.webDavUri(bucket);
-    if (uri == null) {
-      _showPageMessage(title: 'WebDAV 不可用', message: '当前客户端未提供 WebDAV 地址。');
-      return;
-    }
-    _showPageMessage(
-      title: 'WebDAV 地址',
-      message: '请使用初始化或系统设置中配置的 WebDAV 账号密码访问：\n$uri',
-    );
-  }
-
-  void _queueObjectDeletes(List<ObjectInfo> objects) {
-    if (_activeBucket == null || objects.isEmpty) {
-      return;
-    }
-    final bucket = _activeBucket!;
-    final targets = objects
-        .where((object) => !_deletingObjectKeys.contains(object.key))
-        .toList();
-    if (targets.isEmpty) {
-      return;
-    }
-    setState(() {
-      for (final object in targets) {
-        _deletingObjectKeys.add(object.key);
-        _selectedObjectKeys.remove(object.key);
-      }
-    });
-
-    final futures = targets
-        .map((object) => _runDeleteTask(bucket, object))
-        .toList(growable: false);
-    unawaited(() async {
-      final errors = await Future.wait(futures);
-      if (!mounted || _activeBucket != bucket) {
-        return;
-      }
-      await _loadObjects(bucket, _prefix);
-      final failures = errors.whereType<Object>().toList(growable: false);
-      if (failures.isNotEmpty) {
-        _showPageMessage(
-          title: '删除失败',
-          message: failures.length == 1
-              ? failures.first.toString()
-              : '有 ${failures.length} 个删除任务失败，请在任务队列中查看详情。',
-        );
-      }
-    }());
-  }
-
-  Future<Object?> _runDeleteTask(String bucket, ObjectInfo object) async {
-    final task = TransferQueue.instance.startTask(
-      kind: TransferKind.delete,
-      bucket: bucket,
-      key: object.key,
-      localPath: '',
-    );
-    try {
-      await widget.api.deleteObject(
-        widget.config,
-        bucket,
-        object.key,
-        object.isDir,
-        task.id,
-      );
-      await FileAccessService.instance.evictCacheForObject(
-        config: widget.config,
-        bucket: bucket,
-        object: object,
-      );
-      TransferQueue.instance.markTaskDone(task.id);
-      return null;
-    } catch (error) {
-      TransferQueue.instance.markTaskFailed(task.id, error);
-      if (mounted) {
-        setState(() => _deletingObjectKeys.remove(object.key));
-      }
-      return error;
-    }
   }
 }

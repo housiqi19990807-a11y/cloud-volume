@@ -8,6 +8,19 @@ extension _FileManagerPageDerivedState on _FileManagerPageState {
 
   bool get _isTrashHome => widget.homeView == FileManagerHomeView.trash;
 
+  bool get _acceptsFileTransferInput =>
+      !_loading && !_showTrash && _activeBucket != null;
+
+  String get _bucketSourceLabel {
+    final name = widget.config.displayName.trim().isNotEmpty
+        ? widget.config.displayName.trim()
+        : widget.config.storageType == StorageType.webdav
+        ? widget.config.webdavUsername.trim()
+        : widget.config.accessKeyId.trim();
+    final label = name.isEmpty ? '当前账号' : name;
+    return '$label · ${widget.config.storageType.label}';
+  }
+
   bool get _hasSearchQuery => _searchText.isNotEmpty;
 
   List<BucketInfo> get _filteredBuckets {

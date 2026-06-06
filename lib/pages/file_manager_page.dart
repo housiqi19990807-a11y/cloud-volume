@@ -11,6 +11,7 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/services/file_access_service.dart';
+import 'package:remote_storage/services/desktop_file_transfer_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
@@ -24,10 +25,12 @@ import 'package:remote_storage/widgets/create_directory_dialog.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_manager_bucket_browser.dart';
+import 'package:remote_storage/widgets/file_manager_empty_state.dart';
 import 'package:remote_storage/widgets/file_manager_error_view.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/file_manager_trash_browser.dart';
 import 'package:remote_storage/widgets/file_preview_dialog.dart';
+import 'package:remote_storage/widgets/file_transfer_clipboard_region.dart';
 import 'package:remote_storage/widgets/mount_bucket_dialog.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:remote_storage/widgets/share_dialogs.dart';
@@ -37,11 +40,14 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'file_manager_page_actions.dart';
 part 'file_manager_page_mount.dart';
+part 'file_manager_page_object_deletes.dart';
 part 'file_manager_page_paging.dart';
 part 'file_manager_page_restore_sync.dart';
 part 'file_manager_page_state.dart';
 part 'file_manager_page_selection.dart';
+part 'file_manager_page_transfer_inputs.dart';
 part 'file_manager_page_trash.dart';
+part 'file_manager_page_webdav.dart';
 
 // 文件管理页首页模式：既支持普通文件浏览，也支持侧边栏独立回收站入口。
 enum FileManagerHomeView { files, trash }
@@ -274,7 +280,15 @@ class _FileManagerPageState extends State<FileManagerPage> {
         children: [
           _buildHeader(theme),
           const SizedBox(height: 16),
-          Expanded(child: _buildContentWithMountLoading(theme)),
+          Expanded(
+            child: FileTransferClipboardRegion(
+              enabled: _acceptsFileTransferInput,
+              onPasteLocalFiles: (paths) => unawaited(_uploadLocalPaths(paths)),
+              onCopySelection: () =>
+                  unawaited(_copySelectedObjectsToClipboard()),
+              child: _buildContentWithMountLoading(theme),
+            ),
+          ),
         ],
       ),
     );
@@ -380,10 +394,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
     if (_buckets == null) return const SizedBox();
     final buckets = _filteredBuckets;
     if (buckets.isEmpty) {
-      return _empty(
-        theme,
-        LucideIcons.database,
-        _hasSearchQuery ? '没有匹配的存储桶' : '没有可用的存储桶',
+      return FileManagerEmptyState(
+        theme: theme,
+        icon: LucideIcons.database,
+        text: _hasSearchQuery ? '没有匹配的存储桶' : '没有可用的存储桶',
       );
     }
     return FileManagerBucketBrowser(
@@ -425,24 +439,14 @@ class _FileManagerPageState extends State<FileManagerPage> {
     );
   }
 
-  String get _bucketSourceLabel {
-    final name = widget.config.displayName.trim().isNotEmpty
-        ? widget.config.displayName.trim()
-        : widget.config.storageType == StorageType.webdav
-        ? widget.config.webdavUsername.trim()
-        : widget.config.accessKeyId.trim();
-    final label = name.isEmpty ? '当前账号' : name;
-    return '$label · ${widget.config.storageType.label}';
-  }
-
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
     final visibleObjects = _filteredVisibleObjects;
     if (visibleObjects.isEmpty) {
-      return _empty(
-        theme,
-        LucideIcons.folderSearch,
-        _hasSearchQuery ? '当前搜索没有结果' : '此目录为空',
+      return FileManagerEmptyState(
+        theme: theme,
+        icon: LucideIcons.folderSearch,
+        text: _hasSearchQuery ? '当前搜索没有结果' : '此目录为空',
       );
     }
     return FileManagerObjectBrowser(
@@ -467,29 +471,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onToggleSelectAll: _toggleSelectAllObjects,
       onObjectAction: (object, action) =>
           unawaited(_handleObjectAction(object, action)),
-    );
-  }
-
-  Widget _empty(ShadThemeData theme, IconData icon, String text) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 44,
-            color: theme.colorScheme.mutedForeground.withValues(alpha: 0.3),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            text,
-            style: TextStyle(
-              color: theme.colorScheme.mutedForeground,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

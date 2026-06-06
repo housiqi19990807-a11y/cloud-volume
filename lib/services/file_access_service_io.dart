@@ -158,6 +158,23 @@ class FileAccessService {
     );
   }
 
+  Future<String> prepareLocalCopyPath({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    if (object.isDir) {
+      throw UnsupportedError('暂不支持复制文件夹到系统剪贴板');
+    }
+    return _ensureCachedObject(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+  }
+
   Future<void> downloadObjectToPath({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,

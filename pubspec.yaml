@@ -19,6 +19,8 @@ dependencies:
   path_provider: ^2.1.4
   sqflite_common_ffi: ^2.3.6
   url_launcher: ^6.3.2
+  super_drag_and_drop: ^0.9.1
+  super_clipboard: ^0.9.1
 
 hooks:
   user_defines:
