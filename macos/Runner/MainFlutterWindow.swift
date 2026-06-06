@@ -1,4 +1,5 @@
 import Cocoa
+import desktop_multi_window
 import FlutterMacOS
 
 private let yunjuanDefaultWindowSize = NSSize(width: 1160, height: 740)
@@ -131,6 +132,11 @@ class MainFlutterWindow: NSWindow {
     self.delegate = self
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
+      // Secondary preview windows run in their own engine, so plugins must be
+      // registered for each created controller as well as the main one.
+      RegisterGeneratedPlugins(registry: controller)
+    }
     menuBarController = MenuBarController()
 
     super.awakeFromNib()

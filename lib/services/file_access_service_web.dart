@@ -25,6 +25,15 @@ class FileAccessService {
     return FilePreviewSource(uri: target);
   }
 
+  Future<String> preparePreviewFilePath({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    throw UnsupportedError('浏览器端不支持本地预览窗口');
+  }
+
   Future<void> openObject({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,

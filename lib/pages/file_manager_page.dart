@@ -12,6 +12,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/services/file_access_service.dart';
 import 'package:remote_storage/services/desktop_file_transfer_service.dart';
+import 'package:remote_storage/services/file_preview_window_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';

@@ -35,6 +35,20 @@ class FileAccessService {
     return FilePreviewSource(bytes: await File(cachePath).readAsBytes());
   }
 
+  Future<String> preparePreviewFilePath({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) {
+    return _ensureCachedObject(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+  }
+
   Future<void> openObject({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,

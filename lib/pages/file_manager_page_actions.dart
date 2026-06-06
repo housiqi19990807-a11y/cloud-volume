@@ -152,6 +152,29 @@ extension _FileManagerPageActions on _FileManagerPageState {
     final bucket = _activeBucket;
     if (bucket == null) return;
     final kind = previewKindForName(object.displayName);
+    if (kind == FilePreviewKind.image &&
+        FilePreviewWindowService.instance.isSupported) {
+      try {
+        final localPath = await FileAccessService.instance
+            .preparePreviewFilePath(
+              api: widget.api,
+              config: widget.config,
+              bucket: bucket,
+              object: object,
+            );
+        final opened = await FilePreviewWindowService.instance.openImagePreview(
+          title: object.displayName,
+          localPath: localPath,
+        );
+        if (opened) {
+          return;
+        }
+      } catch (error) {
+        if (!mounted) return;
+        _showPageError(error);
+      }
+    }
+    if (!mounted) return;
     var loading = kind == FilePreviewKind.image;
     FilePreviewSource? source;
     String? errorText;

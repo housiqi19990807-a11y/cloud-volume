@@ -5,6 +5,7 @@
 
 #include <optional>
 
+#include "desktop_multi_window/desktop_multi_window_plugin.h"
 #include "flutter/generated_plugin_registrant.h"
 #include "resource.h"
 
@@ -42,6 +43,13 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  DesktopMultiWindowSetWindowCreatedCallback([](void* controller) {
+    // Each preview sub-window owns a separate Flutter engine, so register the
+    // same plugins there before Dart tries to use window and image services.
+    auto* flutter_view_controller =
+        reinterpret_cast<flutter::FlutterViewController*>(controller);
+    RegisterPlugins(flutter_view_controller->engine());
+  });
   RegisterWindowChannel();
   InitializeTrayIcon();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
