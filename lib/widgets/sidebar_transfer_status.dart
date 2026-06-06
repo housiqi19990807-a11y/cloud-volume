@@ -61,6 +61,8 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
       return;
     }
     final overlay = Overlay.of(context);
+    final box = context.findRenderObject() as RenderBox?;
+    final cardWidth = box?.size.width ?? 0;
     _hoverEntry = OverlayEntry(
       builder: (context) {
         final theme = ShadTheme.of(context);
@@ -78,8 +80,11 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
                 onExit: (_) => _scheduleHideHoverCard(),
                 child: Material(
                   color: Colors.transparent,
-                  child: SizedBox(
-                    width: 236,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: cardWidth,
+                      maxWidth: cardWidth,
+                    ),
                     child: _TransferHoverCard(theme: theme),
                   ),
                 ),
