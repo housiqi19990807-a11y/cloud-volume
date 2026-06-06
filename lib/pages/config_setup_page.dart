@@ -34,6 +34,7 @@ class ConfigSetupPage extends StatefulWidget {
 
 class _ConfigSetupPageState extends State<ConfigSetupPage> {
   late final TextEditingController _endpointController;
+  late final TextEditingController _mappedBucketNameController;
   late final TextEditingController _regionController;
   late final TextEditingController _accessKeyController;
   late final TextEditingController _secretKeyController;
@@ -52,6 +53,13 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     final config = widget.initialState.config;
     _storageType = config.storageType;
     // 首次运行时使用默认值。
+    _mappedBucketNameController = TextEditingController(
+      text: config.mappedBucketName.trim().isNotEmpty
+          ? config.mappedBucketName
+          : config.storageType == StorageType.webdav
+          ? 'WebDAV'
+          : 'S3',
+    );
     _endpointController = TextEditingController(
       text: config.endpoint.trim().isNotEmpty
           ? config.endpoint
@@ -73,6 +81,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
 
   @override
   void dispose() {
+    _mappedBucketNameController.dispose();
     _endpointController.dispose();
     _regionController.dispose();
     _accessKeyController.dispose();
@@ -92,6 +101,12 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           _endpointController.text.trim() == _kDefaultEndpoint) {
         _endpointController.clear();
       }
+      final mappedName = _mappedBucketNameController.text.trim();
+      if (mappedName.isEmpty || mappedName == 'S3' || mappedName == 'WebDAV') {
+        _mappedBucketNameController.text = type == StorageType.webdav
+            ? 'WebDAV'
+            : 'S3';
+      }
     });
   }
 
@@ -102,6 +117,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       storageType: _storageType,
       providerType: widget.initialState.config.providerType,
       displayName: widget.initialState.config.displayName,
+      mappedBucketName: _mappedBucketNameController.text.trim().isNotEmpty
+          ? _mappedBucketNameController.text
+          : widget.initialState.config.displayName,
       region: _regionController.text,
       bucket: widget.initialState.config.bucket,
       accessKeyId: isWebDav ? '' : _accessKeyController.text,
@@ -188,6 +206,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                   )
                 : ConfigRightFormPanel(
                     storageType: _storageType,
+                    mappedBucketNameController: _mappedBucketNameController,
                     endpointController: _endpointController,
                     regionController: _regionController,
                     accessKeyController: _accessKeyController,

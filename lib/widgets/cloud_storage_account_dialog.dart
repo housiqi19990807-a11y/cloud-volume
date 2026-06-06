@@ -8,6 +8,7 @@ class CloudStorageAccountDraft {
   const CloudStorageAccountDraft({
     required this.storageType,
     required this.name,
+    required this.mappedBucketName,
     required this.endpoint,
     required this.region,
     required this.accessKey,
@@ -19,6 +20,7 @@ class CloudStorageAccountDraft {
 
   final StorageType storageType;
   final String name;
+  final String mappedBucketName;
   final String endpoint;
   final String region;
   final String accessKey;
@@ -48,12 +50,14 @@ class CloudStorageAccountDialog extends StatefulWidget {
 class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   StorageType _storageType = StorageType.s3;
   final _nameController = TextEditingController();
+  final _mappedBucketNameController = TextEditingController();
   final _endpointController = TextEditingController();
   final _regionController = TextEditingController(text: 'auto');
   final _accessKeyController = TextEditingController();
   final _secretKeyController = TextEditingController();
   final _webdavUsernameController = TextEditingController();
   final _webdavPasswordController = TextEditingController();
+  bool _mappedBucketNameEdited = false;
   bool _usePathStyle = true;
 
   @override
@@ -63,6 +67,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     if (config == null) return;
     _storageType = config.storageType;
     _nameController.text = config.displayName;
+    _mappedBucketNameController.text = config.mappedBucketName;
     _endpointController.text = config.endpoint;
     _regionController.text = config.region.isEmpty ? 'auto' : config.region;
     _accessKeyController.text = config.accessKeyId;
@@ -73,6 +78,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   @override
   void dispose() {
     _nameController.dispose();
+    _mappedBucketNameController.dispose();
     _endpointController.dispose();
     _regionController.dispose();
     _accessKeyController.dispose();
@@ -103,6 +109,13 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
             ShadInput(
               controller: _nameController,
               placeholder: const Text('账号名称'),
+              onChanged: (_) => _syncMappedBucketName(),
+            ),
+            const SizedBox(height: 12),
+            ShadInput(
+              controller: _mappedBucketNameController,
+              placeholder: const Text('映射桶名称，默认使用账号名称'),
+              onChanged: (_) => _mappedBucketNameEdited = true,
             ),
             const SizedBox(height: 12),
             if (_storageType == StorageType.s3)
@@ -189,6 +202,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       CloudStorageAccountDraft(
         storageType: _storageType,
         name: _nameController.text,
+        mappedBucketName: _mappedBucketNameController.text.trim().isEmpty
+            ? _nameController.text
+            : _mappedBucketNameController.text,
         endpoint: _endpointController.text,
         region: _regionController.text,
         accessKey: _accessKeyController.text,
@@ -199,6 +215,13 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       ),
     );
     if (saved && mounted) Navigator.of(context).pop();
+  }
+
+  void _syncMappedBucketName() {
+    if (widget.editing || _mappedBucketNameEdited) {
+      return;
+    }
+    _mappedBucketNameController.text = _nameController.text;
   }
 }
 

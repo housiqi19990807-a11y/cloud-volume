@@ -130,6 +130,9 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       storageType: draft.storageType,
       providerType: StorageProviderType.s3,
       displayName: label,
+      mappedBucketName: draft.mappedBucketName.trim().isEmpty
+          ? label
+          : draft.mappedBucketName,
       endpoint: draft.endpoint,
       region: draft.region.trim().isEmpty ? 'auto' : draft.region,
       accessKeyId: draft.accessKey,
@@ -185,6 +188,9 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       storageType: draft.storageType,
       providerType: StorageProviderType.s3,
       displayName: label,
+      mappedBucketName: draft.mappedBucketName.trim().isEmpty
+          ? label
+          : draft.mappedBucketName,
       endpoint: draft.endpoint,
       region: draft.region.trim().isEmpty ? 'auto' : draft.region,
       accessKeyId: draft.accessKey,

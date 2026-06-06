@@ -57,3 +57,22 @@ func TestWebDAVListObjectsPageAcceptsNilContext(t *testing.T) {
 		t.Fatalf("items = %#v, want one photo.jpg entry", page.Items)
 	}
 }
+
+func TestWebDAVListBucketsUsesMappedBucketName(t *testing.T) {
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:       storageconfig.StorageTypeWebDAV,
+		Endpoint:          "https://example.invalid/dav/",
+		DisplayName:       "Account Fallback",
+		MappedBucketName:  "Second DAV",
+		WebDAVUsername:    "web-user",
+		WebDAVPassword:    "web-pass",
+		HasWebDAVPassword: true,
+	})
+	buckets, err := backend.ListBuckets(nil)
+	if err != nil {
+		t.Fatalf("ListBuckets returned error: %v", err)
+	}
+	if len(buckets) != 1 || buckets[0].Name != "Second DAV" {
+		t.Fatalf("buckets = %#v, want mapped bucket name", buckets)
+	}
+}

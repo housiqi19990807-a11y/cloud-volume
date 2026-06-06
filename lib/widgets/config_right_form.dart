@@ -12,6 +12,7 @@ class ConfigRightFormPanel extends StatelessWidget {
   const ConfigRightFormPanel({
     super.key,
     required this.storageType,
+    required this.mappedBucketNameController,
     required this.endpointController,
     required this.regionController,
     required this.accessKeyController,
@@ -29,6 +30,7 @@ class ConfigRightFormPanel extends StatelessWidget {
   });
 
   final StorageType storageType;
+  final TextEditingController mappedBucketNameController;
   final TextEditingController endpointController;
   final TextEditingController regionController;
   final TextEditingController accessKeyController;
@@ -109,6 +111,13 @@ class ConfigRightFormPanel extends StatelessWidget {
                       const SizedBox(height: 28),
                       _sectionLabel(context, '连接信息'),
                       const SizedBox(height: 16),
+                      _fieldLabel(context, '映射桶名称'),
+                      const SizedBox(height: 6),
+                      ShadInput(
+                        controller: mappedBucketNameController,
+                        placeholder: Text(isWebDav ? 'WebDAV' : '账号名称或默认入口名'),
+                      ),
+                      const SizedBox(height: 18),
                       _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
                       const SizedBox(height: 6),
                       ShadInput(

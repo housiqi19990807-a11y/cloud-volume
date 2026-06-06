@@ -8,6 +8,7 @@ type RemoteStorageConfig struct {
 	StorageType                 string `json:"storageType" toml:"storage_type"`
 	ProviderType                string `json:"providerType" toml:"provider_type"`
 	DisplayName                 string `json:"displayName" toml:"display_name"`
+	MappedBucketName            string `json:"mappedBucketName" toml:"mapped_bucket_name"`
 	Region                      string `json:"region" toml:"region"`
 	Bucket                      string `json:"bucket" toml:"bucket"`
 	AccessKeyID                 string `json:"accessKeyId" toml:"access_key_id"`
@@ -73,6 +74,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		StorageType:                 normalizeStorageType(c.StorageType),
 		ProviderType:                normalizeProviderType(c.ProviderType, c.Endpoint),
 		DisplayName:                 strings.TrimSpace(c.DisplayName),
+		MappedBucketName:            normalizeMappedBucketName(c.MappedBucketName, c.DisplayName),
 		Region:                      strings.TrimSpace(c.Region),
 		Bucket:                      strings.TrimSpace(c.Bucket),
 		AccessKeyID:                 strings.TrimSpace(c.AccessKeyID),
@@ -183,6 +185,12 @@ func (c RemoteStorageConfig) AccountLabel(fallback string) string {
 	return "未命名账号"
 }
 
+// MappedBucketLabel returns the virtual bucket name used by single-root backends.
+func (c RemoteStorageConfig) MappedBucketLabel() string {
+	normalized := c.Normalized()
+	return normalized.MappedBucketName
+}
+
 // PublicSanitized clears secrets while preserving whether stored secrets exist.
 func (c RemoteStorageConfig) PublicSanitized() RemoteStorageConfig {
 	normalized := c.Normalized()
@@ -205,6 +213,18 @@ func normalizeStorageType(value string) string {
 	default:
 		return StorageTypeS3
 	}
+}
+
+func normalizeMappedBucketName(value, displayName string) string {
+	trimmed := strings.Trim(strings.TrimSpace(value), "/")
+	if trimmed != "" {
+		return trimmed
+	}
+	fallback := strings.Trim(strings.TrimSpace(displayName), "/")
+	if fallback != "" {
+		return fallback
+	}
+	return "WebDAV"
 }
 
 func normalizeProviderType(value, endpoint string) string {

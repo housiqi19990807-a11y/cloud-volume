@@ -200,3 +200,24 @@ func TestWithDefaultWebDAVCredentialsKeepsExplicitValues(t *testing.T) {
 		t.Fatalf("WebDAVPassword = %q, want %q", got.WebDAVPassword, "custom-pass")
 	}
 }
+
+func TestMappedBucketNameDefaultsToDisplayName(t *testing.T) {
+	t.Parallel()
+
+	config := RemoteStorageConfig{DisplayName: "  Second DAV  "}
+	if got := config.Normalized().MappedBucketName; got != "Second DAV" {
+		t.Fatalf("MappedBucketName = %q, want %q", got, "Second DAV")
+	}
+}
+
+func TestMappedBucketNameKeepsExplicitValue(t *testing.T) {
+	t.Parallel()
+
+	config := RemoteStorageConfig{
+		DisplayName:      "Account Name",
+		MappedBucketName: "  My Bucket  ",
+	}
+	if got := config.Normalized().MappedBucketName; got != "My Bucket" {
+		t.Fatalf("MappedBucketName = %q, want %q", got, "My Bucket")
+	}
+}

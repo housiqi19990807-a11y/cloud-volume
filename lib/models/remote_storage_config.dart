@@ -72,6 +72,7 @@ class RemoteStorageConfig {
     required this.storageType,
     required this.providerType,
     required this.displayName,
+    required this.mappedBucketName,
     required this.region,
     required this.bucket,
     required this.accessKeyId,
@@ -101,6 +102,7 @@ class RemoteStorageConfig {
       storageType: StorageType.s3,
       providerType: StorageProviderType.s3,
       displayName: '',
+      mappedBucketName: '',
       region: '',
       bucket: '',
       accessKeyId: '',
@@ -140,6 +142,9 @@ class RemoteStorageConfig {
       ),
       displayName: (json['displayName'] ?? json['display_name'] ?? '')
           .toString(),
+      mappedBucketName:
+          (json['mappedBucketName'] ?? json['mapped_bucket_name'] ?? '')
+              .toString(),
       region: (json['region'] ?? '').toString(),
       bucket: (json['bucket'] ?? '').toString(),
       accessKeyId: (json['accessKeyId'] ?? json['access_key_id'] ?? '')
@@ -219,6 +224,7 @@ class RemoteStorageConfig {
   final StorageType storageType;
   final StorageProviderType providerType;
   final String displayName;
+  final String mappedBucketName;
   final String region;
   final String bucket;
   final String accessKeyId;
@@ -264,6 +270,7 @@ class RemoteStorageConfig {
       'storageType': storageType.storageValue,
       'providerType': providerType.storageValue,
       'displayName': displayName.trim(),
+      'mappedBucketName': mappedBucketName.trim(),
       'region': region.trim(),
       'bucket': bucket.trim(),
       'accessKeyId': accessKeyId.trim(),
@@ -292,6 +299,7 @@ class RemoteStorageConfig {
     StorageType? storageType,
     StorageProviderType? providerType,
     String? displayName,
+    String? mappedBucketName,
     String? region,
     String? bucket,
     String? accessKeyId,
@@ -319,6 +327,7 @@ class RemoteStorageConfig {
       storageType: storageType ?? this.storageType,
       providerType: providerType ?? this.providerType,
       displayName: displayName ?? this.displayName,
+      mappedBucketName: mappedBucketName ?? this.mappedBucketName,
       region: region ?? this.region,
       bucket: bucket ?? this.bucket,
       accessKeyId: accessKeyId ?? this.accessKeyId,

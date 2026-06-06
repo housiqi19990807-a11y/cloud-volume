@@ -92,6 +92,7 @@ class _FakeApi implements RemoteStorageGateway {
             storageType: StorageType.s3,
             providerType: StorageProviderType.s3,
             displayName: 'Test Account',
+            mappedBucketName: 'Test Account',
             region: 'us-east-1',
             bucket: 'test-bucket',
             accessKeyId: 'AKIA_TEST',

@@ -18,8 +18,6 @@ import (
 	storageconfig "remote-storage/go/config"
 )
 
-const webDAVRootBucket = "WebDAV"
-
 type webDAVBackend struct {
 	cfg    storageconfig.RemoteStorageConfig
 	client *http.Client
@@ -33,7 +31,7 @@ func NewWebDAVBackend(cfg storageconfig.RemoteStorageConfig) Backend {
 }
 
 func (b webDAVBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
-	return []BucketInfo{{Name: webDAVRootBucket}}, nil
+	return []BucketInfo{{Name: b.cfg.MappedBucketLabel()}}, nil
 }
 
 func (b webDAVBackend) ListObjectsPage(
