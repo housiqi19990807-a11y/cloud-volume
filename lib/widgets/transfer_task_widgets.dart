@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
@@ -83,16 +84,13 @@ class _TransferTaskRowState extends State<TransferTaskRow> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final accentColor = _colorFor(widget.task);
+    final interactionColors = ListInteractionColors.fromTheme(theme);
     final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
-    final hoverColor = theme.colorScheme.secondary.withValues(alpha: 0.5);
-    final pressedColor = theme.colorScheme.secondary.withValues(alpha: 0.72);
-    final backgroundColor = widget.selected
-        ? theme.colorScheme.primary.withValues(alpha: _pressed ? 0.2 : 0.12)
-        : _pressed
-        ? pressedColor
-        : _hovered
-        ? hoverColor
-        : Colors.transparent;
+    final backgroundColor = interactionColors.rowBackground(
+      selected: widget.selected,
+      hovered: _hovered,
+      pressed: _pressed,
+    );
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {

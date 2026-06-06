@@ -1,6 +1,7 @@
 // Finder 风格文件列表行：左侧名称，右侧固定尺寸/修改时间列。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -58,16 +59,13 @@ class _FileListTileState extends State<FileListTile> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final interactionColors = ListInteractionColors.fromTheme(theme);
     final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
-    final hoverColor = theme.colorScheme.secondary.withValues(alpha: 0.5);
-    final pressedColor = theme.colorScheme.secondary.withValues(alpha: 0.72);
-    final backgroundColor = widget.isSelected
-        ? theme.colorScheme.primary.withValues(alpha: _pressed ? 0.2 : 0.12)
-        : _pressed
-        ? pressedColor
-        : _hovered
-        ? hoverColor
-        : Colors.transparent;
+    final backgroundColor = interactionColors.rowBackground(
+      selected: widget.isSelected,
+      hovered: _hovered,
+      pressed: _pressed,
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
