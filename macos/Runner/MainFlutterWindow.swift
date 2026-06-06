@@ -215,17 +215,17 @@ extension MainFlutterWindow: NSWindowDelegate {
     alert.alertStyle = .informational
     alert.messageText = "退出云卷？"
     alert.informativeText = "你可以直接退出应用，也可以最小化到托盘后继续在后台保留。"
-    alert.addButton(withTitle: "最小化到托盘")
     alert.addButton(withTitle: "退出云卷")
+    alert.addButton(withTitle: "最小化到托盘")
     alert.addButton(withTitle: "取消")
 
     let response = alert.runModal()
     if response == .alertFirstButtonReturn {
-      sender.miniaturize(nil)
+      terminateWithoutConfirmation()
       return false
     }
     if response == .alertSecondButtonReturn {
-      terminateWithoutConfirmation()
+      sender.miniaturize(nil)
       return false
     }
     return false
