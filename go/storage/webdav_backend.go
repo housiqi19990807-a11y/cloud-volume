@@ -247,6 +247,9 @@ func (b webDAVBackend) request(ctx context.Context, method, key string, body io.
 	if err != nil {
 		return nil, err
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	req, err := http.NewRequestWithContext(ctx, method, remoteURL, body)
 	if err != nil {
 		return nil, err

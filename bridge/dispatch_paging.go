@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 
@@ -50,7 +51,7 @@ func listObjectPage(args json.RawMessage) (any, error) {
 		}
 	}
 	return storageops.ForConfig(input.Config).ListObjectsPage(
-		nil,
+		context.Background(),
 		input.Bucket,
 		input.Prefix,
 		input.NextToken,
