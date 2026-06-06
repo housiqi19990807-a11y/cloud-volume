@@ -59,8 +59,9 @@ func (b webDAVBackend) HeadObject(ctx context.Context, _, key string) (ObjectInf
 	if err != nil {
 		return ObjectInfo{}, err
 	}
+	requested := cleanRemotePath(key)
 	for _, entry := range entries {
-		if info, ok := b.objectInfoFromResponse(entry, cleanRemotePath(key)); ok {
+		if info, ok := b.objectInfoFromHeadResponse(entry, requested); ok {
 			return info, nil
 		}
 	}
@@ -270,6 +271,18 @@ func (b webDAVBackend) objectInfoFromResponse(resp webDAVResponse, base string) 
 	if !ok || key == base || strings.TrimSuffix(key, "/") == strings.TrimSuffix(base, "/") {
 		return ObjectInfo{}, false
 	}
+	return objectInfoFromWebDAVKey(key, resp), true
+}
+
+func (b webDAVBackend) objectInfoFromHeadResponse(resp webDAVResponse, requested string) (ObjectInfo, bool) {
+	key, ok := b.keyFromHref(resp.Href)
+	if !ok || strings.TrimSuffix(key, "/") != strings.TrimSuffix(requested, "/") {
+		return ObjectInfo{}, false
+	}
+	return objectInfoFromWebDAVKey(key, resp), true
+}
+
+func objectInfoFromWebDAVKey(key string, resp webDAVResponse) ObjectInfo {
 	prop := resp.firstProp()
 	isDir := prop.ResourceType.Collection != nil || strings.HasSuffix(key, "/")
 	if isDir && !strings.HasSuffix(key, "/") {
@@ -281,7 +294,7 @@ func (b webDAVBackend) objectInfoFromResponse(resp webDAVResponse, base string) 
 		Size:         size,
 		LastModified: parseHTTPTime(prop.LastModified),
 		IsDir:        isDir,
-	}, true
+	}
 }
 
 func (b webDAVBackend) keyFromHref(href string) (string, bool) {
