@@ -27,6 +27,9 @@ class SidebarTransferStatus extends StatefulWidget {
 class _SidebarTransferStatusState extends State<SidebarTransferStatus>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  final LayerLink _hoverLink = LayerLink();
+  OverlayEntry? _hoverEntry;
+  Timer? _hideTimer;
   bool _hovered = false;
 
   @override
@@ -42,9 +45,65 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
 
   @override
   void dispose() {
+    _hideTimer?.cancel();
+    _removeHoverEntry();
     TransferQueue.instance.removeListener(_syncAnimation);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _showHoverCard() {
+    _hideTimer?.cancel();
+    if (!_hovered) {
+      setState(() => _hovered = true);
+    }
+    if (_hoverEntry != null) {
+      return;
+    }
+    final overlay = Overlay.of(context);
+    _hoverEntry = OverlayEntry(
+      builder: (context) {
+        final theme = ShadTheme.of(context);
+        return Positioned.fill(
+          child: IgnorePointer(
+            ignoring: false,
+            child: CompositedTransformFollower(
+              link: _hoverLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.topLeft,
+              followerAnchor: Alignment.bottomLeft,
+              offset: const Offset(10, -8),
+              child: MouseRegion(
+                onEnter: (_) => _showHoverCard(),
+                onExit: (_) => _scheduleHideHoverCard(),
+                child: Material(
+                  color: Colors.transparent,
+                  child: SizedBox(
+                    width: 236,
+                    child: _TransferHoverCard(theme: theme),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    overlay.insert(_hoverEntry!);
+  }
+
+  void _scheduleHideHoverCard() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 420), () {
+      if (!mounted) return;
+      setState(() => _hovered = false);
+      _removeHoverEntry();
+    });
+  }
+
+  void _removeHoverEntry() {
+    _hoverEntry?.remove();
+    _hoverEntry = null;
   }
 
   void _syncAnimation() {
@@ -65,94 +124,82 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
     final queue = TransferQueue.instance;
     final foreground = queue.hasRunning ? widget.accent : widget.muted;
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          if (_hovered)
-            Positioned(
-              left: 10,
-              right: 10,
-              bottom: 58,
-              child: IgnorePointer(
-                ignoring: false,
-                child: _TransferHoverCard(theme: theme),
-              ),
-            ),
-          AnimatedBuilder(
-            animation: queue,
-            builder: (context, _) {
-              return GestureDetector(
-                onTap: widget.onTap,
-                child: Container(
-                  margin: const EdgeInsets.fromLTRB(10, 0, 10, 14),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
+      onEnter: (_) => _showHoverCard(),
+      onExit: (_) => _scheduleHideHoverCard(),
+      child: CompositedTransformTarget(
+        link: _hoverLink,
+        child: AnimatedBuilder(
+          animation: queue,
+          builder: (context, _) {
+            return GestureDetector(
+              onTap: widget.onTap,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: queue.hasRunning
+                      ? widget.accent.withValues(alpha: 0.08)
+                      : Colors.white.withValues(alpha: 0.34),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
                     color: queue.hasRunning
-                        ? widget.accent.withValues(alpha: 0.08)
-                        : Colors.white.withValues(alpha: 0.34),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: queue.hasRunning
-                          ? widget.accent.withValues(alpha: 0.18)
-                          : theme.colorScheme.border.withValues(alpha: 0.45),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      ScaleTransition(
-                        scale: Tween<double>(begin: 1, end: 1.08).animate(
-                          CurvedAnimation(
-                            parent: _controller,
-                            curve: Curves.easeInOut,
-                          ),
-                        ),
-                        child: Opacity(
-                          opacity: queue.hasRunning ? 1 : 0.9,
-                          child: Icon(
-                            LucideIcons.arrowLeftRight,
-                            size: 16,
-                            color: foreground,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '对象传输',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: foreground,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              queue.speedSummary,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: theme.colorScheme.mutedForeground,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                        ? widget.accent.withValues(alpha: 0.18)
+                        : theme.colorScheme.border.withValues(alpha: 0.45),
                   ),
                 ),
-              );
-            },
-          ),
-        ],
+                child: Row(
+                  children: [
+                    ScaleTransition(
+                      scale: Tween<double>(begin: 1, end: 1.08).animate(
+                        CurvedAnimation(
+                          parent: _controller,
+                          curve: Curves.easeInOut,
+                        ),
+                      ),
+                      child: Opacity(
+                        opacity: queue.hasRunning ? 1 : 0.9,
+                        child: Icon(
+                          LucideIcons.arrowLeftRight,
+                          size: 16,
+                          color: foreground,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '对象传输',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: foreground,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            queue.speedSummary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: theme.colorScheme.mutedForeground,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
