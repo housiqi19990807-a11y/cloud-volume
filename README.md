@@ -56,7 +56,7 @@
 
 - 应用通过 Go FFI bridge 读取默认配置：macOS/Linux 使用 `~/.cloud-volume/config.toml`，Windows 使用安装目录下、与 `cloud-volume.exe` 同级的 `config.toml`。
 - 默认缓存目录跟随同一个工作路径：macOS/Linux 为 `~/.cloud-volume/cache`，Windows 为安装目录下与 `cloud-volume.exe` 同级的 `cache/`；也可以在设置页改到其他目录。
-- 升级启动时如果新位置还没有配置，会自动从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 复制到新位置；旧目录会保留作为回退备份。
+- 升级启动时如果新位置还没有配置，会自动从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 迁移到新位置；迁移成功后会删除旧配置源，避免账号删除后又被旧配置恢复。
 - 如果配置缺失或不完整，会先进入初始化配置页；初始化流程会先选择账号类型，目前支持 S3 对象存储和 WebDAV，再进入对应账号表单。
 - S3 对象存储初始化需要填写 `endpoint/access_key_id/secret_access_key`，高级设置里可调整 `region` 与 path-style URL；WebDAV 初始化需要填写服务地址、用户名和密码。
 - 如果访问密钥、签名或网络配置有误，初始化页会把常见 S3 / 网络错误转换成更友好的中文提示。

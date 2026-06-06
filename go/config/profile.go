@@ -57,7 +57,7 @@ func ActiveProfilePath() (string, error) {
 	return filepath.Join(rootPath, activeProfileFileName), nil
 }
 
-// MigrateDefault copies legacy config files into the current default locations.
+// MigrateDefault moves legacy config files into the current default locations.
 func MigrateDefault() error {
 	if err := migrateLegacyConfigRoot(); err != nil {
 		return err
@@ -208,15 +208,20 @@ func LoadProfile(name string) (RemoteStorageConfig, error) {
 	return NewStore(path).Load()
 }
 
-// DeleteProfile removes a profile file.
+// DeleteProfile removes a profile file and any legacy source that could restore it.
 func DeleteProfile(name string) error {
 	cleanName := sanitizeProfileName(name)
 	path, err := ProfileConfigPath(cleanName)
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(path); err != nil {
+	if err := removeFileIfExists(path); err != nil {
 		return err
+	}
+	if cleanName == defaultProfileName {
+		if err := deleteDefaultProfileSources(); err != nil {
+			return err
+		}
 	}
 	activeName, err := ActiveProfileName()
 	if err != nil {
@@ -225,6 +230,30 @@ func DeleteProfile(name string) error {
 	if activeName == cleanName {
 		if activePath, err := ActiveProfilePath(); err == nil {
 			_ = os.Remove(activePath)
+		}
+	}
+	return nil
+}
+
+func deleteDefaultProfileSources() error {
+	defaultPath, err := DefaultConfigPath()
+	if err != nil {
+		return err
+	}
+	if err := removeFileIfExists(defaultPath); err != nil {
+		return err
+	}
+	legacyRoot, err := legacyAppDataRoot()
+	if err != nil {
+		return err
+	}
+	legacyPaths := []string{
+		filepath.Join(legacyRoot, configFileName),
+		filepath.Join(legacyRoot, profilesDir, profileFileName(defaultProfileName)),
+	}
+	for _, path := range legacyPaths {
+		if err := removeFileIfExists(path); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -249,15 +278,13 @@ func migrateLegacyConfigRoot() error {
 	}
 	legacyConfigPath := filepath.Join(legacyRoot, configFileName)
 	legacyDefaultProfilePath := filepath.Join(legacyRoot, profilesDir, profileFileName(defaultProfileName))
-	if !pathExists(currentConfigPath) {
-		if pathExists(legacyConfigPath) {
-			if err := copyFileIfMissing(legacyConfigPath, currentConfigPath); err != nil {
-				return err
-			}
-		} else if pathExists(legacyDefaultProfilePath) {
-			if err := copyFileIfMissing(legacyDefaultProfilePath, currentConfigPath); err != nil {
-				return err
-			}
+	if pathExists(legacyConfigPath) {
+		if err := moveFileToMissingDestination(legacyConfigPath, currentConfigPath); err != nil {
+			return err
+		}
+	} else if pathExists(legacyDefaultProfilePath) {
+		if err := moveFileToMissingDestination(legacyDefaultProfilePath, currentConfigPath); err != nil {
+			return err
 		}
 	}
 
@@ -301,11 +328,23 @@ func copyProfileFilesIfMissing(srcDir, dstDir string) error {
 		}
 		src := filepath.Join(srcDir, entry.Name())
 		dst := filepath.Join(dstDir, entry.Name())
-		if err := copyFileIfMissing(src, dst); err != nil {
+		if err := moveFileToMissingDestination(src, dst); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func moveFileToMissingDestination(src, dst string) error {
+	if !pathExists(src) {
+		return nil
+	}
+	if !pathExists(dst) {
+		if err := copyFileIfMissing(src, dst); err != nil {
+			return err
+		}
+	}
+	return removeFileIfExists(src)
 }
 
 func copyFileIfMissing(src, dst string) error {
@@ -336,4 +375,11 @@ func copyFileIfMissing(src, dst string) error {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func removeFileIfExists(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
