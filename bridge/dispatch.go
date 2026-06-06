@@ -53,6 +53,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listObjectPage(args)
 	case "head_object":
 		return headObject(args)
+	case "directory_access":
+		return directoryAccess(args)
 	case "create_directory":
 		return createDirectory(args)
 	case "delete_object":
@@ -235,6 +237,12 @@ type objectHeadArgs struct {
 	Key    string                            `json:"key"`
 }
 
+type directoryAccessArgs struct {
+	Config storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket string                            `json:"bucket"`
+	Prefix string                            `json:"prefix"`
+}
+
 type createDirectoryArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`
 	Bucket string                            `json:"bucket"`
@@ -310,6 +318,14 @@ func headObject(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return storageops.ForConfig(input.Config).HeadObject(context.Background(), input.Bucket, input.Key)
+}
+
+func directoryAccess(args json.RawMessage) (any, error) {
+	var input directoryAccessArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	return storageops.ForConfig(input.Config).DirectoryAccess(context.Background(), input.Bucket, input.Prefix)
 }
 
 func createDirectory(args json.RawMessage) (any, error) {

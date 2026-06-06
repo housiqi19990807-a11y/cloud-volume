@@ -14,10 +14,17 @@ type BucketInfo = s3ops.BucketInfo
 type ObjectInfo = s3ops.ObjectInfo
 type ObjectPage = s3ops.ObjectPage
 
+type DirectoryAccess struct {
+	Writable bool   `json:"writable"`
+	Known    bool   `json:"known"`
+	Reason   string `json:"reason,omitempty"`
+}
+
 type Backend interface {
 	ListBuckets(context.Context) ([]BucketInfo, error)
 	ListObjectsPage(context.Context, string, string, string, int32) (ObjectPage, error)
 	HeadObject(context.Context, string, string) (ObjectInfo, error)
+	DirectoryAccess(context.Context, string, string) (DirectoryAccess, error)
 	CreateDirectory(context.Context, string, string, string) error
 	DeleteObject(context.Context, string, string, bool, string) error
 	RenameObject(context.Context, string, string, bool, string) error

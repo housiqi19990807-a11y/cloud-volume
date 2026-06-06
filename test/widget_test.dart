@@ -183,6 +183,13 @@ class _FakeApi implements RemoteStorageGateway {
   ) async => ObjectInfo(key: key, size: 0, lastModified: '', isDir: false);
 
   @override
+  Future<DirectoryAccess> directoryAccess(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  ) async => const DirectoryAccess(writable: true, known: true);
+
+  @override
   Future<void> createDirectory(
     RemoteStorageConfig config,
     String bucket,

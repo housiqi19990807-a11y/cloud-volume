@@ -173,6 +173,13 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   ) async => throw UnimplementedError();
 
   @override
+  Future<DirectoryAccess> directoryAccess(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  ) async => const DirectoryAccess(writable: true, known: true);
+
+  @override
   Future<void> createDirectory(
     RemoteStorageConfig config,
     String bucket,

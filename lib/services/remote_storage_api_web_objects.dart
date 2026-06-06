@@ -24,6 +24,19 @@ mixin _RemoteStorageWebObjectApiMixin implements RemoteStorageGateway {
   }
 
   @override
+  Future<DirectoryAccess> directoryAccess(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  ) async {
+    final result = await _invoke('directory_access', <String, dynamic>{
+      'bucket': bucket,
+      'prefix': prefix,
+    });
+    return DirectoryAccess.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
   Future<void> createDirectory(
     RemoteStorageConfig config,
     String bucket,

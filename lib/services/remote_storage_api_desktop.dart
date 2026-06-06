@@ -158,6 +158,20 @@ class RemoteStorageApi
   }
 
   @override
+  Future<DirectoryAccess> directoryAccess(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  ) async {
+    final result = await runBridgeCall('directory_access', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'prefix': prefix,
+    });
+    return DirectoryAccess.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
   Future<void> createDirectory(
     RemoteStorageConfig config,
     String bucket,

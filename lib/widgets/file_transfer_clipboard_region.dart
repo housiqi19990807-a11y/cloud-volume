@@ -12,12 +12,14 @@ class FileTransferClipboardRegion extends StatefulWidget {
   const FileTransferClipboardRegion({
     super.key,
     required this.enabled,
+    this.acceptsLocalFiles = true,
     required this.onPasteLocalFiles,
     required this.onCopySelection,
     required this.child,
   });
 
   final bool enabled;
+  final bool acceptsLocalFiles;
   final ValueChanged<List<String>> onPasteLocalFiles;
   final VoidCallback onCopySelection;
   final Widget child;
@@ -59,7 +61,7 @@ class _FileTransferClipboardRegionState
           actions: <Type, Action<Intent>>{
             _PasteFilesIntent: CallbackAction<_PasteFilesIntent>(
               onInvoke: (_) {
-                if (widget.enabled) {
+                if (_acceptsLocalFiles) {
                   unawaited(_pasteLocalFiles());
                 }
                 return null;
@@ -78,7 +80,11 @@ class _FileTransferClipboardRegionState
             formats: const <DataFormat>[Formats.fileUri],
             hitTestBehavior: HitTestBehavior.opaque,
             onDropOver: _onDropOver,
-            onDropEnter: (_) => setState(() => _dropActive = true),
+            onDropEnter: (_) {
+              if (_acceptsLocalFiles) {
+                setState(() => _dropActive = true);
+              }
+            },
             onDropLeave: (_) => setState(() => _dropActive = false),
             onDropEnded: (_) => setState(() => _dropActive = false),
             onPerformDrop: _performDrop,
@@ -100,7 +106,7 @@ class _FileTransferClipboardRegionState
   }
 
   DropOperation _onDropOver(DropOverEvent event) {
-    if (!widget.enabled) {
+    if (!_acceptsLocalFiles) {
       return DropOperation.none;
     }
     final acceptsFile = event.session.items.any(
@@ -111,7 +117,7 @@ class _FileTransferClipboardRegionState
 
   Future<void> _performDrop(PerformDropEvent event) async {
     setState(() => _dropActive = false);
-    if (!widget.enabled) {
+    if (!_acceptsLocalFiles) {
       return;
     }
     final paths = await DesktopFileTransferService.instance
@@ -128,6 +134,8 @@ class _FileTransferClipboardRegionState
       widget.onPasteLocalFiles(paths);
     }
   }
+
+  bool get _acceptsLocalFiles => widget.enabled && widget.acceptsLocalFiles;
 }
 
 class _DropOverlay extends StatelessWidget {

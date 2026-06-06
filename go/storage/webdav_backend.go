@@ -69,6 +69,9 @@ func (b webDAVBackend) HeadObject(ctx context.Context, _, key string) (ObjectInf
 }
 
 func (b webDAVBackend) CreateDirectory(ctx context.Context, _, prefix, name string) error {
+	if err := b.ensureWritableDirectory(ctx, prefix); err != nil {
+		return err
+	}
 	dir := path.Join(cleanRemotePath(prefix), strings.Trim(strings.TrimSpace(name), "/"))
 	if dir == "." || dir == "" {
 		return fmt.Errorf("directory name is required")
@@ -121,6 +124,9 @@ func (b webDAVBackend) MoveObject(ctx context.Context, _, sourceKey, targetKey s
 }
 
 func (b webDAVBackend) UploadFile(ctx context.Context, _, key, localPath, _ string) error {
+	if err := b.ensureWritableDirectory(ctx, path.Dir(cleanRemotePath(key))); err != nil {
+		return err
+	}
 	file, err := os.Open(localPath)
 	if err != nil {
 		return err
@@ -136,6 +142,9 @@ func (b webDAVBackend) UploadReader(
 	_ int64,
 	_, _ string,
 ) error {
+	if err := b.ensureWritableDirectory(ctx, path.Dir(cleanRemotePath(key))); err != nil {
+		return err
+	}
 	return b.put(ctx, key, body)
 }
 

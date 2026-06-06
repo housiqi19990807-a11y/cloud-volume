@@ -169,6 +169,9 @@ func (s *Server) invokeMethod(
 	case "head_object":
 		result, err := storageops.ForConfig(config).HeadObject(ctx, input.Bucket, input.Key)
 		return result, http.StatusOK, err
+	case "directory_access":
+		result, err := storageops.ForConfig(config).DirectoryAccess(ctx, input.Bucket, input.Prefix)
+		return result, http.StatusOK, err
 	case "create_directory":
 		err := storageops.ForConfig(config).CreateDirectory(ctx, input.Bucket, input.Prefix, input.Name)
 		return map[string]any{"ok": true}, http.StatusOK, err

@@ -7,6 +7,7 @@ part of 'file_manager_page.dart';
 extension _FileManagerPageActions on _FileManagerPageState {
   Future<void> _upload() async {
     if (_activeBucket == null) return;
+    if (!_ensureCurrentDirectoryWritable()) return;
     final result = await FilePicker.pickFiles(
       allowMultiple: true,
       withData: widget.api.capabilities.supportsBrowserTransfers,
@@ -28,6 +29,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
 
   void _queueLocalUpload(String localPath) {
     if (_activeBucket == null || localPath.trim().isEmpty) return;
+    if (!_ensureCurrentDirectoryWritable()) return;
     final bucket = _activeBucket!;
     final key = _prefix + path.basename(localPath);
     final task = TransferQueue.instance.startTask(
@@ -41,6 +43,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
 
   void _queueBrowserUpload(String fileName, Uint8List bytes) {
     if (_activeBucket == null) return;
+    if (!_ensureCurrentDirectoryWritable()) return;
     final bucket = _activeBucket!;
     final key = _prefix + fileName;
     final task = TransferQueue.instance.startTask(
@@ -54,6 +57,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
 
   Future<void> _createDirectory() async {
     if (_activeBucket == null) return;
+    if (!_ensureCurrentDirectoryWritable()) return;
     final controller = TextEditingController();
     String? errorText;
     bool creating = false;

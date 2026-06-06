@@ -98,6 +98,75 @@ func TestWebDAVHeadObjectKeepsDepthZeroTarget(t *testing.T) {
 	}
 }
 
+func TestWebDAVDirectoryAccessDetectsReadOnlyPrivileges(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "PROPFIND" || r.Header.Get("Depth") != "0" {
+			t.Fatalf("unexpected request method=%q depth=%q", r.Method, r.Header.Get("Depth"))
+		}
+		w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+		_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop><D:current-user-privilege-set><D:privilege><D:read/></D:privilege></D:current-user-privilege-set></D:prop>
+    </D:propstat>
+  </D:response>
+</D:multistatus>`)
+	}))
+	defer server.Close()
+
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:       storageconfig.StorageTypeWebDAV,
+		Endpoint:          server.URL + "/dav/",
+		WebDAVUsername:    "web-user",
+		WebDAVPassword:    "web-pass",
+		HasWebDAVPassword: true,
+	})
+	access, err := backend.DirectoryAccess(nil, "WebDAV", "readonly/")
+	if err != nil {
+		t.Fatalf("DirectoryAccess returned error: %v", err)
+	}
+	if !access.Known || access.Writable {
+		t.Fatalf("access = %#v, want known readonly", access)
+	}
+}
+
+func TestWebDAVDirectoryAccessFallsBackToOptions(t *testing.T) {
+	var sawOptions bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PROPFIND" {
+			w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+			_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:"/>`)
+			return
+		}
+		if r.Method != "OPTIONS" {
+			t.Fatalf("method = %q, want OPTIONS fallback", r.Method)
+		}
+		sawOptions = true
+		w.Header().Set("Allow", "OPTIONS, PROPFIND, GET")
+	}))
+	defer server.Close()
+
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:       storageconfig.StorageTypeWebDAV,
+		Endpoint:          server.URL + "/dav/",
+		WebDAVUsername:    "web-user",
+		WebDAVPassword:    "web-pass",
+		HasWebDAVPassword: true,
+	})
+	access, err := backend.DirectoryAccess(nil, "WebDAV", "readonly/")
+	if err != nil {
+		t.Fatalf("DirectoryAccess returned error: %v", err)
+	}
+	if !sawOptions {
+		t.Fatal("expected OPTIONS fallback")
+	}
+	if !access.Known || access.Writable {
+		t.Fatalf("access = %#v, want known readonly", access)
+	}
+}
+
 func TestWebDAVListBucketsUsesMappedBucketName(t *testing.T) {
 	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
 		StorageType:       storageconfig.StorageTypeWebDAV,

@@ -83,6 +83,11 @@ abstract class RemoteStorageGateway {
     String bucket,
     String key,
   );
+  Future<DirectoryAccess> directoryAccess(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+  );
   Future<void> createDirectory(
     RemoteStorageConfig config,
     String bucket,

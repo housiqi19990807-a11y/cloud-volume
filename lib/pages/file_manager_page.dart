@@ -40,6 +40,7 @@ import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'file_manager_page_actions.dart';
+part 'file_manager_page_access.dart';
 part 'file_manager_page_mount.dart';
 part 'file_manager_page_object_deletes.dart';
 part 'file_manager_page_paging.dart';
@@ -102,6 +103,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   String _objectsNextToken = '';
   bool _objectsHasMore = false;
   bool _pagingObjects = false;
+  DirectoryAccess? _directoryAccess;
+  bool _checkingDirectoryAccess = false;
   String _trashNextToken = '';
   bool _trashHasMore = false;
   bool _pagingTrash = false;
@@ -155,6 +158,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _objectsNextToken = '';
         _objectsHasMore = false;
         _pagingObjects = false;
+        _directoryAccess = null;
+        _checkingDirectoryAccess = false;
         _trashNextToken = '';
         _trashHasMore = false;
         _pagingTrash = false;
@@ -206,6 +211,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _objectsNextToken = page.nextToken;
         _objectsHasMore = page.hasMore;
         _pagingObjects = false;
+        _directoryAccess = null;
+        _checkingDirectoryAccess =
+            widget.config.storageType == StorageType.webdav;
         _trashNextToken = '';
         _trashHasMore = false;
         _pagingTrash = false;
@@ -218,6 +226,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
       }
       if (widget.api.capabilities.supportsMounts) {
         unawaited(_refreshMountStatus(bucket));
+      }
+      if (widget.config.storageType == StorageType.webdav) {
+        unawaited(_refreshDirectoryAccess(bucket, prefix));
       }
       return true;
     } catch (e) {
@@ -284,6 +295,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           Expanded(
             child: FileTransferClipboardRegion(
               enabled: _acceptsFileTransferInput,
+              acceptsLocalFiles: _currentDirectoryWritable,
               onPasteLocalFiles: (paths) => unawaited(_uploadLocalPaths(paths)),
               onCopySelection: () =>
                   unawaited(_copySelectedObjectsToClipboard()),
@@ -355,10 +367,18 @@ class _FileManagerPageState extends State<FileManagerPage> {
                   (_trashItems?.isEmpty ?? true)
               ? null
               : _clearBucketTrash,
-          onCreateDirectory: _showTrash || _activeBucket == null || _loading
+          onCreateDirectory:
+              _showTrash ||
+                  _activeBucket == null ||
+                  _loading ||
+                  !_currentDirectoryWritable
               ? null
               : _createDirectory,
-          onUpload: _showTrash || _activeBucket == null || _loading
+          onUpload:
+              _showTrash ||
+                  _activeBucket == null ||
+                  _loading ||
+                  !_currentDirectoryWritable
               ? null
               : _upload,
           onBatchDownload: _loading ? null : _downloadSelectedObjects,

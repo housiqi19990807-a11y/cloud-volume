@@ -30,6 +30,10 @@ func (b s3Backend) HeadObject(ctx context.Context, bucket, key string) (ObjectIn
 	return s3ops.HeadObjectContext(ctx, b.cfg, bucket, key)
 }
 
+func (b s3Backend) DirectoryAccess(context.Context, string, string) (DirectoryAccess, error) {
+	return DirectoryAccess{Writable: true, Known: true}, nil
+}
+
 func (b s3Backend) CreateDirectory(ctx context.Context, bucket, prefix, name string) error {
 	return s3ops.CreateDirectoryContext(ctx, b.cfg, bucket, prefix, name)
 }
