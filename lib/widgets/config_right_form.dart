@@ -133,6 +133,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                           placeholder: const Text('默认使用名称'),
                           onChanged: onMappedBucketNameChanged,
                         ),
+                        const SizedBox(height: 18),
                       ],
                       if (!isWebDav) ...[
                         const SizedBox(height: 18),
@@ -148,10 +149,6 @@ class ConfigRightFormPanel extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 22),
-                      // 认证字段和操作入口都保持在同一段自然流布局里，避免按钮被
-                      // 挤到窗口底部。
-                      _sectionLabel(context, '认证信息'),
-                      const SizedBox(height: 16),
                       if (isWebDav &&
                           webdavUsernameController != null &&
                           webdavPasswordController != null) ...[
