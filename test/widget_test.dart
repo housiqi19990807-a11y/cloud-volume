@@ -142,9 +142,14 @@ class _FakeApi implements RemoteStorageGateway {
   Future<void> logout() async {}
 
   @override
-  Future<RemoteStorageConfig> authorizeBaiduPan([
-    String displayName = '',
-  ]) async => throw UnimplementedError();
+  Future<String> startBaiduPanAuthorization() async =>
+      throw UnimplementedError();
+
+  @override
+  Future<RemoteStorageConfig> authorizeBaiduPan(
+    String displayName,
+    String code,
+  ) async => throw UnimplementedError();
 
   @override
   Future<void> cleanupMounts() async {}

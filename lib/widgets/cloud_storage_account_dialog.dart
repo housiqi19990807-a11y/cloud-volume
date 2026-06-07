@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -41,13 +42,15 @@ class CloudStorageAccountDialog extends StatefulWidget {
   const CloudStorageAccountDialog({
     super.key,
     required this.onSave,
+    required this.onStartBaiduPanAuthorization,
     required this.onAuthorizeBaiduPan,
     this.initialConfig,
     this.editing = false,
   });
 
   final Future<bool> Function(CloudStorageAccountDraft draft) onSave;
-  final Future<RemoteStorageConfig> Function(String displayName)
+  final Future<String> Function() onStartBaiduPanAuthorization;
+  final Future<RemoteStorageConfig> Function(String displayName, String code)
   onAuthorizeBaiduPan;
   final RemoteStorageConfig? initialConfig;
   final bool editing;
@@ -67,7 +70,11 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   final _secretKeyController = TextEditingController();
   final _webdavUsernameController = TextEditingController();
   final _webdavPasswordController = TextEditingController();
+  final _baiduAuthCodeController = TextEditingController();
   RemoteStorageConfig? _authorizedBaiduConfig;
+  String _baiduAuthUrl = '';
+  String? _baiduAuthErrorText;
+  bool _openingBaiduAuthPage = false;
   bool _authorizingBaidu = false;
   bool _mappedBucketNameEdited = false;
   bool _usePathStyle = true;
@@ -100,6 +107,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _secretKeyController.dispose();
     _webdavUsernameController.dispose();
     _webdavPasswordController.dispose();
+    _baiduAuthCodeController.dispose();
     super.dispose();
   }
 
@@ -227,8 +235,13 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         authorized:
             _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty == true &&
             _authorizedBaiduConfig?.hasSecretAccessKey == true,
-        busy: _authorizingBaidu,
-        onAuthorize: _authorizeBaiduPan,
+        codeController: _baiduAuthCodeController,
+        authUrl: _baiduAuthUrl,
+        openingBrowser: _openingBaiduAuthPage,
+        submittingCode: _authorizingBaidu,
+        onOpenAuthorizationPage: _startBaiduPanAuthorization,
+        onSubmitAuthorizationCode: _authorizeBaiduPan,
+        errorText: _baiduAuthErrorText,
       ),
     ];
   }
@@ -277,23 +290,66 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   }
 
   Future<void> _authorizeBaiduPan() async {
-    setState(() => _authorizingBaidu = true);
+    final code = _baiduAuthCodeController.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _baiduAuthErrorText = '请先粘贴百度授权页显示的授权码。';
+      });
+      return;
+    }
+    setState(() {
+      _authorizingBaidu = true;
+      _baiduAuthErrorText = null;
+    });
     try {
       final config = await widget.onAuthorizeBaiduPan(
         _nameController.text.trim(),
+        code,
       );
       if (!mounted) return;
       setState(() {
         _authorizedBaiduConfig = config;
+        _baiduAuthCodeController.clear();
+        _baiduAuthErrorText = null;
         if (_nameController.text.trim().isEmpty) {
           _nameController.text = config.displayName;
         }
       });
-    } catch (_) {
-      // Toast/error rendering is handled by the page that owns the dialog callback.
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _baiduAuthErrorText = describeBridgeError(error);
+      });
     } finally {
       if (mounted) {
         setState(() => _authorizingBaidu = false);
+      }
+    }
+  }
+
+  Future<void> _startBaiduPanAuthorization() async {
+    setState(() {
+      _openingBaiduAuthPage = true;
+      _baiduAuthErrorText = null;
+    });
+    try {
+      final authUrl = await widget.onStartBaiduPanAuthorization();
+      if (!mounted) return;
+      setState(() {
+        _baiduAuthUrl = authUrl;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _baiduAuthErrorText = describeBridgeError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _openingBaiduAuthPage = false);
       }
     }
   }

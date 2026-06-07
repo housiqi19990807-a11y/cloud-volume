@@ -166,7 +166,15 @@ class RemoteStorageApi
   }
 
   @override
-  Future<RemoteStorageConfig> authorizeBaiduPan([String displayName = '']) {
+  Future<String> startBaiduPanAuthorization() {
+    throw UnsupportedError('Web 端暂不支持桌面百度网盘 OAuth 授权');
+  }
+
+  @override
+  Future<RemoteStorageConfig> authorizeBaiduPan(
+    String displayName,
+    String code,
+  ) {
     throw UnsupportedError('Web 端暂不支持桌面百度网盘 OAuth 授权');
   }
 

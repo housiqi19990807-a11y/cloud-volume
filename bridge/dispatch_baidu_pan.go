@@ -10,6 +10,15 @@ import (
 
 type baiduPanAuthorizeArgs struct {
 	DisplayName string `json:"displayName"`
+	Code        string `json:"code"`
+}
+
+func startBaiduPanAuthorization() (any, error) {
+	authURL, err := storageops.StartBaiduPanAuthorization()
+	if err != nil {
+		return map[string]any{"authUrl": authURL}, err
+	}
+	return map[string]any{"authUrl": authURL}, nil
 }
 
 func authorizeBaiduPan(args json.RawMessage) (any, error) {
@@ -19,7 +28,10 @@ func authorizeBaiduPan(args json.RawMessage) (any, error) {
 			return nil, err
 		}
 	}
-	config, err := storageops.AuthorizeBaiduPan(input.DisplayName)
+	config, err := storageops.AuthorizeBaiduPanWithCode(
+		input.DisplayName,
+		input.Code,
+	)
 	if err != nil {
 		return nil, err
 	}

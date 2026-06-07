@@ -93,11 +93,22 @@ class RemoteStorageApi
   }
 
   @override
-  Future<RemoteStorageConfig> authorizeBaiduPan([
-    String displayName = '',
-  ]) async {
+  Future<String> startBaiduPanAuthorization() async {
+    final result =
+        await runBridgeCall('start_baidu_pan_authorization')
+            as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    return (result['authUrl'] ?? '').toString();
+  }
+
+  @override
+  Future<RemoteStorageConfig> authorizeBaiduPan(
+    String displayName,
+    String code,
+  ) async {
     final result = await runBridgeCall('authorize_baidu_pan', <String, dynamic>{
       'displayName': displayName,
+      'code': code,
     });
     return RemoteStorageConfig.fromJson(result as Map<String, dynamic>);
   }

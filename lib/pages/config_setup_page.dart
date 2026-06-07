@@ -42,11 +42,14 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   late final TextEditingController _secretKeyController;
   late final TextEditingController _webdavUsernameController;
   late final TextEditingController _webdavPasswordController;
+  late final TextEditingController _baiduAuthCodeController;
   RemoteStorageConfig? _authorizedBaiduConfig;
+  String _baiduAuthUrl = '';
 
   _SetupStep _step = _SetupStep.chooseType;
   late StorageType _storageType;
   late bool _usePathStyle;
+  bool _openingBaiduAuthPage = false;
   bool _authorizingBaidu = false;
   bool _mappedBucketNameEdited = false;
   bool _isSaving = false;
@@ -94,6 +97,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       text: config.webdavUsername,
     );
     _webdavPasswordController = TextEditingController();
+    _baiduAuthCodeController = TextEditingController();
     _usePathStyle = config.usePathStyle;
     if (config.storageType == StorageType.baiduPan) {
       _authorizedBaiduConfig = config;
@@ -110,6 +114,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     _secretKeyController.dispose();
     _webdavUsernameController.dispose();
     _webdavPasswordController.dispose();
+    _baiduAuthCodeController.dispose();
     super.dispose();
   }
 
@@ -297,7 +302,11 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                             true
                         ? _authorizedBaiduConfig!.displayName
                         : _nameController.text.trim(),
+                    baiduPanCodeController: _baiduAuthCodeController,
+                    baiduPanAuthUrl: _baiduAuthUrl,
+                    baiduPanOpeningBrowser: _openingBaiduAuthPage,
                     baiduPanAuthorizing: _authorizingBaidu,
+                    onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
                     onAuthorizeBaiduPan: _authorizeBaiduPan,
                     usePathStyle: _usePathStyle,
                     onPathStyleChanged: (v) =>
@@ -324,14 +333,24 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   }
 
   Future<void> _authorizeBaiduPan() async {
+    final code = _baiduAuthCodeController.text.trim();
+    if (code.isEmpty) {
+      setState(() {
+        _errorText = '请先粘贴百度授权页显示的授权码。';
+      });
+      return;
+    }
     setState(() => _authorizingBaidu = true);
     try {
       final config = await widget.api.authorizeBaiduPan(
         _nameController.text.trim(),
+        code,
       );
       if (!mounted) return;
       setState(() {
         _authorizedBaiduConfig = config;
+        _baiduAuthCodeController.clear();
+        _errorText = null;
         if (_nameController.text.trim().isEmpty) {
           _nameController.text = config.displayName;
         }
@@ -344,6 +363,27 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     } finally {
       if (mounted) {
         setState(() => _authorizingBaidu = false);
+      }
+    }
+  }
+
+  Future<void> _startBaiduPanAuthorization() async {
+    setState(() => _openingBaiduAuthPage = true);
+    try {
+      final authUrl = await widget.api.startBaiduPanAuthorization();
+      if (!mounted) return;
+      setState(() {
+        _baiduAuthUrl = authUrl;
+        _errorText = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = describeBridgeError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _openingBaiduAuthPage = false);
       }
     }
   }

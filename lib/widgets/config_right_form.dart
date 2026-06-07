@@ -27,7 +27,11 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.hasStoredWebdavPassword,
     required this.baiduPanAuthorized,
     required this.baiduPanAccountLabel,
+    required this.baiduPanCodeController,
+    required this.baiduPanAuthUrl,
+    required this.baiduPanOpeningBrowser,
     required this.baiduPanAuthorizing,
+    required this.onStartBaiduPanAuthorization,
     required this.onAuthorizeBaiduPan,
     required this.usePathStyle,
     required this.onPathStyleChanged,
@@ -52,7 +56,11 @@ class ConfigRightFormPanel extends StatelessWidget {
   final bool hasStoredWebdavPassword;
   final bool baiduPanAuthorized;
   final String baiduPanAccountLabel;
+  final TextEditingController baiduPanCodeController;
+  final String baiduPanAuthUrl;
+  final bool baiduPanOpeningBrowser;
   final bool baiduPanAuthorizing;
+  final VoidCallback onStartBaiduPanAuthorization;
   final VoidCallback onAuthorizeBaiduPan;
   final bool usePathStyle;
   final ValueChanged<bool> onPathStyleChanged;
@@ -72,7 +80,7 @@ class ConfigRightFormPanel extends StatelessWidget {
         ? '添加 WebDAV 账号'
         : '添加 S3 对象存储账号';
     final subtitle = isBaiduPan
-        ? '通过本地 OAuth 回调完成百度网盘 OpenAPI 授权。'
+        ? '通过百度要求的 oob 授权码流程完成百度网盘 OpenAPI 登录。'
         : isWebDav
         ? '填写 WebDAV 服务地址和登录账号。'
         : '填写对象存储端点和访问密钥。';
@@ -167,8 +175,12 @@ class ConfigRightFormPanel extends StatelessWidget {
                         BaiduPanAuthSection(
                           accountLabel: baiduPanAccountLabel,
                           authorized: baiduPanAuthorized,
-                          busy: baiduPanAuthorizing,
-                          onAuthorize: onAuthorizeBaiduPan,
+                          codeController: baiduPanCodeController,
+                          authUrl: baiduPanAuthUrl,
+                          openingBrowser: baiduPanOpeningBrowser,
+                          submittingCode: baiduPanAuthorizing,
+                          onOpenAuthorizationPage: onStartBaiduPanAuthorization,
+                          onSubmitAuthorizationCode: onAuthorizeBaiduPan,
                         ),
                       ] else ...[
                         _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),

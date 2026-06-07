@@ -96,6 +96,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       context: context,
       builder: (_) => CloudStorageAccountDialog(
         onSave: _saveNewAccount,
+        onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
         onAuthorizeBaiduPan: _authorizeBaiduPan,
       ),
     );
@@ -112,6 +113,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
         builder: (_) => CloudStorageAccountDialog(
           initialConfig: config,
           editing: true,
+          onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
           onAuthorizeBaiduPan: _authorizeBaiduPan,
           onSave: (draft) => _saveEditedAccount(profile, config, draft),
         ),
@@ -251,10 +253,25 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     }
   }
 
-  Future<RemoteStorageConfig> _authorizeBaiduPan(String displayName) async {
+  Future<String> _startBaiduPanAuthorization() async {
     setState(() => _busy = true);
     try {
-      return await widget.api.authorizeBaiduPan(displayName);
+      return await widget.api.startBaiduPanAuthorization();
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<RemoteStorageConfig> _authorizeBaiduPan(
+    String displayName,
+    String code,
+  ) async {
+    setState(() => _busy = true);
+    try {
+      return await widget.api.authorizeBaiduPan(displayName, code);
     } catch (error) {
       if (mounted) showAppErrorToast(context, message: error.toString());
       rethrow;
@@ -301,7 +318,7 @@ class _PageHeader extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '集中展示所有账号；新增账号时选择 S3 对象存储或 WebDAV。',
+                '集中展示所有账号；新增账号时选择 S3 对象存储、WebDAV 或百度网盘。',
                 style: TextStyle(
                   color: theme.colorScheme.mutedForeground,
                   fontSize: 13,
