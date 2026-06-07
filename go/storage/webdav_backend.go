@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +52,7 @@ func (b webDAVBackend) ListObjectsPage(
 			items = append(items, info)
 		}
 	}
+	sortWebDAVObjects(items)
 	return ObjectPage{Items: items}, nil
 }
 
@@ -387,6 +389,31 @@ func parseHTTPTime(value string) string {
 		return trimmed
 	}
 	return parsed.Format("2006-01-02 15:04:05")
+}
+
+// sortWebDAVObjects keeps WebDAV listing order aligned with the S3 browser.
+func sortWebDAVObjects(items []ObjectInfo) {
+	sort.SliceStable(items, func(i, j int) bool {
+		left := items[i]
+		right := items[j]
+		if left.IsDir != right.IsDir {
+			return left.IsDir
+		}
+		leftName := strings.ToLower(webDAVObjectSortName(left.Key))
+		rightName := strings.ToLower(webDAVObjectSortName(right.Key))
+		if leftName != rightName {
+			return leftName < rightName
+		}
+		return strings.ToLower(left.Key) < strings.ToLower(right.Key)
+	})
+}
+
+func webDAVObjectSortName(key string) string {
+	trimmed := strings.TrimSuffix(strings.TrimSpace(key), "/")
+	if trimmed == "" {
+		return ""
+	}
+	return path.Base(trimmed)
 }
 
 const webDAVPropfindBody = `<?xml version="1.0" encoding="utf-8"?>
