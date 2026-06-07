@@ -46,7 +46,7 @@ func (b webDAVBackend) directoryAccessFromPropfind(
 	ctx context.Context,
 	prefix string,
 ) (DirectoryAccess, error) {
-	req, err := b.request(ctx, "PROPFIND", cleanRemotePath(prefix), strings.NewReader(webDAVPrivilegePropfindBody))
+	req, err := b.request(ctx, "PROPFIND", webDAVDirectoryKey(prefix), strings.NewReader(webDAVPrivilegePropfindBody))
 	if err != nil {
 		return DirectoryAccess{}, err
 	}
@@ -79,7 +79,7 @@ func (b webDAVBackend) directoryAccessFromOptions(
 	ctx context.Context,
 	prefix string,
 ) (DirectoryAccess, error) {
-	req, err := b.request(ctx, http.MethodOptions, cleanRemotePath(prefix), nil)
+	req, err := b.request(ctx, http.MethodOptions, webDAVDirectoryKey(prefix), nil)
 	if err != nil {
 		return DirectoryAccess{}, err
 	}
@@ -101,7 +101,15 @@ func (b webDAVBackend) directoryAccessFromOptions(
 	if strings.Contains(allow, "PUT") || strings.Contains(allow, "MKCOL") {
 		return DirectoryAccess{Writable: true, Known: true}, nil
 	}
-	return DirectoryAccess{Writable: false, Known: true, Reason: "当前 WebDAV 目录为只读，无法写入"}, nil
+	return DirectoryAccess{Writable: true, Known: false}, nil
+}
+
+func webDAVDirectoryKey(prefix string) string {
+	clean := cleanRemotePath(prefix)
+	if clean == "" {
+		return ""
+	}
+	return clean + "/"
 }
 
 func accessFromPrivileges(privileges []webDAVPrivilege) DirectoryAccess {

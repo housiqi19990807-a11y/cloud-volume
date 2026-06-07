@@ -271,7 +271,11 @@ func (b webDAVBackend) remoteURL(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	base.Path = strings.TrimRight(base.Path, "/") + "/" + cleanRemotePath(key)
+	remotePath := cleanRemotePath(key)
+	base.Path = strings.TrimRight(base.Path, "/") + "/" + remotePath
+	if remotePath != "" && strings.HasSuffix(strings.TrimSpace(key), "/") {
+		base.Path += "/"
+	}
 	return base.String(), nil
 }
 
