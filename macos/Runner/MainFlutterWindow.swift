@@ -203,6 +203,33 @@ class MainFlutterWindow: NSWindow {
     allowsDirectClose = true
     NSApp.terminate(nil)
   }
+
+  override func close() {
+    if allowsDirectClose {
+      super.close()
+      return
+    }
+    confirmCloseRequest()
+  }
+
+  fileprivate func confirmCloseRequest() {
+    let alert = NSAlert()
+    alert.alertStyle = .informational
+    alert.messageText = "退出云卷？"
+    alert.informativeText = "你可以直接退出应用，也可以隐藏到托盘后继续在后台保留。"
+    alert.addButton(withTitle: "退出云卷")
+    alert.addButton(withTitle: "隐藏到托盘")
+    alert.addButton(withTitle: "取消")
+
+    let response = alert.runModal()
+    if response == .alertFirstButtonReturn {
+      terminateWithoutConfirmation()
+      return
+    }
+    if response == .alertSecondButtonReturn {
+      hideYunjuanMainWindow()
+    }
+  }
 }
 
 extension MainFlutterWindow: NSWindowDelegate {
@@ -210,24 +237,7 @@ extension MainFlutterWindow: NSWindowDelegate {
     if allowsDirectClose {
       return true
     }
-
-    let alert = NSAlert()
-    alert.alertStyle = .informational
-    alert.messageText = "退出云卷？"
-    alert.informativeText = "你可以直接退出应用，也可以最小化到托盘后继续在后台保留。"
-    alert.addButton(withTitle: "退出云卷")
-    alert.addButton(withTitle: "最小化到托盘")
-    alert.addButton(withTitle: "取消")
-
-    let response = alert.runModal()
-    if response == .alertFirstButtonReturn {
-      terminateWithoutConfirmation()
-      return false
-    }
-    if response == .alertSecondButtonReturn {
-      sender.miniaturize(nil)
-      return false
-    }
+    confirmCloseRequest()
     return false
   }
 }
