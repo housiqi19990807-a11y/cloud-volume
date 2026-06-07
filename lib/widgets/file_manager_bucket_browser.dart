@@ -16,7 +16,7 @@ part 'file_manager_bucket_source_actions.dart';
 const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
-  static const double _bucketActionColumnWidth = 244;
+  static const double _bucketActionColumnWidth = 172;
   static const double _bucketTypeColumnWidth = 72;
   static const double _bucketSourceColumnWidth = 172;
   static const double _bucketActionHeaderInset = 14;
@@ -197,16 +197,9 @@ class FileManagerBucketBrowser extends StatelessWidget {
                         bucket: bucket.name,
                         status: mountStatuses[bucket.name],
                         busy: busyBuckets.contains(bucket.name),
-                        onOpenTrashBucket: onOpenTrashBucket,
-                        onConfigureBucket: onConfigureBucket,
                         onMountBucket: onMountBucket,
                         onUnmountBucket: onUnmountBucket,
-                        onOpenMountedBucket: onOpenMountedBucket,
-                        onOpenWebDavBucket: onOpenWebDavBucket,
-                        trashEnabled:
-                            bucketTrashEnabled?.call(bucket.name) ??
-                            onOpenTrashBucket != null,
-                        webDavActionLabel: webDavActionLabel,
+                        moreMenuItems: _buildBucketMenuItems(bucket.name),
                       ),
                     ),
                   ),
@@ -240,7 +233,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
     final busy = busyBuckets.contains(bucket);
     final mounted = status?.mounted ?? false;
     final showsWebDavAction = onOpenWebDavBucket != null;
-    final trashEnabled = bucketTrashEnabled?.call(bucket) ?? onOpenTrashBucket != null;
+    final trashEnabled =
+        bucketTrashEnabled?.call(bucket) ?? onOpenTrashBucket != null;
 
     return <Widget>[
       ShadContextMenuItem(
@@ -249,7 +243,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
       ),
       if (onConfigureBucket != null)
         ShadContextMenuItem(
-          onPressed: () => _runBucketMenuAction(() => onConfigureBucket!(bucket)),
+          onPressed: () =>
+              _runBucketMenuAction(() => onConfigureBucket!(bucket)),
           child: const Text('桶设置'),
         ),
       if (showsWebDavAction && !busy) ...[
@@ -323,42 +318,30 @@ class _BucketMountActions extends StatelessWidget {
     required this.bucket,
     required this.status,
     required this.busy,
-    required this.onOpenTrashBucket,
-    required this.onConfigureBucket,
     required this.onMountBucket,
     required this.onUnmountBucket,
-    required this.onOpenMountedBucket,
-    required this.onOpenWebDavBucket,
-    required this.trashEnabled,
-    required this.webDavActionLabel,
+    required this.moreMenuItems,
   });
 
   final String bucket;
   final BucketMountStatus? status;
   final bool busy;
-  final ValueChanged<String>? onOpenTrashBucket;
-  final ValueChanged<String>? onConfigureBucket;
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
-  final ValueChanged<String>? onOpenMountedBucket;
-  final ValueChanged<String>? onOpenWebDavBucket;
-  final bool trashEnabled;
-  final String webDavActionLabel;
+  final List<Widget> moreMenuItems;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final mounted = status?.mounted ?? false;
     final foreground = theme.colorScheme.primary;
-    final showsWebDavAction = onOpenWebDavBucket != null;
+    final primaryAction = mounted ? onUnmountBucket : onMountBucket;
 
     if (busy) {
       return SizedBox(
         height: 32,
         child: Row(
           children: [
-            const SizedBox(width: _actionButtonWidth),
-            const SizedBox(width: 6),
             _actionSlot(
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -384,7 +367,14 @@ class _BucketMountActions extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
-            const SizedBox(width: _actionButtonWidth),
+            _actionSlot(
+              _miniButton(
+                label: '更多',
+                icon: LucideIcons.ellipsisVertical,
+                color: foreground,
+                onPressed: null,
+              ),
+            ),
           ],
         ),
       );
@@ -396,60 +386,22 @@ class _BucketMountActions extends StatelessWidget {
         children: [
           _actionSlot(
             _miniButton(
-              label: '回收站',
-              icon: LucideIcons.trash2,
+              label: mounted ? '卸载' : '挂载',
+              icon: mounted ? LucideIcons.x : LucideIcons.link,
               color: foreground,
-              onPressed: onOpenTrashBucket == null || !trashEnabled
+              onPressed: primaryAction == null
                   ? null
-                  : () => onOpenTrashBucket!(bucket),
+                  : () => primaryAction(bucket),
             ),
           ),
           const SizedBox(width: 6),
           _actionSlot(
-            _miniButton(
-              label: showsWebDavAction
-                  ? webDavActionLabel
-                  : mounted
-                  ? '卸载'
-                  : '挂载',
-              icon: showsWebDavAction
-                  ? LucideIcons.globe
-                  : mounted
-                  ? LucideIcons.x
-                  : LucideIcons.link,
+            _BucketOverflowMenuButton(
+              items: moreMenuItems,
               color: foreground,
-              onPressed: showsWebDavAction
-                  ? () => onOpenWebDavBucket!(bucket)
-                  : mounted
-                  ? (onUnmountBucket == null
-                        ? null
-                        : () => onUnmountBucket!(bucket))
-                  : (onMountBucket == null
-                        ? null
-                        : () => onMountBucket!(bucket)),
+              label: '更多',
+              enabled: moreMenuItems.isNotEmpty,
             ),
-          ),
-          const SizedBox(width: 6),
-          _actionSlot(
-            onConfigureBucket != null
-                ? _miniButton(
-                    label: '配置',
-                    icon: LucideIcons.settings2,
-                    color: foreground,
-                    onPressed: () => onConfigureBucket!(bucket),
-                  )
-                : showsWebDavAction
-                ? const SizedBox.shrink()
-                : mounted
-                ? _miniButton(
-                    label: '打开',
-                    icon: LucideIcons.folderOpen,
-                    color: foreground,
-                    onPressed: onOpenMountedBucket == null
-                        ? null
-                        : () => onOpenMountedBucket!(bucket),
-                  )
-                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -479,6 +431,90 @@ class _BucketMountActions extends StatelessWidget {
           const SizedBox(width: 4),
           Text(label, style: const TextStyle(fontSize: 11.5)),
         ],
+      ),
+    );
+  }
+}
+
+class _BucketOverflowMenuButton extends StatefulWidget {
+  const _BucketOverflowMenuButton({
+    required this.items,
+    required this.color,
+    required this.label,
+    required this.enabled,
+  });
+
+  final List<Widget> items;
+  final Color color;
+  final String label;
+  final bool enabled;
+
+  @override
+  State<_BucketOverflowMenuButton> createState() =>
+      _BucketOverflowMenuButtonState();
+}
+
+class _BucketOverflowMenuButtonState extends State<_BucketOverflowMenuButton> {
+  final GlobalKey _buttonKey = GlobalKey();
+  late final ShadContextMenuController _controller;
+  Offset? _menuAnchorOffset;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ShadContextMenuController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _showMenu() {
+    final buttonContext = _buttonKey.currentContext;
+    if (!mounted ||
+        buttonContext == null ||
+        !widget.enabled ||
+        widget.items.isEmpty) {
+      return;
+    }
+    final box = buttonContext.findRenderObject() as RenderBox?;
+    if (box == null) {
+      return;
+    }
+    final topLeft = box.localToGlobal(Offset.zero);
+    setState(() {
+      _menuAnchorOffset = topLeft + Offset(0, box.size.height + 4);
+    });
+    _controller.show();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ShadContextMenu(
+      anchor: _menuAnchorOffset == null
+          ? null
+          : ShadGlobalAnchor(_menuAnchorOffset!),
+      controller: _controller,
+      constraints: const BoxConstraints(minWidth: 164),
+      effects: const [],
+      popoverReverseDuration: Duration.zero,
+      items: widget.items,
+      child: KeyedSubtree(
+        key: _buttonKey,
+        child: ShadButton.ghost(
+          size: ShadButtonSize.sm,
+          onPressed: widget.enabled ? _showMenu : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(LucideIcons.ellipsisVertical, size: 13, color: widget.color),
+              const SizedBox(width: 4),
+              Text(widget.label, style: const TextStyle(fontSize: 11.5)),
+            ],
+          ),
+        ),
       ),
     );
   }
