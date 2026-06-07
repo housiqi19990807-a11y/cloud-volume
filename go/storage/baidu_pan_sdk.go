@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	baiduPanClientID     = "38259487"
+	baiduPanClientID     = "LXSNsyO78fe6j3RkXsY0UBhC191P4RW6"
 	baiduPanClientSecret = "2FdwKMRizTw45rnMS4fon22hHa1ZIRQz"
 	baiduPanEndpoint     = "https://pan.baidu.com"
 	baiduPanUploadRoot   = "/apps/网盘demo"
