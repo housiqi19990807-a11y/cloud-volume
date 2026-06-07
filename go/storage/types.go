@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os"
 
 	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
@@ -26,9 +27,11 @@ type Backend interface {
 	ListBuckets(context.Context) ([]BucketInfo, error)
 	ListObjectsPage(context.Context, string, string, string, int32) (ObjectPage, error)
 	HeadObject(context.Context, string, string) (ObjectInfo, error)
+	ReadObjectRange(context.Context, string, string, int64, int64) ([]byte, error)
 	DirectoryAccess(context.Context, string, string) (DirectoryAccess, error)
 	CreateDirectory(context.Context, string, string, string) error
 	DeleteObject(context.Context, string, string, bool, string) error
+	DeleteObjectHard(context.Context, string, string, bool, string) error
 	ListTrashPage(context.Context, string, string, int32) (TrashPage, error)
 	RestoreTrashItem(context.Context, string, string) error
 	DeleteTrashItem(context.Context, string, string) error
@@ -40,6 +43,11 @@ type Backend interface {
 	UploadReader(context.Context, string, string, io.Reader, int64, string, string) error
 	DownloadFile(context.Context, string, string, string, string) error
 	StreamObjectToHTTP(context.Context, string, string, bool, http.ResponseWriter) error
+}
+
+// PartialFileUploader exposes optional prefix upload support for append-heavy mount writes.
+type PartialFileUploader interface {
+	UploadFilePrefix(context.Context, string, string, string, os.FileInfo, int64, int) error
 }
 
 func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {

@@ -266,15 +266,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err = s3ops.UploadFileContextResumable(
-		ctx,
-		access.config,
-		access.bucket,
-		access.remoteKey(entry.virtualPath),
-		entry.localPath,
-		entry.taskID,
-		access.uploadWorkers,
-	)
+	err = access.backend.UploadFile(ctx, access.bucket, access.remoteKey(entry.virtualPath), entry.localPath, entry.taskID)
 	if err != nil {
 		return err
 	}

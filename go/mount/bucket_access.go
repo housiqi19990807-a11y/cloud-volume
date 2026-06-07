@@ -12,10 +12,12 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	storageconfig "remote-storage/go/config"
+	storageops "remote-storage/go/storage"
 )
 
 type bucketAccess struct {
 	config          storageconfig.RemoteStorageConfig
+	backend         storageops.Backend
 	bucket          string
 	rootPrefix      string
 	sessionRoot     string
@@ -73,6 +75,7 @@ func newBucketAccess(
 
 	access := &bucketAccess{
 		config:          cfg,
+		backend:         storageops.ForConfig(cfg),
 		bucket:          bucket,
 		rootPrefix:      normalizeRootPrefix(cfg.RootPrefix),
 		sessionRoot:     sessionRoot,

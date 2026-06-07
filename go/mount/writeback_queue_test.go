@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	storageops "remote-storage/go/storage"
 )
 
 type syncStateCall struct {
@@ -320,6 +322,7 @@ func TestDrainFlushesQueuedEntriesBeforeShutdown(t *testing.T) {
 	access.config.AccessKeyID = "ak"
 	access.config.SecretAccessKey = "sk"
 	access.transferTimeout = 100 * time.Millisecond
+	access.backend = storageops.ForConfig(access.config)
 
 	access.writeback.enqueue(virtualPath, localPath, int64(len(payload)))
 	if err := access.writeback.drain(); err == nil {

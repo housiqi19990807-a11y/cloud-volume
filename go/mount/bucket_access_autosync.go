@@ -5,7 +5,7 @@ import (
 	"context"
 	"os"
 
-	s3ops "remote-storage/go/s3"
+	storageops "remote-storage/go/storage"
 )
 
 func (a *bucketAccess) uploadPartialPrefix(
@@ -18,9 +18,12 @@ func (a *bucketAccess) uploadPartialPrefix(
 	if a == nil || readySize <= 0 {
 		return nil
 	}
-	return s3ops.UploadFilePrefixContextResumable(
+	uploader, ok := a.backend.(storageops.PartialFileUploader)
+	if !ok {
+		return nil
+	}
+	return uploader.UploadFilePrefix(
 		ctx,
-		a.config,
 		a.bucket,
 		a.remoteKey(virtualPath),
 		localPath,

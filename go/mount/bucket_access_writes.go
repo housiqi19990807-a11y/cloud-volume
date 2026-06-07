@@ -144,9 +144,8 @@ func (a *bucketAccess) renamePath(
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()
 	taskID := "mount-move-" + uuid.NewString()
-	if err := s3ops.MoveObjectContextWithTask(
+	if err := a.backend.MoveObject(
 		timeoutCtx,
-		a.config,
 		a.bucket,
 		a.remoteKeyForMutation(oldClean, isDir),
 		a.remoteKeyForMutation(newClean, isDir),
@@ -162,12 +161,7 @@ func (a *bucketAccess) renamePath(
 }
 
 func (a *bucketAccess) remoteFileExists(ctx context.Context, virtualPath string) bool {
-	_, err := s3ops.HeadObjectContext(
-		ctx,
-		a.config,
-		a.bucket,
-		a.remoteKey(virtualPath),
-	)
+	_, err := a.backend.HeadObject(ctx, a.bucket, a.remoteKey(virtualPath))
 	return err == nil
 }
 
@@ -175,13 +169,11 @@ func (a *bucketAccess) remotePathExists(ctx context.Context, virtualPath string,
 	if !isDir {
 		return a.remoteFileExists(ctx, virtualPath)
 	}
-	items, err := s3ops.ListObjectsContext(
-		ctx,
-		a.config,
-		a.bucket,
-		a.remotePrefix(virtualPath),
-	)
-	return err == nil && len(items) > 0
+	if _, err := a.backend.HeadObject(ctx, a.bucket, a.remoteKeyForMutation(virtualPath, true)); err == nil {
+		return true
+	}
+	page, err := a.backend.ListObjectsPage(ctx, a.bucket, a.remotePrefix(virtualPath), "", 1)
+	return err == nil && len(page.Items) > 0
 }
 
 func (a *bucketAccess) stagePathFor(virtualPath string) string {

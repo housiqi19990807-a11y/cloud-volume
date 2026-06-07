@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,6 +69,15 @@ func (b webDAVBackend) HeadObject(ctx context.Context, _, key string) (ObjectInf
 	return ObjectInfo{}, os.ErrNotExist
 }
 
+func (b webDAVBackend) ReadObjectRange(
+	ctx context.Context,
+	_ string,
+	key string,
+	offset, length int64,
+) ([]byte, error) {
+	return b.readObjectRange(ctx, key, offset, length)
+}
+
 func (b webDAVBackend) CreateDirectory(ctx context.Context, bucket, prefix, name string) error {
 	if err := b.ensureBucketWritable(bucket); err != nil {
 		return err
@@ -116,6 +124,18 @@ func (b webDAVBackend) DeleteObject(ctx context.Context, bucket, key string, isD
 		return nil
 	}
 	return fmt.Errorf("webdav delete: %s", resp.Status)
+}
+
+func (b webDAVBackend) DeleteObjectHard(
+	ctx context.Context,
+	bucket, key string,
+	_ bool,
+	_ string,
+) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return b.deletePath(ctx, key)
 }
 
 func (b webDAVBackend) RenameObject(ctx context.Context, bucket, key string, isDirectory bool, newName string) error {
@@ -172,48 +192,6 @@ func (b webDAVBackend) UploadReader(
 		return err
 	}
 	return b.put(ctx, key, body)
-}
-
-func (b webDAVBackend) DownloadFile(ctx context.Context, _, key, localPath, _ string) error {
-	req, err := b.request(ctx, http.MethodGet, key, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := b.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("webdav get: %s", resp.Status)
-	}
-	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
-		return err
-	}
-	out, err := os.Create(localPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, resp.Body)
-	return err
-}
-
-func (b webDAVBackend) StreamObjectToHTTP(ctx context.Context, _, key string, _ bool, w http.ResponseWriter) error {
-	req, err := b.request(ctx, http.MethodGet, key, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := b.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("webdav get: %s", resp.Status)
-	}
-	_, err = io.Copy(w, resp.Body)
-	return err
 }
 
 func (b webDAVBackend) propfind(ctx context.Context, key, depth string) ([]webDAVResponse, error) {

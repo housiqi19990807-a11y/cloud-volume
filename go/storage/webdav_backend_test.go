@@ -452,3 +452,58 @@ func TestWebDAVListBucketsUsesMappedBucketName(t *testing.T) {
 		t.Fatalf("buckets = %#v, want mapped bucket name", buckets)
 	}
 }
+
+func TestWebDAVReadObjectRangeUsesServerRangeSupport(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %q, want GET", r.Method)
+		}
+		if got := r.Header.Get("Range"); got != "bytes=6-10" {
+			t.Fatalf("Range = %q, want bytes=6-10", got)
+		}
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = fmt.Fprint(w, "world")
+	}))
+	defer server.Close()
+
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:       storageconfig.StorageTypeWebDAV,
+		Endpoint:          server.URL + "/dav/",
+		WebDAVUsername:    "web-user",
+		WebDAVPassword:    "web-pass",
+		HasWebDAVPassword: true,
+	})
+	data, err := backend.ReadObjectRange(nil, "WebDAV", "notes.txt", 6, 5)
+	if err != nil {
+		t.Fatalf("ReadObjectRange returned error: %v", err)
+	}
+	if string(data) != "world" {
+		t.Fatalf("data = %q, want world", string(data))
+	}
+}
+
+func TestWebDAVReadObjectRangeFallsBackWhenServerIgnoresRange(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %q, want GET", r.Method)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, "hello world")
+	}))
+	defer server.Close()
+
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:       storageconfig.StorageTypeWebDAV,
+		Endpoint:          server.URL + "/dav/",
+		WebDAVUsername:    "web-user",
+		WebDAVPassword:    "web-pass",
+		HasWebDAVPassword: true,
+	})
+	data, err := backend.ReadObjectRange(nil, "WebDAV", "notes.txt", 6, 5)
+	if err != nil {
+		t.Fatalf("ReadObjectRange returned error: %v", err)
+	}
+	if string(data) != "world" {
+		t.Fatalf("data = %q, want world", string(data))
+	}
+}

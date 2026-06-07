@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
@@ -36,6 +37,14 @@ func (b s3Backend) HeadObject(ctx context.Context, bucket, key string) (ObjectIn
 	return s3ops.HeadObjectContext(ctx, b.bucketConfig(bucket), bucket, key)
 }
 
+func (b s3Backend) ReadObjectRange(
+	ctx context.Context,
+	bucket, key string,
+	offset, length int64,
+) ([]byte, error) {
+	return s3ops.ReadObjectRangeContext(ctx, b.bucketConfig(bucket), bucket, key, offset, length)
+}
+
 func (b s3Backend) DirectoryAccess(context.Context, string, string) (DirectoryAccess, error) {
 	return DirectoryAccess{Writable: true, Known: true}, nil
 }
@@ -61,6 +70,18 @@ func (b s3Backend) DeleteObject(
 		return s3ops.DeleteObjectHardContextWithTask(ctx, cfg, bucket, key, isDirectory, taskID)
 	}
 	return s3ops.DeleteObjectContextWithTask(ctx, cfg, bucket, key, isDirectory, taskID)
+}
+
+func (b s3Backend) DeleteObjectHard(
+	ctx context.Context,
+	bucket, key string,
+	isDirectory bool,
+	taskID string,
+) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.DeleteObjectHardContextWithTask(ctx, b.bucketConfig(bucket), bucket, key, isDirectory, taskID)
 }
 
 func (b s3Backend) RenameObject(
@@ -106,7 +127,7 @@ func (b s3Backend) UploadFile(
 	if err := b.ensureBucketWritable(bucket); err != nil {
 		return err
 	}
-	return s3ops.UploadFileContext(ctx, b.bucketConfig(bucket), bucket, key, localPath, taskID)
+	return s3ops.UploadFileContextResumable(ctx, b.bucketConfig(bucket), bucket, key, localPath, taskID, 0)
 }
 
 func (b s3Backend) UploadReader(
@@ -172,4 +193,26 @@ func (b s3Backend) StreamObjectToHTTP(
 	w http.ResponseWriter,
 ) error {
 	return s3ops.StreamObjectToHTTP(ctx, b.bucketConfig(bucket), bucket, key, inline, w)
+}
+
+func (b s3Backend) UploadFilePrefix(
+	ctx context.Context,
+	bucket, key, localPath string,
+	info os.FileInfo,
+	readySize int64,
+	uploadWorkers int,
+) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.UploadFilePrefixContextResumable(
+		ctx,
+		b.bucketConfig(bucket),
+		bucket,
+		key,
+		localPath,
+		info,
+		readySize,
+		uploadWorkers,
+	)
 }

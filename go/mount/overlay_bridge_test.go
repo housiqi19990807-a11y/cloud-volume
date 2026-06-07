@@ -64,6 +64,7 @@ func newTestBucketAccess(t *testing.T) *bucketAccess {
 		t.Fatalf("newLocalMountOverlay: %v", err)
 	}
 	access := &bucketAccess{
+		backend:        mountTestBackend{},
 		bucket:         "test-bucket",
 		sessionRoot:    root,
 		cacheRoot:      filepath.Join(root, "cache"),

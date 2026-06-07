@@ -204,12 +204,5 @@ func (a *bucketAccess) readRemoteRange(
 ) ([]byte, error) {
 	timeoutCtx, cancel := a.withTransferTimeout(ctx)
 	defer cancel()
-	return s3ops.ReadObjectRangeContext(
-		timeoutCtx,
-		a.config,
-		a.bucket,
-		a.remoteKey(virtualPath),
-		offset,
-		length,
-	)
+	return a.backend.ReadObjectRange(timeoutCtx, a.bucket, a.remoteKey(virtualPath), offset, length)
 }

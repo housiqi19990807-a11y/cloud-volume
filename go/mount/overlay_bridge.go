@@ -181,13 +181,7 @@ func (a *bucketAccess) createRemoteDirectory(
 	name := baseName(clean)
 	timeoutCtx, cancel := a.withTimeout(ctx)
 	defer cancel()
-	err := s3ops.CreateDirectoryContext(
-		timeoutCtx,
-		a.config,
-		a.bucket,
-		a.remotePrefix(parent),
-		name,
-	)
+	err := a.backend.CreateDirectory(timeoutCtx, a.bucket, a.remotePrefix(parent), name)
 	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "exists") {
 		return err
 	}
