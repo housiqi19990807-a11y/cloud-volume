@@ -156,28 +156,6 @@ extension _FileManagerPageActions on _FileManagerPageState {
     final bucket = _activeBucket;
     if (bucket == null) return;
     final kind = previewKindForName(object.displayName);
-    if (kind == FilePreviewKind.image &&
-        FilePreviewWindowService.instance.isSupported) {
-      try {
-        final localPath = await FileAccessService.instance
-            .preparePreviewFilePath(
-              api: widget.api,
-              config: widget.config,
-              bucket: bucket,
-              object: object,
-            );
-        final opened = await FilePreviewWindowService.instance.openImagePreview(
-          title: object.displayName,
-          localPath: localPath,
-        );
-        if (opened) {
-          return;
-        }
-      } catch (error) {
-        if (!mounted) return;
-        _showPageError(error);
-      }
-    }
     if (!mounted) return;
     var loading = kind == FilePreviewKind.image;
     FilePreviewSource? source;
@@ -221,6 +199,10 @@ extension _FileManagerPageActions on _FileManagerPageState {
               source: source,
               loading: loading,
               errorText: errorText,
+              onOpenInNewWindow: kind == FilePreviewKind.image &&
+                      FilePreviewWindowService.instance.isSupported
+                  ? () => unawaited(_openImagePreviewWindow(object))
+                  : null,
               onSaveAs: () => unawaited(_downloadObject(object)),
               onDownload: () =>
                   unawaited(_downloadObjectToDefaultDirectory(object)),
@@ -229,6 +211,25 @@ extension _FileManagerPageActions on _FileManagerPageState {
         );
       },
     );
+  }
+
+  Future<void> _openImagePreviewWindow(ObjectInfo object) async {
+    final bucket = _activeBucket;
+    if (bucket == null) return;
+    try {
+      final localPath = await FileAccessService.instance.preparePreviewFilePath(
+        api: widget.api,
+        config: widget.config,
+        bucket: bucket,
+        object: object,
+      );
+      await FilePreviewWindowService.instance.openImagePreview(
+        title: object.displayName,
+        localPath: localPath,
+      );
+    } catch (error) {
+      _showPageError(error);
+    }
   }
 
   Future<void> _downloadObjectToDefaultDirectory(ObjectInfo object) async {

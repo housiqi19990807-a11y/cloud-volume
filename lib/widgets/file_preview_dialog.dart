@@ -15,6 +15,7 @@ class FilePreviewDialog extends StatelessWidget {
     required this.source,
     required this.loading,
     required this.errorText,
+    this.onOpenInNewWindow,
     required this.onSaveAs,
     required this.onDownload,
   });
@@ -24,6 +25,7 @@ class FilePreviewDialog extends StatelessWidget {
   final FilePreviewSource? source;
   final bool loading;
   final String? errorText;
+  final VoidCallback? onOpenInNewWindow;
   final VoidCallback onSaveAs;
   final VoidCallback onDownload;
 
@@ -62,6 +64,13 @@ class FilePreviewDialog extends StatelessWidget {
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('取消'),
                 ),
+                if (onOpenInNewWindow != null) ...[
+                  const SizedBox(width: 10),
+                  ShadButton.outline(
+                    onPressed: loading ? null : onOpenInNewWindow,
+                    child: const Text('新窗口打开'),
+                  ),
+                ],
                 const SizedBox(width: 10),
                 ShadButton.outline(
                   onPressed: loading ? null : onSaveAs,
