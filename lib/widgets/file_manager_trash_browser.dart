@@ -13,6 +13,8 @@ import 'package:remote_storage/widgets/app_loading_indicator.dart';
 const String _trashContextMenuGroup = 'file_manager_trash_browser';
 
 class FileManagerTrashBrowser extends StatelessWidget {
+  static const double _gridChildAspectRatio = 0.9;
+
   const FileManagerTrashBrowser({
     super.key,
     required this.items,
@@ -52,7 +54,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
           crossAxisCount: crossAxisCount,
           mainAxisSpacing: 6,
           crossAxisSpacing: 6,
-          childAspectRatio: 0.92,
+          childAspectRatio: _gridChildAspectRatio,
           children: [
             ...items.map(
               (item) => _wrapWithContextMenu(

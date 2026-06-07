@@ -17,6 +17,8 @@ import 'package:remote_storage/widgets/app_loading_indicator.dart';
 const String _objectContextMenuGroup = 'file_manager_object_browser';
 
 class FileManagerObjectBrowser extends StatelessWidget {
+  static const double _gridChildAspectRatio = 0.9;
+
   const FileManagerObjectBrowser({
     super.key,
     required this.objects,
@@ -130,7 +132,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
           crossAxisCount: crossAxisCount,
           mainAxisSpacing: 6,
           crossAxisSpacing: 6,
-          childAspectRatio: 0.92,
+          childAspectRatio: _gridChildAspectRatio,
           children: [
             ...objects.map(
               (object) => _wrapWithContextMenu(
@@ -379,10 +381,14 @@ class FileManagerObjectBrowser extends StatelessWidget {
         ),
         onCopy: readOnly
             ? null
-            : () => _runMenuAction(() => onObjectAction(object, FileObjectAction.copy)),
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.copy),
+              ),
         onMove: readOnly
             ? null
-            : () => _runMenuAction(() => onObjectAction(object, FileObjectAction.move)),
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.move),
+              ),
         onRename: readOnly
             ? null
             : () => _runMenuAction(
