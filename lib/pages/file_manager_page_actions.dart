@@ -13,6 +13,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
       withData: widget.api.capabilities.supportsBrowserTransfers,
     );
     if (result == null || result.files.isEmpty) return;
+    final tasks = <TransferTask>[];
     for (final file in result.files) {
       final path = file.path;
       final bytes = file.bytes;
@@ -20,16 +21,23 @@ extension _FileManagerPageActions on _FileManagerPageState {
         continue;
       }
       if (bytes != null) {
-        _queueBrowserUpload(file.name, bytes);
+        final task = _queueBrowserUpload(file.name, bytes);
+        if (task != null) {
+          tasks.add(task);
+        }
       } else if (path != null) {
-        _queueLocalUpload(path);
+        final task = _queueLocalUpload(path);
+        if (task != null) {
+          tasks.add(task);
+        }
       }
     }
+    await _showUploadProgressDialogForTasks(tasks);
   }
 
-  void _queueLocalUpload(String localPath) {
-    if (_activeBucket == null || localPath.trim().isEmpty) return;
-    if (!_ensureCurrentDirectoryWritable()) return;
+  TransferTask? _queueLocalUpload(String localPath) {
+    if (_activeBucket == null || localPath.trim().isEmpty) return null;
+    if (!_ensureCurrentDirectoryWritable()) return null;
     final bucket = _activeBucket!;
     final key = _prefix + path.basename(localPath);
     final task = TransferQueue.instance.startTask(
@@ -39,11 +47,12 @@ extension _FileManagerPageActions on _FileManagerPageState {
       localPath: localPath,
     );
     unawaited(_runUploadTask(task, bucket));
+    return task;
   }
 
-  void _queueBrowserUpload(String fileName, Uint8List bytes) {
-    if (_activeBucket == null) return;
-    if (!_ensureCurrentDirectoryWritable()) return;
+  TransferTask? _queueBrowserUpload(String fileName, Uint8List bytes) {
+    if (_activeBucket == null) return null;
+    if (!_ensureCurrentDirectoryWritable()) return null;
     final bucket = _activeBucket!;
     final key = _prefix + fileName;
     final task = TransferQueue.instance.startTask(
@@ -53,6 +62,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
       localPath: fileName,
     );
     unawaited(_runBrowserUploadTask(task, bucket, bytes, fileName));
+    return task;
   }
 
   Future<void> _createDirectory() async {

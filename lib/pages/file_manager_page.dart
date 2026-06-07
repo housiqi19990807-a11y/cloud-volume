@@ -35,6 +35,7 @@ import 'package:remote_storage/widgets/file_transfer_clipboard_region.dart';
 import 'package:remote_storage/widgets/mount_bucket_dialog.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:remote_storage/widgets/share_dialogs.dart';
+import 'package:remote_storage/widgets/upload_progress_dialog.dart';
 import 'package:remote_storage/utils/file_preview_type.dart';
 import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -51,6 +52,7 @@ part 'file_manager_page_state.dart';
 part 'file_manager_page_selection.dart';
 part 'file_manager_page_transfer_inputs.dart';
 part 'file_manager_page_trash.dart';
+part 'file_manager_page_upload_feedback.dart';
 part 'file_manager_page_webdav.dart';
 
 // 文件管理页首页模式：既支持普通文件浏览，也支持侧边栏独立回收站入口。
@@ -390,8 +392,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
               ? null
               : _upload,
           onBatchDownload: _loading ? null : _downloadSelectedObjects,
-          onBatchDelete:
-              _loading || !_currentBucketWritable ? null : _deleteSelectedObjects,
+          onBatchDelete: _loading || !_currentBucketWritable
+              ? null
+              : _deleteSelectedObjects,
           onClearSelection: _clearSelection,
         ),
       ],

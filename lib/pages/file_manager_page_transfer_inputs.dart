@@ -7,14 +7,14 @@ extension _FileManagerPageTransferInputs on _FileManagerPageState {
     if (!_acceptsFileTransferInput || localPaths.isEmpty) {
       return;
     }
-    var queued = 0;
+    final tasks = <TransferTask>[];
     for (final localPath in localPaths) {
-      _queueLocalUpload(localPath);
-      queued += 1;
+      final task = _queueLocalUpload(localPath);
+      if (task != null) {
+        tasks.add(task);
+      }
     }
-    if (queued > 0) {
-      _showPageSnack('已加入 $queued 个上传任务');
-    }
+    await _showUploadProgressDialogForTasks(tasks);
   }
 
   Future<void> _copySelectedObjectsToClipboard() async {
