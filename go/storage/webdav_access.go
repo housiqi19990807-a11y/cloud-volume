@@ -178,7 +178,7 @@ func (b webDAVBackend) directoryAccessFromOptions(
 	if strings.Contains(allow, "PUT") || strings.Contains(allow, "MKCOL") {
 		return DirectoryAccess{Writable: true, Known: true}, nil
 	}
-	return DirectoryAccess{Writable: true, Known: false}, nil
+	return DirectoryAccess{Writable: false, Known: true, Reason: "当前 WebDAV 目录为只读，无法写入"}, nil
 }
 
 func webDAVDirectoryKey(prefix string) string {

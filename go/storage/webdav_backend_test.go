@@ -238,7 +238,7 @@ func TestWebDAVUploadChecksChildDirectoryAccess(t *testing.T) {
 	}
 }
 
-func TestWebDAVDirectoryAccessTreatsOptionsWithoutWritesAsUnknown(t *testing.T) {
+func TestWebDAVDirectoryAccessTreatsOptionsWithoutWritesAsReadOnly(t *testing.T) {
 	var sawOptions bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "PROPFIND" {
@@ -268,8 +268,49 @@ func TestWebDAVDirectoryAccessTreatsOptionsWithoutWritesAsUnknown(t *testing.T) 
 	if !sawOptions {
 		t.Fatal("expected OPTIONS fallback")
 	}
-	if access.Known || !access.Writable {
-		t.Fatalf("access = %#v, want unknown writable fallback", access)
+	if !access.Known || access.Writable {
+		t.Fatalf("access = %#v, want known readonly fallback", access)
+	}
+}
+
+func TestWebDAVDirectoryAccessUsesCurrentOptionsPath(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PROPFIND" {
+			w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+			_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:"/>`)
+			return
+		}
+		if r.Method != "OPTIONS" {
+			t.Fatalf("method = %q, want OPTIONS fallback", r.Method)
+		}
+		allow := "OPTIONS, PROPFIND, GET"
+		if r.URL.Path == "/dav/writable/" {
+			allow = "OPTIONS, PROPFIND, GET, PUT"
+		}
+		w.Header().Set("Allow", allow)
+	}))
+	defer server.Close()
+
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:       storageconfig.StorageTypeWebDAV,
+		Endpoint:          server.URL + "/dav/",
+		WebDAVUsername:    "web-user",
+		WebDAVPassword:    "web-pass",
+		HasWebDAVPassword: true,
+	})
+	rootAccess, err := backend.DirectoryAccess(nil, "WebDAV", "")
+	if err != nil {
+		t.Fatalf("root DirectoryAccess returned error: %v", err)
+	}
+	if !rootAccess.Known || rootAccess.Writable {
+		t.Fatalf("root access = %#v, want known readonly from root OPTIONS", rootAccess)
+	}
+	childAccess, err := backend.DirectoryAccess(nil, "WebDAV", "writable/")
+	if err != nil {
+		t.Fatalf("child DirectoryAccess returned error: %v", err)
+	}
+	if !childAccess.Known || !childAccess.Writable {
+		t.Fatalf("child access = %#v, want known writable from child OPTIONS", childAccess)
 	}
 }
 
