@@ -68,7 +68,7 @@ class FilePreviewDialog extends StatelessWidget {
                   const SizedBox(width: 10),
                   ShadButton.outline(
                     onPressed: onOpenWithSystem,
-                    child: const Text('外部打开'),
+                    child: const Text('外部应用打开'),
                   ),
                 ],
                 const SizedBox(width: 10),
