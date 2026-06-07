@@ -10,6 +10,28 @@ import (
 	"strings"
 )
 
+var webDAVReadOnlyOptionsMethods = map[string]struct{}{
+	"GET":      {},
+	"HEAD":     {},
+	"OPTIONS":  {},
+	"PROPFIND": {},
+	"REPORT":   {},
+	"TRACE":    {},
+}
+
+var webDAVMutatingOptionsMethods = map[string]struct{}{
+	"COPY":      {},
+	"DELETE":    {},
+	"LOCK":      {},
+	"MKCOL":     {},
+	"MOVE":      {},
+	"PATCH":     {},
+	"POST":      {},
+	"PROPPATCH": {},
+	"PUT":       {},
+	"UNLOCK":    {},
+}
+
 func (b webDAVBackend) DirectoryAccess(
 	ctx context.Context,
 	bucket, prefix string,
@@ -175,10 +197,59 @@ func (b webDAVBackend) directoryAccessFromOptions(
 	if allow == "" {
 		return DirectoryAccess{Writable: true, Known: false}, nil
 	}
-	if strings.Contains(allow, "PUT") || strings.Contains(allow, "MKCOL") {
+	methods := parseAllowMethods(allow)
+	if hasAnyMethod(methods, "PUT", "MKCOL") {
 		return DirectoryAccess{Writable: true, Known: true}, nil
 	}
-	return DirectoryAccess{Writable: false, Known: true, Reason: "当前 WebDAV 目录为只读，无法写入"}, nil
+	if hasMutatingOptionsMethod(methods) {
+		return DirectoryAccess{Writable: true, Known: false}, nil
+	}
+	if isReadOnlyOptionsMethodSet(methods) {
+		return DirectoryAccess{Writable: false, Known: true, Reason: "当前 WebDAV 目录为只读，无法写入"}, nil
+	}
+	return DirectoryAccess{Writable: true, Known: false}, nil
+}
+
+func parseAllowMethods(allow string) map[string]struct{} {
+	methods := make(map[string]struct{})
+	for _, part := range strings.Split(allow, ",") {
+		method := strings.ToUpper(strings.TrimSpace(part))
+		if method == "" {
+			continue
+		}
+		methods[method] = struct{}{}
+	}
+	return methods
+}
+
+func hasAnyMethod(methods map[string]struct{}, names ...string) bool {
+	for _, name := range names {
+		if _, ok := methods[name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMutatingOptionsMethod(methods map[string]struct{}) bool {
+	for method := range methods {
+		if _, ok := webDAVMutatingOptionsMethods[method]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func isReadOnlyOptionsMethodSet(methods map[string]struct{}) bool {
+	if len(methods) == 0 {
+		return false
+	}
+	for method := range methods {
+		if _, ok := webDAVReadOnlyOptionsMethods[method]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func webDAVDirectoryKey(prefix string) string {

@@ -238,7 +238,7 @@ func TestWebDAVUploadChecksChildDirectoryAccess(t *testing.T) {
 	}
 }
 
-func TestWebDAVDirectoryAccessTreatsOptionsWithoutWritesAsReadOnly(t *testing.T) {
+func TestWebDAVDirectoryAccessTreatsReadOnlyOptionsMethodsAsReadOnly(t *testing.T) {
 	var sawOptions bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "PROPFIND" {
@@ -270,6 +270,41 @@ func TestWebDAVDirectoryAccessTreatsOptionsWithoutWritesAsReadOnly(t *testing.T)
 	}
 	if !access.Known || access.Writable {
 		t.Fatalf("access = %#v, want known readonly fallback", access)
+	}
+}
+
+func TestWebDAVDirectoryAccessDoesNotTreatMutatingOptionsWithoutPutAsReadOnly(t *testing.T) {
+	var sawOptions bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PROPFIND" {
+			w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+			_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?><D:multistatus xmlns:D="DAV:"/>`)
+			return
+		}
+		if r.Method != "OPTIONS" {
+			t.Fatalf("method = %q, want OPTIONS fallback", r.Method)
+		}
+		sawOptions = true
+		w.Header().Set("Allow", "OPTIONS, LOCK, DELETE, PROPPATCH, COPY, MOVE, UNLOCK, PROPFIND")
+	}))
+	defer server.Close()
+
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:       storageconfig.StorageTypeWebDAV,
+		Endpoint:          server.URL + "/dav/",
+		WebDAVUsername:    "web-user",
+		WebDAVPassword:    "web-pass",
+		HasWebDAVPassword: true,
+	})
+	access, err := backend.DirectoryAccess(nil, "WebDAV", "writable/")
+	if err != nil {
+		t.Fatalf("DirectoryAccess returned error: %v", err)
+	}
+	if !sawOptions {
+		t.Fatal("expected OPTIONS fallback")
+	}
+	if access.Known || !access.Writable {
+		t.Fatalf("access = %#v, want unknown writable fallback", access)
 	}
 }
 
