@@ -33,17 +33,20 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
           : (bucket) => unawaited(_configureBucket(bucket)),
       onMountBucket: _isTrashHome
           ? null
-          : widget.api.capabilities.supportsMounts
+          : widget.api.capabilities.supportsMounts &&
+                widget.config.supportsMounts
           ? (bucket) => unawaited(_mountBucket(bucket))
           : null,
       onUnmountBucket: _isTrashHome
           ? null
-          : widget.api.capabilities.supportsMounts
+          : widget.api.capabilities.supportsMounts &&
+                widget.config.supportsMounts
           ? (bucket) => unawaited(_unmountBucket(bucket))
           : null,
       onOpenMountedBucket: _isTrashHome
           ? null
-          : widget.api.capabilities.supportsMounts
+          : widget.api.capabilities.supportsMounts &&
+                widget.config.supportsMounts
           ? (bucket) => unawaited(_openMountedBucket(bucket))
           : null,
       onOpenWebDavBucket: _isTrashHome

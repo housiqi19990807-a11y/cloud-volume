@@ -14,6 +14,8 @@ extension _FileManagerPageDerivedState on _FileManagerPageState {
   String get _bucketSourceLabel {
     final name = widget.config.displayName.trim().isNotEmpty
         ? widget.config.displayName.trim()
+        : widget.config.storageType == StorageType.baiduPan
+        ? '百度网盘'
         : widget.config.storageType == StorageType.webdav
         ? widget.config.webdavUsername.trim()
         : widget.config.accessKeyId.trim();

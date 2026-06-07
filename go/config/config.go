@@ -7,44 +7,45 @@ import (
 
 // RemoteStorageConfig stores account connection values persisted to TOML.
 type RemoteStorageConfig struct {
-	Endpoint                    string `json:"endpoint" toml:"endpoint"`
-	StorageType                 string `json:"storageType" toml:"storage_type"`
-	ProviderType                string `json:"providerType" toml:"provider_type"`
-	DisplayName                 string `json:"displayName" toml:"display_name"`
-	MappedBucketName            string `json:"mappedBucketName" toml:"mapped_bucket_name"`
-	Region                      string `json:"region" toml:"region"`
-	Bucket                      string `json:"bucket" toml:"bucket"`
-	AccessKeyID                 string `json:"accessKeyId" toml:"access_key_id"`
-	SecretAccessKey             string `json:"secretAccessKey" toml:"secret_access_key"`
-	HasSecretAccessKey          bool   `json:"hasSecretAccessKey" toml:"-"`
-	WebDAVUsername              string `json:"webdavUsername" toml:"webdav_username"`
-	WebDAVPassword              string `json:"webdavPassword" toml:"webdav_password"`
-	HasWebDAVPassword           bool   `json:"hasWebdavPassword" toml:"-"`
-	RootPrefix                  string `json:"rootPrefix" toml:"root_prefix"`
-	DefaultDownloadDirectory    string `json:"defaultDownloadDirectory" toml:"default_download_directory"`
-	CacheDirectory              string `json:"cacheDirectory" toml:"cache_directory"`
-	ResolvedCacheDirectory      string `json:"resolvedCacheDirectory" toml:"-"`
-	HideDotFiles                bool   `json:"hideDotFiles" toml:"hide_dot_files"`
-	FileOpenMode                string `json:"fileOpenMode" toml:"file_open_mode"`
-	TrashDirectoryName          string `json:"trashDirectoryName" toml:"trash_directory_name"`
-	TrashRetentionDays          int    `json:"trashRetentionDays" toml:"trash_retention_days"`
+	Endpoint                    string                    `json:"endpoint" toml:"endpoint"`
+	StorageType                 string                    `json:"storageType" toml:"storage_type"`
+	ProviderType                string                    `json:"providerType" toml:"provider_type"`
+	DisplayName                 string                    `json:"displayName" toml:"display_name"`
+	MappedBucketName            string                    `json:"mappedBucketName" toml:"mapped_bucket_name"`
+	Region                      string                    `json:"region" toml:"region"`
+	Bucket                      string                    `json:"bucket" toml:"bucket"`
+	AccessKeyID                 string                    `json:"accessKeyId" toml:"access_key_id"`
+	SecretAccessKey             string                    `json:"secretAccessKey" toml:"secret_access_key"`
+	HasSecretAccessKey          bool                      `json:"hasSecretAccessKey" toml:"-"`
+	WebDAVUsername              string                    `json:"webdavUsername" toml:"webdav_username"`
+	WebDAVPassword              string                    `json:"webdavPassword" toml:"webdav_password"`
+	HasWebDAVPassword           bool                      `json:"hasWebdavPassword" toml:"-"`
+	RootPrefix                  string                    `json:"rootPrefix" toml:"root_prefix"`
+	DefaultDownloadDirectory    string                    `json:"defaultDownloadDirectory" toml:"default_download_directory"`
+	CacheDirectory              string                    `json:"cacheDirectory" toml:"cache_directory"`
+	ResolvedCacheDirectory      string                    `json:"resolvedCacheDirectory" toml:"-"`
+	HideDotFiles                bool                      `json:"hideDotFiles" toml:"hide_dot_files"`
+	FileOpenMode                string                    `json:"fileOpenMode" toml:"file_open_mode"`
+	TrashDirectoryName          string                    `json:"trashDirectoryName" toml:"trash_directory_name"`
+	TrashRetentionDays          int                       `json:"trashRetentionDays" toml:"trash_retention_days"`
 	BucketSettings              map[string]BucketSettings `json:"bucketSettings" toml:"bucket_settings"`
-	WritebackQuietSeconds       int    `json:"writebackQuietSeconds" toml:"writeback_quiet_seconds"`
-	UsePathStyle                bool   `json:"usePathStyle" toml:"use_path_style"`
-	WindowsMountMode            string `json:"windowsMountMode" toml:"windows_mount_mode"`
-	WindowsThisPcEntryEnabled   bool   `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
-	WindowsWritebackConcurrency int    `json:"windowsWritebackConcurrency" toml:"windows_writeback_concurrency"`
+	WritebackQuietSeconds       int                       `json:"writebackQuietSeconds" toml:"writeback_quiet_seconds"`
+	UsePathStyle                bool                      `json:"usePathStyle" toml:"use_path_style"`
+	WindowsMountMode            string                    `json:"windowsMountMode" toml:"windows_mount_mode"`
+	WindowsThisPcEntryEnabled   bool                      `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
+	WindowsWritebackConcurrency int                       `json:"windowsWritebackConcurrency" toml:"windows_writeback_concurrency"`
 }
 
 type BucketSettings struct {
-	ReadOnly       bool    `json:"readOnly" toml:"read_only"`
-	TrashEnabled   *bool   `json:"trashEnabled,omitempty" toml:"trash_enabled,omitempty"`
+	ReadOnly       bool   `json:"readOnly" toml:"read_only"`
+	TrashEnabled   *bool  `json:"trashEnabled,omitempty" toml:"trash_enabled,omitempty"`
 	TrashDirectory string `json:"trashDirectory" toml:"trash_directory"`
 }
 
 const (
 	StorageTypeS3                      = "s3"
 	StorageTypeWebDAV                  = "webdav"
+	StorageTypeBaiduPan                = "baidu_pan"
 	WindowsMountModeCloudFilesCached   = "cloud_files_cached"
 	WindowsMountModeCloudFilesDirect   = "cloud_files_direct"
 	WindowsMountModeWebDAV             = "webdav"
@@ -83,9 +84,9 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 	return RemoteStorageConfig{
 		Endpoint:                    strings.TrimSpace(c.Endpoint),
 		StorageType:                 normalizeStorageType(c.StorageType),
-		ProviderType:                normalizeProviderType(c.ProviderType, c.Endpoint),
+		ProviderType:                normalizeProviderType(c.ProviderType, c.Endpoint, c.StorageType),
 		DisplayName:                 strings.TrimSpace(c.DisplayName),
-		MappedBucketName:            normalizeMappedBucketName(c.MappedBucketName, c.DisplayName),
+		MappedBucketName:            normalizeMappedBucketName(c.StorageType, c.MappedBucketName, c.DisplayName),
 		Region:                      strings.TrimSpace(c.Region),
 		Bucket:                      strings.TrimSpace(c.Bucket),
 		AccessKeyID:                 strings.TrimSpace(c.AccessKeyID),
@@ -129,6 +130,10 @@ func (c RemoteStorageConfig) IsConfigured() bool {
 	if normalized.Endpoint == "" {
 		return false
 	}
+	if normalized.StorageType == StorageTypeBaiduPan {
+		return normalized.AccessKeyID != "" &&
+			(normalized.SecretAccessKey != "" || normalized.HasSecretAccessKey)
+	}
 	if normalized.StorageType == StorageTypeWebDAV {
 		return normalized.WebDAVUsername != "" &&
 			(normalized.WebDAVPassword != "" || normalized.HasWebDAVPassword)
@@ -166,7 +171,8 @@ func (c RemoteStorageConfig) MergeStoredSecrets(existing RemoteStorageConfig) Re
 // WithDefaultWebDAVCredentials falls back to AK/SK when web credentials are omitted.
 func (c RemoteStorageConfig) WithDefaultWebDAVCredentials() RemoteStorageConfig {
 	normalized := c.Normalized()
-	if normalized.StorageType == StorageTypeWebDAV {
+	if normalized.StorageType == StorageTypeWebDAV ||
+		normalized.StorageType == StorageTypeBaiduPan {
 		return normalized
 	}
 	if normalized.WebDAVUsername == "" {
@@ -184,6 +190,12 @@ func (c RemoteStorageConfig) AccountLabel(fallback string) string {
 	normalized := c.Normalized()
 	if normalized.DisplayName != "" {
 		return normalized.DisplayName
+	}
+	if normalized.StorageType == StorageTypeBaiduPan {
+		if fallback != "" {
+			return fallback
+		}
+		return "百度网盘"
 	}
 	if normalized.AccessKeyID != "" {
 		return normalized.AccessKeyID
@@ -222,12 +234,14 @@ func normalizeStorageType(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case StorageTypeWebDAV:
 		return StorageTypeWebDAV
+	case StorageTypeBaiduPan:
+		return StorageTypeBaiduPan
 	default:
 		return StorageTypeS3
 	}
 }
 
-func normalizeMappedBucketName(value, displayName string) string {
+func normalizeMappedBucketName(storageType, value, displayName string) string {
 	trimmed := strings.Trim(strings.TrimSpace(value), "/")
 	if trimmed != "" {
 		return trimmed
@@ -236,13 +250,19 @@ func normalizeMappedBucketName(value, displayName string) string {
 	if fallback != "" {
 		return fallback
 	}
+	if normalizeStorageType(storageType) == StorageTypeBaiduPan {
+		return "百度网盘"
+	}
 	return "WebDAV"
 }
 
-func normalizeProviderType(value, endpoint string) string {
+func normalizeProviderType(value, endpoint, storageType string) string {
+	if normalizeStorageType(storageType) == StorageTypeBaiduPan {
+		return StorageTypeBaiduPan
+	}
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
-	case "osca", "gfs", "minio", "s3":
+	case "osca", "gfs", "minio", "s3", StorageTypeBaiduPan:
 		return normalized
 	}
 	lowerEndpoint := strings.ToLower(endpoint)
@@ -317,7 +337,7 @@ func (c RemoteStorageConfig) BucketSettingsFor(bucket string) BucketSettings {
 	setting := BucketSettings{
 		TrashDirectory: normalized.TrashDirectoryName,
 	}
-	if normalized.StorageType != StorageTypeWebDAV {
+	if normalized.StorageType == StorageTypeS3 {
 		enabled := true
 		setting.TrashEnabled = &enabled
 	} else {

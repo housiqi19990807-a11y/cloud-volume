@@ -67,7 +67,8 @@ enum WindowsMountMode {
 
 enum StorageType {
   s3('s3', 'S3 对象存储'),
-  webdav('webdav', 'WebDAV');
+  webdav('webdav', 'WebDAV'),
+  baiduPan('baidu_pan', '百度网盘');
 
   const StorageType(this.storageValue, this.label);
 
@@ -78,20 +79,26 @@ enum StorageType {
     final normalized = (value ?? '').toString().trim().toLowerCase();
     return switch (normalized) {
       'webdav' => StorageType.webdav,
+      'baidu_pan' => StorageType.baiduPan,
       _ => StorageType.s3,
     };
   }
 }
 
 enum StorageProviderType {
-  s3('s3');
+  s3('s3'),
+  baiduPan('baidu_pan');
 
   const StorageProviderType(this.storageValue);
 
   final String storageValue;
 
   static StorageProviderType fromStorage(Object? value) {
-    return StorageProviderType.s3;
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    return switch (normalized) {
+      'baidu_pan' => StorageProviderType.baiduPan,
+      _ => StorageProviderType.s3,
+    };
   }
 }
 
@@ -105,11 +112,13 @@ class BucketSettings {
 
   factory BucketSettings.fromJson(Map<String, dynamic> json) {
     return BucketSettings(
-      readOnly: _boolFromDynamic(json['readOnly'] ?? json['read_only']) ?? false,
-      trashEnabled:
-          _boolFromDynamic(json['trashEnabled'] ?? json['trash_enabled']),
-      trashDirectory:
-          (json['trashDirectory'] ?? json['trash_directory'] ?? '').toString(),
+      readOnly:
+          _boolFromDynamic(json['readOnly'] ?? json['read_only']) ?? false,
+      trashEnabled: _boolFromDynamic(
+        json['trashEnabled'] ?? json['trash_enabled'],
+      ),
+      trashDirectory: (json['trashDirectory'] ?? json['trash_directory'] ?? '')
+          .toString(),
     );
   }
 
@@ -138,7 +147,9 @@ class BucketSettings {
   }) {
     return BucketSettings(
       readOnly: readOnly ?? this.readOnly,
-      trashEnabled: clearTrashEnabled ? null : (trashEnabled ?? this.trashEnabled),
+      trashEnabled: clearTrashEnabled
+          ? null
+          : (trashEnabled ?? this.trashEnabled),
       trashDirectory: trashDirectory ?? this.trashDirectory,
     );
   }
@@ -333,6 +344,11 @@ class RemoteStorageConfig {
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
+    if (storageType == StorageType.baiduPan) {
+      return endpoint.trim().isNotEmpty &&
+          accessKeyId.trim().isNotEmpty &&
+          (secretAccessKey.trim().isNotEmpty || hasSecretAccessKey);
+    }
     if (storageType == StorageType.webdav) {
       return endpoint.trim().isNotEmpty &&
           webdavUsername.trim().isNotEmpty &&
@@ -348,9 +364,13 @@ class RemoteStorageConfig {
         (webdavPassword.isNotEmpty || hasWebdavPassword);
   }
 
+  bool get supportsMounts => storageType != StorageType.baiduPan;
+
+  bool get supportsShareLinks => storageType == StorageType.s3;
+
   BucketSettings bucketSettingsFor(String bucket) {
     final bucketName = bucket.trim();
-    final defaultTrashEnabled = storageType == StorageType.webdav ? false : true;
+    final defaultTrashEnabled = storageType == StorageType.s3;
     final resolved = bucketSettings[bucketName];
     return BucketSettings(
       readOnly: resolved?.readOnly ?? false,
@@ -361,7 +381,8 @@ class RemoteStorageConfig {
     );
   }
 
-  bool bucketTrashEnabled(String bucket) => bucketSettingsFor(bucket).isTrashEnabled;
+  bool bucketTrashEnabled(String bucket) =>
+      bucketSettingsFor(bucket).isTrashEnabled;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{

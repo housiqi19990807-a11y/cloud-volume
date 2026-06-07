@@ -66,7 +66,8 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshVisibleMountStatuses() async {
-    if (!widget.api.capabilities.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts ||
+        !widget.config.supportsMounts) {
       return;
     }
     if (_loading ||
@@ -83,7 +84,8 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshVisibleMountStatusesOnce() async {
-    if (!widget.api.capabilities.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts ||
+        !widget.config.supportsMounts) {
       return;
     }
     if (_activeBucket != null) {
@@ -102,7 +104,8 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshBucketMountStatuses(List<BucketInfo> buckets) async {
-    if (!widget.api.capabilities.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts ||
+        !widget.config.supportsMounts) {
       return;
     }
     for (final bucket in buckets) {
@@ -111,7 +114,8 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshMountStatus(String bucket) async {
-    if (!widget.api.capabilities.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts ||
+        !widget.config.supportsMounts) {
       return;
     }
     try {
@@ -191,7 +195,8 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   void _applyMountStatus(BucketMountStatus status) {
-    if (!widget.api.capabilities.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts ||
+        !widget.config.supportsMounts) {
       return;
     }
     if (!mounted) return;

@@ -41,6 +41,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.onNavigateUp,
     required this.onToggleSelection,
     required this.onToggleSelectAll,
+    this.supportsShareLinks = true,
     required this.onObjectAction,
   });
 
@@ -71,6 +72,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final VoidCallback onNavigateUp;
   final ValueChanged<ObjectInfo> onToggleSelection;
   final VoidCallback onToggleSelectAll;
+  final bool supportsShareLinks;
   final void Function(ObjectInfo object, FileObjectAction action)
   onObjectAction;
 
@@ -376,9 +378,11 @@ class FileManagerObjectBrowser extends StatelessWidget {
         onDownload: object.isDir
             ? null
             : () => _runMenuAction(() => onDownloadFile(object)),
-        onShare: () => _runMenuAction(
-          () => onObjectAction(object, FileObjectAction.share),
-        ),
+        onShare: !supportsShareLinks || object.isDir
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.share),
+              ),
         onCopy: readOnly
             ? null
             : () => _runMenuAction(

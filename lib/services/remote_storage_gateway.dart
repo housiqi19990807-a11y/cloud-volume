@@ -60,6 +60,7 @@ abstract class RemoteStorageGateway {
 
   Future<BootstrapState> loadBootstrapState();
   Future<BootstrapState> saveConfig(RemoteStorageConfig config);
+  Future<RemoteStorageConfig> authorizeBaiduPan([String displayName = '']);
   Future<RemoteStorageConfig> loadProfile(String name);
   Future<List<ProfileInfo>> listProfiles();
   Future<void> saveProfile(String name, RemoteStorageConfig config);

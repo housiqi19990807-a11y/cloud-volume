@@ -47,5 +47,8 @@ func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {
 	if normalized.StorageType == storageconfig.StorageTypeWebDAV {
 		return NewWebDAVBackend(normalized)
 	}
+	if normalized.StorageType == storageconfig.StorageTypeBaiduPan {
+		return newBaiduPanBackend(normalized)
+	}
 	return s3Backend{cfg: normalized}
 }

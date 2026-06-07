@@ -14,14 +14,14 @@ List<Widget> buildObjectActionMenuItems({
   required VoidCallback? onMove,
   required VoidCallback? onRename,
   required VoidCallback? onDelete,
-  required VoidCallback onShare,
+  VoidCallback? onShare,
   VoidCallback? onDownload,
 }) {
   return <Widget>[
     ShadContextMenuItem(onPressed: onOpen, child: const Text('预览')),
     if (!object.isDir && onDownload != null)
       ShadContextMenuItem(onPressed: onDownload, child: const Text('下载')),
-    if (!object.isDir)
+    if (!object.isDir && onShare != null)
       ShadContextMenuItem(onPressed: onShare, child: const Text('创建分享')),
     if (onCopy != null)
       ShadContextMenuItem(onPressed: onCopy, child: const Text('复制到...')),

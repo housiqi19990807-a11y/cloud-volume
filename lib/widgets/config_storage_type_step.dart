@@ -72,6 +72,14 @@ class ConfigStorageTypeStep extends StatelessWidget {
                         title: 'WebDAV',
                         description: '适用于支持 WebDAV 协议的网盘或文件服务。',
                       ),
+                      const SizedBox(height: 12),
+                      _typeTile(
+                        context,
+                        type: StorageType.baiduPan,
+                        icon: Icons.cloud_sync_outlined,
+                        title: '百度网盘',
+                        description: '通过百度网盘 OpenAPI + OAuth 登录个人网盘账号。',
+                      ),
                       const SizedBox(height: 24),
                       SizedBox(
                         height: 44,

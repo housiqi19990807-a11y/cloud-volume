@@ -81,6 +81,9 @@ func (s Store) Save(config RemoteStorageConfig) error {
 	}
 	normalized := config.MergeStoredSecrets(existing).WithDefaultWebDAVCredentials()
 	if !normalized.IsConfigured() {
+		if normalized.StorageType == StorageTypeBaiduPan {
+			return errors.New("请先完成百度网盘授权登录")
+		}
 		if normalized.StorageType == StorageTypeWebDAV {
 			return errors.New("WebDAV 地址、用户名和密码为必填项")
 		}

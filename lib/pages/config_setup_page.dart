@@ -13,6 +13,7 @@ import 'package:remote_storage/widgets/config_storage_type_step.dart';
 // 首次运行预设默认值。
 const _kDefaultEndpoint = 'https://fgws3-ocloud.ihep.ac.cn';
 const _kDefaultRegion = 'auto';
+const _kBaiduPanEndpoint = 'https://pan.baidu.com';
 
 enum _SetupStep { chooseType, accountForm }
 
@@ -41,10 +42,12 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   late final TextEditingController _secretKeyController;
   late final TextEditingController _webdavUsernameController;
   late final TextEditingController _webdavPasswordController;
+  RemoteStorageConfig? _authorizedBaiduConfig;
 
   _SetupStep _step = _SetupStep.chooseType;
   late StorageType _storageType;
   late bool _usePathStyle;
+  bool _authorizingBaidu = false;
   bool _mappedBucketNameEdited = false;
   bool _isSaving = false;
   String? _errorText;
@@ -59,6 +62,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           ? config.displayName
           : config.storageType == StorageType.webdav
           ? 'WebDAV'
+          : config.storageType == StorageType.baiduPan
+          ? '百度网盘'
           : 'S3',
     );
     // 首次运行时使用默认值。
@@ -67,11 +72,15 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           ? config.mappedBucketName
           : config.storageType == StorageType.webdav
           ? 'WebDAV'
+          : config.storageType == StorageType.baiduPan
+          ? '百度网盘'
           : 'S3',
     );
     _endpointController = TextEditingController(
       text: config.endpoint.trim().isNotEmpty
           ? config.endpoint
+          : config.storageType == StorageType.baiduPan
+          ? _kBaiduPanEndpoint
           : config.storageType == StorageType.s3
           ? _kDefaultEndpoint
           : '',
@@ -86,6 +95,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     );
     _webdavPasswordController = TextEditingController();
     _usePathStyle = config.usePathStyle;
+    if (config.storageType == StorageType.baiduPan) {
+      _authorizedBaiduConfig = config;
+    }
   }
 
   @override
@@ -107,48 +119,81 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       if (type == StorageType.s3 && _endpointController.text.trim().isEmpty) {
         _endpointController.text = _kDefaultEndpoint;
       }
+      if (type == StorageType.baiduPan) {
+        _endpointController.text = _kBaiduPanEndpoint;
+      }
       if (type == StorageType.webdav &&
           _endpointController.text.trim() == _kDefaultEndpoint) {
         _endpointController.clear();
       }
       final mappedName = _mappedBucketNameController.text.trim();
-      if (mappedName.isEmpty || mappedName == 'S3' || mappedName == 'WebDAV') {
+      if (mappedName.isEmpty ||
+          mappedName == 'S3' ||
+          mappedName == 'WebDAV' ||
+          mappedName == '百度网盘') {
         _mappedBucketNameController.text = type == StorageType.webdav
             ? 'WebDAV'
+            : type == StorageType.baiduPan
+            ? '百度网盘'
             : 'S3';
       }
       if (_nameController.text.trim().isEmpty ||
           _nameController.text.trim() == 'S3' ||
-          _nameController.text.trim() == 'WebDAV') {
-        _nameController.text = type == StorageType.webdav ? 'WebDAV' : 'S3';
+          _nameController.text.trim() == 'WebDAV' ||
+          _nameController.text.trim() == '百度网盘') {
+        _nameController.text = type == StorageType.webdav
+            ? 'WebDAV'
+            : type == StorageType.baiduPan
+            ? '百度网盘'
+            : 'S3';
       }
     });
   }
 
   Future<void> _save() async {
     final isWebDav = _storageType == StorageType.webdav;
+    final isBaiduPan = _storageType == StorageType.baiduPan;
     final name = _nameController.text.trim();
     final config = RemoteStorageConfig(
-      endpoint: _endpointController.text,
+      endpoint: isBaiduPan
+          ? (_authorizedBaiduConfig?.endpoint ?? _kBaiduPanEndpoint)
+          : _endpointController.text,
       storageType: _storageType,
-      providerType: widget.initialState.config.providerType,
+      providerType: isBaiduPan
+          ? StorageProviderType.baiduPan
+          : widget.initialState.config.providerType,
       displayName: name,
       mappedBucketName: isWebDav
           ? (_mappedBucketNameController.text.trim().isNotEmpty
                 ? _mappedBucketNameController.text
                 : name)
+          : isBaiduPan
+          ? (name.isEmpty ? '百度网盘' : name)
           : name,
       region: _regionController.text,
       bucket: widget.initialState.config.bucket,
-      accessKeyId: isWebDav ? '' : _accessKeyController.text,
-      secretAccessKey: isWebDav ? '' : _secretKeyController.text,
-      hasSecretAccessKey:
-          !isWebDav && widget.initialState.config.hasSecretAccessKey,
+      accessKeyId: isBaiduPan
+          ? (_authorizedBaiduConfig?.accessKeyId ?? '')
+          : isWebDav
+          ? ''
+          : _accessKeyController.text,
+      secretAccessKey: isBaiduPan
+          ? (_authorizedBaiduConfig?.secretAccessKey ?? '')
+          : isWebDav
+          ? ''
+          : _secretKeyController.text,
+      hasSecretAccessKey: isBaiduPan
+          ? (_authorizedBaiduConfig?.hasSecretAccessKey ?? false)
+          : !isWebDav && widget.initialState.config.hasSecretAccessKey,
       webdavUsername: isWebDav
           ? _webdavUsernameController.text
+          : isBaiduPan
+          ? ''
           : _accessKeyController.text,
       webdavPassword: isWebDav
           ? _webdavPasswordController.text
+          : isBaiduPan
+          ? ''
           : _secretKeyController.text,
       hasWebdavPassword:
           isWebDav && widget.initialState.config.hasWebdavPassword,
@@ -174,7 +219,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
 
     if (!config.isConfigured) {
       setState(() {
-        _errorText = isWebDav
+        _errorText = isBaiduPan
+            ? '请先完成百度网盘 OAuth 授权。'
+            : isWebDav
             ? '请填写 WebDAV 地址、用户名和密码。'
             : '请填写 Endpoint、Access Key 和 Secret Key。';
       });
@@ -241,6 +288,17 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                     webdavPasswordController: _webdavPasswordController,
                     hasStoredWebdavPassword:
                         widget.initialState.config.hasWebdavPassword,
+                    baiduPanAuthorized:
+                        _authorizedBaiduConfig?.hasSecretAccessKey == true &&
+                        _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty ==
+                            true,
+                    baiduPanAccountLabel:
+                        _authorizedBaiduConfig?.displayName.trim().isNotEmpty ==
+                            true
+                        ? _authorizedBaiduConfig!.displayName
+                        : _nameController.text.trim(),
+                    baiduPanAuthorizing: _authorizingBaidu,
+                    onAuthorizeBaiduPan: _authorizeBaiduPan,
                     usePathStyle: _usePathStyle,
                     onPathStyleChanged: (v) =>
                         setState(() => _usePathStyle = v),
@@ -263,5 +321,30 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       return;
     }
     _mappedBucketNameController.text = value;
+  }
+
+  Future<void> _authorizeBaiduPan() async {
+    setState(() => _authorizingBaidu = true);
+    try {
+      final config = await widget.api.authorizeBaiduPan(
+        _nameController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _authorizedBaiduConfig = config;
+        if (_nameController.text.trim().isEmpty) {
+          _nameController.text = config.displayName;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = describeBridgeError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _authorizingBaidu = false);
+      }
+    }
   }
 }

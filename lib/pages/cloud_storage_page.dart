@@ -94,7 +94,10 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   Future<void> _showAddAccountDialog() async {
     await showShadDialog<void>(
       context: context,
-      builder: (_) => CloudStorageAccountDialog(onSave: _saveNewAccount),
+      builder: (_) => CloudStorageAccountDialog(
+        onSave: _saveNewAccount,
+        onAuthorizeBaiduPan: _authorizeBaiduPan,
+      ),
     );
   }
 
@@ -109,6 +112,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
         builder: (_) => CloudStorageAccountDialog(
           initialConfig: config,
           editing: true,
+          onAuthorizeBaiduPan: _authorizeBaiduPan,
           onSave: (draft) => _saveEditedAccount(profile, config, draft),
         ),
       );
@@ -124,11 +128,15 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   Future<bool> _saveNewAccount(CloudStorageAccountDraft draft) async {
     final fallback = draft.storageType == StorageType.webdav
         ? draft.webdavUsername.trim()
+        : draft.storageType == StorageType.baiduPan
+        ? draft.name.trim()
         : draft.accessKey.trim();
     final label = draft.name.trim().isEmpty ? fallback : draft.name.trim();
     final config = RemoteStorageConfig.empty().copyWith(
       storageType: draft.storageType,
-      providerType: StorageProviderType.s3,
+      providerType: draft.storageType == StorageType.baiduPan
+          ? StorageProviderType.baiduPan
+          : StorageProviderType.s3,
       displayName: label,
       mappedBucketName: draft.mappedBucketName.trim().isEmpty
           ? label
@@ -141,18 +149,26 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       usePathStyle: draft.usePathStyle,
       webdavUsername: draft.storageType == StorageType.webdav
           ? draft.webdavUsername
+          : draft.storageType == StorageType.baiduPan
+          ? ''
           : draft.accessKey,
       webdavPassword: draft.storageType == StorageType.webdav
           ? draft.webdavPassword
+          : draft.storageType == StorageType.baiduPan
+          ? ''
           : draft.secretKey,
       hasWebdavPassword: draft.storageType == StorageType.webdav
           ? draft.webdavPassword.trim().isNotEmpty
+          : draft.storageType == StorageType.baiduPan
+          ? false
           : draft.secretKey.trim().isNotEmpty,
     );
     if (!config.isConfigured) {
       showAppErrorToast(
         context,
-        message: draft.storageType == StorageType.webdav
+        message: draft.storageType == StorageType.baiduPan
+            ? '请先完成百度网盘 OAuth 授权。'
+            : draft.storageType == StorageType.webdav
             ? '请填写 WebDAV 地址、用户名和密码。'
             : '请填写 Endpoint、Access Key 和 Secret Key。',
       );
@@ -186,7 +202,9 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
         : draft.name.trim();
     final config = existing.copyWith(
       storageType: draft.storageType,
-      providerType: StorageProviderType.s3,
+      providerType: draft.storageType == StorageType.baiduPan
+          ? StorageProviderType.baiduPan
+          : StorageProviderType.s3,
       displayName: label,
       mappedBucketName: draft.mappedBucketName.trim().isEmpty
           ? label
@@ -200,12 +218,18 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       usePathStyle: draft.usePathStyle,
       webdavUsername: draft.storageType == StorageType.webdav
           ? draft.webdavUsername
+          : draft.storageType == StorageType.baiduPan
+          ? ''
           : draft.accessKey,
       webdavPassword: draft.storageType == StorageType.webdav
           ? draft.webdavPassword
+          : draft.storageType == StorageType.baiduPan
+          ? ''
           : draft.secretKey,
       hasWebdavPassword: draft.storageType == StorageType.webdav
           ? draft.webdavPassword.trim().isNotEmpty || existing.hasWebdavPassword
+          : draft.storageType == StorageType.baiduPan
+          ? false
           : draft.secretKey.trim().isNotEmpty || existing.hasSecretAccessKey,
     );
     if (!config.isConfigured) {
@@ -222,6 +246,18 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     } catch (error) {
       if (mounted) showAppErrorToast(context, message: error.toString());
       return false;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<RemoteStorageConfig> _authorizeBaiduPan(String displayName) async {
+    setState(() => _busy = true);
+    try {
+      return await widget.api.authorizeBaiduPan(displayName);
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
+      rethrow;
     } finally {
       if (mounted) setState(() => _busy = false);
     }

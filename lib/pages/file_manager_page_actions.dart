@@ -279,6 +279,10 @@ extension _FileManagerPageActions on _FileManagerPageState {
         return;
       }
       if (action == FileObjectAction.share) {
+        if (!widget.config.supportsShareLinks) {
+          _showPageMessage(title: '暂不支持', message: '当前账号类型暂不支持创建分享链接。');
+          return;
+        }
         final durationSec = await showShareDurationDialog(
           context,
           title: '创建分享',

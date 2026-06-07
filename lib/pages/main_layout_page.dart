@@ -42,6 +42,15 @@ class MainLayoutPage extends StatefulWidget {
 }
 
 class _MainLayoutPageState extends State<MainLayoutPage> {
+  bool get _sharesAvailable => widget.state.config.supportsShareLinks;
+
+  SidebarItem get _effectiveSelectedItem {
+    if (!_sharesAvailable && widget.selectedItem == SidebarItem.shares) {
+      return SidebarItem.fileManager;
+    }
+    return widget.selectedItem;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -160,13 +169,14 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   ac,
                   muted,
                 ),
-                _navItem(
-                  LucideIcons.share2,
-                  '分享管理',
-                  SidebarItem.shares,
-                  ac,
-                  muted,
-                ),
+                if (_sharesAvailable)
+                  _navItem(
+                    LucideIcons.share2,
+                    '分享管理',
+                    SidebarItem.shares,
+                    ac,
+                    muted,
+                  ),
                 _navItem(
                   LucideIcons.arrowLeftRight,
                   '任务队列',
@@ -211,7 +221,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     Color ac,
     Color muted,
   ) {
-    final selected = widget.selectedItem == item;
+    final selected = _effectiveSelectedItem == item;
     final bg = selected ? ac.withValues(alpha: 0.1) : Colors.transparent;
     final fg = selected ? ac : muted;
     final border = selected
@@ -254,6 +264,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
 
   Widget _buildContent() {
     final index = switch (widget.selectedItem) {
+      SidebarItem.shares when !_sharesAvailable => 0,
       SidebarItem.fileManager => 0,
       SidebarItem.storage => 1,
       SidebarItem.trash => 2,
@@ -281,7 +292,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
         TransfersPage(
           api: widget.api,
           config: widget.state.config,
-          active: widget.selectedItem == SidebarItem.transfers,
+          active: _effectiveSelectedItem == SidebarItem.transfers,
         ),
         SettingsPage(
           state: widget.state,

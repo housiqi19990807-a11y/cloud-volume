@@ -178,7 +178,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
       }
-      if (widget.api.capabilities.supportsMounts) {
+      if (widget.api.capabilities.supportsMounts &&
+          widget.config.supportsMounts) {
         unawaited(_refreshBucketMountStatuses(buckets));
       }
       return true;
@@ -230,7 +231,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
       }
-      if (widget.api.capabilities.supportsMounts) {
+      if (widget.api.capabilities.supportsMounts &&
+          widget.config.supportsMounts) {
         unawaited(_refreshMountStatus(bucket));
       }
       if (widget.config.storageType == StorageType.webdav) {
@@ -279,7 +281,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   void _startMountStatusRefreshTimer() {
     _mountStatusRefreshTimer?.cancel();
     ObjectListingNotifier.instance.removeListener(_handleObjectListingMutation);
-    if (!widget.api.capabilities.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts ||
+        !widget.config.supportsMounts) {
       return;
     }
     _mountStatusRefreshTimer = Timer.periodic(
@@ -454,6 +457,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onNavigateUp: () => unawaited(_navUp()),
       onToggleSelection: _toggleObjectSelection,
       onToggleSelectAll: _toggleSelectAllObjects,
+      supportsShareLinks: widget.config.supportsShareLinks,
       onObjectAction: (object, action) =>
           unawaited(_handleObjectAction(object, action)),
     );

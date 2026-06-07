@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 
 /// 配置页右侧完整表单。
@@ -24,6 +25,10 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.webdavUsernameController,
     required this.webdavPasswordController,
     required this.hasStoredWebdavPassword,
+    required this.baiduPanAuthorized,
+    required this.baiduPanAccountLabel,
+    required this.baiduPanAuthorizing,
+    required this.onAuthorizeBaiduPan,
     required this.usePathStyle,
     required this.onPathStyleChanged,
     required this.isSaving,
@@ -45,6 +50,10 @@ class ConfigRightFormPanel extends StatelessWidget {
   final TextEditingController? webdavUsernameController;
   final TextEditingController? webdavPasswordController;
   final bool hasStoredWebdavPassword;
+  final bool baiduPanAuthorized;
+  final String baiduPanAccountLabel;
+  final bool baiduPanAuthorizing;
+  final VoidCallback onAuthorizeBaiduPan;
   final bool usePathStyle;
   final ValueChanged<bool> onPathStyleChanged;
   final bool isSaving;
@@ -56,8 +65,17 @@ class ConfigRightFormPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final isWebDav = storageType == StorageType.webdav;
-    final title = isWebDav ? '添加 WebDAV 账号' : '添加 S3 对象存储账号';
-    final subtitle = isWebDav ? '填写 WebDAV 服务地址和登录账号。' : '填写对象存储端点和访问密钥。';
+    final isBaiduPan = storageType == StorageType.baiduPan;
+    final title = isBaiduPan
+        ? '添加百度网盘账号'
+        : isWebDav
+        ? '添加 WebDAV 账号'
+        : '添加 S3 对象存储账号';
+    final subtitle = isBaiduPan
+        ? '通过本地 OAuth 回调完成百度网盘 OpenAPI 授权。'
+        : isWebDav
+        ? '填写 WebDAV 服务地址和登录账号。'
+        : '填写对象存储端点和访问密钥。';
 
     return Container(
       color: theme.colorScheme.background,
@@ -121,7 +139,13 @@ class ConfigRightFormPanel extends StatelessWidget {
                       const SizedBox(height: 6),
                       ShadInput(
                         controller: nameController,
-                        placeholder: Text(isWebDav ? '例如：IHEP WebDAV' : '例如：对象存储账号'),
+                        placeholder: Text(
+                          isBaiduPan
+                              ? '例如：我的百度网盘'
+                              : isWebDav
+                              ? '例如：IHEP WebDAV'
+                              : '例如：对象存储账号',
+                        ),
                         onChanged: onNameChanged,
                       ),
                       if (isWebDav) ...[
@@ -135,21 +159,32 @@ class ConfigRightFormPanel extends StatelessWidget {
                         ),
                         const SizedBox(height: 18),
                       ],
-                      if (!isWebDav) ...[
+                      if (!isWebDav && !isBaiduPan) ...[
                         const SizedBox(height: 18),
                       ],
-                      _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
-                      const SizedBox(height: 6),
-                      ShadInput(
-                        controller: endpointController,
-                        placeholder: Text(
-                          isWebDav
-                              ? 'https://dav.example.com/remote.php/dav/files/me'
-                              : 'https://s3.example.com',
+                      if (isBaiduPan) ...[
+                        const SizedBox(height: 18),
+                        BaiduPanAuthSection(
+                          accountLabel: baiduPanAccountLabel,
+                          authorized: baiduPanAuthorized,
+                          busy: baiduPanAuthorizing,
+                          onAuthorize: onAuthorizeBaiduPan,
                         ),
-                      ),
-                      const SizedBox(height: 22),
-                      if (isWebDav &&
+                      ] else ...[
+                        _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
+                        const SizedBox(height: 6),
+                        ShadInput(
+                          controller: endpointController,
+                          placeholder: Text(
+                            isWebDav
+                                ? 'https://dav.example.com/remote.php/dav/files/me'
+                                : 'https://s3.example.com',
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                      ],
+                      if (!isBaiduPan &&
+                          isWebDav &&
                           webdavUsernameController != null &&
                           webdavPasswordController != null) ...[
                         _fieldLabel(context, '用户名'),
@@ -170,7 +205,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                           ),
                           obscureText: true,
                         ),
-                      ] else ...[
+                      ] else if (!isBaiduPan) ...[
                         // 访问密钥 ID。
                         _fieldLabel(context, '访问密钥 ID'),
                         const SizedBox(height: 6),
@@ -193,7 +228,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                         ),
                       ],
                       // 高级设置入口。
-                      if (!isWebDav) ...[
+                      if (!isWebDav && !isBaiduPan) ...[
                         const SizedBox(height: 18),
                         _AdvancedSettingsLink(
                           onTap: isSaving

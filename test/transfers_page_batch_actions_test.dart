@@ -108,6 +108,11 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<void> logout() async {}
 
   @override
+  Future<RemoteStorageConfig> authorizeBaiduPan([
+    String displayName = '',
+  ]) async => throw UnimplementedError();
+
+  @override
   Future<void> cancelTransfer(String taskId) async {
     canceledTaskIds.add(taskId);
   }

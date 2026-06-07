@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CloudStorageAccountDraft {
@@ -16,6 +17,9 @@ class CloudStorageAccountDraft {
     required this.usePathStyle,
     required this.webdavUsername,
     required this.webdavPassword,
+    required this.baiduAccessToken,
+    required this.baiduRefreshToken,
+    required this.hasBaiduRefreshToken,
   });
 
   final StorageType storageType;
@@ -28,17 +32,23 @@ class CloudStorageAccountDraft {
   final bool usePathStyle;
   final String webdavUsername;
   final String webdavPassword;
+  final String baiduAccessToken;
+  final String baiduRefreshToken;
+  final bool hasBaiduRefreshToken;
 }
 
 class CloudStorageAccountDialog extends StatefulWidget {
   const CloudStorageAccountDialog({
     super.key,
     required this.onSave,
+    required this.onAuthorizeBaiduPan,
     this.initialConfig,
     this.editing = false,
   });
 
   final Future<bool> Function(CloudStorageAccountDraft draft) onSave;
+  final Future<RemoteStorageConfig> Function(String displayName)
+  onAuthorizeBaiduPan;
   final RemoteStorageConfig? initialConfig;
   final bool editing;
 
@@ -57,6 +67,8 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   final _secretKeyController = TextEditingController();
   final _webdavUsernameController = TextEditingController();
   final _webdavPasswordController = TextEditingController();
+  RemoteStorageConfig? _authorizedBaiduConfig;
+  bool _authorizingBaidu = false;
   bool _mappedBucketNameEdited = false;
   bool _usePathStyle = true;
 
@@ -73,6 +85,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _accessKeyController.text = config.accessKeyId;
     _webdavUsernameController.text = config.webdavUsername;
     _usePathStyle = config.usePathStyle;
+    if (config.storageType == StorageType.baiduPan) {
+      _authorizedBaiduConfig = config;
+    }
   }
 
   @override
@@ -91,10 +106,13 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   @override
   Widget build(BuildContext context) {
     final isWebDav = _storageType == StorageType.webdav;
+    final isBaiduPan = _storageType == StorageType.baiduPan;
     return ShadDialog(
       title: Text(widget.editing ? '编辑账号' : '新增账号'),
       description: Text(
-        widget.editing ? '修改账号连接信息；密钥或密码留空则保留当前保存值。' : '先选择存储类型，再填写对应的连接信息。',
+        widget.editing
+            ? '修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。'
+            : '先选择存储类型，再填写对应的连接信息。',
       ),
       child: SizedBox(
         width: 440,
@@ -121,10 +139,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
               ),
             ],
             const SizedBox(height: 12),
-            if (!isWebDav)
-              ..._s3Fields()
-            else
-              ..._webdavFields(),
+            if (isBaiduPan) ..._baiduPanFields(),
+            if (!isBaiduPan && !isWebDav) ..._s3Fields(),
+            if (!isBaiduPan && isWebDav) ..._webdavFields(),
             const SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -200,25 +217,53 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     ];
   }
 
+  List<Widget> _baiduPanFields() {
+    final label = _authorizedBaiduConfig?.displayName.trim().isNotEmpty == true
+        ? _authorizedBaiduConfig!.displayName
+        : _nameController.text.trim();
+    return [
+      BaiduPanAuthSection(
+        accountLabel: label,
+        authorized:
+            _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty == true &&
+            _authorizedBaiduConfig?.hasSecretAccessKey == true,
+        busy: _authorizingBaidu,
+        onAuthorize: _authorizeBaiduPan,
+      ),
+    ];
+  }
+
   Future<void> _submit() async {
     final name = _nameController.text.trim();
+    final baiduConfig = _authorizedBaiduConfig;
     final mappedBucketName = _storageType == StorageType.webdav
         ? (_mappedBucketNameController.text.trim().isEmpty
               ? name
               : _mappedBucketNameController.text)
+        : _storageType == StorageType.baiduPan
+        ? (name.isEmpty ? '百度网盘' : name)
         : _nameController.text;
     final saved = await widget.onSave(
       CloudStorageAccountDraft(
         storageType: _storageType,
-        name: _nameController.text,
+        name: name,
         mappedBucketName: mappedBucketName,
-        endpoint: _endpointController.text,
+        endpoint: _storageType == StorageType.baiduPan
+            ? (baiduConfig?.endpoint ?? 'https://pan.baidu.com')
+            : _endpointController.text,
         region: _regionController.text,
-        accessKey: _accessKeyController.text,
-        secretKey: _secretKeyController.text,
+        accessKey: _storageType == StorageType.baiduPan
+            ? (baiduConfig?.accessKeyId ?? '')
+            : _accessKeyController.text,
+        secretKey: _storageType == StorageType.baiduPan
+            ? (baiduConfig?.secretAccessKey ?? '')
+            : _secretKeyController.text,
         usePathStyle: _usePathStyle,
         webdavUsername: _webdavUsernameController.text,
         webdavPassword: _webdavPasswordController.text,
+        baiduAccessToken: baiduConfig?.accessKeyId ?? '',
+        baiduRefreshToken: baiduConfig?.secretAccessKey ?? '',
+        hasBaiduRefreshToken: baiduConfig?.hasSecretAccessKey ?? false,
       ),
     );
     if (saved && mounted) Navigator.of(context).pop();
@@ -229,6 +274,28 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       return;
     }
     _mappedBucketNameController.text = _nameController.text;
+  }
+
+  Future<void> _authorizeBaiduPan() async {
+    setState(() => _authorizingBaidu = true);
+    try {
+      final config = await widget.onAuthorizeBaiduPan(
+        _nameController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _authorizedBaiduConfig = config;
+        if (_nameController.text.trim().isEmpty) {
+          _nameController.text = config.displayName;
+        }
+      });
+    } catch (_) {
+      // Toast/error rendering is handled by the page that owns the dialog callback.
+    } finally {
+      if (mounted) {
+        setState(() => _authorizingBaidu = false);
+      }
+    }
   }
 }
 
