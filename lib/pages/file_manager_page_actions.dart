@@ -199,10 +199,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
               source: source,
               loading: loading,
               errorText: errorText,
-              onOpenInNewWindow: kind == FilePreviewKind.image &&
-                      FilePreviewWindowService.instance.isSupported
-                  ? () => unawaited(_openImagePreviewWindow(object))
-                  : null,
+              onOpenWithSystem: () => unawaited(_openWithSystemApp(object)),
               onSaveAs: () => unawaited(_downloadObject(object)),
               onDownload: () =>
                   unawaited(_downloadObjectToDefaultDirectory(object)),
@@ -213,19 +210,16 @@ extension _FileManagerPageActions on _FileManagerPageState {
     );
   }
 
-  Future<void> _openImagePreviewWindow(ObjectInfo object) async {
-    final bucket = _activeBucket;
-    if (bucket == null) return;
+  Future<void> _openWithSystemApp(ObjectInfo object) => _openWithSystem(object);
+
+  Future<void> _openWithSystem(ObjectInfo object) async {
+    if (_activeBucket == null) return;
     try {
-      final localPath = await FileAccessService.instance.preparePreviewFilePath(
+      await FileAccessService.instance.openObject(
         api: widget.api,
         config: widget.config,
-        bucket: bucket,
+        bucket: _activeBucket!,
         object: object,
-      );
-      await FilePreviewWindowService.instance.openImagePreview(
-        title: object.displayName,
-        localPath: localPath,
       );
     } catch (error) {
       _showPageError(error);
