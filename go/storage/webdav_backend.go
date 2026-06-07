@@ -68,8 +68,8 @@ func (b webDAVBackend) HeadObject(ctx context.Context, _, key string) (ObjectInf
 	return ObjectInfo{}, os.ErrNotExist
 }
 
-func (b webDAVBackend) CreateDirectory(ctx context.Context, _, prefix, name string) error {
-	if err := b.ensureWritableDirectory(ctx, prefix); err != nil {
+func (b webDAVBackend) CreateDirectory(ctx context.Context, bucket, prefix, name string) error {
+	if err := b.ensureWritableDirectory(ctx, bucket, prefix); err != nil {
 		return err
 	}
 	dir := path.Join(cleanRemotePath(prefix), strings.Trim(strings.TrimSpace(name), "/"))
@@ -123,8 +123,8 @@ func (b webDAVBackend) MoveObject(ctx context.Context, _, sourceKey, targetKey s
 	return b.copyMove(ctx, "MOVE", sourceKey, targetKey)
 }
 
-func (b webDAVBackend) UploadFile(ctx context.Context, _, key, localPath, _ string) error {
-	if err := b.ensureWritableDirectory(ctx, path.Dir(cleanRemotePath(key))); err != nil {
+func (b webDAVBackend) UploadFile(ctx context.Context, bucket, key, localPath, _ string) error {
+	if err := b.ensureWritableDirectory(ctx, bucket, path.Dir(cleanRemotePath(key))); err != nil {
 		return err
 	}
 	file, err := os.Open(localPath)
@@ -137,12 +137,12 @@ func (b webDAVBackend) UploadFile(ctx context.Context, _, key, localPath, _ stri
 
 func (b webDAVBackend) UploadReader(
 	ctx context.Context,
-	_, key string,
+	bucket, key string,
 	body io.Reader,
 	_ int64,
 	_, _ string,
 ) error {
-	if err := b.ensureWritableDirectory(ctx, path.Dir(cleanRemotePath(key))); err != nil {
+	if err := b.ensureWritableDirectory(ctx, bucket, path.Dir(cleanRemotePath(key))); err != nil {
 		return err
 	}
 	return b.put(ctx, key, body)
