@@ -5,6 +5,17 @@ part of 'file_manager_page.dart';
 // 文件管理页挂载逻辑：刷新状态，并暴露挂载、卸载和打开挂载目录动作。
 
 extension _FileManagerPageMount on _FileManagerPageState {
+  void _showMountUnavailableMessage([String? bucket]) {
+    final bucketLabel = (bucket ?? _activeBucket ?? '').trim();
+    final title = bucketLabel.isEmpty ? '挂载不可用' : '“$bucketLabel”暂时不能挂载';
+    final message = !widget.api.capabilities.supportsMounts
+        ? '当前运行环境暂不支持桌面挂载。'
+        : widget.config.storageType == StorageType.baiduPan
+        ? '百度网盘账号当前只支持浏览、上传、下载和对象操作，暂不支持桌面挂载。'
+        : '当前账号暂不支持桌面挂载。';
+    _showPageMessage(title: title, message: message);
+  }
+
   Widget _buildContentWithMountLoading(ShadThemeData theme) {
     final content = _buildContent(theme);
     if (_mountBusyBuckets.isEmpty) {
