@@ -6,7 +6,7 @@ part of 'file_manager_page.dart';
 
 extension _FileManagerPageAccess on _FileManagerPageState {
   bool get _currentDirectoryWritable {
-    if (_activeBucket == null || _showTrash) return false;
+    if (!_currentBucketWritable) return false;
     if (widget.config.storageType != StorageType.webdav) return true;
     if (_checkingDirectoryAccess) return false;
     final access = _directoryAccess;
@@ -37,10 +37,9 @@ extension _FileManagerPageAccess on _FileManagerPageState {
 
   bool _ensureCurrentDirectoryWritable() {
     if (_currentDirectoryWritable) return true;
-    final reason = _directoryAccess?.reason.trim();
     _showPageMessage(
       title: '当前目录不可写',
-      message: reason?.isNotEmpty == true ? reason! : '当前 WebDAV 目录暂无写入权限。',
+      message: _currentWriteBlockedReason ?? '当前目录不可写。',
     );
     return false;
   }

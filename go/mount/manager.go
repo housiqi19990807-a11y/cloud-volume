@@ -91,6 +91,9 @@ func (m *manager) mountBucket(
 			return BucketMountStatus{}, err
 		}
 	}
+	if cfg.BucketSettingsFor(trimmedBucket).ReadOnly {
+		options.ReadOnly = true
+	}
 
 	session, err := newMountSession(cfg.Normalized(), trimmedBucket, options)
 	if err != nil {

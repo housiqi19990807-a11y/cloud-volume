@@ -1,5 +1,34 @@
 // Remote storage config models keep backend JSON shape away from page widgets.
 
+bool? _boolFromDynamic(Object? value) {
+  if (value is bool) return value;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'true') return true;
+    if (normalized == 'false') return false;
+  }
+  return null;
+}
+
+int? _intFromDynamic(Object? value) {
+  if (value is int) return value;
+  if (value is String) {
+    return int.tryParse(value.trim());
+  }
+  return null;
+}
+
+String _normalizeTrashDirectory(String value) {
+  final trimmed = value.trim().replaceAll(RegExp(r'^/+|/+$'), '');
+  if (trimmed.isEmpty) {
+    return '.trash';
+  }
+  if (!trimmed.contains('/') && !trimmed.startsWith('.')) {
+    return '.$trimmed';
+  }
+  return trimmed;
+}
+
 enum FileOpenMode {
   singleClick('single_click'),
   doubleClick('double_click');
@@ -66,6 +95,55 @@ enum StorageProviderType {
   }
 }
 
+// Bucket settings let each bucket override readonly and trash behavior.
+class BucketSettings {
+  const BucketSettings({
+    required this.readOnly,
+    required this.trashEnabled,
+    required this.trashDirectory,
+  });
+
+  factory BucketSettings.fromJson(Map<String, dynamic> json) {
+    return BucketSettings(
+      readOnly: _boolFromDynamic(json['readOnly'] ?? json['read_only']) ?? false,
+      trashEnabled:
+          _boolFromDynamic(json['trashEnabled'] ?? json['trash_enabled']),
+      trashDirectory:
+          (json['trashDirectory'] ?? json['trash_directory'] ?? '').toString(),
+    );
+  }
+
+  final bool readOnly;
+  final bool? trashEnabled;
+  final String trashDirectory;
+
+  bool get isTrashEnabled => trashEnabled == true;
+
+  Map<String, dynamic> toJson() {
+    final result = <String, dynamic>{'readOnly': readOnly};
+    if (trashEnabled != null) {
+      result['trashEnabled'] = trashEnabled;
+    }
+    if (trashDirectory.trim().isNotEmpty) {
+      result['trashDirectory'] = _normalizeTrashDirectory(trashDirectory);
+    }
+    return result;
+  }
+
+  BucketSettings copyWith({
+    bool? readOnly,
+    bool? trashEnabled,
+    bool clearTrashEnabled = false,
+    String? trashDirectory,
+  }) {
+    return BucketSettings(
+      readOnly: readOnly ?? this.readOnly,
+      trashEnabled: clearTrashEnabled ? null : (trashEnabled ?? this.trashEnabled),
+      trashDirectory: trashDirectory ?? this.trashDirectory,
+    );
+  }
+}
+
 class RemoteStorageConfig {
   const RemoteStorageConfig({
     required this.endpoint,
@@ -89,6 +167,7 @@ class RemoteStorageConfig {
     required this.fileOpenMode,
     required this.trashDirectoryName,
     required this.trashRetentionDays,
+    required this.bucketSettings,
     required this.writebackQuietSeconds,
     required this.usePathStyle,
     required this.windowsMountMode,
@@ -119,6 +198,7 @@ class RemoteStorageConfig {
       fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: '.trash',
       trashRetentionDays: -1,
+      bucketSettings: <String, BucketSettings>{},
       writebackQuietSeconds: 10,
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
@@ -194,6 +274,9 @@ class RemoteStorageConfig {
             json['trashRetentionDays'] ?? json['trash_retention_days'],
           ) ??
           -1,
+      bucketSettings: _bucketSettingsFromJson(
+        json['bucketSettings'] ?? json['bucket_settings'],
+      ),
       writebackQuietSeconds:
           _intFromDynamic(
             json['writebackQuietSeconds'] ?? json['writeback_quiet_seconds'],
@@ -241,6 +324,7 @@ class RemoteStorageConfig {
   final FileOpenMode fileOpenMode;
   final String trashDirectoryName;
   final int trashRetentionDays;
+  final Map<String, BucketSettings> bucketSettings;
   final int writebackQuietSeconds;
   final bool usePathStyle;
   final WindowsMountMode windowsMountMode;
@@ -264,6 +348,21 @@ class RemoteStorageConfig {
         (webdavPassword.isNotEmpty || hasWebdavPassword);
   }
 
+  BucketSettings bucketSettingsFor(String bucket) {
+    final bucketName = bucket.trim();
+    final defaultTrashEnabled = storageType == StorageType.webdav ? false : true;
+    final resolved = bucketSettings[bucketName];
+    return BucketSettings(
+      readOnly: resolved?.readOnly ?? false,
+      trashEnabled: resolved?.trashEnabled ?? defaultTrashEnabled,
+      trashDirectory: resolved == null || resolved.trashDirectory.trim().isEmpty
+          ? _normalizeTrashDirectory(trashDirectoryName)
+          : _normalizeTrashDirectory(resolved.trashDirectory),
+    );
+  }
+
+  bool bucketTrashEnabled(String bucket) => bucketSettingsFor(bucket).isTrashEnabled;
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'endpoint': endpoint.trim(),
@@ -286,6 +385,9 @@ class RemoteStorageConfig {
       'fileOpenMode': fileOpenMode.storageValue,
       'trashDirectoryName': trashDirectoryName.trim(),
       'trashRetentionDays': trashRetentionDays,
+      'bucketSettings': bucketSettings.map(
+        (key, value) => MapEntry(key.trim(), value.toJson()),
+      ),
       'writebackQuietSeconds': writebackQuietSeconds,
       'usePathStyle': usePathStyle,
       'windowsMountMode': windowsMountMode.storageValue,
@@ -316,6 +418,7 @@ class RemoteStorageConfig {
     FileOpenMode? fileOpenMode,
     String? trashDirectoryName,
     int? trashRetentionDays,
+    Map<String, BucketSettings>? bucketSettings,
     int? writebackQuietSeconds,
     bool? usePathStyle,
     WindowsMountMode? windowsMountMode,
@@ -346,6 +449,7 @@ class RemoteStorageConfig {
       fileOpenMode: fileOpenMode ?? this.fileOpenMode,
       trashDirectoryName: trashDirectoryName ?? this.trashDirectoryName,
       trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
+      bucketSettings: bucketSettings ?? this.bucketSettings,
       writebackQuietSeconds:
           writebackQuietSeconds ?? this.writebackQuietSeconds,
       usePathStyle: usePathStyle ?? this.usePathStyle,
@@ -357,21 +461,20 @@ class RemoteStorageConfig {
     );
   }
 
-  static bool? _boolFromDynamic(Object? value) {
-    if (value is bool) return value;
-    if (value is String) {
-      final normalized = value.trim().toLowerCase();
-      if (normalized == 'true') return true;
-      if (normalized == 'false') return false;
+  static Map<String, BucketSettings> _bucketSettingsFromJson(Object? value) {
+    if (value is! Map) {
+      return const <String, BucketSettings>{};
     }
-    return null;
-  }
-
-  static int? _intFromDynamic(Object? value) {
-    if (value is int) return value;
-    if (value is String) {
-      return int.tryParse(value.trim());
+    final result = <String, BucketSettings>{};
+    for (final entry in value.entries) {
+      final key = entry.key.toString().trim();
+      if (key.isEmpty || entry.value is! Map) {
+        continue;
+      }
+      result[key] = BucketSettings.fromJson(
+        Map<String, dynamic>.from(entry.value as Map),
+      );
     }
-    return null;
+    return result;
   }
 }

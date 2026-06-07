@@ -110,6 +110,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       final buckets = await widget.api.listBuckets(widget.config);
       final bucketNames = buckets
           .map((bucket) => bucket.name)
+          .where(widget.config.bucketTrashEnabled)
           .toList(growable: false);
       if (!mounted) {
         return;

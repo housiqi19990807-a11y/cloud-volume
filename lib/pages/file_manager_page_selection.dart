@@ -120,6 +120,10 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     if (!mounted || _activeBucket == null || _selectedObjectKeys.isEmpty) {
       return;
     }
+    if (!_currentBucketWritable) {
+      _ensureCurrentDirectoryWritable();
+      return;
+    }
     final selected = _selectedObjects;
     final confirmed = await showDeleteObjectsDialog(context, selected.length);
     if (!confirmed) {

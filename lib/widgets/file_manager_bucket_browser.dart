@@ -34,10 +34,12 @@ class FileManagerBucketBrowser extends StatelessWidget {
     this.showActionColumn = true,
     this.actionColumnLabel = '操作',
     this.onOpenTrashBucket,
+    this.onConfigureBucket,
     this.onMountBucket,
     this.onUnmountBucket,
     this.onOpenMountedBucket,
     this.onOpenWebDavBucket,
+    this.bucketTrashEnabled,
     this.webDavActionLabel = 'WebDAV',
   });
 
@@ -52,10 +54,12 @@ class FileManagerBucketBrowser extends StatelessWidget {
   final bool showActionColumn;
   final String actionColumnLabel;
   final ValueChanged<String>? onOpenTrashBucket;
+  final ValueChanged<String>? onConfigureBucket;
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
   final ValueChanged<String>? onOpenMountedBucket;
   final ValueChanged<String>? onOpenWebDavBucket;
+  final bool Function(String bucket)? bucketTrashEnabled;
   final String webDavActionLabel;
 
   @override
@@ -194,10 +198,14 @@ class FileManagerBucketBrowser extends StatelessWidget {
                         status: mountStatuses[bucket.name],
                         busy: busyBuckets.contains(bucket.name),
                         onOpenTrashBucket: onOpenTrashBucket,
+                        onConfigureBucket: onConfigureBucket,
                         onMountBucket: onMountBucket,
                         onUnmountBucket: onUnmountBucket,
                         onOpenMountedBucket: onOpenMountedBucket,
                         onOpenWebDavBucket: onOpenWebDavBucket,
+                        trashEnabled:
+                            bucketTrashEnabled?.call(bucket.name) ??
+                            onOpenTrashBucket != null,
                         webDavActionLabel: webDavActionLabel,
                       ),
                     ),
@@ -232,14 +240,20 @@ class FileManagerBucketBrowser extends StatelessWidget {
     final busy = busyBuckets.contains(bucket);
     final mounted = status?.mounted ?? false;
     final showsWebDavAction = onOpenWebDavBucket != null;
+    final trashEnabled = bucketTrashEnabled?.call(bucket) ?? onOpenTrashBucket != null;
 
     return <Widget>[
       ShadContextMenuItem(
         onPressed: () => _runBucketMenuAction(() => onOpenBucket(bucket)),
         child: const Text('打开存储桶'),
       ),
+      if (onConfigureBucket != null)
+        ShadContextMenuItem(
+          onPressed: () => _runBucketMenuAction(() => onConfigureBucket!(bucket)),
+          child: const Text('桶设置'),
+        ),
       if (showsWebDavAction && !busy) ...[
-        if (onOpenTrashBucket != null)
+        if (onOpenTrashBucket != null && trashEnabled)
           ShadContextMenuItem(
             onPressed: () =>
                 _runBucketMenuAction(() => onOpenTrashBucket!(bucket)),
@@ -251,7 +265,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
           child: Text('查看 $webDavActionLabel 地址'),
         ),
       ] else if (mounted && !busy) ...[
-        if (onOpenTrashBucket != null)
+        if (onOpenTrashBucket != null && trashEnabled)
           ShadContextMenuItem(
             onPressed: () =>
                 _runBucketMenuAction(() => onOpenTrashBucket!(bucket)),
@@ -270,7 +284,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
             child: const Text('卸载'),
           ),
       ] else ...[
-        if (onOpenTrashBucket != null)
+        if (onOpenTrashBucket != null && trashEnabled)
           ShadContextMenuItem(
             onPressed: () =>
                 _runBucketMenuAction(() => onOpenTrashBucket!(bucket)),
@@ -310,10 +324,12 @@ class _BucketMountActions extends StatelessWidget {
     required this.status,
     required this.busy,
     required this.onOpenTrashBucket,
+    required this.onConfigureBucket,
     required this.onMountBucket,
     required this.onUnmountBucket,
     required this.onOpenMountedBucket,
     required this.onOpenWebDavBucket,
+    required this.trashEnabled,
     required this.webDavActionLabel,
   });
 
@@ -321,10 +337,12 @@ class _BucketMountActions extends StatelessWidget {
   final BucketMountStatus? status;
   final bool busy;
   final ValueChanged<String>? onOpenTrashBucket;
+  final ValueChanged<String>? onConfigureBucket;
   final ValueChanged<String>? onMountBucket;
   final ValueChanged<String>? onUnmountBucket;
   final ValueChanged<String>? onOpenMountedBucket;
   final ValueChanged<String>? onOpenWebDavBucket;
+  final bool trashEnabled;
   final String webDavActionLabel;
 
   @override
@@ -381,7 +399,7 @@ class _BucketMountActions extends StatelessWidget {
               label: '回收站',
               icon: LucideIcons.trash2,
               color: foreground,
-              onPressed: onOpenTrashBucket == null
+              onPressed: onOpenTrashBucket == null || !trashEnabled
                   ? null
                   : () => onOpenTrashBucket!(bucket),
             ),
@@ -413,7 +431,14 @@ class _BucketMountActions extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           _actionSlot(
-            showsWebDavAction
+            onConfigureBucket != null
+                ? _miniButton(
+                    label: '配置',
+                    icon: LucideIcons.settings2,
+                    color: foreground,
+                    onPressed: () => onConfigureBucket!(bucket),
+                  )
+                : showsWebDavAction
                 ? const SizedBox.shrink()
                 : mounted
                 ? _miniButton(

@@ -27,6 +27,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.loadingMore,
     required this.selectedKeys,
     required this.deletingKeys,
+    this.readOnly = false,
     required this.gridIconSize,
     required this.listIconSize,
     this.mountedToDesktop = false,
@@ -56,6 +57,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final bool loadingMore;
   final Set<String> selectedKeys;
   final Set<String> deletingKeys;
+  final bool readOnly;
   final double gridIconSize;
   final double listIconSize;
   final String? mountBucketName;
@@ -375,16 +377,22 @@ class FileManagerObjectBrowser extends StatelessWidget {
         onShare: () => _runMenuAction(
           () => onObjectAction(object, FileObjectAction.share),
         ),
-        onCopy: () =>
-            _runMenuAction(() => onObjectAction(object, FileObjectAction.copy)),
-        onMove: () =>
-            _runMenuAction(() => onObjectAction(object, FileObjectAction.move)),
-        onRename: () => _runMenuAction(
-          () => onObjectAction(object, FileObjectAction.rename),
-        ),
-        onDelete: () => _runMenuAction(
-          () => onObjectAction(object, FileObjectAction.delete),
-        ),
+        onCopy: readOnly
+            ? null
+            : () => _runMenuAction(() => onObjectAction(object, FileObjectAction.copy)),
+        onMove: readOnly
+            ? null
+            : () => _runMenuAction(() => onObjectAction(object, FileObjectAction.move)),
+        onRename: readOnly
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.rename),
+              ),
+        onDelete: readOnly
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.delete),
+              ),
       ),
       child: child,
     );

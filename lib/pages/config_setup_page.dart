@@ -144,6 +144,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: widget.initialState.config.trashDirectoryName,
       trashRetentionDays: widget.initialState.config.trashRetentionDays,
+      bucketSettings: widget.initialState.config.bucketSettings,
       writebackQuietSeconds: widget.initialState.config.writebackQuietSeconds,
       usePathStyle: _usePathStyle,
       windowsMountMode: widget.initialState.config.windowsMountMode,

@@ -1,7 +1,11 @@
 // Package mount keeps session reuse checks isolated so remount decisions stay explicit.
 package mount
 
-import storageconfig "remote-storage/go/config"
+import (
+	"reflect"
+
+	storageconfig "remote-storage/go/config"
+)
 
 func mountSessionMatches(
 	session *mountSession,
@@ -14,7 +18,7 @@ func mountSessionMatches(
 	}
 	normalized := cfg.Normalized()
 	return session.bucket == normalizeBucketName(bucket) &&
-		session.config == normalized &&
+		reflect.DeepEqual(session.config, normalized) &&
 		session.requestedPath == normalizeMountPath(options.MountPath) &&
 		session.readOnly == options.ReadOnly &&
 		session.autoSync == options.AutoSync &&

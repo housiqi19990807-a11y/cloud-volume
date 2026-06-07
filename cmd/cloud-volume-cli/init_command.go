@@ -31,7 +31,10 @@ func runInitCommand(args []string) error {
 	fmt.Fprintln(ui.out, "请输入 S3 兼容存储配置。直接回车会保留当前值。")
 
 	cfg := current
-	if cfg == (storageconfig.RemoteStorageConfig{}) {
+	if !cfg.IsConfigured() &&
+		strings.TrimSpace(cfg.Endpoint) == "" &&
+		strings.TrimSpace(cfg.AccessKeyID) == "" &&
+		strings.TrimSpace(cfg.WebDAVUsername) == "" {
 		cfg = storageconfig.DefaultConfig()
 	}
 

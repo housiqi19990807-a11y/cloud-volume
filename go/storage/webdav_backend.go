@@ -36,7 +36,7 @@ func (b webDAVBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
 
 func (b webDAVBackend) ListObjectsPage(
 	ctx context.Context,
-	_, prefix, _ string,
+	bucket, prefix, _ string,
 	_ int32,
 ) (ObjectPage, error) {
 	entries, err := b.propfind(ctx, prefix, "1")
@@ -47,7 +47,7 @@ func (b webDAVBackend) ListObjectsPage(
 	items := make([]ObjectInfo, 0, len(entries))
 	for _, entry := range entries {
 		info, ok := b.objectInfoFromResponse(entry, base)
-		if ok {
+		if ok && !webDAVIsTrashRootEntry(b.bucketConfig(bucket), info.Key) {
 			items = append(items, info)
 		}
 	}
@@ -69,6 +69,9 @@ func (b webDAVBackend) HeadObject(ctx context.Context, _, key string) (ObjectInf
 }
 
 func (b webDAVBackend) CreateDirectory(ctx context.Context, bucket, prefix, name string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
 	if err := b.ensureWritableDirectory(ctx, bucket, prefix); err != nil {
 		return err
 	}
@@ -91,7 +94,13 @@ func (b webDAVBackend) CreateDirectory(ctx context.Context, bucket, prefix, name
 	return fmt.Errorf("webdav mkcol: %s", resp.Status)
 }
 
-func (b webDAVBackend) DeleteObject(ctx context.Context, _, key string, _ bool, _ string) error {
+func (b webDAVBackend) DeleteObject(ctx context.Context, bucket, key string, isDirectory bool, _ string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	if b.cfg.BucketSettingsFor(bucket).IsTrashEnabled() {
+		return b.moveObjectToTrash(ctx, bucket, key, isDirectory)
+	}
 	req, err := b.request(ctx, "DELETE", key, nil)
 	if err != nil {
 		return err
@@ -108,6 +117,9 @@ func (b webDAVBackend) DeleteObject(ctx context.Context, _, key string, _ bool, 
 }
 
 func (b webDAVBackend) RenameObject(ctx context.Context, bucket, key string, isDirectory bool, newName string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
 	target, err := renamedWebDAVTarget(key, isDirectory, newName)
 	if err != nil {
 		return err
@@ -115,15 +127,24 @@ func (b webDAVBackend) RenameObject(ctx context.Context, bucket, key string, isD
 	return b.MoveObject(ctx, bucket, key, target, isDirectory, "")
 }
 
-func (b webDAVBackend) CopyObject(ctx context.Context, _, sourceKey, targetKey string, _ bool, _ string) error {
+func (b webDAVBackend) CopyObject(ctx context.Context, bucket, sourceKey, targetKey string, _ bool, _ string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
 	return b.copyMove(ctx, "COPY", sourceKey, targetKey)
 }
 
-func (b webDAVBackend) MoveObject(ctx context.Context, _, sourceKey, targetKey string, _ bool, _ string) error {
+func (b webDAVBackend) MoveObject(ctx context.Context, bucket, sourceKey, targetKey string, _ bool, _ string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
 	return b.copyMove(ctx, "MOVE", sourceKey, targetKey)
 }
 
 func (b webDAVBackend) UploadFile(ctx context.Context, bucket, key, localPath, _ string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
 	if err := b.ensureWritableDirectory(ctx, bucket, path.Dir(cleanRemotePath(key))); err != nil {
 		return err
 	}
@@ -142,6 +163,9 @@ func (b webDAVBackend) UploadReader(
 	_ int64,
 	_, _ string,
 ) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
 	if err := b.ensureWritableDirectory(ctx, bucket, path.Dir(cleanRemotePath(key))); err != nil {
 		return err
 	}

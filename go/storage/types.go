@@ -13,6 +13,8 @@ import (
 type BucketInfo = s3ops.BucketInfo
 type ObjectInfo = s3ops.ObjectInfo
 type ObjectPage = s3ops.ObjectPage
+type TrashItem = s3ops.TrashItem
+type TrashPage = s3ops.TrashPage
 
 type DirectoryAccess struct {
 	Writable bool   `json:"writable"`
@@ -27,6 +29,10 @@ type Backend interface {
 	DirectoryAccess(context.Context, string, string) (DirectoryAccess, error)
 	CreateDirectory(context.Context, string, string, string) error
 	DeleteObject(context.Context, string, string, bool, string) error
+	ListTrashPage(context.Context, string, string, int32) (TrashPage, error)
+	RestoreTrashItem(context.Context, string, string) error
+	DeleteTrashItem(context.Context, string, string) error
+	ClearTrash(context.Context, string) error
 	RenameObject(context.Context, string, string, bool, string) error
 	CopyObject(context.Context, string, string, string, bool, string) error
 	MoveObject(context.Context, string, string, string, bool, string) error

@@ -7,7 +7,6 @@ import (
 
 	storageconfig "remote-storage/go/config"
 	bucketmount "remote-storage/go/mount"
-	s3ops "remote-storage/go/s3"
 	storageops "remote-storage/go/storage"
 )
 
@@ -64,11 +63,8 @@ func listTrashPage(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if input.Config.Normalized().StorageType == storageconfig.StorageTypeWebDAV {
-		return s3ops.TrashPage{Items: []s3ops.TrashItem{}}, nil
-	}
-	return s3ops.ListTrashPage(
-		input.Config,
+	return storageops.ForConfig(input.Config).ListTrashPage(
+		context.Background(),
 		input.Bucket,
 		input.NextToken,
 		input.PageSize,

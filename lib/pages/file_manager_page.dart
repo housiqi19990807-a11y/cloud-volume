@@ -16,6 +16,7 @@ import 'package:remote_storage/services/file_preview_window_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/bucket_settings_dialog.dart';
 import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
@@ -41,6 +42,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'file_manager_page_actions.dart';
 part 'file_manager_page_access.dart';
+part 'file_manager_page_bucket_policy.dart';
+part 'file_manager_page_bucket_view.dart';
 part 'file_manager_page_mount.dart';
 part 'file_manager_page_object_deletes.dart';
 part 'file_manager_page_paging.dart';
@@ -60,12 +63,14 @@ class FileManagerPage extends StatefulWidget {
     required this.api,
     required this.config,
     required this.onEditConfig,
+    required this.onRefresh,
     this.homeView = FileManagerHomeView.files,
   });
 
   final RemoteStorageGateway api;
   final RemoteStorageConfig config;
   final VoidCallback onEditConfig;
+  final VoidCallback onRefresh;
   final FileManagerHomeView homeView;
 
   @override
@@ -354,7 +359,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
           onToggleView: () => setState(() => _isGrid = !_isGrid),
           trashCloseLabel: _isTrashHome ? '返回存储桶' : '返回文件',
           onOpenTrash:
-              _isTrashHome || _activeBucket == null || _loading || _showTrash
+              _isTrashHome ||
+                  _activeBucket == null ||
+                  _loading ||
+                  _showTrash ||
+                  !_activeBucketTrashEnabled
               ? null
               : _openBucketTrash,
           onCloseTrash: _activeBucket == null || _loading || !_showTrash
@@ -382,7 +391,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
               ? null
               : _upload,
           onBatchDownload: _loading ? null : _downloadSelectedObjects,
-          onBatchDelete: _loading ? null : _deleteSelectedObjects,
+          onBatchDelete:
+              _loading || !_currentBucketWritable ? null : _deleteSelectedObjects,
           onClearSelection: _clearSelection,
         ),
       ],
@@ -411,55 +421,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
     return _buildObjectView(theme);
   }
 
-  Widget _buildBucketView(ShadThemeData theme) {
-    if (_buckets == null) return const SizedBox();
-    final buckets = _filteredBuckets;
-    if (buckets.isEmpty) {
-      return FileManagerEmptyState(
-        theme: theme,
-        icon: LucideIcons.database,
-        text: _hasSearchQuery ? '没有匹配的存储桶' : '没有可用的存储桶',
-      );
-    }
-    return FileManagerBucketBrowser(
-      buckets: buckets,
-      isGrid: _isGrid,
-      gridIconSize: _bucketGridIconSize,
-      listIconSize: _listIconSize,
-      onOpenBucket: (bucket) => unawaited(_navToBucket(bucket)),
-      mountStatuses: _isTrashHome
-          ? const <String, BucketMountStatus>{}
-          : _bucketMountStatuses,
-      busyBuckets: _isTrashHome ? const <String>{} : _mountBusyBuckets,
-      sourceLabel: _bucketSourceLabel,
-      showActionColumn: !_isTrashHome,
-      onOpenTrashBucket: _isTrashHome
-          ? null
-          : (bucket) => unawaited(_openBucketTrash(bucket)),
-      onMountBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsMounts
-          ? (bucket) => unawaited(_mountBucket(bucket))
-          : null,
-      onUnmountBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsMounts
-          ? (bucket) => unawaited(_unmountBucket(bucket))
-          : null,
-      onOpenMountedBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsMounts
-          ? (bucket) => unawaited(_openMountedBucket(bucket))
-          : null,
-      onOpenWebDavBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsWebDavAccess
-          ? (bucket) => _showWebDavEntry(bucket)
-          : null,
-      webDavActionLabel: 'WebDAV',
-    );
-  }
-
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
     final visibleObjects = _filteredVisibleObjects;
@@ -479,6 +440,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       loadingMore: _pagingObjects,
       selectedKeys: _selectedObjectKeys,
       deletingKeys: _deletingObjectKeys,
+      readOnly: _activeBucketReadOnly,
       gridIconSize: _gridIconSize,
       listIconSize: _listIconSize,
       mountedToDesktop: _activeMountStatus?.mounted ?? false,

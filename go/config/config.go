@@ -1,6 +1,9 @@
 package config
 
-import "strings"
+import (
+	"path"
+	"strings"
+)
 
 // RemoteStorageConfig stores account connection values persisted to TOML.
 type RemoteStorageConfig struct {
@@ -25,11 +28,18 @@ type RemoteStorageConfig struct {
 	FileOpenMode                string `json:"fileOpenMode" toml:"file_open_mode"`
 	TrashDirectoryName          string `json:"trashDirectoryName" toml:"trash_directory_name"`
 	TrashRetentionDays          int    `json:"trashRetentionDays" toml:"trash_retention_days"`
+	BucketSettings              map[string]BucketSettings `json:"bucketSettings" toml:"bucket_settings"`
 	WritebackQuietSeconds       int    `json:"writebackQuietSeconds" toml:"writeback_quiet_seconds"`
 	UsePathStyle                bool   `json:"usePathStyle" toml:"use_path_style"`
 	WindowsMountMode            string `json:"windowsMountMode" toml:"windows_mount_mode"`
 	WindowsThisPcEntryEnabled   bool   `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
 	WindowsWritebackConcurrency int    `json:"windowsWritebackConcurrency" toml:"windows_writeback_concurrency"`
+}
+
+type BucketSettings struct {
+	ReadOnly       bool    `json:"readOnly" toml:"read_only"`
+	TrashEnabled   *bool   `json:"trashEnabled,omitempty" toml:"trash_enabled,omitempty"`
+	TrashDirectory string `json:"trashDirectory" toml:"trash_directory"`
 }
 
 const (
@@ -59,6 +69,7 @@ func DefaultConfig() RemoteStorageConfig {
 		FileOpenMode:                "double_click",
 		TrashDirectoryName:          ".trash",
 		TrashRetentionDays:          -1,
+		BucketSettings:              map[string]BucketSettings{},
 		WritebackQuietSeconds:       defaultWritebackQuietSeconds,
 		UsePathStyle:                true,
 		WindowsMountMode:            WindowsMountModeCloudFilesCached,
@@ -91,6 +102,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		FileOpenMode:                normalizeFileOpenMode(c.FileOpenMode),
 		TrashDirectoryName:          normalizeTrashDirectoryName(c.TrashDirectoryName),
 		TrashRetentionDays:          normalizeTrashRetentionDays(c.TrashRetentionDays),
+		BucketSettings:              normalizeBucketSettings(c.BucketSettings),
 		WritebackQuietSeconds:       normalizeWritebackQuietSeconds(c.WritebackQuietSeconds),
 		UsePathStyle:                c.UsePathStyle,
 		WindowsMountMode:            normalizeWindowsMountMode(c.WindowsMountMode),
@@ -271,15 +283,67 @@ func normalizeWritebackQuietSeconds(value int) int {
 }
 
 func normalizeTrashDirectoryName(value string) string {
-	trimmed := strings.TrimSpace(value)
-	trimmed = strings.Trim(trimmed, "/")
+	trimmed := strings.Trim(strings.TrimSpace(value), "/")
 	if trimmed == "" {
 		return ".trash"
 	}
-	if !strings.HasPrefix(trimmed, ".") {
-		return "." + trimmed
+	cleaned := strings.TrimPrefix(path.Clean("/"+trimmed), "/")
+	if cleaned == "" || cleaned == "." {
+		return ".trash"
 	}
-	return trimmed
+	if !strings.Contains(cleaned, "/") && !strings.HasPrefix(cleaned, ".") {
+		return "." + cleaned
+	}
+	return cleaned
+}
+
+func normalizeBucketSettings(settings map[string]BucketSettings) map[string]BucketSettings {
+	result := map[string]BucketSettings{}
+	for bucket, setting := range settings {
+		cleanBucket := strings.TrimSpace(bucket)
+		if cleanBucket == "" {
+			continue
+		}
+		if strings.TrimSpace(setting.TrashDirectory) != "" {
+			setting.TrashDirectory = normalizeTrashDirectoryName(setting.TrashDirectory)
+		}
+		result[cleanBucket] = setting
+	}
+	return result
+}
+
+func (c RemoteStorageConfig) BucketSettingsFor(bucket string) BucketSettings {
+	normalized := c.Normalized()
+	setting := BucketSettings{
+		TrashDirectory: normalized.TrashDirectoryName,
+	}
+	if normalized.StorageType != StorageTypeWebDAV {
+		enabled := true
+		setting.TrashEnabled = &enabled
+	} else {
+		enabled := false
+		setting.TrashEnabled = &enabled
+	}
+	if override, ok := normalized.BucketSettings[strings.TrimSpace(bucket)]; ok {
+		if override.TrashEnabled != nil {
+			setting.TrashEnabled = override.TrashEnabled
+		}
+		if strings.TrimSpace(override.TrashDirectory) != "" {
+			setting.TrashDirectory = normalizeTrashDirectoryName(override.TrashDirectory)
+		}
+		setting.ReadOnly = override.ReadOnly
+	}
+	return setting
+}
+
+func (c RemoteStorageConfig) WithBucketSettingsApplied(bucket string) RemoteStorageConfig {
+	normalized := c.Normalized()
+	normalized.TrashDirectoryName = normalized.BucketSettingsFor(bucket).TrashDirectory
+	return normalized
+}
+
+func (s BucketSettings) IsTrashEnabled() bool {
+	return s.TrashEnabled != nil && *s.TrashEnabled
 }
 
 func normalizeWindowsMountMode(value string) string {
@@ -308,11 +372,21 @@ func normalizeWindowsWritebackConcurrency(value int) int {
 func TrashDirectoryAliases(value string) []string {
 	primary := normalizeTrashDirectoryName(value)
 	aliases := []string{primary}
-	switch primary {
+	parent := path.Dir(primary)
+	base := path.Base(primary)
+	aliasBase := ""
+	switch base {
 	case ".trash":
-		aliases = append(aliases, ".Trash")
+		aliasBase = ".Trash"
 	case ".Trash":
-		aliases = append(aliases, ".trash")
+		aliasBase = ".trash"
+	}
+	if aliasBase != "" {
+		alias := aliasBase
+		if parent != "." && parent != "" {
+			alias = path.Join(parent, aliasBase)
+		}
+		aliases = append(aliases, alias)
 	}
 	return aliases
 }

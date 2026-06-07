@@ -3,6 +3,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -14,6 +15,11 @@ type s3Backend struct {
 	cfg storageconfig.RemoteStorageConfig
 }
 
+// bucketConfig applies bucket-level overrides before delegating to shared S3 helpers.
+func (b s3Backend) bucketConfig(bucket string) storageconfig.RemoteStorageConfig {
+	return b.cfg.WithBucketSettingsApplied(bucket)
+}
+
 func (b s3Backend) ListBuckets(context.Context) ([]BucketInfo, error) {
 	return s3ops.ListBuckets(b.cfg)
 }
@@ -23,11 +29,11 @@ func (b s3Backend) ListObjectsPage(
 	bucket, prefix, nextToken string,
 	pageSize int32,
 ) (ObjectPage, error) {
-	return s3ops.ListObjectsPageContext(ctx, b.cfg, bucket, prefix, nextToken, pageSize)
+	return s3ops.ListObjectsPageContext(ctx, b.bucketConfig(bucket), bucket, prefix, nextToken, pageSize)
 }
 
 func (b s3Backend) HeadObject(ctx context.Context, bucket, key string) (ObjectInfo, error) {
-	return s3ops.HeadObjectContext(ctx, b.cfg, bucket, key)
+	return s3ops.HeadObjectContext(ctx, b.bucketConfig(bucket), bucket, key)
 }
 
 func (b s3Backend) DirectoryAccess(context.Context, string, string) (DirectoryAccess, error) {
@@ -35,7 +41,10 @@ func (b s3Backend) DirectoryAccess(context.Context, string, string) (DirectoryAc
 }
 
 func (b s3Backend) CreateDirectory(ctx context.Context, bucket, prefix, name string) error {
-	return s3ops.CreateDirectoryContext(ctx, b.cfg, bucket, prefix, name)
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.CreateDirectoryContext(ctx, b.bucketConfig(bucket), bucket, prefix, name)
 }
 
 func (b s3Backend) DeleteObject(
@@ -44,7 +53,14 @@ func (b s3Backend) DeleteObject(
 	isDirectory bool,
 	taskID string,
 ) error {
-	return s3ops.DeleteObjectContextWithTask(ctx, b.cfg, bucket, key, isDirectory, taskID)
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	cfg := b.bucketConfig(bucket)
+	if !cfg.BucketSettingsFor(bucket).IsTrashEnabled() {
+		return s3ops.DeleteObjectHardContextWithTask(ctx, cfg, bucket, key, isDirectory, taskID)
+	}
+	return s3ops.DeleteObjectContextWithTask(ctx, cfg, bucket, key, isDirectory, taskID)
 }
 
 func (b s3Backend) RenameObject(
@@ -53,7 +69,10 @@ func (b s3Backend) RenameObject(
 	isDirectory bool,
 	newName string,
 ) error {
-	return s3ops.RenameObjectContext(ctx, b.cfg, bucket, key, isDirectory, newName)
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.RenameObjectContext(ctx, b.bucketConfig(bucket), bucket, key, isDirectory, newName)
 }
 
 func (b s3Backend) CopyObject(
@@ -62,7 +81,10 @@ func (b s3Backend) CopyObject(
 	isDirectory bool,
 	taskID string,
 ) error {
-	return s3ops.CopyObjectContext(ctx, b.cfg, bucket, sourceKey, targetKey, isDirectory, taskID)
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.CopyObjectContext(ctx, b.bucketConfig(bucket), bucket, sourceKey, targetKey, isDirectory, taskID)
 }
 
 func (b s3Backend) MoveObject(
@@ -71,14 +93,20 @@ func (b s3Backend) MoveObject(
 	isDirectory bool,
 	taskID string,
 ) error {
-	return s3ops.MoveObjectContextWithTask(ctx, b.cfg, bucket, sourceKey, targetKey, isDirectory, taskID)
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.MoveObjectContextWithTask(ctx, b.bucketConfig(bucket), bucket, sourceKey, targetKey, isDirectory, taskID)
 }
 
 func (b s3Backend) UploadFile(
 	ctx context.Context,
 	bucket, key, localPath, taskID string,
 ) error {
-	return s3ops.UploadFileContext(ctx, b.cfg, bucket, key, localPath, taskID)
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.UploadFileContext(ctx, b.bucketConfig(bucket), bucket, key, localPath, taskID)
 }
 
 func (b s3Backend) UploadReader(
@@ -88,14 +116,53 @@ func (b s3Backend) UploadReader(
 	size int64,
 	taskID, fileName string,
 ) error {
-	return s3ops.UploadReader(ctx, b.cfg, bucket, key, body, size, taskID, fileName)
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.UploadReader(ctx, b.bucketConfig(bucket), bucket, key, body, size, taskID, fileName)
+}
+
+func (b s3Backend) ListTrashPage(ctx context.Context, bucket, nextToken string, pageSize int32) (TrashPage, error) {
+	cfg := b.bucketConfig(bucket)
+	if !cfg.BucketSettingsFor(bucket).IsTrashEnabled() {
+		return TrashPage{Items: []TrashItem{}}, nil
+	}
+	return s3ops.ListTrashPageContext(ctx, cfg, bucket, nextToken, pageSize)
+}
+
+func (b s3Backend) RestoreTrashItem(ctx context.Context, bucket, trashID string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.RestoreTrashItemContext(ctx, b.bucketConfig(bucket), bucket, trashID)
+}
+
+func (b s3Backend) DeleteTrashItem(ctx context.Context, bucket, trashID string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.DeleteTrashItemContext(ctx, b.bucketConfig(bucket), bucket, trashID)
+}
+
+func (b s3Backend) ClearTrash(ctx context.Context, bucket string) error {
+	if err := b.ensureBucketWritable(bucket); err != nil {
+		return err
+	}
+	return s3ops.ClearTrashContext(ctx, b.bucketConfig(bucket), bucket)
+}
+
+func (b s3Backend) ensureBucketWritable(bucket string) error {
+	if b.cfg.BucketSettingsFor(bucket).ReadOnly {
+		return fmt.Errorf("当前存储桶已配置为只读，无法写入")
+	}
+	return nil
 }
 
 func (b s3Backend) DownloadFile(
 	ctx context.Context,
 	bucket, key, localPath, taskID string,
 ) error {
-	return s3ops.DownloadFileContext(ctx, b.cfg, bucket, key, localPath, taskID)
+	return s3ops.DownloadFileContext(ctx, b.bucketConfig(bucket), bucket, key, localPath, taskID)
 }
 
 func (b s3Backend) StreamObjectToHTTP(
@@ -104,5 +171,5 @@ func (b s3Backend) StreamObjectToHTTP(
 	inline bool,
 	w http.ResponseWriter,
 ) error {
-	return s3ops.StreamObjectToHTTP(ctx, b.cfg, bucket, key, inline, w)
+	return s3ops.StreamObjectToHTTP(ctx, b.bucketConfig(bucket), bucket, key, inline, w)
 }

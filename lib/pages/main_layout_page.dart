@@ -269,6 +269,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           api: widget.api,
           config: widget.state.config,
           onEditConfig: widget.onEditConfig,
+          onRefresh: widget.onRefresh,
         ),
         CloudStoragePage(
           state: widget.state,

@@ -10,10 +10,10 @@ enum FileObjectAction { open, download, share, copy, move, rename, delete }
 List<Widget> buildObjectActionMenuItems({
   required ObjectInfo object,
   required VoidCallback onOpen,
-  required VoidCallback onCopy,
-  required VoidCallback onMove,
-  required VoidCallback onRename,
-  required VoidCallback onDelete,
+  required VoidCallback? onCopy,
+  required VoidCallback? onMove,
+  required VoidCallback? onRename,
+  required VoidCallback? onDelete,
   required VoidCallback onShare,
   VoidCallback? onDownload,
 }) {
@@ -23,10 +23,14 @@ List<Widget> buildObjectActionMenuItems({
       ShadContextMenuItem(onPressed: onDownload, child: const Text('下载')),
     if (!object.isDir)
       ShadContextMenuItem(onPressed: onShare, child: const Text('创建分享')),
-    ShadContextMenuItem(onPressed: onCopy, child: const Text('复制到...')),
-    ShadContextMenuItem(onPressed: onMove, child: const Text('移动到...')),
-    ShadContextMenuItem(onPressed: onRename, child: const Text('重命名')),
-    ShadContextMenuItem(onPressed: onDelete, child: const Text('删除')),
+    if (onCopy != null)
+      ShadContextMenuItem(onPressed: onCopy, child: const Text('复制到...')),
+    if (onMove != null)
+      ShadContextMenuItem(onPressed: onMove, child: const Text('移动到...')),
+    if (onRename != null)
+      ShadContextMenuItem(onPressed: onRename, child: const Text('重命名')),
+    if (onDelete != null)
+      ShadContextMenuItem(onPressed: onDelete, child: const Text('删除')),
   ];
 }
 

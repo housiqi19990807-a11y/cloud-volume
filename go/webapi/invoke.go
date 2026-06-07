@@ -214,27 +214,29 @@ func (s *Server) invokeMethod(
 		)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "list_trash_page":
-		if config.Normalized().StorageType == storageconfig.StorageTypeWebDAV {
-			return s3ops.TrashPage{Items: []s3ops.TrashItem{}}, http.StatusOK, nil
-		}
-		result, err := s3ops.ListTrashPage(
-			config,
+		result, err := storageops.ForConfig(config).ListTrashPage(
+			ctx,
 			input.Bucket,
 			input.NextToken,
 			input.PageSize,
 		)
 		return result, http.StatusOK, err
 	case "restore_trash_item":
-		err := s3ops.RestoreTrashItem(config, input.Bucket, input.TrashID)
+		err := storageops.ForConfig(config).RestoreTrashItem(
+			ctx,
+			input.Bucket,
+			input.TrashID,
+		)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "delete_trash_item":
-		err := s3ops.DeleteTrashItem(config, input.Bucket, input.TrashID)
+		err := storageops.ForConfig(config).DeleteTrashItem(
+			ctx,
+			input.Bucket,
+			input.TrashID,
+		)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "clear_trash":
-		if config.Normalized().StorageType == storageconfig.StorageTypeWebDAV {
-			return map[string]any{"ok": true}, http.StatusOK, nil
-		}
-		err := s3ops.ClearTrash(config, input.Bucket)
+		err := storageops.ForConfig(config).ClearTrash(ctx, input.Bucket)
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "create_share":
 		result, err := shareops.Create(

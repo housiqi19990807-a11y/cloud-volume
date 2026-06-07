@@ -297,6 +297,15 @@ extension _FileManagerPageActions on _FileManagerPageState {
         await showShareLinkDialog(context, record: shareRecord);
         return;
       }
+      final isWriteAction =
+          action == FileObjectAction.copy ||
+          action == FileObjectAction.move ||
+          action == FileObjectAction.rename ||
+          action == FileObjectAction.delete;
+      if (isWriteAction && !_currentBucketWritable) {
+        _ensureCurrentDirectoryWritable();
+        return;
+      }
       if (action == FileObjectAction.copy || action == FileObjectAction.move) {
         final targetPath = await showObjectTargetPathDialog(
           context,
