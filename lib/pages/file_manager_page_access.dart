@@ -7,27 +7,30 @@ part of 'file_manager_page.dart';
 extension _FileManagerPageAccess on _FileManagerPageState {
   bool get _currentDirectoryWritable {
     if (!_currentBucketWritable) return false;
-    if (widget.config.storageType != StorageType.webdav) return true;
+    if (_activeConfig.storageType != StorageType.webdav) return true;
     if (_checkingDirectoryAccess) return false;
     final access = _directoryAccess;
     if (access == null) return false;
     return !access.known || access.writable;
   }
 
-  Future<void> _refreshDirectoryAccess(String bucket, String prefix) async {
+  Future<void> _refreshDirectoryAccess(
+    FileManagerBucketEntry bucket,
+    String prefix,
+  ) async {
     try {
       final access = await widget.api.directoryAccess(
-        widget.config,
-        bucket,
+        bucket.config,
+        bucket.bucket.name,
         prefix,
       );
-      if (!mounted || _activeBucket != bucket || _prefix != prefix) return;
+      if (!mounted || _activeBucketId != bucket.id || _prefix != prefix) return;
       setState(() {
         _directoryAccess = access;
         _checkingDirectoryAccess = false;
       });
     } catch (error) {
-      if (!mounted || _activeBucket != bucket || _prefix != prefix) return;
+      if (!mounted || _activeBucketId != bucket.id || _prefix != prefix) return;
       setState(() {
         _directoryAccess = const DirectoryAccess(writable: true, known: false);
         _checkingDirectoryAccess = false;

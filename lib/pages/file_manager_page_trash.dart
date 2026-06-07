@@ -5,8 +5,8 @@ part of 'file_manager_page.dart';
 // 文件管理页回收站逻辑：按 bucket 浏览、恢复和彻底删除软删除对象。
 
 extension _FileManagerPageTrash on _FileManagerPageState {
-  Future<bool> _openBucketTrash([String? bucket]) async {
-    final targetBucket = bucket ?? _activeBucket;
+  Future<bool> _openBucketTrash([FileManagerBucketEntry? bucket]) async {
+    final targetBucket = bucket ?? _activeBucketEntry;
     if (targetBucket == null) {
       return false;
     }
@@ -16,14 +16,14 @@ extension _FileManagerPageTrash on _FileManagerPageState {
     });
     try {
       final page = await widget.api.listTrashPage(
-        widget.config,
-        targetBucket,
+        targetBucket.config,
+        targetBucket.bucket.name,
         '',
         _FileManagerPageState._trashPageSize,
       );
       if (!mounted) return false;
       setState(() {
-        _activeBucket = targetBucket;
+        _activeBucketEntry = targetBucket;
         _objects = null;
         _trashItems = page.items;
         _prefix = '';
@@ -60,7 +60,7 @@ extension _FileManagerPageTrash on _FileManagerPageState {
     if (_activeBucket == null) {
       return;
     }
-    await _loadObjects(_activeBucket!, '');
+    await _loadObjects(_activeBucketEntry!, '');
   }
 
   Future<void> _restoreTrashItem(TrashItem item) async {
@@ -68,10 +68,10 @@ extension _FileManagerPageTrash on _FileManagerPageState {
       return;
     }
     try {
-      await widget.api.restoreTrashItem(widget.config, _activeBucket!, item.id);
+      await widget.api.restoreTrashItem(_activeConfig, _activeBucket!, item.id);
       ObjectListingNotifier.instance.markRestored(_activeBucket!, [item]);
       if (!mounted) return;
-      await _openBucketTrash(_activeBucket!);
+      await _openBucketTrash(_activeBucketEntry!);
       _showPageSnack('已恢复 ${item.name}');
     } catch (error) {
       _showPageError(error);
@@ -87,9 +87,9 @@ extension _FileManagerPageTrash on _FileManagerPageState {
       return;
     }
     try {
-      await widget.api.deleteTrashItem(widget.config, _activeBucket!, item.id);
+      await widget.api.deleteTrashItem(_activeConfig, _activeBucket!, item.id);
       if (!mounted) return;
-      await _openBucketTrash(_activeBucket!);
+      await _openBucketTrash(_activeBucketEntry!);
     } catch (error) {
       _showPageError(error);
     }
@@ -110,9 +110,9 @@ extension _FileManagerPageTrash on _FileManagerPageState {
       _selectedObjectKeys.clear();
     });
     try {
-      await widget.api.clearTrash(widget.config, bucket);
+      await widget.api.clearTrash(_activeConfig, bucket);
       if (!mounted) return;
-      await _openBucketTrash(bucket);
+      await _openBucketTrash(_activeBucketEntry!);
       _showPageSnack('已清空 $bucket 的回收站');
     } catch (error) {
       if (!mounted) return;

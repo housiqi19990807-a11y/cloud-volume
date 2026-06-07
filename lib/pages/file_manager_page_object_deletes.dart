@@ -6,10 +6,12 @@ part of 'file_manager_page.dart';
 
 extension _FileManagerPageObjectDeletes on _FileManagerPageState {
   void _queueObjectDeletes(List<ObjectInfo> objects) {
-    if (_activeBucket == null || objects.isEmpty) {
+    if (_activeBucket == null ||
+        _activeBucketEntry == null ||
+        objects.isEmpty) {
       return;
     }
-    final bucket = _activeBucket!;
+    final bucketEntry = _activeBucketEntry!;
     final targets = objects
         .where((object) => !_deletingObjectKeys.contains(object.key))
         .toList();
@@ -24,14 +26,14 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
     });
 
     final futures = targets
-        .map((object) => _runDeleteTask(bucket, object))
+        .map((object) => _runDeleteTask(bucketEntry, object))
         .toList(growable: false);
     unawaited(() async {
       final errors = await Future.wait(futures);
-      if (!mounted || _activeBucket != bucket) {
+      if (!mounted || _activeBucketId != bucketEntry.id) {
         return;
       }
-      await _loadObjects(bucket, _prefix);
+      await _loadObjects(bucketEntry, _prefix);
       final failures = errors.whereType<Object>().toList(growable: false);
       if (failures.isNotEmpty) {
         _showPageMessage(
@@ -44,24 +46,27 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
     }());
   }
 
-  Future<Object?> _runDeleteTask(String bucket, ObjectInfo object) async {
+  Future<Object?> _runDeleteTask(
+    FileManagerBucketEntry bucket,
+    ObjectInfo object,
+  ) async {
     final task = TransferQueue.instance.startTask(
       kind: TransferKind.delete,
-      bucket: bucket,
+      bucket: bucket.bucket.name,
       key: object.key,
       localPath: '',
     );
     try {
       await widget.api.deleteObject(
-        widget.config,
-        bucket,
+        bucket.config,
+        bucket.bucket.name,
         object.key,
         object.isDir,
         task.id,
       );
       await FileAccessService.instance.evictCacheForObject(
-        config: widget.config,
-        bucket: bucket,
+        config: bucket.config,
+        bucket: bucket.bucket.name,
         object: object,
       );
       TransferQueue.instance.markTaskDone(task.id);

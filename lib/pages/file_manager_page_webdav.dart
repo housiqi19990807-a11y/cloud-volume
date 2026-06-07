@@ -3,8 +3,8 @@
 part of 'file_manager_page.dart';
 
 extension _FileManagerPageWebDav on _FileManagerPageState {
-  void _showWebDavEntry(String bucket) {
-    final uri = widget.api.webDavUri(bucket);
+  void _showWebDavEntry(FileManagerBucketEntry bucket) {
+    final uri = widget.api.webDavUri(bucket.bucket.name);
     if (uri == null) {
       _showPageMessage(title: 'WebDAV 不可用', message: '当前客户端未提供 WebDAV 地址。');
       return;

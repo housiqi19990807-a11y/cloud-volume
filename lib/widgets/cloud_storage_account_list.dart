@@ -17,7 +17,6 @@ class CloudStorageAccountList extends StatelessWidget {
     required this.isGrid,
     required this.busy,
     required this.onEdit,
-    required this.onActivate,
     required this.onDelete,
   });
 
@@ -25,7 +24,6 @@ class CloudStorageAccountList extends StatelessWidget {
   final bool isGrid;
   final bool busy;
   final ValueChanged<ProfileInfo> onEdit;
-  final ValueChanged<ProfileInfo> onActivate;
   final ValueChanged<ProfileInfo> onDelete;
 
   @override
@@ -61,7 +59,6 @@ class CloudStorageAccountList extends StatelessWidget {
               profile: profile,
               busy: busy,
               onEdit: onEdit,
-              onActivate: onActivate,
               onDelete: onDelete,
             );
           },
@@ -88,12 +85,11 @@ class CloudStorageAccountList extends StatelessWidget {
                   subtitleLabel: profile.endpoint,
                   sizeLabel: _storageLabel(profile),
                   sizeColumnWidthOverride: _typeColumnWidth,
-                  statusWidget: _AccountStatus(active: profile.active),
+                  statusWidget: const _AccountStatus(),
                   trailing: _AccountActions(
                     profile: profile,
                     busy: busy,
                     onEdit: onEdit,
-                    onActivate: onActivate,
                     onDelete: onDelete,
                   ),
                   onTap: () {},
@@ -122,14 +118,12 @@ class _AccountCard extends StatelessWidget {
     required this.profile,
     required this.busy,
     required this.onEdit,
-    required this.onActivate,
     required this.onDelete,
   });
 
   final ProfileInfo profile;
   final bool busy;
   final ValueChanged<ProfileInfo> onEdit;
-  final ValueChanged<ProfileInfo> onActivate;
   final ValueChanged<ProfileInfo> onDelete;
 
   @override
@@ -155,7 +149,7 @@ class _AccountCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              _AccountStatus(active: profile.active),
+              const _AccountStatus(),
             ],
           ),
           const SizedBox(height: 10),
@@ -188,14 +182,6 @@ class _AccountCard extends StatelessWidget {
                 onPressed: busy ? null : () => onEdit(profile),
               ),
               const SizedBox(width: 6),
-              if (!profile.active) ...[
-                _AccountActionButton(
-                  label: '连接',
-                  icon: LucideIcons.plug,
-                  onPressed: busy ? null : () => onActivate(profile),
-                ),
-                const SizedBox(width: 6),
-              ],
               _AccountActionButton(
                 label: '退出',
                 icon: LucideIcons.logOut,
@@ -261,14 +247,12 @@ class _AccountActions extends StatelessWidget {
     required this.profile,
     required this.busy,
     required this.onEdit,
-    required this.onActivate,
     required this.onDelete,
   });
 
   final ProfileInfo profile;
   final bool busy;
   final ValueChanged<ProfileInfo> onEdit;
-  final ValueChanged<ProfileInfo> onActivate;
   final ValueChanged<ProfileInfo> onDelete;
 
   @override
@@ -284,14 +268,6 @@ class _AccountActions extends StatelessWidget {
             onPressed: busy ? null : () => onEdit(profile),
           ),
           const SizedBox(width: 6),
-          if (!profile.active) ...[
-            _AccountActionButton(
-              label: '连接',
-              icon: LucideIcons.plug,
-              onPressed: busy ? null : () => onActivate(profile),
-            ),
-            const SizedBox(width: 6),
-          ],
           _AccountActionButton(
             label: '退出',
             icon: LucideIcons.logOut,
@@ -339,24 +315,20 @@ class _AccountActionButton extends StatelessWidget {
 }
 
 class _AccountStatus extends StatelessWidget {
-  const _AccountStatus({required this.active});
-
-  final bool active;
+  const _AccountStatus();
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     return Text(
-      active ? '已连接' : '未连接',
+      '已保存',
       textAlign: TextAlign.right,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
         fontSize: 11.5,
-        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-        color: active
-            ? theme.colorScheme.primary
-            : theme.colorScheme.mutedForeground,
+        fontWeight: FontWeight.w600,
+        color: theme.colorScheme.primary,
       ),
     );
   }
@@ -378,9 +350,7 @@ class _AccountIcon extends StatelessWidget {
             ? LucideIcons.server
             : LucideIcons.cloud,
         size: 18,
-        color: profile.active
-            ? theme.colorScheme.primary
-            : theme.colorScheme.mutedForeground,
+        color: theme.colorScheme.primary,
       ),
     );
   }

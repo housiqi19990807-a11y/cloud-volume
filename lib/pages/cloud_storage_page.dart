@@ -1,4 +1,4 @@
-// 账号管理页负责展示所有账号，并把账号新增、连接与退出操作串起来。
+// 账号管理页负责展示所有账号，并把账号新增、编辑与退出操作串起来。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -54,27 +54,12 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
               isGrid: _isGrid,
               busy: _busy,
               onEdit: _showEditAccountDialog,
-              onActivate: _activate,
               onDelete: _delete,
             ),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _activate(ProfileInfo profile) async {
-    setState(() => _busy = true);
-    try {
-      await widget.api.setActiveProfile(profile.name);
-      if (!mounted) return;
-      showAppToast(context, title: '已连接账号', message: _profileTitle(profile));
-      widget.onRefresh();
-    } catch (error) {
-      if (mounted) showAppErrorToast(context, message: error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   Future<void> _delete(ProfileInfo profile) async {
@@ -318,7 +303,7 @@ class _PageHeader extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '集中展示所有账号；新增账号时选择 S3 对象存储、WebDAV 或百度网盘。',
+                '所有账号会直接共存；新增账号后可立即在文件管理页看到对应来源。',
                 style: TextStyle(
                   color: theme.colorScheme.mutedForeground,
                   fontSize: 13,

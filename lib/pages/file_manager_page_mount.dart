@@ -5,12 +5,14 @@ part of 'file_manager_page.dart';
 // 文件管理页挂载逻辑：刷新状态，并暴露挂载、卸载和打开挂载目录动作。
 
 extension _FileManagerPageMount on _FileManagerPageState {
-  void _showMountUnavailableMessage([String? bucket]) {
-    final bucketLabel = (bucket ?? _activeBucket ?? '').trim();
+  void _showMountUnavailableMessage([FileManagerBucketEntry? bucket]) {
+    final entry = bucket ?? _activeBucketEntry;
+    final bucketLabel = entry?.bucket.name.trim() ?? '';
+    final config = entry?.config ?? widget.config;
     final title = bucketLabel.isEmpty ? '挂载不可用' : '“$bucketLabel”暂时不能挂载';
     final message = !widget.api.capabilities.supportsMounts
         ? '当前运行环境暂不支持桌面挂载。'
-        : widget.config.storageType == StorageType.baiduPan
+        : config.storageType == StorageType.baiduPan
         ? '百度网盘账号当前只支持浏览、上传、下载和对象操作，暂不支持桌面挂载。'
         : '当前账号暂不支持桌面挂载。';
     _showPageMessage(title: title, message: message);
@@ -77,8 +79,7 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshVisibleMountStatuses() async {
-    if (!widget.api.capabilities.supportsMounts ||
-        !widget.config.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts) {
       return;
     }
     if (_loading ||
@@ -95,119 +96,132 @@ extension _FileManagerPageMount on _FileManagerPageState {
   }
 
   Future<void> _refreshVisibleMountStatusesOnce() async {
-    if (!widget.api.capabilities.supportsMounts ||
-        !widget.config.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts) {
       return;
     }
-    if (_activeBucket != null) {
-      final activeStatus = _bucketMountStatuses[_activeBucket!];
+    if (_activeBucketEntry != null) {
+      final activeStatus = _bucketMountStatuses[_activeBucketId!];
       if (activeStatus?.mounted == true ||
-          _mountBusyBuckets.contains(_activeBucket!)) {
-        await _refreshMountStatus(_activeBucket!);
+          _mountBusyBuckets.contains(_activeBucketId!)) {
+        await _refreshMountStatus(_activeBucketEntry!);
       }
       return;
     }
-    final mountedBucket = _currentMountedBucketName();
+    final mountedBucket = _currentMountedBucketEntry();
     if (mountedBucket == null) {
       return;
     }
     await _refreshMountStatus(mountedBucket);
   }
 
-  Future<void> _refreshBucketMountStatuses(List<BucketInfo> buckets) async {
-    if (!widget.api.capabilities.supportsMounts ||
-        !widget.config.supportsMounts) {
+  Future<void> _refreshBucketMountStatuses(
+    List<FileManagerBucketEntry> buckets,
+  ) async {
+    if (!widget.api.capabilities.supportsMounts) {
       return;
     }
     for (final bucket in buckets) {
-      await _refreshMountStatus(bucket.name);
+      if (!bucket.config.supportsMounts) {
+        continue;
+      }
+      await _refreshMountStatus(bucket);
     }
   }
 
-  Future<void> _refreshMountStatus(String bucket) async {
+  Future<void> _refreshMountStatus(FileManagerBucketEntry bucket) async {
     if (!widget.api.capabilities.supportsMounts ||
-        !widget.config.supportsMounts) {
+        !bucket.config.supportsMounts) {
       return;
     }
     try {
-      final status = await widget.api.getBucketMountStatus(bucket);
+      final status = await widget.api.getBucketMountStatus(bucket.bucket.name);
       if (!mounted) return;
-      _applyMountStatus(status);
+      _applyMountStatus(bucket.id, status);
     } catch (_) {
       // 挂载状态查询失败不阻断文件浏览；用户显式操作时再显示错误。
     }
   }
 
-  String? _currentMountedBucketName() {
-    for (final entry in _bucketMountStatuses.entries) {
-      if (entry.value.mounted) {
-        return entry.key;
+  FileManagerBucketEntry? _currentMountedBucketEntry() {
+    final buckets = _buckets;
+    if (buckets == null) {
+      return null;
+    }
+    for (final bucket in buckets) {
+      if (_bucketMountStatuses[bucket.id]?.mounted == true) {
+        return bucket;
       }
     }
     return null;
   }
 
-  Future<void> _mountBucket([String? bucket]) async {
-    final targetBucket = bucket ?? _activeBucket;
-    if (targetBucket == null || _mountBusyBuckets.contains(targetBucket)) {
+  Future<void> _mountBucket([FileManagerBucketEntry? bucket]) async {
+    final targetBucket = bucket ?? _activeBucketEntry;
+    if (targetBucket == null || _mountBusyBuckets.contains(targetBucket.id)) {
       return;
     }
-    final options = await showMountBucketDialog(context, bucket: targetBucket);
+    if (!targetBucket.config.supportsMounts) {
+      _showMountUnavailableMessage(targetBucket);
+      return;
+    }
+    final options = await showMountBucketDialog(
+      context,
+      bucket: targetBucket.bucket.name,
+    );
     if (options == null) {
       return;
     }
-    setState(() => _mountBusyBuckets.add(targetBucket));
+    setState(() => _mountBusyBuckets.add(targetBucket.id));
     try {
       final status = await widget.api.mountBucket(
-        widget.config,
-        targetBucket,
+        targetBucket.config,
+        targetBucket.bucket.name,
         options,
       );
       if (!mounted) return;
-      _applyMountStatus(status);
+      _applyMountStatus(targetBucket.id, status);
     } catch (error) {
       _showPageError(error);
     } finally {
       if (mounted) {
-        setState(() => _mountBusyBuckets.remove(targetBucket));
+        setState(() => _mountBusyBuckets.remove(targetBucket.id));
       }
     }
   }
 
-  Future<void> _unmountBucket([String? bucket]) async {
-    final targetBucket = bucket ?? _activeBucket;
-    if (targetBucket == null || _mountBusyBuckets.contains(targetBucket)) {
+  Future<void> _unmountBucket([FileManagerBucketEntry? bucket]) async {
+    final targetBucket = bucket ?? _activeBucketEntry;
+    if (targetBucket == null || _mountBusyBuckets.contains(targetBucket.id)) {
       return;
     }
-    setState(() => _mountBusyBuckets.add(targetBucket));
+    setState(() => _mountBusyBuckets.add(targetBucket.id));
     try {
-      final status = await widget.api.unmountBucket(targetBucket);
+      final status = await widget.api.unmountBucket(targetBucket.bucket.name);
       if (!mounted) return;
-      _applyMountStatus(status);
+      _applyMountStatus(targetBucket.id, status);
     } catch (error) {
       _showPageError(error);
     } finally {
       if (mounted) {
-        setState(() => _mountBusyBuckets.remove(targetBucket));
+        setState(() => _mountBusyBuckets.remove(targetBucket.id));
       }
     }
   }
 
-  Future<void> _openMountedBucket([String? bucket]) async {
-    final targetBucket = bucket ?? _activeBucket;
+  Future<void> _openMountedBucket([FileManagerBucketEntry? bucket]) async {
+    final targetBucket = bucket ?? _activeBucketEntry;
     if (targetBucket == null) return;
     try {
-      final status = await widget.api.openBucketMount(targetBucket);
+      final status = await widget.api.openBucketMount(targetBucket.bucket.name);
       if (!mounted) return;
-      _applyMountStatus(status);
+      _applyMountStatus(targetBucket.id, status);
     } catch (error) {
       _showPageError(error);
     }
   }
 
-  void _applyMountStatus(BucketMountStatus status) {
-    if (!widget.api.capabilities.supportsMounts ||
-        !widget.config.supportsMounts) {
+  void _applyMountStatus(String bucketId, BucketMountStatus status) {
+    if (!widget.api.capabilities.supportsMounts) {
       return;
     }
     if (!mounted) return;
@@ -216,7 +230,7 @@ extension _FileManagerPageMount on _FileManagerPageState {
         final keys = _bucketMountStatuses.keys.toList();
         for (final key in keys) {
           final existing = _bucketMountStatuses[key];
-          if (existing == null || key == status.bucket) {
+          if (existing == null || key == bucketId) {
             continue;
           }
           _bucketMountStatuses[key] = BucketMountStatus(
@@ -229,7 +243,7 @@ extension _FileManagerPageMount on _FileManagerPageState {
           );
         }
       }
-      _bucketMountStatuses[status.bucket] = status;
+      _bucketMountStatuses[bucketId] = status;
     });
   }
 }

@@ -279,6 +279,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
         FileManagerPage(
           api: widget.api,
           config: widget.state.config,
+          profiles: widget.state.profiles,
           onEditConfig: widget.onEditConfig,
           onRefresh: widget.onRefresh,
         ),

@@ -39,7 +39,7 @@ extension _FileManagerPageRestoreSync on _FileManagerPageState {
     final prefix = _prefix;
     try {
       final page = await widget.api.listObjectPage(
-        widget.config,
+        _activeConfig,
         bucket,
         prefix,
         '',

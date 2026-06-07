@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
+import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -50,6 +52,7 @@ part 'file_manager_page_paging.dart';
 part 'file_manager_page_restore_sync.dart';
 part 'file_manager_page_state.dart';
 part 'file_manager_page_selection.dart';
+part 'file_manager_page_sources.dart';
 part 'file_manager_page_transfer_inputs.dart';
 part 'file_manager_page_trash.dart';
 part 'file_manager_page_upload_feedback.dart';
@@ -63,6 +66,7 @@ class FileManagerPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.config,
+    required this.profiles,
     required this.onEditConfig,
     required this.onRefresh,
     this.homeView = FileManagerHomeView.files,
@@ -70,6 +74,7 @@ class FileManagerPage extends StatefulWidget {
 
   final RemoteStorageGateway api;
   final RemoteStorageConfig config;
+  final List<ProfileInfo> profiles;
   final VoidCallback onEditConfig;
   final VoidCallback onRefresh;
   final FileManagerHomeView homeView;
@@ -88,8 +93,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _contentScrollController = ScrollController();
-  List<BucketInfo>? _buckets;
-  String? _activeBucket;
+  List<FileManagerBucketEntry>? _buckets;
+  FileManagerBucketEntry? _activeBucketEntry;
   List<ObjectInfo>? _objects;
   List<TrashItem>? _trashItems;
   String _prefix = '';
@@ -140,8 +145,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
   @override
   void didUpdateWidget(covariant FileManagerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.config != widget.config) {
-      unawaited(_refreshVisibleMountStatuses());
+    if (oldWidget.config != widget.config ||
+        oldWidget.profiles != widget.profiles) {
+      unawaited(_loadBuckets());
     }
   }
 
@@ -151,11 +157,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
       _error = null;
     });
     try {
-      final buckets = await widget.api.listBuckets(widget.config);
+      final bucketEntries = await _loadBucketEntries();
       if (!mounted) return false;
       setState(() {
-        _buckets = buckets;
-        _activeBucket = null;
+        _buckets = bucketEntries;
+        _activeBucketEntry = null;
         _objects = null;
         _trashItems = null;
         _prefix = '';
@@ -178,9 +184,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
       }
-      if (widget.api.capabilities.supportsMounts &&
-          widget.config.supportsMounts) {
-        unawaited(_refreshBucketMountStatuses(buckets));
+      if (bucketEntries.isNotEmpty) {
+        unawaited(_refreshBucketMountStatuses(bucketEntries));
       }
       return true;
     } catch (e) {
@@ -193,15 +198,18 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  Future<bool> _loadObjects(String bucket, String prefix) async {
+  Future<bool> _loadObjects(
+    FileManagerBucketEntry bucketEntry,
+    String prefix,
+  ) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final page = await widget.api.listObjectPage(
-        widget.config,
-        bucket,
+        bucketEntry.config,
+        bucketEntry.bucket.name,
         prefix,
         '',
         _listPageSize,
@@ -209,7 +217,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (!mounted) return false;
       setState(() {
         final visibleKeys = page.items.map((object) => object.key).toSet();
-        _activeBucket = bucket;
+        _activeBucketEntry = bucketEntry;
         _objects = page.items;
         _trashItems = null;
         _prefix = prefix;
@@ -220,7 +228,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _pagingObjects = false;
         _directoryAccess = null;
         _checkingDirectoryAccess =
-            widget.config.storageType == StorageType.webdav;
+            bucketEntry.config.storageType == StorageType.webdav;
         _trashNextToken = '';
         _trashHasMore = false;
         _pagingTrash = false;
@@ -231,12 +239,12 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
       }
-      if (widget.api.capabilities.supportsMounts &&
-          widget.config.supportsMounts) {
-        unawaited(_refreshMountStatus(bucket));
+      if (bucketEntry.config.supportsMounts &&
+          widget.api.capabilities.supportsMounts) {
+        unawaited(_refreshMountStatus(bucketEntry));
       }
-      if (widget.config.storageType == StorageType.webdav) {
-        unawaited(_refreshDirectoryAccess(bucket, prefix));
+      if (bucketEntry.config.storageType == StorageType.webdav) {
+        unawaited(_refreshDirectoryAccess(bucketEntry, prefix));
       }
       return true;
     } catch (e) {
@@ -249,31 +257,34 @@ class _FileManagerPageState extends State<FileManagerPage> {
     }
   }
 
-  Future<void> _navToBucket(String bucket) {
+  Future<void> _navToBucket(FileManagerBucketEntry bucketEntry) {
     if (_isTrashHome) {
-      return _openBucketTrash(bucket);
+      return _openBucketTrash(bucketEntry);
     }
-    return _loadObjects(bucket, '');
+    return _loadObjects(bucketEntry, '');
   }
 
   Future<void> _navToPrefix(String prefix) {
-    if (_activeBucket == null) return Future.value();
-    return _loadObjects(_activeBucket!, prefix);
+    if (_activeBucketEntry == null) return Future.value();
+    return _loadObjects(_activeBucketEntry!, prefix);
   }
 
   Future<void> _navUp() {
-    if (_activeBucket == null) return Future.value();
+    if (_activeBucketEntry == null) return Future.value();
     final parts = _prefix.split('/').where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty) return _loadBuckets();
     parts.removeLast();
-    return _loadObjects(_activeBucket!, parts.map((part) => '$part/').join());
+    return _loadObjects(
+      _activeBucketEntry!,
+      parts.map((part) => '$part/').join(),
+    );
   }
 
   Future<void> _navCrumb(int index) {
-    if (_activeBucket == null) return Future.value();
+    if (_activeBucketEntry == null) return Future.value();
     if (index < 0) return _loadBuckets();
     return _loadObjects(
-      _activeBucket!,
+      _activeBucketEntry!,
       _breadcrumbs.sublist(0, index + 1).map((segment) => '$segment/').join(),
     );
   }
@@ -281,8 +292,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   void _startMountStatusRefreshTimer() {
     _mountStatusRefreshTimer?.cancel();
     ObjectListingNotifier.instance.removeListener(_handleObjectListingMutation);
-    if (!widget.api.capabilities.supportsMounts ||
-        !widget.config.supportsMounts) {
+    if (!widget.api.capabilities.supportsMounts) {
       return;
     }
     _mountStatusRefreshTimer = Timer.periodic(
@@ -343,7 +353,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           activeBucket: _activeBucket,
           breadcrumbs: _breadcrumbs,
           onOpenBucketList: () => unawaited(_loadBuckets()),
-          onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucket!)),
+          onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucketEntry!)),
           onOpenCrumb: (index) => unawaited(_navCrumb(index)),
         ),
         const SizedBox(height: 12),
@@ -416,7 +426,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         message: _error!,
         onRetry: _activeBucket == null
             ? () => unawaited(_loadBuckets())
-            : () => unawaited(_loadObjects(_activeBucket!, _prefix)),
+            : () => unawaited(_loadObjects(_activeBucketEntry!, _prefix)),
         secondaryActionLabel: _activeBucket == null ? '重新配置认证信息' : null,
         onSecondaryAction: _activeBucket == null ? widget.onEditConfig : null,
       );
@@ -457,7 +467,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onNavigateUp: () => unawaited(_navUp()),
       onToggleSelection: _toggleObjectSelection,
       onToggleSelectAll: _toggleSelectAllObjects,
-      supportsShareLinks: widget.config.supportsShareLinks,
+      supportsShareLinks: _activeConfig.supportsShareLinks,
       onObjectAction: (object, action) =>
           unawaited(_handleObjectAction(object, action)),
     );

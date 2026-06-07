@@ -36,7 +36,7 @@ extension _FileManagerPagePaging on _FileManagerPageState {
     _pagingObjects = true;
     try {
       final page = await widget.api.listObjectPage(
-        widget.config,
+        _activeConfig,
         _activeBucket!,
         _prefix,
         _objectsNextToken,
@@ -74,7 +74,7 @@ extension _FileManagerPagePaging on _FileManagerPageState {
     _pagingTrash = true;
     try {
       final page = await widget.api.listTrashPage(
-        widget.config,
+        _activeConfig,
         _activeBucket!,
         _trashNextToken,
         _FileManagerPageState._trashPageSize,

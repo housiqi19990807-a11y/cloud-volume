@@ -6,8 +6,6 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
   Widget _buildBucketView(ShadThemeData theme) {
     if (_buckets == null) return const SizedBox();
     final buckets = _filteredBuckets;
-    final supportsMounts =
-        widget.api.capabilities.supportsMounts && widget.config.supportsMounts;
     if (buckets.isEmpty) {
       return FileManagerEmptyState(
         theme: theme,
@@ -25,7 +23,6 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
           ? const <String, BucketMountStatus>{}
           : _bucketMountStatuses,
       busyBuckets: _isTrashHome ? const <String>{} : _mountBusyBuckets,
-      sourceLabel: _bucketSourceLabel,
       showActionColumn: !_isTrashHome,
       onOpenTrashBucket: _isTrashHome
           ? null
@@ -35,17 +32,17 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
           : (bucket) => unawaited(_configureBucket(bucket)),
       onMountBucket: _isTrashHome
           ? null
-          : supportsMounts
+          : widget.api.capabilities.supportsMounts
           ? (bucket) => unawaited(_mountBucket(bucket))
           : (bucket) => _showMountUnavailableMessage(bucket),
       onUnmountBucket: _isTrashHome
           ? null
-          : supportsMounts
+          : widget.api.capabilities.supportsMounts
           ? (bucket) => unawaited(_unmountBucket(bucket))
           : null,
       onOpenMountedBucket: _isTrashHome
           ? null
-          : supportsMounts
+          : widget.api.capabilities.supportsMounts
           ? (bucket) => unawaited(_openMountedBucket(bucket))
           : null,
       onOpenWebDavBucket: _isTrashHome

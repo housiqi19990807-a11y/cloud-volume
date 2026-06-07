@@ -8,7 +8,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
   List<ObjectInfo> get _visibleSelectableObjects {
     return filterVisibleObjects(
       _objects ?? const <ObjectInfo>[],
-      hideDotFiles: widget.config.hideDotFiles,
+      hideDotFiles: _activeConfig.hideDotFiles,
     );
   }
 
@@ -68,7 +68,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
           unawaited(
             FileAccessService.instance.downloadObjectToPath(
               api: widget.api,
-              config: widget.config,
+              config: _activeConfig,
               bucket: _activeBucket!,
               object: object,
               savePath: object.displayName,
@@ -85,7 +85,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
       return;
     }
     final targetDirectory = await resolveDefaultDownloadDirectory(
-      widget.config.defaultDownloadDirectory,
+      _activeConfig.defaultDownloadDirectory,
     );
     if (targetDirectory == null || targetDirectory.isEmpty) {
       if (!mounted) {
@@ -100,7 +100,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
         unawaited(
           FileAccessService.instance.downloadObjectToPath(
             api: widget.api,
-            config: widget.config,
+            config: _activeConfig,
             bucket: _activeBucket!,
             object: object,
             savePath: path.join(targetDirectory, object.displayName),

@@ -8,33 +8,33 @@ extension _FileManagerPageBucketPolicy on _FileManagerPageState {
     if (bucket == null) {
       return null;
     }
-    return widget.config.bucketSettingsFor(bucket);
+    return _activeConfig.bucketSettingsFor(bucket);
   }
 
-  bool _bucketTrashEnabled(String bucket) {
-    return widget.config.bucketTrashEnabled(bucket);
+  bool _bucketTrashEnabled(FileManagerBucketEntry bucket) {
+    return bucket.config.bucketTrashEnabled(bucket.bucket.name);
   }
 
   bool get _activeBucketReadOnly => _activeBucketSettings?.readOnly ?? false;
 
   bool get _activeBucketTrashEnabled =>
-      _activeBucket != null && _bucketTrashEnabled(_activeBucket!);
+      _activeBucketEntry != null && _bucketTrashEnabled(_activeBucketEntry!);
 
   bool get _currentBucketWritable {
     return _activeBucket != null && !_showTrash && !_activeBucketReadOnly;
   }
 
-  Future<void> _configureBucket(String bucket) async {
+  Future<void> _configureBucket(FileManagerBucketEntry bucket) async {
     final updated = await showBucketSettingsDialog(
       context,
-      bucket: bucket,
-      config: widget.config,
+      bucket: bucket.bucket.name,
+      config: bucket.config,
     );
     if (updated == null) {
       return;
     }
     try {
-      await widget.api.saveConfig(updated);
+      await widget.api.saveProfile(bucket.profileName, updated);
       if (!mounted) {
         return;
       }
@@ -55,10 +55,9 @@ extension _FileManagerPageBucketPolicy on _FileManagerPageState {
     if (reason?.isNotEmpty == true) {
       return reason;
     }
-    if (widget.config.storageType == StorageType.webdav) {
+    if (_activeConfig.storageType == StorageType.webdav) {
       return '当前 WebDAV 目录暂无写入权限。';
     }
     return null;
   }
 }
-

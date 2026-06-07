@@ -30,7 +30,7 @@ extension _FileManagerPageTransferInputs on _FileManagerPageState {
       for (final object in files) {
         final localPath = await FileAccessService.instance.prepareLocalCopyPath(
           api: widget.api,
-          config: widget.config,
+          config: _activeConfig,
           bucket: _activeBucket!,
           object: object,
         );

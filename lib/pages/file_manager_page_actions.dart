@@ -36,7 +36,11 @@ extension _FileManagerPageActions on _FileManagerPageState {
   }
 
   TransferTask? _queueLocalUpload(String localPath) {
-    if (_activeBucket == null || localPath.trim().isEmpty) return null;
+    if (_activeBucket == null ||
+        _activeBucketEntry == null ||
+        localPath.trim().isEmpty) {
+      return null;
+    }
     if (!_ensureCurrentDirectoryWritable()) return null;
     final bucket = _activeBucket!;
     final key = _prefix + path.basename(localPath);
@@ -46,12 +50,12 @@ extension _FileManagerPageActions on _FileManagerPageState {
       key: key,
       localPath: localPath,
     );
-    unawaited(_runUploadTask(task, bucket));
+    unawaited(_runUploadTask(task, _activeBucketEntry!));
     return task;
   }
 
   TransferTask? _queueBrowserUpload(String fileName, Uint8List bytes) {
-    if (_activeBucket == null) return null;
+    if (_activeBucket == null || _activeBucketEntry == null) return null;
     if (!_ensureCurrentDirectoryWritable()) return null;
     final bucket = _activeBucket!;
     final key = _prefix + fileName;
@@ -61,7 +65,9 @@ extension _FileManagerPageActions on _FileManagerPageState {
       key: key,
       localPath: fileName,
     );
-    unawaited(_runBrowserUploadTask(task, bucket, bytes, fileName));
+    unawaited(
+      _runBrowserUploadTask(task, _activeBucketEntry!, bytes, fileName),
+    );
     return task;
   }
 
@@ -94,14 +100,14 @@ extension _FileManagerPageActions on _FileManagerPageState {
                 });
                 try {
                   await widget.api.createDirectory(
-                    widget.config,
+                    _activeConfig,
                     _activeBucket!,
                     _prefix,
                     name,
                   );
                   if (!mounted || !dialogContext.mounted) return;
                   Navigator.of(dialogContext).pop();
-                  await _loadObjects(_activeBucket!, _prefix);
+                  await _loadObjects(_activeBucketEntry!, _prefix);
                 } catch (error) {
                   setDialogState(() {
                     creating = false;
@@ -117,17 +123,20 @@ extension _FileManagerPageActions on _FileManagerPageState {
     controller.dispose();
   }
 
-  Future<void> _runUploadTask(TransferTask task, String bucket) async {
+  Future<void> _runUploadTask(
+    TransferTask task,
+    FileManagerBucketEntry bucket,
+  ) async {
     try {
       await widget.api.uploadFile(
-        widget.config,
+        bucket.config,
         task.bucket,
         task.key,
         task.localPath,
         task.id,
       );
       TransferQueue.instance.markTaskDone(task.id);
-      if (!mounted || _activeBucket != bucket) return;
+      if (!mounted || _activeBucketId != bucket.id) return;
       await _loadObjects(bucket, _prefix);
     } catch (error) {
       TransferQueue.instance.markTaskFailed(task.id, error);
@@ -136,13 +145,13 @@ extension _FileManagerPageActions on _FileManagerPageState {
 
   Future<void> _runBrowserUploadTask(
     TransferTask task,
-    String bucket,
+    FileManagerBucketEntry bucket,
     Uint8List bytes,
     String fileName,
   ) async {
     try {
       await widget.api.uploadBytes(
-        widget.config,
+        bucket.config,
         task.bucket,
         task.key,
         bytes,
@@ -150,7 +159,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
         fileName: fileName,
       );
       TransferQueue.instance.markTaskDone(task.id);
-      if (!mounted || _activeBucket != bucket) return;
+      if (!mounted || _activeBucketId != bucket.id) return;
       await _loadObjects(bucket, _prefix);
     } catch (error) {
       TransferQueue.instance.markTaskFailed(task.id, error);
@@ -183,7 +192,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
                 FileAccessService.instance
                     .preparePreviewSource(
                       api: widget.api,
-                      config: widget.config,
+                      config: _activeConfig,
                       bucket: bucket,
                       object: object,
                     )
@@ -227,7 +236,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
     try {
       await FileAccessService.instance.openObject(
         api: widget.api,
-        config: widget.config,
+        config: _activeConfig,
         bucket: _activeBucket!,
         object: object,
       );
@@ -241,7 +250,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
     try {
       await FileAccessService.instance.downloadObjectToDefaultDirectory(
         api: widget.api,
-        config: widget.config,
+        config: _activeConfig,
         bucket: _activeBucket!,
         object: object,
       );
@@ -255,7 +264,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
     try {
       await FileAccessService.instance.downloadObjectWithPicker(
         api: widget.api,
-        config: widget.config,
+        config: _activeConfig,
         bucket: _activeBucket!,
         object: object,
       );
@@ -279,7 +288,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
         return;
       }
       if (action == FileObjectAction.share) {
-        if (!widget.config.supportsShareLinks) {
+        if (!_activeConfig.supportsShareLinks) {
           _showPageMessage(title: '暂不支持', message: '当前账号类型暂不支持创建分享链接。');
           return;
         }
@@ -293,7 +302,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
           return;
         }
         final shareRecord = await widget.api.createShare(
-          widget.config,
+          _activeConfig,
           _activeBucket!,
           object.key,
           object.displayName,
@@ -338,7 +347,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
         try {
           if (action == FileObjectAction.move) {
             await widget.api.moveObject(
-              widget.config,
+              _activeConfig,
               _activeBucket!,
               object.key,
               targetPath,
@@ -346,13 +355,13 @@ extension _FileManagerPageActions on _FileManagerPageState {
               task.id,
             );
             await FileAccessService.instance.evictCacheForObject(
-              config: widget.config,
+              config: _activeConfig,
               bucket: _activeBucket!,
               object: object,
             );
           } else {
             await widget.api.copyObject(
-              widget.config,
+              _activeConfig,
               _activeBucket!,
               object.key,
               targetPath,
@@ -375,14 +384,14 @@ extension _FileManagerPageActions on _FileManagerPageState {
           return;
         }
         await widget.api.renameObject(
-          widget.config,
+          _activeConfig,
           _activeBucket!,
           object.key,
           object.isDir,
           newName,
         );
         await FileAccessService.instance.evictCacheForObject(
-          config: widget.config,
+          config: _activeConfig,
           bucket: _activeBucket!,
           object: object,
         );
@@ -394,7 +403,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
         return;
       }
       if (!mounted) return;
-      await _loadObjects(_activeBucket!, _prefix);
+      await _loadObjects(_activeBucketEntry!, _prefix);
     } catch (error) {
       _showPageError(error);
     }
