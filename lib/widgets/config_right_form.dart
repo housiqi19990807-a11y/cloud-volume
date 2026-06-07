@@ -12,7 +12,10 @@ class ConfigRightFormPanel extends StatelessWidget {
   const ConfigRightFormPanel({
     super.key,
     required this.storageType,
+    required this.nameController,
     required this.mappedBucketNameController,
+    this.onNameChanged,
+    this.onMappedBucketNameChanged,
     required this.endpointController,
     required this.regionController,
     required this.accessKeyController,
@@ -30,7 +33,10 @@ class ConfigRightFormPanel extends StatelessWidget {
   });
 
   final StorageType storageType;
+  final TextEditingController nameController;
   final TextEditingController mappedBucketNameController;
+  final ValueChanged<String>? onNameChanged;
+  final ValueChanged<String>? onMappedBucketNameChanged;
   final TextEditingController endpointController;
   final TextEditingController regionController;
   final TextEditingController accessKeyController;
@@ -111,13 +117,26 @@ class ConfigRightFormPanel extends StatelessWidget {
                       const SizedBox(height: 28),
                       _sectionLabel(context, '连接信息'),
                       const SizedBox(height: 16),
-                      _fieldLabel(context, '映射桶名称'),
+                      _fieldLabel(context, '名称'),
                       const SizedBox(height: 6),
                       ShadInput(
-                        controller: mappedBucketNameController,
-                        placeholder: Text(isWebDav ? 'WebDAV' : '账号名称或默认入口名'),
+                        controller: nameController,
+                        placeholder: Text(isWebDav ? '例如：IHEP WebDAV' : '例如：对象存储账号'),
+                        onChanged: onNameChanged,
                       ),
-                      const SizedBox(height: 18),
+                      if (isWebDav) ...[
+                        const SizedBox(height: 18),
+                        _fieldLabel(context, '映射桶名称'),
+                        const SizedBox(height: 6),
+                        ShadInput(
+                          controller: mappedBucketNameController,
+                          placeholder: const Text('默认使用名称'),
+                          onChanged: onMappedBucketNameChanged,
+                        ),
+                      ],
+                      if (!isWebDav) ...[
+                        const SizedBox(height: 18),
+                      ],
                       _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
                       const SizedBox(height: 6),
                       ShadInput(

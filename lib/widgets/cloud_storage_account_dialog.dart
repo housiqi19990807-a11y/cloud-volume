@@ -90,6 +90,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isWebDav = _storageType == StorageType.webdav;
     return ShadDialog(
       title: Text(widget.editing ? '编辑账号' : '新增账号'),
       description: Text(
@@ -108,17 +109,19 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
             const SizedBox(height: 12),
             ShadInput(
               controller: _nameController,
-              placeholder: const Text('账号名称'),
+              placeholder: const Text('名称'),
               onChanged: (_) => _syncMappedBucketName(),
             ),
+            if (isWebDav) ...[
+              const SizedBox(height: 12),
+              ShadInput(
+                controller: _mappedBucketNameController,
+                placeholder: const Text('映射桶名称，默认使用名称'),
+                onChanged: (_) => _mappedBucketNameEdited = true,
+              ),
+            ],
             const SizedBox(height: 12),
-            ShadInput(
-              controller: _mappedBucketNameController,
-              placeholder: const Text('映射桶名称，默认使用账号名称'),
-              onChanged: (_) => _mappedBucketNameEdited = true,
-            ),
-            const SizedBox(height: 12),
-            if (_storageType == StorageType.s3)
+            if (!isWebDav)
               ..._s3Fields()
             else
               ..._webdavFields(),
@@ -198,13 +201,17 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   }
 
   Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    final mappedBucketName = _storageType == StorageType.webdav
+        ? (_mappedBucketNameController.text.trim().isEmpty
+              ? name
+              : _mappedBucketNameController.text)
+        : _nameController.text;
     final saved = await widget.onSave(
       CloudStorageAccountDraft(
         storageType: _storageType,
         name: _nameController.text,
-        mappedBucketName: _mappedBucketNameController.text.trim().isEmpty
-            ? _nameController.text
-            : _mappedBucketNameController.text,
+        mappedBucketName: mappedBucketName,
         endpoint: _endpointController.text,
         region: _regionController.text,
         accessKey: _accessKeyController.text,

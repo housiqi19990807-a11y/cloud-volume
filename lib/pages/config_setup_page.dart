@@ -33,6 +33,7 @@ class ConfigSetupPage extends StatefulWidget {
 }
 
 class _ConfigSetupPageState extends State<ConfigSetupPage> {
+  late final TextEditingController _nameController;
   late final TextEditingController _endpointController;
   late final TextEditingController _mappedBucketNameController;
   late final TextEditingController _regionController;
@@ -44,6 +45,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   _SetupStep _step = _SetupStep.chooseType;
   late StorageType _storageType;
   late bool _usePathStyle;
+  bool _mappedBucketNameEdited = false;
   bool _isSaving = false;
   String? _errorText;
 
@@ -52,6 +54,13 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     super.initState();
     final config = widget.initialState.config;
     _storageType = config.storageType;
+    _nameController = TextEditingController(
+      text: config.displayName.trim().isNotEmpty
+          ? config.displayName
+          : config.storageType == StorageType.webdav
+          ? 'WebDAV'
+          : 'S3',
+    );
     // 首次运行时使用默认值。
     _mappedBucketNameController = TextEditingController(
       text: config.mappedBucketName.trim().isNotEmpty
@@ -81,6 +90,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _mappedBucketNameController.dispose();
     _endpointController.dispose();
     _regionController.dispose();
@@ -107,19 +117,27 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
             ? 'WebDAV'
             : 'S3';
       }
+      if (_nameController.text.trim().isEmpty ||
+          _nameController.text.trim() == 'S3' ||
+          _nameController.text.trim() == 'WebDAV') {
+        _nameController.text = type == StorageType.webdav ? 'WebDAV' : 'S3';
+      }
     });
   }
 
   Future<void> _save() async {
     final isWebDav = _storageType == StorageType.webdav;
+    final name = _nameController.text.trim();
     final config = RemoteStorageConfig(
       endpoint: _endpointController.text,
       storageType: _storageType,
       providerType: widget.initialState.config.providerType,
-      displayName: widget.initialState.config.displayName,
-      mappedBucketName: _mappedBucketNameController.text.trim().isNotEmpty
-          ? _mappedBucketNameController.text
-          : widget.initialState.config.displayName,
+      displayName: name,
+      mappedBucketName: isWebDav
+          ? (_mappedBucketNameController.text.trim().isNotEmpty
+                ? _mappedBucketNameController.text
+                : name)
+          : name,
       region: _regionController.text,
       bucket: widget.initialState.config.bucket,
       accessKeyId: isWebDav ? '' : _accessKeyController.text,
@@ -207,7 +225,12 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                   )
                 : ConfigRightFormPanel(
                     storageType: _storageType,
+                    nameController: _nameController,
                     mappedBucketNameController: _mappedBucketNameController,
+                    onNameChanged: _syncMappedBucketNameFromName,
+                    onMappedBucketNameChanged: (_) {
+                      _mappedBucketNameEdited = true;
+                    },
                     endpointController: _endpointController,
                     regionController: _regionController,
                     accessKeyController: _accessKeyController,
@@ -233,5 +256,12 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
         ],
       ),
     );
+  }
+
+  void _syncMappedBucketNameFromName(String value) {
+    if (_storageType != StorageType.webdav || _mappedBucketNameEdited) {
+      return;
+    }
+    _mappedBucketNameController.text = value;
   }
 }
