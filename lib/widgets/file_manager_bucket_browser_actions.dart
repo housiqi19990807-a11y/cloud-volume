@@ -3,14 +3,13 @@ part of 'file_manager_bucket_browser.dart';
 // Bucket browser action cells keep mount/unmount controls separate from list layout code.
 
 class _BucketMountActions extends StatelessWidget {
-  static const double _actionButtonWidth = 76;
-
   const _BucketMountActions({
     required this.bucket,
     required this.status,
     required this.busy,
     required this.onMountBucket,
     required this.onUnmountBucket,
+    required this.onOpenMountedBucket,
     required this.moreMenuItems,
   });
 
@@ -19,6 +18,7 @@ class _BucketMountActions extends StatelessWidget {
   final bool busy;
   final ValueChanged<FileManagerBucketEntry>? onMountBucket;
   final ValueChanged<FileManagerBucketEntry>? onUnmountBucket;
+  final ValueChanged<FileManagerBucketEntry>? onOpenMountedBucket;
   final List<Widget> moreMenuItems;
 
   @override
@@ -26,45 +26,47 @@ class _BucketMountActions extends StatelessWidget {
     final theme = ShadTheme.of(context);
     final mounted = status?.mounted ?? false;
     final foreground = theme.colorScheme.primary;
-    final primaryAction = mounted ? onUnmountBucket : onMountBucket;
+    final primaryAction = mounted ? onOpenMountedBucket : onMountBucket;
+    final primaryLabel = mounted ? '打开挂载目录' : '挂载';
+    final primaryIcon = mounted ? LucideIcons.folderOpen : LucideIcons.link;
 
     if (busy) {
       return SizedBox(
         height: 32,
         child: Row(
           children: [
-            _actionSlot(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: AppLoadingIndicator(
-                      strokeWidth: 1.5,
-                      color: foreground,
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: AppLoadingIndicator(
+                        strokeWidth: 1.5,
+                        color: foreground,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '处理中',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: foreground,
+                    const SizedBox(width: 8),
+                    Text(
+                      '处理中',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: foreground,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 6),
-            _actionSlot(
-              _miniButton(
-                label: '更多',
-                icon: LucideIcons.ellipsisVertical,
-                color: foreground,
-                onPressed: null,
-              ),
+            _BucketOverflowMenuButton(
+              items: moreMenuItems,
+              color: foreground,
+              enabled: false,
             ),
           ],
         ),
@@ -75,34 +77,27 @@ class _BucketMountActions extends StatelessWidget {
       height: 32,
       child: Row(
         children: [
-          _actionSlot(
-            _miniButton(
-              label: mounted ? '卸载' : '挂载',
-              icon: mounted ? LucideIcons.x : LucideIcons.link,
-              color: foreground,
-              onPressed: primaryAction == null
-                  ? null
-                  : () => primaryAction(bucket),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _miniButton(
+                label: primaryLabel,
+                icon: primaryIcon,
+                color: foreground,
+                onPressed: primaryAction == null
+                    ? null
+                    : () => primaryAction(bucket),
+              ),
             ),
           ),
           const SizedBox(width: 6),
-          _actionSlot(
-            _BucketOverflowMenuButton(
-              items: moreMenuItems,
-              color: foreground,
-              label: '更多',
-              enabled: moreMenuItems.isNotEmpty,
-            ),
+          _BucketOverflowMenuButton(
+            items: moreMenuItems,
+            color: foreground,
+            enabled: moreMenuItems.isNotEmpty,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _actionSlot(Widget child) {
-    return SizedBox(
-      width: _actionButtonWidth,
-      child: Align(alignment: Alignment.centerLeft, child: child),
     );
   }
 
@@ -131,13 +126,11 @@ class _BucketOverflowMenuButton extends StatefulWidget {
   const _BucketOverflowMenuButton({
     required this.items,
     required this.color,
-    required this.label,
     required this.enabled,
   });
 
   final List<Widget> items;
   final Color color;
-  final String label;
   final bool enabled;
 
   @override
@@ -194,17 +187,16 @@ class _BucketOverflowMenuButtonState extends State<_BucketOverflowMenuButton> {
       items: widget.items,
       child: KeyedSubtree(
         key: _buttonKey,
-        child: ShadButton.ghost(
-          size: ShadButtonSize.sm,
-          onPressed: widget.enabled ? _showMenu : null,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.ellipsisVertical, size: 13, color: widget.color),
-              const SizedBox(width: 4),
-              Text(widget.label, style: const TextStyle(fontSize: 11.5)),
-            ],
+        child: ShadIconButton.ghost(
+          icon: Icon(
+            LucideIcons.ellipsisVertical,
+            size: 13,
+            color: widget.color,
           ),
+          width: 26,
+          height: 26,
+          iconSize: 13,
+          onPressed: widget.enabled ? _showMenu : null,
         ),
       ),
     );

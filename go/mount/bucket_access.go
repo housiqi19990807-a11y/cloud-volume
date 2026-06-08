@@ -47,12 +47,16 @@ func newBucketAccess(
 	bucket string,
 ) (*bucketAccess, error) {
 	cfg = cfg.Normalized()
+	backend := storageops.ForConfig(cfg)
 	metadataCacheTTL := time.Duration(cfg.MountMetadataCacheSeconds) * time.Second
 	if cfg.MountMetadataCacheSeconds < 0 {
 		metadataCacheTTL = 0
 	}
-	prefetchTTL := metadataCacheTTL
-	allowPrefetch := metadataCacheTTL > 0
+	allowPrefetch := metadataCacheTTL > 0 && storageops.SupportsMountPrefetch(backend)
+	prefetchTTL := time.Duration(0)
+	if allowPrefetch {
+		prefetchTTL = metadataCacheTTL
+	}
 	mountRoot, err := storageconfig.MountRuntimeDir()
 	if err != nil {
 		return nil, err
@@ -81,7 +85,7 @@ func newBucketAccess(
 
 	access := &bucketAccess{
 		config:          cfg,
-		backend:         storageops.ForConfig(cfg),
+		backend:         backend,
 		bucket:          bucket,
 		rootPrefix:      normalizeRootPrefix(cfg.RootPrefix),
 		sessionRoot:     sessionRoot,

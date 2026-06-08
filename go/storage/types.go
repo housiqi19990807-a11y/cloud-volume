@@ -45,9 +45,23 @@ type Backend interface {
 	StreamObjectToHTTP(context.Context, string, string, bool, http.ResponseWriter) error
 }
 
+// MountPrefetchPolicy lets slower backends opt out of directory preview prefetch.
+type MountPrefetchPolicy interface {
+	SupportsMountPrefetch() bool
+}
+
 // PartialFileUploader exposes optional prefix upload support for append-heavy mount writes.
 type PartialFileUploader interface {
 	UploadFilePrefix(context.Context, string, string, string, os.FileInfo, int64, int) error
+}
+
+// SupportsMountPrefetch defaults to true so existing backends keep current behavior.
+func SupportsMountPrefetch(backend Backend) bool {
+	policy, ok := backend.(MountPrefetchPolicy)
+	if !ok {
+		return true
+	}
+	return policy.SupportsMountPrefetch()
 }
 
 func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {

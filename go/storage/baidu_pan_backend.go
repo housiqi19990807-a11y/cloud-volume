@@ -24,6 +24,11 @@ func newBaiduPanBackend(cfg storageconfig.RemoteStorageConfig) Backend {
 	return baiduPanBackend{cfg: cfg.Normalized()}
 }
 
+// SupportsMountPrefetch disables directory preview prefetch to avoid Baidu Pan rate limits.
+func (b baiduPanBackend) SupportsMountPrefetch() bool {
+	return false
+}
+
 func (b baiduPanBackend) bucketConfig(bucket string) storageconfig.RemoteStorageConfig {
 	return b.cfg.WithBucketSettingsApplied(bucket)
 }
