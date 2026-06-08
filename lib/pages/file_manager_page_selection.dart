@@ -26,6 +26,22 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     });
   }
 
+  void _replaceSelectedObjects(Set<String> keys) {
+    final visibleKeys = _filteredVisibleObjects
+        .map((object) => object.key)
+        .toSet();
+    final normalized = keys.where(visibleKeys.contains).toSet();
+    if (_selectedObjectKeys.length == normalized.length &&
+        _selectedObjectKeys.containsAll(normalized)) {
+      return;
+    }
+    setState(() {
+      _selectedObjectKeys
+        ..clear()
+        ..addAll(normalized);
+    });
+  }
+
   void _clearSelection() {
     if (_selectedObjectKeys.isEmpty) {
       return;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
+import 'package:remote_storage/widgets/file_manager_drag_selection.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
@@ -40,6 +41,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.onDownloadFile,
     required this.onNavigateUp,
     required this.onToggleSelection,
+    required this.onSelectionSetChanged,
     required this.onToggleSelectAll,
     this.supportsShareLinks = true,
     required this.onObjectAction,
@@ -71,6 +73,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final ValueChanged<ObjectInfo> onDownloadFile;
   final VoidCallback onNavigateUp;
   final ValueChanged<ObjectInfo> onToggleSelection;
+  final ValueChanged<Set<String>> onSelectionSetChanged;
   final VoidCallback onToggleSelectAll;
   final bool supportsShareLinks;
   final void Function(ObjectInfo object, FileObjectAction action)
@@ -114,8 +117,15 @@ class FileManagerObjectBrowser extends StatelessWidget {
         ),
       );
     }
-    if (isGrid) return _buildGrid(visibleObjects, theme, queue);
-    return _buildList(visibleObjects, theme, queue);
+    final body = isGrid
+        ? _buildGrid(visibleObjects, theme, queue)
+        : _buildList(visibleObjects, theme, queue);
+    return FileManagerDragSelection(
+      enabled: true,
+      selectedKeys: selectedKeys,
+      onSelectionChanged: onSelectionSetChanged,
+      child: body,
+    );
   }
 
   Widget _buildGrid(
@@ -137,22 +147,25 @@ class FileManagerObjectBrowser extends StatelessWidget {
           childAspectRatio: _gridChildAspectRatio,
           children: [
             ...objects.map(
-              (object) => _wrapWithContextMenu(
+              (object) => _selectionTarget(
                 object,
-                FileGridItem(
-                  leading: _leading(object, theme, gridIconSize),
-                  title: _title(object),
-                  subtitle: _subtitle(object, forGrid: true),
-                  bottomOverlay: mountedToDesktop
-                      ? _syncBadge(object, queue)
-                      : null,
-                  onTap: _tapHandler(object),
-                  onDoubleTap: _doubleTapHandler(object),
-                  onTitleTap: _titleTapHandler(object),
-                  onSelectionTap: _selectionTapHandler(object),
-                  isSelected: _isSelected(object),
-                  showSelectionControl: _showsSelectionControl(object),
-                  deleting: _isDeleting(object),
+                _wrapWithContextMenu(
+                  object,
+                  FileGridItem(
+                    leading: _leading(object, theme, gridIconSize),
+                    title: _title(object),
+                    subtitle: _subtitle(object, forGrid: true),
+                    bottomOverlay: mountedToDesktop
+                        ? _syncBadge(object, queue)
+                        : null,
+                    onTap: _tapHandler(object),
+                    onDoubleTap: _doubleTapHandler(object),
+                    onTitleTap: _titleTapHandler(object),
+                    onSelectionTap: _selectionTapHandler(object),
+                    isSelected: _isSelected(object),
+                    showSelectionControl: _showsSelectionControl(object),
+                    deleting: _isDeleting(object),
+                  ),
                 ),
               ),
             ),
@@ -215,22 +228,25 @@ class FileManagerObjectBrowser extends StatelessWidget {
                   return _buildListLoadingRow(theme);
                 }
                 final object = objects[index];
-                return _wrapWithContextMenu(
+                return _selectionTarget(
                   object,
-                  FileListTile(
-                    leading: _leading(object, theme, listIconSize),
-                    title: _title(object),
-                    sizeLabel: _sizeLabel(object),
-                    statusWidget: _syncBadge(object, queue),
-                    modifiedLabel: _modifiedLabel(object),
-                    onTap: _tapHandler(object),
-                    onDoubleTap: _doubleTapHandler(object),
-                    onTitleTap: _titleTapHandler(object),
-                    onSelectionTap: _selectionTapHandler(object),
-                    isSelected: _isSelected(object),
-                    showSelectionControl: _showsSelectionControl(object),
-                    showDivider: index != objects.length - 1 || loadingMore,
-                    deleting: _isDeleting(object),
+                  _wrapWithContextMenu(
+                    object,
+                    FileListTile(
+                      leading: _leading(object, theme, listIconSize),
+                      title: _title(object),
+                      sizeLabel: _sizeLabel(object),
+                      statusWidget: _syncBadge(object, queue),
+                      modifiedLabel: _modifiedLabel(object),
+                      onTap: _tapHandler(object),
+                      onDoubleTap: _doubleTapHandler(object),
+                      onTitleTap: _titleTapHandler(object),
+                      onSelectionTap: _selectionTapHandler(object),
+                      isSelected: _isSelected(object),
+                      showSelectionControl: _showsSelectionControl(object),
+                      showDivider: index != objects.length - 1 || loadingMore,
+                      deleting: _isDeleting(object),
+                    ),
                   ),
                 );
               },
@@ -449,5 +465,16 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   bool _isParentDirectory(ObjectInfo object) {
     return object.key == _parentDirectoryEntry.key;
+  }
+
+  Widget _selectionTarget(ObjectInfo object, Widget child) {
+    if (_isParentDirectory(object) || _isDeleting(object)) {
+      return child;
+    }
+    return FileManagerDragSelectionTarget(
+      selectionKey: object.key,
+      enabled: true,
+      child: child,
+    );
   }
 }

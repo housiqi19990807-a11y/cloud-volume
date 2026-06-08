@@ -466,6 +466,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onDownloadFile: (object) => unawaited(_downloadObject(object)),
       onNavigateUp: () => unawaited(_navUp()),
       onToggleSelection: _toggleObjectSelection,
+      onSelectionSetChanged: _replaceSelectedObjects,
       onToggleSelectAll: _toggleSelectAllObjects,
       supportsShareLinks: _activeConfig.supportsShareLinks,
       onObjectAction: (object, action) =>
