@@ -29,13 +29,15 @@ func runLoggedCommand(
 	defer cancel()
 
 	startedAt := time.Now()
-	log.Printf(
-		"[mount/macos] %s start cmd=%q args=%q timeout=%s",
-		phase,
-		name,
-		args,
-		timeout,
-	)
+	if shouldLogMacOSCommandSuccess(phase) {
+		log.Printf(
+			"[mount/macos] %s start cmd=%q args=%q timeout=%s",
+			phase,
+			name,
+			args,
+			timeout,
+		)
+	}
 	cmd := exec.CommandContext(ctx, name, args...)
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(startedAt).Round(time.Millisecond)
@@ -59,11 +61,22 @@ func runLoggedCommand(
 		)
 		return output, err
 	}
-	log.Printf(
-		"[mount/macos] %s done duration=%s output=%q",
-		phase,
-		duration,
-		trimmedOutput,
-	)
+	if shouldLogMacOSCommandSuccess(phase) {
+		log.Printf(
+			"[mount/macos] %s done duration=%s output=%q",
+			phase,
+			duration,
+			trimmedOutput,
+		)
+	}
 	return output, nil
+}
+
+func shouldLogMacOSCommandSuccess(phase string) bool {
+	switch phase {
+	case "probe-webdav-mounts", "list-webdav-mounts":
+		return false
+	default:
+		return true
+	}
 }

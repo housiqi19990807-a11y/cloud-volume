@@ -199,7 +199,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                         onMountBucket: onMountBucket,
                         onUnmountBucket: onUnmountBucket,
                         onOpenMountedBucket: onOpenMountedBucket,
-                        moreMenuItems: _buildBucketMenuItems(bucket),
+                        onConfigureBucket: onConfigureBucket,
                       ),
                     ),
                   ),

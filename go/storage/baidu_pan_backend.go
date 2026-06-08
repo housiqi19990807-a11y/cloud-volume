@@ -4,9 +4,11 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log"
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	xpanclient "github.com/lfhy/xpan/client"
@@ -44,6 +46,7 @@ func (b baiduPanBackend) ListObjectsPage(
 	nextToken string,
 	pageSize int32,
 ) (ObjectPage, error) {
+	startedAt := time.Now()
 	start := 0
 	if strings.TrimSpace(nextToken) != "" {
 		parsed, err := strconv.Atoi(strings.TrimSpace(nextToken))
@@ -56,6 +59,15 @@ func (b baiduPanBackend) ListObjectsPage(
 		pageSize = 200
 	}
 	remoteDir := baiduPanDirectoryPath(prefix)
+	log.Printf(
+		"[storage/baidu-pan] list start bucket=%q prefix=%q remote_dir=%q start=%d next_token=%q limit=%d",
+		bucket,
+		strings.TrimSpace(prefix),
+		remoteDir,
+		start,
+		strings.TrimSpace(nextToken),
+		pageSize,
+	)
 	return withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (ObjectPage, error) {
 		res, err := client.ListObjects(remoteDir, &xpanfile.ListAllReq{
 			Start: start,
@@ -63,6 +75,16 @@ func (b baiduPanBackend) ListObjectsPage(
 			Order: xpantypes.ListOrderName,
 		})
 		if err != nil {
+			log.Printf(
+				"[storage/baidu-pan] list error bucket=%q prefix=%q remote_dir=%q start=%d next_token=%q duration=%s err=%v",
+				bucket,
+				strings.TrimSpace(prefix),
+				remoteDir,
+				start,
+				strings.TrimSpace(nextToken),
+				time.Since(startedAt).Round(time.Millisecond),
+				err,
+			)
 			return ObjectPage{}, err
 		}
 		items := make([]ObjectInfo, 0, len(res.List))
@@ -73,6 +95,17 @@ func (b baiduPanBackend) ListObjectsPage(
 		if res.HasMore == xpantypes.BoolIntTrue {
 			page.NextToken = strconv.Itoa(res.Cursor)
 		}
+		log.Printf(
+			"[storage/baidu-pan] list done bucket=%q prefix=%q remote_dir=%q start=%d returned=%d has_more=%t next_token=%q duration=%s",
+			bucket,
+			strings.TrimSpace(prefix),
+			remoteDir,
+			start,
+			len(items),
+			res.HasMore == xpantypes.BoolIntTrue,
+			page.NextToken,
+			time.Since(startedAt).Round(time.Millisecond),
+		)
 		return page, nil
 	})
 }
