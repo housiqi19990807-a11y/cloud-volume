@@ -1,4 +1,4 @@
-// Smoke test: verify the app boots and shows the Chinese bootstrap UI.
+// Widget tests verify the app boots and shows the Chinese bootstrap UI.
 
 import 'dart:typed_data';
 
@@ -111,6 +111,7 @@ class _FakeApi implements RemoteStorageGateway {
             trashRetentionDays: -1,
             bucketSettings: <String, BucketSettings>{},
             writebackQuietSeconds: 10,
+            mountMetadataCacheSeconds: 60,
             usePathStyle: true,
             windowsMountMode: WindowsMountMode.cloudFilesCached,
             windowsThisPcEntryEnabled: false,

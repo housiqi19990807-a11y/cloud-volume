@@ -1,5 +1,9 @@
 // Remote storage config models keep backend JSON shape away from page widgets.
 
+import 'bucket_settings.dart';
+
+export 'bucket_settings.dart';
+
 bool? _boolFromDynamic(Object? value) {
   if (value is bool) return value;
   if (value is String) {
@@ -16,17 +20,6 @@ int? _intFromDynamic(Object? value) {
     return int.tryParse(value.trim());
   }
   return null;
-}
-
-String _normalizeTrashDirectory(String value) {
-  final trimmed = value.trim().replaceAll(RegExp(r'^/+|/+$'), '');
-  if (trimmed.isEmpty) {
-    return '.trash';
-  }
-  if (!trimmed.contains('/') && !trimmed.startsWith('.')) {
-    return '.$trimmed';
-  }
-  return trimmed;
 }
 
 enum FileOpenMode {
@@ -102,59 +95,6 @@ enum StorageProviderType {
   }
 }
 
-// Bucket settings let each bucket override readonly and trash behavior.
-class BucketSettings {
-  const BucketSettings({
-    required this.readOnly,
-    required this.trashEnabled,
-    required this.trashDirectory,
-  });
-
-  factory BucketSettings.fromJson(Map<String, dynamic> json) {
-    return BucketSettings(
-      readOnly:
-          _boolFromDynamic(json['readOnly'] ?? json['read_only']) ?? false,
-      trashEnabled: _boolFromDynamic(
-        json['trashEnabled'] ?? json['trash_enabled'],
-      ),
-      trashDirectory: (json['trashDirectory'] ?? json['trash_directory'] ?? '')
-          .toString(),
-    );
-  }
-
-  final bool readOnly;
-  final bool? trashEnabled;
-  final String trashDirectory;
-
-  bool get isTrashEnabled => trashEnabled == true;
-
-  Map<String, dynamic> toJson() {
-    final result = <String, dynamic>{'readOnly': readOnly};
-    if (trashEnabled != null) {
-      result['trashEnabled'] = trashEnabled;
-    }
-    if (trashDirectory.trim().isNotEmpty) {
-      result['trashDirectory'] = _normalizeTrashDirectory(trashDirectory);
-    }
-    return result;
-  }
-
-  BucketSettings copyWith({
-    bool? readOnly,
-    bool? trashEnabled,
-    bool clearTrashEnabled = false,
-    String? trashDirectory,
-  }) {
-    return BucketSettings(
-      readOnly: readOnly ?? this.readOnly,
-      trashEnabled: clearTrashEnabled
-          ? null
-          : (trashEnabled ?? this.trashEnabled),
-      trashDirectory: trashDirectory ?? this.trashDirectory,
-    );
-  }
-}
-
 class RemoteStorageConfig {
   const RemoteStorageConfig({
     required this.endpoint,
@@ -180,6 +120,7 @@ class RemoteStorageConfig {
     required this.trashRetentionDays,
     required this.bucketSettings,
     required this.writebackQuietSeconds,
+    required this.mountMetadataCacheSeconds,
     required this.usePathStyle,
     required this.windowsMountMode,
     required this.windowsThisPcEntryEnabled,
@@ -211,6 +152,7 @@ class RemoteStorageConfig {
       trashRetentionDays: -1,
       bucketSettings: <String, BucketSettings>{},
       writebackQuietSeconds: 10,
+      mountMetadataCacheSeconds: 60,
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
       windowsThisPcEntryEnabled: false,
@@ -223,6 +165,17 @@ class RemoteStorageConfig {
         (json['secretAccessKey'] ?? json['secret_access_key'] ?? '').toString();
     final webdavPassword =
         (json['webdavPassword'] ?? json['webdav_password'] ?? '').toString();
+    final trashRetentionDays =
+        _intFromDynamic(
+          json['trashRetentionDays'] ?? json['trash_retention_days'],
+        ) ??
+        30;
+    final mountMetadataCacheSeconds =
+        _intFromDynamic(
+          json['mountMetadataCacheSeconds'] ??
+              json['mount_metadata_cache_seconds'],
+        ) ??
+        60;
     return RemoteStorageConfig(
       endpoint: (json['endpoint'] ?? '').toString(),
       storageType: StorageType.fromStorage(
@@ -280,11 +233,7 @@ class RemoteStorageConfig {
                   json['trash_directory_name'] ??
                   '.trash')
               .toString(),
-      trashRetentionDays:
-          _intFromDynamic(
-            json['trashRetentionDays'] ?? json['trash_retention_days'],
-          ) ??
-          -1,
+      trashRetentionDays: trashRetentionDays == 0 ? 30 : trashRetentionDays,
       bucketSettings: _bucketSettingsFromJson(
         json['bucketSettings'] ?? json['bucket_settings'],
       ),
@@ -293,6 +242,9 @@ class RemoteStorageConfig {
             json['writebackQuietSeconds'] ?? json['writeback_quiet_seconds'],
           ) ??
           10,
+      mountMetadataCacheSeconds: mountMetadataCacheSeconds == 0
+          ? 60
+          : mountMetadataCacheSeconds,
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
@@ -337,6 +289,7 @@ class RemoteStorageConfig {
   final int trashRetentionDays;
   final Map<String, BucketSettings> bucketSettings;
   final int writebackQuietSeconds;
+  final int mountMetadataCacheSeconds;
   final bool usePathStyle;
   final WindowsMountMode windowsMountMode;
   final bool windowsThisPcEntryEnabled;
@@ -364,6 +317,16 @@ class RemoteStorageConfig {
         (webdavPassword.isNotEmpty || hasWebdavPassword);
   }
 
+  bool get trashAutoCleanupEnabled => trashRetentionDays > 0;
+
+  int get effectiveTrashRetentionDays =>
+      trashRetentionDays > 0 ? trashRetentionDays : 30;
+
+  bool get mountMetadataCacheEnabled => mountMetadataCacheSeconds > 0;
+
+  int get effectiveMountMetadataCacheSeconds =>
+      mountMetadataCacheSeconds > 0 ? mountMetadataCacheSeconds : 60;
+
   bool get supportsMounts => true;
 
   bool get supportsShareLinks => storageType == StorageType.s3;
@@ -376,8 +339,8 @@ class RemoteStorageConfig {
       readOnly: resolved?.readOnly ?? false,
       trashEnabled: resolved?.trashEnabled ?? defaultTrashEnabled,
       trashDirectory: resolved == null || resolved.trashDirectory.trim().isEmpty
-          ? _normalizeTrashDirectory(trashDirectoryName)
-          : _normalizeTrashDirectory(resolved.trashDirectory),
+          ? normalizeTrashDirectoryValue(trashDirectoryName)
+          : normalizeTrashDirectoryValue(resolved.trashDirectory),
     );
   }
 
@@ -410,6 +373,7 @@ class RemoteStorageConfig {
         (key, value) => MapEntry(key.trim(), value.toJson()),
       ),
       'writebackQuietSeconds': writebackQuietSeconds,
+      'mountMetadataCacheSeconds': mountMetadataCacheSeconds,
       'usePathStyle': usePathStyle,
       'windowsMountMode': windowsMountMode.storageValue,
       'windowsThisPcEntryEnabled': windowsThisPcEntryEnabled,
@@ -441,6 +405,7 @@ class RemoteStorageConfig {
     int? trashRetentionDays,
     Map<String, BucketSettings>? bucketSettings,
     int? writebackQuietSeconds,
+    int? mountMetadataCacheSeconds,
     bool? usePathStyle,
     WindowsMountMode? windowsMountMode,
     bool? windowsThisPcEntryEnabled,
@@ -473,6 +438,8 @@ class RemoteStorageConfig {
       bucketSettings: bucketSettings ?? this.bucketSettings,
       writebackQuietSeconds:
           writebackQuietSeconds ?? this.writebackQuietSeconds,
+      mountMetadataCacheSeconds:
+          mountMetadataCacheSeconds ?? this.mountMetadataCacheSeconds,
       usePathStyle: usePathStyle ?? this.usePathStyle,
       windowsMountMode: windowsMountMode ?? this.windowsMountMode,
       windowsThisPcEntryEnabled:

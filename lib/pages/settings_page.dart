@@ -56,6 +56,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _trashSettingsError;
   bool _savingWritebackQuietSeconds = false;
   String? _writebackQuietSecondsError;
+  bool _savingMountMetadataCache = false;
+  String? _mountMetadataCacheError;
   bool _savingWebdavCredentials = false;
   String? _webdavCredentialsError;
   bool _savingWindowsMountMode = false;
@@ -194,12 +196,29 @@ class _SettingsPageState extends State<SettingsPage> {
       _buildCard(
         theme,
         '同步设置',
-        WritebackQuietSecondsSection(
-          theme: theme,
-          seconds: config.writebackQuietSeconds,
-          saving: _savingWritebackQuietSeconds,
-          errorText: _writebackQuietSecondsError,
-          onChanged: (value) => _saveWritebackQuietSeconds(config, value),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            WritebackQuietSecondsSection(
+              theme: theme,
+              seconds: config.writebackQuietSeconds,
+              saving: _savingWritebackQuietSeconds,
+              errorText: _writebackQuietSecondsError,
+              onChanged: (value) => _saveWritebackQuietSeconds(config, value),
+            ),
+            const SizedBox(height: 20),
+            MountMetadataCacheSection(
+              theme: theme,
+              enabled: config.mountMetadataCacheEnabled,
+              seconds: config.effectiveMountMetadataCacheSeconds,
+              saving: _savingMountMetadataCache,
+              errorText: _mountMetadataCacheError,
+              onEnabledChanged: (value) =>
+                  _saveMountMetadataCacheEnabled(config, value),
+              onSecondsChanged: (value) =>
+                  _saveMountMetadataCacheSeconds(config, value),
+            ),
+          ],
         ),
       ),
       const SizedBox(height: 20),
@@ -209,11 +228,17 @@ class _SettingsPageState extends State<SettingsPage> {
         TrashSettingsSection(
           theme: theme,
           directoryName: config.trashDirectoryName,
-          retentionDays: config.trashRetentionDays,
+          autoCleanupEnabled: config.trashAutoCleanupEnabled,
+          retentionDays: config.effectiveTrashRetentionDays,
           saving: _savingTrashSettings,
           errorText: _trashSettingsError,
-          onSave: (directoryName, retentionDays) =>
-              _saveTrashSettings(config, directoryName, retentionDays),
+          onSave: (directoryName, autoCleanupEnabled, retentionDays) =>
+              _saveTrashSettings(
+                config,
+                directoryName,
+                autoCleanupEnabled,
+                retentionDays,
+              ),
         ),
       ),
       const SizedBox(height: 20),

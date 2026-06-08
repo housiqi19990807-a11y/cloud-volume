@@ -47,6 +47,12 @@ func newBucketAccess(
 	bucket string,
 ) (*bucketAccess, error) {
 	cfg = cfg.Normalized()
+	metadataCacheTTL := time.Duration(cfg.MountMetadataCacheSeconds) * time.Second
+	if cfg.MountMetadataCacheSeconds < 0 {
+		metadataCacheTTL = 0
+	}
+	prefetchTTL := metadataCacheTTL
+	allowPrefetch := metadataCacheTTL > 0
 	mountRoot, err := storageconfig.MountRuntimeDir()
 	if err != nil {
 		return nil, err
@@ -83,10 +89,10 @@ func newBucketAccess(
 		stageRoot:       stageRoot,
 		requestTimeout:  defaultRequestTimeout * time.Second,
 		transferTimeout: defaultTransferTimeout * time.Second,
-		listTTL:         defaultCacheTTL * time.Second,
-		prefetchTTL:     defaultPrefetchTTL * time.Second,
-		allowPrefetch:   false,
-		cache:           newBucketCache(defaultCacheTTL*time.Second, defaultPrefetchTTL*time.Second),
+		listTTL:         metadataCacheTTL,
+		prefetchTTL:     prefetchTTL,
+		allowPrefetch:   allowPrefetch,
+		cache:           newBucketCache(metadataCacheTTL, prefetchTTL),
 		overlay:         overlay,
 	}
 	access.dirSync = newDirSyncQueue(access)

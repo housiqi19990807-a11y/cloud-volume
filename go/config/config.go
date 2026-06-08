@@ -30,6 +30,7 @@ type RemoteStorageConfig struct {
 	TrashRetentionDays          int                       `json:"trashRetentionDays" toml:"trash_retention_days"`
 	BucketSettings              map[string]BucketSettings `json:"bucketSettings" toml:"bucket_settings"`
 	WritebackQuietSeconds       int                       `json:"writebackQuietSeconds" toml:"writeback_quiet_seconds"`
+	MountMetadataCacheSeconds   int                       `json:"mountMetadataCacheSeconds" toml:"mount_metadata_cache_seconds"`
 	UsePathStyle                bool                      `json:"usePathStyle" toml:"use_path_style"`
 	WindowsMountMode            string                    `json:"windowsMountMode" toml:"windows_mount_mode"`
 	WindowsThisPcEntryEnabled   bool                      `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
@@ -51,6 +52,9 @@ const (
 	WindowsMountModeWebDAV             = "webdav"
 	defaultWritebackQuietSeconds       = 10
 	maxWritebackQuietSeconds           = 300
+	defaultTrashRetentionDays          = 30
+	defaultMountMetadataCacheSeconds   = 60
+	maxMountMetadataCacheSeconds       = 3600
 	defaultWindowsWritebackConcurrency = 4
 	maxWindowsWritebackConcurrency     = 32
 )
@@ -72,6 +76,7 @@ func DefaultConfig() RemoteStorageConfig {
 		TrashRetentionDays:          -1,
 		BucketSettings:              map[string]BucketSettings{},
 		WritebackQuietSeconds:       defaultWritebackQuietSeconds,
+		MountMetadataCacheSeconds:   defaultMountMetadataCacheSeconds,
 		UsePathStyle:                true,
 		WindowsMountMode:            WindowsMountModeCloudFilesCached,
 		WindowsThisPcEntryEnabled:   false,
@@ -105,6 +110,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		TrashRetentionDays:          normalizeTrashRetentionDays(c.TrashRetentionDays),
 		BucketSettings:              normalizeBucketSettings(c.BucketSettings),
 		WritebackQuietSeconds:       normalizeWritebackQuietSeconds(c.WritebackQuietSeconds),
+		MountMetadataCacheSeconds:   normalizeMountMetadataCacheSeconds(c.MountMetadataCacheSeconds),
 		UsePathStyle:                c.UsePathStyle,
 		WindowsMountMode:            normalizeWindowsMountMode(c.WindowsMountMode),
 		WindowsThisPcEntryEnabled:   c.WindowsThisPcEntryEnabled,
@@ -285,7 +291,7 @@ func normalizeTrashRetentionDays(value int) int {
 	case value < 0:
 		return -1
 	case value == 0:
-		return 30
+		return defaultTrashRetentionDays
 	default:
 		return value
 	}
@@ -297,6 +303,19 @@ func normalizeWritebackQuietSeconds(value int) int {
 		return defaultWritebackQuietSeconds
 	case value > maxWritebackQuietSeconds:
 		return maxWritebackQuietSeconds
+	default:
+		return value
+	}
+}
+
+func normalizeMountMetadataCacheSeconds(value int) int {
+	switch {
+	case value < 0:
+		return -1
+	case value == 0:
+		return defaultMountMetadataCacheSeconds
+	case value > maxMountMetadataCacheSeconds:
+		return maxMountMetadataCacheSeconds
 	default:
 		return value
 	}

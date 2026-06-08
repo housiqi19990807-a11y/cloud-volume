@@ -73,6 +73,7 @@ extension _SettingsPageActions on _SettingsPageState {
   Future<void> _saveTrashSettings(
     RemoteStorageConfig config,
     String directoryName,
+    bool autoCleanupEnabled,
     int retentionDays,
   ) async {
     _updateState(() {
@@ -83,7 +84,7 @@ extension _SettingsPageActions on _SettingsPageState {
       await widget.api.saveConfig(
         config.copyWith(
           trashDirectoryName: directoryName,
-          trashRetentionDays: retentionDays,
+          trashRetentionDays: autoCleanupEnabled ? retentionDays : -1,
         ),
       );
       if (!mounted) return;
@@ -94,6 +95,65 @@ extension _SettingsPageActions on _SettingsPageState {
     } finally {
       if (mounted) {
         _updateState(() => _savingTrashSettings = false);
+      }
+    }
+  }
+
+  Future<void> _saveMountMetadataCacheEnabled(
+    RemoteStorageConfig config,
+    bool enabled,
+  ) async {
+    if (enabled == config.mountMetadataCacheEnabled) {
+      return;
+    }
+    _updateState(() {
+      _savingMountMetadataCache = true;
+      _mountMetadataCacheError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(
+          mountMetadataCacheSeconds: enabled
+              ? config.effectiveMountMetadataCacheSeconds
+              : -1,
+        ),
+      );
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _mountMetadataCacheError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _savingMountMetadataCache = false);
+      }
+    }
+  }
+
+  Future<void> _saveMountMetadataCacheSeconds(
+    RemoteStorageConfig config,
+    int seconds,
+  ) async {
+    if (seconds == config.effectiveMountMetadataCacheSeconds &&
+        config.mountMetadataCacheEnabled) {
+      return;
+    }
+    _updateState(() {
+      _savingMountMetadataCache = true;
+      _mountMetadataCacheError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(mountMetadataCacheSeconds: seconds),
+      );
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _mountMetadataCacheError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _savingMountMetadataCache = false);
       }
     }
   }

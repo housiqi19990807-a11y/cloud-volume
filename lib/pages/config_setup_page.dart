@@ -214,6 +214,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       trashRetentionDays: widget.initialState.config.trashRetentionDays,
       bucketSettings: widget.initialState.config.bucketSettings,
       writebackQuietSeconds: widget.initialState.config.writebackQuietSeconds,
+      mountMetadataCacheSeconds:
+          widget.initialState.config.mountMetadataCacheSeconds,
       usePathStyle: _usePathStyle,
       windowsMountMode: widget.initialState.config.windowsMountMode,
       windowsThisPcEntryEnabled:
