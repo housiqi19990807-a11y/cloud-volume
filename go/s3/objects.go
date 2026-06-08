@@ -51,9 +51,7 @@ func HeadObjectContext(
 		Size:  aws.ToInt64(out.ContentLength),
 		IsDir: false,
 	}
-	if out.LastModified != nil {
-		info.LastModified = out.LastModified.Format("2006-01-02 15:04:05")
-	}
+	info.LastModified = formatObjectLastModified(out.LastModified)
 	return info, nil
 }
 

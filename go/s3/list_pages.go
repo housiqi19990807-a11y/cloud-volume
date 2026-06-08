@@ -91,9 +91,7 @@ func ListObjectsPageContext(
 			continue
 		}
 		info := ObjectInfo{Key: *obj.Key, Size: *obj.Size}
-		if obj.LastModified != nil {
-			info.LastModified = obj.LastModified.Format("2006-01-02 15:04:05")
-		}
+		info.LastModified = formatObjectLastModified(obj.LastModified)
 		items = append(items, info)
 	}
 	if items == nil {

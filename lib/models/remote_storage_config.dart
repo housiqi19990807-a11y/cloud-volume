@@ -364,7 +364,7 @@ class RemoteStorageConfig {
         (webdavPassword.isNotEmpty || hasWebdavPassword);
   }
 
-  bool get supportsMounts => storageType != StorageType.baiduPan;
+  bool get supportsMounts => true;
 
   bool get supportsShareLinks => storageType == StorageType.s3;
 

@@ -8,12 +8,9 @@ extension _FileManagerPageMount on _FileManagerPageState {
   void _showMountUnavailableMessage([FileManagerBucketEntry? bucket]) {
     final entry = bucket ?? _activeBucketEntry;
     final bucketLabel = entry?.bucket.name.trim() ?? '';
-    final config = entry?.config ?? widget.config;
     final title = bucketLabel.isEmpty ? '挂载不可用' : '“$bucketLabel”暂时不能挂载';
     final message = !widget.api.capabilities.supportsMounts
         ? '当前运行环境暂不支持桌面挂载。'
-        : config.storageType == StorageType.baiduPan
-        ? '百度网盘账号当前只支持浏览、上传、下载和对象操作，暂不支持桌面挂载。'
         : '当前账号暂不支持桌面挂载。';
     _showPageMessage(title: title, message: message);
   }
