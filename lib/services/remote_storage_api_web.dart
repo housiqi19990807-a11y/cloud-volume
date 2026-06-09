@@ -232,6 +232,17 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> uploadDirectory(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+    String localPath,
+    String taskId,
+  ) {
+    throw UnsupportedError('Web 端暂不支持本地目录上传');
+  }
+
+  @override
   Future<void> uploadBytes(
     RemoteStorageConfig config,
     String bucket,

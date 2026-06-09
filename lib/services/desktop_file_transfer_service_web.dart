@@ -39,13 +39,10 @@ class LocalUploadEntry {
         isDirectory: false,
       );
 
-  const LocalUploadEntry.directory(String relativeKey)
-    : this._(localPath: '', relativeKey: relativeKey, isDirectory: true);
+  const LocalUploadEntry.directory(String localPath, String relativeKey)
+    : this._(localPath: localPath, relativeKey: relativeKey, isDirectory: true);
 
   final String localPath;
   final String relativeKey;
   final bool isDirectory;
-
-  int get depth =>
-      relativeKey.split('/').where((part) => part.isNotEmpty).length;
 }

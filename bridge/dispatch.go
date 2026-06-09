@@ -89,6 +89,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return moveObject(args)
 	case "upload_file":
 		return uploadFile(args)
+	case "upload_directory":
+		return uploadDirectory(args)
 	case "download_file":
 		return downloadFile(args)
 	case "list_transfer_jobs":
@@ -396,6 +398,25 @@ func uploadFile(args json.RawMessage) (any, error) {
 	); err != nil {
 		return nil, err
 	}
+	return map[string]any{"ok": true}, nil
+}
+
+func uploadDirectory(args json.RawMessage) (any, error) {
+	var input uploadArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	backend := storageops.ForConfig(input.Config)
+	go func() {
+		_ = storageops.UploadDirectory(
+			context.Background(),
+			backend,
+			input.Bucket,
+			input.Key,
+			input.LocalPath,
+			input.TaskID,
+		)
+	}()
 	return map[string]any{"ok": true}, nil
 }
 

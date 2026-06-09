@@ -24,6 +24,9 @@ String describeBridgeError(Object error) {
   if (raw.contains('NoSuchBucket')) {
     return '目标 bucket 不存在，或当前账户没有访问它的权限。';
   }
+  if (raw.contains('只读') || raw.contains('暂无写入权限')) {
+    return '该目录无操作权限。';
+  }
   if (raw.contains('AccessDenied') || raw.contains('StatusCode: 403')) {
     return '访问被拒绝。请检查 Access Key / Secret Key 是否正确，以及当前账户是否具备相应权限。';
   }

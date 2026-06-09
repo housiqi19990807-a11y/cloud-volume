@@ -168,6 +168,13 @@ abstract class RemoteStorageGateway {
     String localPath,
     String taskId,
   );
+  Future<void> uploadDirectory(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+    String localPath,
+    String taskId,
+  );
   Future<void> uploadBytes(
     RemoteStorageConfig config,
     String bucket,

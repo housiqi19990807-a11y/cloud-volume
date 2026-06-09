@@ -172,6 +172,22 @@ func setTransferTotal(id string, totalBytes int64) {
 	task.updatedAt = time.Now()
 }
 
+// AddTransferTotal grows a task's total work as directory scanning discovers files.
+func AddTransferTotal(id string, deltaBytes int64) {
+	if deltaBytes <= 0 {
+		return
+	}
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.snapshot.TotalBytes += deltaBytes
+	task.updatedAt = time.Now()
+}
+
 func setTransferTarget(id string, targetPath string) {
 	globalTransferMonitor.mu.Lock()
 	defer globalTransferMonitor.mu.Unlock()

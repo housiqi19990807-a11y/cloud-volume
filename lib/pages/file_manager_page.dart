@@ -121,6 +121,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _trashHasMore = false;
   bool _pagingTrash = false;
   int _seenObjectListingMutationVersion = 0;
+  final Map<String, _PendingUploadRefresh> _pendingUploadRefreshes =
+      <String, _PendingUploadRefresh>{};
 
   @override
   void initState() {
@@ -130,6 +132,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
     });
     _contentScrollController.addListener(_maybeLoadMoreContent);
     ObjectListingNotifier.instance.addListener(_handleObjectListingMutation);
+    TransferQueue.instance.addListener(_handleUploadTaskRefresh);
     _startMountStatusRefreshTimer();
     _loadBuckets();
   }
@@ -138,6 +141,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   void dispose() {
     _mountStatusRefreshTimer?.cancel();
     ObjectListingNotifier.instance.removeListener(_handleObjectListingMutation);
+    TransferQueue.instance.removeListener(_handleUploadTaskRefresh);
     _contentScrollController.dispose();
     _searchController.dispose();
     super.dispose();

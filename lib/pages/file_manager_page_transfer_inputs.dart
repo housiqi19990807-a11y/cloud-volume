@@ -15,34 +15,53 @@ extension _FileManagerPageTransferInputs on _FileManagerPageState {
     final entries = await DesktopFileTransferService.instance
         .localUploadEntries(localPaths);
     final tasks = <TransferTask>[];
-    var createdDirectoryCount = 0;
-    for (final entry in entries.where((entry) => entry.isDirectory)) {
-      try {
-        await widget.api.createDirectory(
-          bucket.config,
-          bucket.bucket.name,
-          _prefix,
-          entry.relativeKey,
-        );
-        createdDirectoryCount++;
-      } catch (error) {
-        _showPageError(error);
-        return;
-      }
-    }
-    for (final entry in entries.where((entry) => !entry.isDirectory)) {
-      final task = _queueLocalUpload(
-        entry.localPath,
-        relativeKey: entry.relativeKey,
-      );
+    for (final entry in entries) {
+      final task = entry.isDirectory
+          ? _queueLocalDirectoryUpload(entry.localPath)
+          : _queueLocalUpload(entry.localPath, relativeKey: entry.relativeKey);
       if (task != null) {
         tasks.add(task);
       }
     }
     await _showUploadProgressDialogForTasks(tasks);
-    if (tasks.isEmpty && createdDirectoryCount > 0) {
-      await _loadObjects(bucket, _prefix);
-      _showPageSnack('已创建 $createdDirectoryCount 个目录');
+  }
+
+  TransferTask? _queueLocalDirectoryUpload(String localPath) {
+    if (_activeBucket == null ||
+        _activeBucketEntry == null ||
+        localPath.trim().isEmpty) {
+      return null;
+    }
+    if (!_ensureCurrentDirectoryWritable()) return null;
+    final bucket = _activeBucket!;
+    final targetPrefix = _prefix;
+    final key = targetPrefix + path.basename(localPath);
+    final task = TransferQueue.instance.startTask(
+      kind: TransferKind.upload,
+      bucket: bucket,
+      key: key,
+      localPath: localPath,
+    );
+    unawaited(_runUploadDirectoryTask(task, _activeBucketEntry!, targetPrefix));
+    return task;
+  }
+
+  Future<void> _runUploadDirectoryTask(
+    TransferTask task,
+    FileManagerBucketEntry bucket,
+    String targetPrefix,
+  ) async {
+    try {
+      await widget.api.uploadDirectory(
+        bucket.config,
+        task.bucket,
+        targetPrefix,
+        task.localPath,
+        task.id,
+      );
+      _trackUploadTaskForRefresh(task.id, bucket.id, targetPrefix);
+    } catch (error) {
+      TransferQueue.instance.markTaskFailed(task.id, error);
     }
   }
 

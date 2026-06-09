@@ -331,6 +331,23 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> uploadDirectory(
+    RemoteStorageConfig config,
+    String bucket,
+    String prefix,
+    String localPath,
+    String taskId,
+  ) async {
+    await runBridgeCall('upload_directory', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+      'key': prefix,
+      'localPath': localPath,
+      'taskId': taskId,
+    });
+  }
+
+  @override
   Future<void> uploadBytes(
     RemoteStorageConfig config,
     String bucket,
