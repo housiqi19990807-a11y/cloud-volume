@@ -18,6 +18,27 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing command: $1"
 }
 
+release_repo() {
+  if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
+    printf '%s\n' "$GITHUB_REPOSITORY"
+    return
+  fi
+
+  local origin
+  origin="$(git -C "$ROOT_DIR" config --get remote.origin.url || true)"
+  case "$origin" in
+    git@github.com:*)
+      printf '%s\n' "${origin#git@github.com:}" | sed 's/\.git$//'
+      ;;
+    https://github.com/*)
+      printf '%s\n' "${origin#https://github.com/}" | sed 's/\.git$//'
+      ;;
+    *)
+      printf '%s\n' 'lfhy/cloud-volume'
+      ;;
+  esac
+}
+
 human_size() {
   if command -v numfmt >/dev/null 2>&1; then
     numfmt --to=iec-i --suffix=B --format="%.1f" "$1"
@@ -29,6 +50,11 @@ human_size() {
 previous_tag() {
   local tag="$1"
   git -C "$ROOT_DIR" describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true
+}
+
+is_release_asset() {
+  local asset="$1"
+  [[ "$(cd "$(dirname "$asset")" && pwd)/$(basename "$asset")" != "$(cd "$(dirname "$OUTPUT_FILE")" && pwd)/$(basename "$OUTPUT_FILE")" ]]
 }
 
 collect_commits() {
@@ -100,31 +126,47 @@ SECTION
 }
 
 write_cn_mirror_notes() {
+  local asset_dir="$1"
+  local repo="$2"
+  local tag="$3"
+  local assets=()
+  while IFS= read -r asset; do
+    is_release_asset "$asset" || continue
+    assets+=("$asset")
+  done < <(find "$asset_dir" -maxdepth 1 -type f | sort)
+
   cat <<'SECTION'
 ## 国内用户下载建议
 
-如果直接从 GitHub 下载速度较慢，可以尝试使用 GitHub 加速源下载。将原始下载地址前面加上以下前缀之一即可：
+如果直接从 GitHub 下载速度较慢，可以尝试使用下面的 GitHub 加速源链接。加速源为第三方服务，若其中一个不可用，可切换另一个或回到 GitHub 原始链接。
 
-- `https://gh-proxy.com/`
-- `https://ghfast.top/`
-
-示例：
-
-```text
-https://gh-proxy.com/https://github.com/lfhy/cloud-volume/releases/download/v1.0.0/yunjuan-macos-universal.dmg
-```
-
-```text
-https://ghfast.top/https://github.com/lfhy/cloud-volume/releases/download/v1.0.0/yunjuan-windows-amd64-installer.exe
-```
-
+| 产物 | GitHub 原始下载 | gh-proxy 加速 | ghfast 加速 |
+| --- | --- | --- | --- |
 SECTION
+
+  if [[ ${#assets[@]} -eq 0 ]]; then
+    printf '| 暂无 | - | - | - |\n'
+  else
+    local asset basename original_url
+    for asset in "${assets[@]}"; do
+      basename="$(basename "$asset")"
+      original_url="https://github.com/${repo}/releases/download/${tag}/${basename}"
+      printf '| `%s` | [GitHub](%s) | [gh-proxy](%s%s) | [ghfast](%s%s) |\n' \
+        "$basename" \
+        "$original_url" \
+        "https://gh-proxy.com/" "$original_url" \
+        "https://ghfast.top/" "$original_url"
+    done
+  fi
+
+  printf '\n'
 }
 
 write_assets() {
   local asset_dir="$1"
   local assets=()
   while IFS= read -r asset; do
+    is_release_asset "$asset" || continue
     assets+=("$asset")
   done < <(find "$asset_dir" -maxdepth 1 -type f | sort)
 
@@ -152,7 +194,8 @@ main() {
   require_cmd git
   require_cmd sha256sum
 
-  local prev_tag range updates="" fixes=""
+  local prev_tag range repo updates="" fixes=""
+  repo="$(release_repo)"
   prev_tag="$(previous_tag "$TARGET_TAG")"
   if [[ -n "$prev_tag" ]]; then
     range="$prev_tag..$TARGET_TAG"
@@ -176,7 +219,7 @@ main() {
     printf '\n'
     write_download_notes
     write_macos_notes
-    write_cn_mirror_notes
+    write_cn_mirror_notes "$ASSET_DIR" "$repo" "$TARGET_TAG"
     write_assets "$ASSET_DIR"
   } > "$OUTPUT_FILE"
 }
