@@ -9,6 +9,11 @@ extension _FileManagerObjectBrowserMenus on FileManagerObjectBrowser {
     }
     return buildSelectionActionMenuItems(
       selectedCount: 0,
+      onRefresh: onSelectionAction == null
+          ? null
+          : () => _runMenuAction(
+              () => onSelectionAction!(FileSelectionAction.refresh),
+            ),
       onUpload: onUpload == null ? null : () => _runMenuAction(onUpload!),
       onCreateDirectory: onCreateDirectory == null
           ? null
@@ -23,6 +28,11 @@ extension _FileManagerObjectBrowserMenus on FileManagerObjectBrowser {
     return <Widget>[
       ...buildSelectionActionMenuItems(
         selectedCount: 0,
+        onRefresh: onSelectionAction == null
+            ? null
+            : () => _runMenuAction(
+                () => onSelectionAction!(FileSelectionAction.refresh),
+              ),
         onUpload: onUpload == null ? null : () => _runMenuAction(onUpload!),
         onCreateDirectory: onCreateDirectory == null
             ? null
@@ -66,6 +76,11 @@ extension _FileManagerObjectBrowserMenus on FileManagerObjectBrowser {
   List<Widget> _buildSelectionMenuItems(int selectedCount) {
     return buildSelectionActionMenuItems(
       selectedCount: selectedCount,
+      onRefresh: selectedCount > 0 || onSelectionAction == null
+          ? null
+          : () => _runMenuAction(
+              () => onSelectionAction!(FileSelectionAction.refresh),
+            ),
       onUpload: onUpload == null ? null : () => _runMenuAction(onUpload!),
       onCreateDirectory: onCreateDirectory == null
           ? null

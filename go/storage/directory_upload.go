@@ -45,7 +45,49 @@ func UploadDirectory(
 	if !rootInfo.IsDir() {
 		return fmt.Errorf("local path is not a directory: %s", localPath)
 	}
-	err = filepath.WalkDir(localPath, func(currentPath string, entry os.DirEntry, walkErr error) error {
+	plan, err := planDirectoryUpload(ctx, localPath, cleanPrefix, taskID)
+	if err != nil {
+		return err
+	}
+	for _, remoteKey := range plan.directories {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if taskID != "" {
+			s3ops.SetTransferTarget(taskID, remoteKey+"/")
+		}
+		if err := createDirectoryPath(ctx, backend, bucket, remoteKey); err != nil {
+			return err
+		}
+	}
+	if taskID != "" {
+		s3ops.SetTransferStatusDetail(taskID, "uploading")
+	}
+	for _, file := range plan.files {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if taskID != "" {
+			s3ops.SetTransferTarget(taskID, file.remoteKey)
+		}
+		if err := uploadDirectoryFile(ctx, backend, bucket, file.remoteKey, file.localPath, file.size, taskID); err != nil {
+			return err
+		}
+		if taskID != "" {
+			s3ops.AdvanceTransferItems(taskID, 1)
+		}
+	}
+	return nil
+}
+
+func planDirectoryUpload(
+	ctx context.Context,
+	localPath,
+	cleanPrefix,
+	taskID string,
+) (directoryUploadPlan, error) {
+	plan := directoryUploadPlan{}
+	err := filepath.WalkDir(localPath, func(currentPath string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -57,10 +99,8 @@ func UploadDirectory(
 			return err
 		}
 		if entry.IsDir() {
-			if taskID != "" {
-				s3ops.SetTransferTarget(taskID, remoteKey+"/")
-			}
-			return createDirectoryPath(ctx, backend, bucket, remoteKey)
+			plan.directories = append(plan.directories, remoteKey)
+			return nil
 		}
 		if entry.Type()&os.ModeType != 0 {
 			return nil
@@ -72,18 +112,16 @@ func UploadDirectory(
 		if taskID != "" {
 			s3ops.AddTransferTotal(taskID, info.Size())
 			s3ops.AddTransferItems(taskID, 1)
-			s3ops.SetTransferStatusDetail(taskID, "uploading")
 			s3ops.SetTransferTarget(taskID, remoteKey)
 		}
-		if err := uploadDirectoryFile(ctx, backend, bucket, remoteKey, currentPath, info.Size(), taskID); err != nil {
-			return err
-		}
-		if taskID != "" {
-			s3ops.AdvanceTransferItems(taskID, 1)
-		}
+		plan.files = append(plan.files, directoryUploadFile{
+			localPath: currentPath,
+			remoteKey: remoteKey,
+			size:      info.Size(),
+		})
 		return nil
 	})
-	return err
+	return plan, err
 }
 
 func uploadDirectoryFile(
@@ -153,6 +191,17 @@ type directoryProgressReader struct {
 	ctx    context.Context
 	reader io.Reader
 	taskID string
+}
+
+type directoryUploadPlan struct {
+	directories []string
+	files       []directoryUploadFile
+}
+
+type directoryUploadFile struct {
+	localPath string
+	remoteKey string
+	size      int64
 }
 
 func (r *directoryProgressReader) Read(p []byte) (int, error) {

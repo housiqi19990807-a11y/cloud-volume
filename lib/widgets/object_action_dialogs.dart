@@ -8,6 +8,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 enum FileObjectAction { open, download, share, copy, move, rename, delete }
 
 enum FileSelectionAction {
+  refresh,
   upload,
   createDirectory,
   download,
@@ -45,6 +46,7 @@ List<Widget> buildObjectActionMenuItems({
 
 List<Widget> buildSelectionActionMenuItems({
   required int selectedCount,
+  VoidCallback? onRefresh,
   VoidCallback? onUpload,
   VoidCallback? onCreateDirectory,
   VoidCallback? onDownload,
@@ -53,13 +55,15 @@ List<Widget> buildSelectionActionMenuItems({
   VoidCallback? onDelete,
 }) {
   final items = <Widget>[
+    if (onRefresh != null)
+      ShadContextMenuItem(onPressed: onRefresh, child: const Text('刷新')),
     if (onCreateDirectory != null)
       ShadContextMenuItem(
         onPressed: onCreateDirectory,
         child: const Text('新建目录'),
       ),
     if (onUpload != null)
-      ShadContextMenuItem(onPressed: onUpload, child: const Text('上传文件')),
+      ShadContextMenuItem(onPressed: onUpload, child: const Text('上传')),
   ];
   if (selectedCount <= 0) {
     return items;

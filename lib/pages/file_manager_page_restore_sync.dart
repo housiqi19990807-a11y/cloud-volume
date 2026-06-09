@@ -97,8 +97,7 @@ extension _FileManagerPageRestoreSync on _FileManagerPageState {
         continue;
       }
       finishedIds.add(entry.key);
-      if (task.status == TransferStatus.done &&
-          _activeBucketId == entry.value.bucketId &&
+      if (_activeBucketId == entry.value.bucketId &&
           _prefix == entry.value.prefix) {
         unawaited(_refreshActiveObjectListingAfterUpload(entry.value));
       }

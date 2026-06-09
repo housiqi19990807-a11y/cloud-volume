@@ -9,6 +9,10 @@ extension _FileManagerPageSelectedActions on _FileManagerPageState {
     if (!mounted || _activeBucket == null) {
       return;
     }
+    if (action == FileSelectionAction.refresh) {
+      await _loadObjects(_activeBucketEntry!, _prefix);
+      return;
+    }
     if (action == FileSelectionAction.upload) {
       await _upload();
       return;
