@@ -17,7 +17,7 @@ part 'file_manager_bucket_browser_actions.dart';
 const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
-  static const double _bucketActionColumnWidth = 220;
+  static const double _bucketActionColumnWidth = 244;
   static const double _bucketTypeColumnWidth = 72;
   static const double _bucketSourceColumnWidth = 172;
   static const double _bucketActionHeaderInset = 14;
@@ -200,6 +200,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                         onUnmountBucket: onUnmountBucket,
                         onOpenMountedBucket: onOpenMountedBucket,
                         onConfigureBucket: onConfigureBucket,
+                        moreMenuItems: _buildBucketMenuItems(bucket),
                       ),
                     ),
                   ),

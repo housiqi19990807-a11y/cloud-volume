@@ -10,12 +10,16 @@ class FileManagerDragSelection extends StatefulWidget {
     required this.selectedKeys,
     required this.onSelectionChanged,
     required this.child,
+    this.onBlankTap,
+    this.onBlankSecondaryTapDown,
   });
 
   final bool enabled;
   final Set<String> selectedKeys;
   final ValueChanged<Set<String>> onSelectionChanged;
   final Widget child;
+  final VoidCallback? onBlankTap;
+  final GestureTapDownCallback? onBlankSecondaryTapDown;
 
   @override
   State<FileManagerDragSelection> createState() =>
@@ -28,6 +32,8 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
   final Map<String, BuildContext> _targets = <String, BuildContext>{};
   Offset? _dragStart;
   Offset? _dragCurrent;
+  bool _trackingPrimaryPointer = false;
+  bool _pointerStartedOnTarget = false;
   bool _dragging = false;
 
   void registerTarget(String key, BuildContext context) {
@@ -68,17 +74,33 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    if (!widget.enabled ||
-        event.kind != PointerDeviceKind.mouse ||
-        event.buttons != kPrimaryMouseButton) {
+    if (!widget.enabled || event.kind != PointerDeviceKind.mouse) {
       return;
     }
     final local = _localPositionFor(event.position);
     if (local == null) {
       return;
     }
+    final isBlank = !_hitsTarget(local);
+    if (event.buttons == kSecondaryMouseButton) {
+      if (isBlank) {
+        widget.onBlankSecondaryTapDown?.call(
+          TapDownDetails(
+            globalPosition: event.position,
+            localPosition: local,
+            kind: event.kind,
+          ),
+        );
+      }
+      return;
+    }
+    if (event.buttons != kPrimaryMouseButton) {
+      return;
+    }
     _dragStart = local;
     _dragCurrent = local;
+    _trackingPrimaryPointer = true;
+    _pointerStartedOnTarget = !isBlank;
     _dragging = false;
   }
 
@@ -102,8 +124,13 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
   }
 
   void _handlePointerEnd(PointerUpEvent event) {
+    if (!_trackingPrimaryPointer) {
+      return;
+    }
     if (_dragging) {
       _applySelection();
+    } else if (!_pointerStartedOnTarget) {
+      widget.onBlankTap?.call();
     }
     _resetDrag();
   }
@@ -145,6 +172,8 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     setState(() {
       _dragStart = null;
       _dragCurrent = null;
+      _trackingPrimaryPointer = false;
+      _pointerStartedOnTarget = false;
       _dragging = false;
     });
   }
@@ -162,6 +191,28 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
       return null;
     }
     return Rect.fromPoints(_dragStart!, _dragCurrent!);
+  }
+
+  bool _hitsTarget(Offset localPosition) {
+    final regionBox = context.findRenderObject() as RenderBox?;
+    if (regionBox == null || !regionBox.attached) {
+      return false;
+    }
+    for (final targetContext in _targets.values) {
+      final renderObject = targetContext.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.attached) {
+        continue;
+      }
+      final origin = renderObject.localToGlobal(
+        Offset.zero,
+        ancestor: regionBox,
+      );
+      final bounds = origin & renderObject.size;
+      if (bounds.contains(localPosition)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _sameSelection(Set<String> left, Set<String> right) {

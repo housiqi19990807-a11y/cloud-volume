@@ -42,6 +42,17 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     });
   }
 
+  void _selectObjectsForContextMenu(ObjectInfo object) {
+    if (_selectedObjectKeys.contains(object.key)) {
+      return;
+    }
+    setState(() {
+      _selectedObjectKeys
+        ..clear()
+        ..add(object.key);
+    });
+  }
+
   void _clearSelection() {
     if (_selectedObjectKeys.isEmpty) {
       return;

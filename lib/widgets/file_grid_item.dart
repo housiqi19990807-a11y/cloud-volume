@@ -22,7 +22,6 @@ class FileGridItem extends StatelessWidget {
     this.isSelected = false,
     this.showSelectionControl = false,
     this.deleting = false,
-    this.onSecondaryTapDown,
     this.footer,
     this.bottomOverlay,
     this.contentWidth,
@@ -38,7 +37,6 @@ class FileGridItem extends StatelessWidget {
   final bool isSelected;
   final bool showSelectionControl;
   final bool deleting;
-  final GestureTapDownCallback? onSecondaryTapDown;
   final Widget? footer;
   final Widget? bottomOverlay;
   final double? contentWidth;
@@ -52,7 +50,6 @@ class FileGridItem extends StatelessWidget {
         return GestureDetector(
           onTap: deleting ? null : onTap,
           onDoubleTap: deleting ? null : onDoubleTap,
-          onSecondaryTapDown: deleting ? null : onSecondaryTapDown,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             curve: Curves.easeOut,

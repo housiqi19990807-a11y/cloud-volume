@@ -275,8 +275,10 @@ extension _FileManagerPageActions on _FileManagerPageState {
 
   Future<void> _handleObjectAction(
     ObjectInfo object,
-    FileObjectAction action,
-  ) async {
+    FileObjectAction action, {
+    String? overrideTargetPath,
+    bool reloadAfterAction = true,
+  }) async {
     if (!mounted || _activeBucket == null) return;
     try {
       if (action == FileObjectAction.open) {
@@ -325,11 +327,13 @@ extension _FileManagerPageActions on _FileManagerPageState {
         return;
       }
       if (action == FileObjectAction.copy || action == FileObjectAction.move) {
-        final targetPath = await showObjectTargetPathDialog(
-          context,
-          object,
-          move: action == FileObjectAction.move,
-        );
+        final targetPath =
+            overrideTargetPath ??
+            await showObjectTargetPathDialog(
+              context,
+              object,
+              move: action == FileObjectAction.move,
+            );
         if (targetPath == null ||
             targetPath.isEmpty ||
             targetPath == object.key) {
@@ -402,7 +406,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
         _queueObjectDeletes(<ObjectInfo>[object]);
         return;
       }
-      if (!mounted) return;
+      if (!mounted || !reloadAfterAction) return;
       await _loadObjects(_activeBucketEntry!, _prefix);
     } catch (error) {
       _showPageError(error);

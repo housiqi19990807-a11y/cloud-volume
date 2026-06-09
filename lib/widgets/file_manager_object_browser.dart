@@ -15,7 +15,11 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 
+part 'file_manager_object_browser_menus.dart';
+
 const String _objectContextMenuGroup = 'file_manager_object_browser';
+final DesktopContextMenuHandle _backgroundContextMenuHandle =
+    DesktopContextMenuHandle();
 
 class FileManagerObjectBrowser extends StatelessWidget {
   static const double _gridChildAspectRatio = 0.9;
@@ -43,6 +47,11 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.onToggleSelection,
     required this.onSelectionSetChanged,
     required this.onToggleSelectAll,
+    this.onCreateDirectory,
+    this.onUpload,
+    this.onClearSelection,
+    this.onSelectionContextRequested,
+    this.onSelectionAction,
     this.supportsShareLinks = true,
     required this.onObjectAction,
   });
@@ -75,6 +84,11 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final ValueChanged<ObjectInfo> onToggleSelection;
   final ValueChanged<Set<String>> onSelectionSetChanged;
   final VoidCallback onToggleSelectAll;
+  final VoidCallback? onCreateDirectory;
+  final VoidCallback? onUpload;
+  final VoidCallback? onClearSelection;
+  final ValueChanged<ObjectInfo>? onSelectionContextRequested;
+  final ValueChanged<FileSelectionAction>? onSelectionAction;
   final bool supportsShareLinks;
   final void Function(ObjectInfo object, FileObjectAction action)
   onObjectAction;
@@ -95,36 +109,47 @@ class FileManagerObjectBrowser extends StatelessWidget {
     final visibleObjects = prefix.isEmpty
         ? objects
         : [_parentDirectoryEntry, ...objects];
-    if (visibleObjects.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.folderOpen,
-              size: 44,
-              color: theme.colorScheme.mutedForeground.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              '此目录为空',
-              style: TextStyle(
-                color: theme.colorScheme.mutedForeground,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    final body = isGrid
+    final body = visibleObjects.isEmpty
+        ? _buildEmptyState(theme)
+        : isGrid
         ? _buildGrid(visibleObjects, theme, queue)
         : _buildList(visibleObjects, theme, queue);
-    return FileManagerDragSelection(
-      enabled: true,
-      selectedKeys: selectedKeys,
-      onSelectionChanged: onSelectionSetChanged,
-      child: body,
+    return DesktopContextMenuRegion(
+      groupId: _objectContextMenuGroup,
+      items: _buildBackgroundMenuItems(),
+      handle: _backgroundContextMenuHandle,
+      captureSecondaryTap: false,
+      child: FileManagerDragSelection(
+        enabled: true,
+        selectedKeys: selectedKeys,
+        onSelectionChanged: onSelectionSetChanged,
+        onBlankTap: onClearSelection,
+        onBlankSecondaryTapDown: _showBackgroundContextMenu,
+        child: body,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ShadThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            LucideIcons.folderOpen,
+            size: 44,
+            color: theme.colorScheme.mutedForeground.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '此目录为空',
+            style: TextStyle(
+              color: theme.colorScheme.mutedForeground,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -379,6 +404,17 @@ class FileManagerObjectBrowser extends StatelessWidget {
     };
   }
 
+  GestureTapDownCallback? _secondaryTapHandler(ObjectInfo object) {
+    if (_isParentDirectory(object) || _isDeleting(object)) {
+      return null;
+    }
+    return (_) {
+      if (!_isSelected(object)) {
+        onSelectionContextRequested?.call(object);
+      }
+    };
+  }
+
   Widget _wrapWithContextMenu(ObjectInfo object, Widget child) {
     if (_isParentDirectory(object)) {
       return child;
@@ -388,38 +424,8 @@ class FileManagerObjectBrowser extends StatelessWidget {
     }
     return DesktopContextMenuRegion(
       groupId: _objectContextMenuGroup,
-      items: buildObjectActionMenuItems(
-        object: object,
-        onOpen: () => _runMenuAction(() => _openObject(object)),
-        onDownload: object.isDir
-            ? null
-            : () => _runMenuAction(() => onDownloadFile(object)),
-        onShare: !supportsShareLinks || object.isDir
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.share),
-              ),
-        onCopy: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.copy),
-              ),
-        onMove: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.move),
-              ),
-        onRename: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.rename),
-              ),
-        onDelete: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.delete),
-              ),
-      ),
+      items: _buildObjectMenuItems(object),
+      onSecondaryTapDown: _secondaryTapHandler(object),
       child: child,
     );
   }

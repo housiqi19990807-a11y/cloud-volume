@@ -1,0 +1,102 @@
+part of 'file_manager_object_browser.dart';
+
+// 文件对象右键菜单：把空白区、单对象与多选批量菜单从渲染主体中拆开。
+
+extension _FileManagerObjectBrowserMenus on FileManagerObjectBrowser {
+  List<Widget> _buildBackgroundMenuItems() {
+    if (selectedKeys.isNotEmpty) {
+      return _buildSelectionMenuItems(selectedKeys.length);
+    }
+    return buildSelectionActionMenuItems(
+      selectedCount: 0,
+      onUpload: onUpload == null ? null : () => _runMenuAction(onUpload!),
+      onCreateDirectory: onCreateDirectory == null
+          ? null
+          : () => _runMenuAction(onCreateDirectory!),
+    );
+  }
+
+  List<Widget> _buildObjectMenuItems(ObjectInfo object) {
+    if (_isSelected(object) && selectedKeys.length > 1) {
+      return _buildSelectionMenuItems(selectedKeys.length);
+    }
+    return <Widget>[
+      ...buildSelectionActionMenuItems(
+        selectedCount: 0,
+        onUpload: onUpload == null ? null : () => _runMenuAction(onUpload!),
+        onCreateDirectory: onCreateDirectory == null
+            ? null
+            : () => _runMenuAction(onCreateDirectory!),
+      ),
+      ...buildObjectActionMenuItems(
+        object: object,
+        onOpen: () => _runMenuAction(() => _openObject(object)),
+        onDownload: object.isDir
+            ? null
+            : () => _runMenuAction(() => onDownloadFile(object)),
+        onShare: !supportsShareLinks || object.isDir
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.share),
+              ),
+        onCopy: readOnly
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.copy),
+              ),
+        onMove: readOnly
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.move),
+              ),
+        onRename: readOnly
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.rename),
+              ),
+        onDelete: readOnly
+            ? null
+            : () => _runMenuAction(
+                () => onObjectAction(object, FileObjectAction.delete),
+              ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildSelectionMenuItems(int selectedCount) {
+    return buildSelectionActionMenuItems(
+      selectedCount: selectedCount,
+      onUpload: onUpload == null ? null : () => _runMenuAction(onUpload!),
+      onCreateDirectory: onCreateDirectory == null
+          ? null
+          : () => _runMenuAction(onCreateDirectory!),
+      onDownload: onSelectionAction == null
+          ? null
+          : () => _runMenuAction(
+              () => onSelectionAction!(FileSelectionAction.download),
+            ),
+      onCopy: readOnly || onSelectionAction == null
+          ? null
+          : () => _runMenuAction(
+              () => onSelectionAction!(FileSelectionAction.copy),
+            ),
+      onMove: readOnly || onSelectionAction == null
+          ? null
+          : () => _runMenuAction(
+              () => onSelectionAction!(FileSelectionAction.move),
+            ),
+      onDelete: readOnly || onSelectionAction == null
+          ? null
+          : () => _runMenuAction(
+              () => onSelectionAction!(FileSelectionAction.delete),
+            ),
+    );
+  }
+
+  void _showBackgroundContextMenu(TapDownDetails details) {
+    if (_buildBackgroundMenuItems().isEmpty) {
+      return;
+    }
+    _backgroundContextMenuHandle.showAt(details.globalPosition);
+  }
+}

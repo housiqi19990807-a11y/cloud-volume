@@ -50,6 +50,7 @@ part 'file_manager_page_mount.dart';
 part 'file_manager_page_object_deletes.dart';
 part 'file_manager_page_paging.dart';
 part 'file_manager_page_restore_sync.dart';
+part 'file_manager_page_selected_actions.dart';
 part 'file_manager_page_state.dart';
 part 'file_manager_page_selection.dart';
 part 'file_manager_page_sources.dart';
@@ -439,11 +440,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
   Widget _buildObjectView(ShadThemeData theme) {
     if (_objects == null) return const SizedBox();
     final visibleObjects = _filteredVisibleObjects;
-    if (visibleObjects.isEmpty) {
+    if (visibleObjects.isEmpty && _hasSearchQuery) {
       return FileManagerEmptyState(
         theme: theme,
         icon: LucideIcons.folderSearch,
-        text: _hasSearchQuery ? '当前搜索没有结果' : '此目录为空',
+        text: '当前搜索没有结果',
       );
     }
     return FileManagerObjectBrowser(
@@ -468,6 +469,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
       onToggleSelection: _toggleObjectSelection,
       onSelectionSetChanged: _replaceSelectedObjects,
       onToggleSelectAll: _toggleSelectAllObjects,
+      onCreateDirectory: _showTrash || _loading || !_currentDirectoryWritable
+          ? null
+          : () => unawaited(_createDirectory()),
+      onUpload: _showTrash || _loading || !_currentDirectoryWritable
+          ? null
+          : () => unawaited(_upload()),
+      onClearSelection: _clearSelection,
+      onSelectionContextRequested: _selectObjectsForContextMenu,
+      onSelectionAction: (action) =>
+          unawaited(_handleSelectedObjectsAction(action)),
       supportsShareLinks: _activeConfig.supportsShareLinks,
       onObjectAction: (object, action) =>
           unawaited(_handleObjectAction(object, action)),

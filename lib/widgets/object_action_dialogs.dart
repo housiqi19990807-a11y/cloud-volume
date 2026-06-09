@@ -7,6 +7,15 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 enum FileObjectAction { open, download, share, copy, move, rename, delete }
 
+enum FileSelectionAction {
+  upload,
+  createDirectory,
+  download,
+  copy,
+  move,
+  delete,
+}
+
 List<Widget> buildObjectActionMenuItems({
   required ObjectInfo object,
   required VoidCallback onOpen,
@@ -31,6 +40,52 @@ List<Widget> buildObjectActionMenuItems({
       ShadContextMenuItem(onPressed: onRename, child: const Text('重命名')),
     if (onDelete != null)
       ShadContextMenuItem(onPressed: onDelete, child: const Text('删除')),
+  ];
+}
+
+List<Widget> buildSelectionActionMenuItems({
+  required int selectedCount,
+  VoidCallback? onUpload,
+  VoidCallback? onCreateDirectory,
+  VoidCallback? onDownload,
+  VoidCallback? onCopy,
+  VoidCallback? onMove,
+  VoidCallback? onDelete,
+}) {
+  final items = <Widget>[
+    if (onCreateDirectory != null)
+      ShadContextMenuItem(
+        onPressed: onCreateDirectory,
+        child: const Text('新建目录'),
+      ),
+    if (onUpload != null)
+      ShadContextMenuItem(onPressed: onUpload, child: const Text('上传文件')),
+  ];
+  if (selectedCount <= 0) {
+    return items;
+  }
+  return <Widget>[
+    ...items,
+    if (onDownload != null)
+      ShadContextMenuItem(
+        onPressed: onDownload,
+        child: Text(selectedCount == 1 ? '下载' : '批量下载'),
+      ),
+    if (onCopy != null)
+      ShadContextMenuItem(
+        onPressed: onCopy,
+        child: Text(selectedCount == 1 ? '复制到...' : '批量复制到...'),
+      ),
+    if (onMove != null)
+      ShadContextMenuItem(
+        onPressed: onMove,
+        child: Text(selectedCount == 1 ? '移动到...' : '批量移动到...'),
+      ),
+    if (onDelete != null)
+      ShadContextMenuItem(
+        onPressed: onDelete,
+        child: Text(selectedCount == 1 ? '删除' : '批量删除'),
+      ),
   ];
 }
 
