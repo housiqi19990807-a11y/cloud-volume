@@ -137,10 +137,16 @@ class UploadProgressDialog extends StatelessWidget {
       if (failedCount > 0) {
         return '共处理 $totalCount 个上传任务，其中 $failedCount 个失败。';
       }
+      if (totalCount == 1) {
+        return '上传任务已完成。';
+      }
       return '共处理 $totalCount 个上传任务，全部已完成。';
     }
     if (failedCount > 0) {
       return '还有 $activeCount 个任务进行中，$failedCount 个任务失败。';
+    }
+    if (totalCount == 1) {
+      return '上传正在进行，可关闭弹框后继续后台上传。';
     }
     return '当前有 $activeCount 个上传任务正在进行，可关闭弹框后继续后台上传。';
   }
@@ -232,8 +238,9 @@ class _SummaryCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 6,
             children: [
-              _metaChip(theme, '$totalCount 个任务'),
-              if (!allFinished) _metaChip(theme, '进行中 $activeCount'),
+              if (totalCount > 1) _metaChip(theme, '$totalCount 个任务'),
+              if (totalCount > 1 && !allFinished)
+                _metaChip(theme, '进行中 $activeCount'),
               if (failedCount > 0)
                 _metaChip(
                   theme,
@@ -241,14 +248,9 @@ class _SummaryCard extends StatelessWidget {
                   color: theme.colorScheme.destructive,
                 ),
               if (totalBytes > 0)
-                _metaChip(
-                  theme,
-                  '${formatBytes(completedBytes)} / ${formatBytes(totalBytes)}',
-                ),
+                _metaChip(theme, _bytesText(completedBytes, totalBytes)),
               if (totalItems > 0)
                 _metaChip(theme, '$completedItems / $totalItems 个文件'),
-              if (!allFinished && totalSpeed > 0)
-                _metaChip(theme, formatBytesPerSecond(totalSpeed)),
             ],
           ),
         ],
@@ -273,6 +275,14 @@ class _SummaryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _bytesText(int completedBytes, int totalBytes) {
+    final text = '${formatBytes(completedBytes)} / ${formatBytes(totalBytes)}';
+    if (!allFinished && totalSpeed > 0) {
+      return '$text  ·  ${formatBytesPerSecond(totalSpeed)}';
+    }
+    return text;
   }
 }
 
@@ -356,7 +366,7 @@ class _TaskList extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                TransferStatusBadge(task: task),
+                TransferStatusBadge(task: task, showSpeed: false),
                 if (task.isCancelable) ...[
                   const SizedBox(width: 8),
                   ShadIconButton.ghost(

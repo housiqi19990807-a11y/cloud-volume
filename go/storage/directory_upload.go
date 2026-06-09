@@ -9,9 +9,12 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	s3ops "remote-storage/go/s3"
 )
+
+const directoryUploadConcurrency = 4
 
 // UploadDirectory recursively creates remote directories and uploads files.
 func UploadDirectory(
@@ -63,22 +66,7 @@ func UploadDirectory(
 	if taskID != "" {
 		s3ops.SetTransferStatusDetail(taskID, "uploading")
 	}
-	for _, file := range plan.files {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if taskID != "" {
-			s3ops.SetTransferTarget(taskID, file.remoteKey)
-			s3ops.SetTransferCurrentFile(taskID, file.remoteKey, file.size)
-		}
-		if err := uploadDirectoryFile(ctx, backend, bucket, file.remoteKey, file.localPath, file.size, taskID); err != nil {
-			return err
-		}
-		if taskID != "" {
-			s3ops.AdvanceTransferItems(taskID, 1)
-		}
-	}
-	return nil
+	return uploadDirectoryFiles(ctx, backend, bucket, plan.files, taskID)
 }
 
 func planDirectoryUpload(
@@ -145,9 +133,78 @@ func uploadDirectoryFile(
 			ctx:    ctx,
 			reader: file,
 			taskID: taskID,
+			key:    key,
 		}
 	}
 	return backend.UploadReader(ctx, bucket, key, reader, size, "", path.Base(localPath))
+}
+
+func uploadDirectoryFiles(
+	ctx context.Context,
+	backend Backend,
+	bucket string,
+	files []directoryUploadFile,
+	taskID string,
+) error {
+	if len(files) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	jobs := make(chan directoryUploadFile)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	workerCount := directoryUploadConcurrency
+	if len(files) < workerCount {
+		workerCount = len(files)
+	}
+	for range workerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for file := range jobs {
+				if err := ctx.Err(); err != nil {
+					recordDirectoryUploadError(&mu, &firstErr, err, cancel)
+					return
+				}
+				if taskID != "" {
+					s3ops.SetTransferTarget(taskID, file.remoteKey)
+					s3ops.SetTransferCurrentFile(taskID, file.remoteKey, file.size)
+				}
+				if err := uploadDirectoryFile(ctx, backend, bucket, file.remoteKey, file.localPath, file.size, taskID); err != nil {
+					recordDirectoryUploadError(&mu, &firstErr, err, cancel)
+					return
+				}
+				if taskID != "" {
+					s3ops.AdvanceTransferItems(taskID, 1)
+				}
+			}
+		}()
+	}
+	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			break
+		}
+		jobs <- file
+	}
+	close(jobs)
+	wg.Wait()
+	return firstErr
+}
+
+func recordDirectoryUploadError(
+	mu *sync.Mutex,
+	firstErr *error,
+	err error,
+	cancel context.CancelFunc,
+) {
+	mu.Lock()
+	defer mu.Unlock()
+	if *firstErr == nil {
+		*firstErr = err
+		cancel()
+	}
 }
 
 func directoryUploadRemoteKey(rootPath, currentPath, cleanPrefix string) (string, error) {
@@ -192,6 +249,7 @@ type directoryProgressReader struct {
 	ctx    context.Context
 	reader io.Reader
 	taskID string
+	key    string
 }
 
 type directoryUploadPlan struct {
@@ -211,7 +269,7 @@ func (r *directoryProgressReader) Read(p []byte) (int, error) {
 	}
 	n, err := r.reader.Read(p)
 	if n > 0 {
-		s3ops.AdvanceTransfer(r.taskID, int64(n))
+		s3ops.AdvanceTransferCurrentFile(r.taskID, r.key, int64(n))
 	}
 	return n, err
 }

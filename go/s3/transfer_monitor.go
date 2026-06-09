@@ -243,25 +243,6 @@ func SetTransferTarget(id string, targetPath string) {
 	setTransferTarget(id, targetPath)
 }
 
-// SetTransferCurrentFile resets the per-file progress nested under a directory task.
-func SetTransferCurrentFile(id, key string, totalBytes int64) {
-	globalTransferMonitor.mu.Lock()
-	defer globalTransferMonitor.mu.Unlock()
-
-	task, ok := globalTransferMonitor.tasks[id]
-	if !ok {
-		return
-	}
-	task.snapshot.CurrentFileKey = key
-	task.snapshot.CurrentFileTotalBytes = totalBytes
-	task.snapshot.CurrentFileBytesCompleted = 0
-	task.updatedAt = time.Now()
-}
-
-func AdvanceTransfer(id string, delta int64) {
-	advanceTransfer(id, delta)
-}
-
 func advanceTransfer(id string, delta int64) {
 	globalTransferMonitor.mu.Lock()
 	defer globalTransferMonitor.mu.Unlock()
@@ -271,12 +252,6 @@ func advanceTransfer(id string, delta int64) {
 		return
 	}
 	task.snapshot.BytesCompleted += delta
-	if task.snapshot.CurrentFileTotalBytes > 0 {
-		task.snapshot.CurrentFileBytesCompleted += delta
-		if task.snapshot.CurrentFileBytesCompleted > task.snapshot.CurrentFileTotalBytes {
-			task.snapshot.CurrentFileBytesCompleted = task.snapshot.CurrentFileTotalBytes
-		}
-	}
 	task.updatedAt = time.Now()
 
 	elapsed := task.updatedAt.Sub(task.startedAt).Seconds()

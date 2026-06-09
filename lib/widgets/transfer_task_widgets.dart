@@ -9,9 +9,14 @@ import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class TransferStatusBadge extends StatelessWidget {
-  const TransferStatusBadge({super.key, required this.task});
+  const TransferStatusBadge({
+    super.key,
+    required this.task,
+    this.showSpeed = true,
+  });
 
   final TransferTask task;
+  final bool showSpeed;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +27,7 @@ class TransferStatusBadge extends StatelessWidget {
       TransferStatus.running =>
         task.statusDetail == 'scanning'
             ? '扫描中'
-            : task.speedBytes > 0
+            : showSpeed && task.speedBytes > 0
             ? formatBytesPerSecond(task.speedBytes)
             : '${task.typeLabel}中',
       TransferStatus.done => '已完成',
