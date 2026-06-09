@@ -35,6 +35,8 @@ var (
 func init() {
 	// Keep one reusable HTTP client for SDK calls so OAuth and file APIs share settings.
 	xpanhttp.SetClient(&http.Client{})
+	// The SDK's conservative default rate limit is too low for 4 MB upload chunks.
+	xpanhttp.SetRateLimitEnabled(false)
 }
 
 func baiduPanConfigFromAuth(
