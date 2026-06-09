@@ -55,13 +55,13 @@ List<Widget> buildSelectionActionMenuItems({
   VoidCallback? onDelete,
 }) {
   final items = <Widget>[
-    if (onRefresh != null)
-      ShadContextMenuItem(onPressed: onRefresh, child: const Text('刷新')),
     if (onCreateDirectory != null)
       ShadContextMenuItem(
         onPressed: onCreateDirectory,
         child: const Text('新建目录'),
       ),
+    if (onRefresh != null)
+      ShadContextMenuItem(onPressed: onRefresh, child: const Text('刷新')),
     if (onUpload != null)
       ShadContextMenuItem(onPressed: onUpload, child: const Text('上传')),
   ];

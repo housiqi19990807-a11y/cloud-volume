@@ -141,6 +141,9 @@ class _DesktopContextMenuRegionState extends State<DesktopContextMenuRegion> {
                 _showAt(details.globalPosition);
               }
             : null,
+        onTapDown: (_) {
+          DesktopContextMenuRegistry.dismiss(widget.groupId);
+        },
         child: widget.child,
       ),
     );
