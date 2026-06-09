@@ -13,6 +13,8 @@ class TransferSnapshot {
     required this.createdAt,
     required this.bytesCompleted,
     required this.totalBytes,
+    required this.itemsCompleted,
+    required this.totalItems,
     required this.speedBytes,
     this.error,
   });
@@ -30,6 +32,8 @@ class TransferSnapshot {
       createdAt: (json['createdAt'] ?? '').toString(),
       bytesCompleted: (json['bytesCompleted'] ?? 0) as int,
       totalBytes: (json['totalBytes'] ?? 0) as int,
+      itemsCompleted: (json['itemsCompleted'] ?? 0) as int,
+      totalItems: (json['totalItems'] ?? 0) as int,
       speedBytes: (json['speedBytes'] ?? 0).toDouble(),
       error: json['error']?.toString(),
     );
@@ -46,6 +50,8 @@ class TransferSnapshot {
   final String createdAt;
   final int bytesCompleted;
   final int totalBytes;
+  final int itemsCompleted;
+  final int totalItems;
   final double speedBytes;
   final String? error;
 }

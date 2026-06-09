@@ -20,7 +20,9 @@ class TransferStatusBadge extends StatelessWidget {
       TransferStatus.pending =>
         task.isUpload ? (task.isUploadWaiting ? '等待上传' : '等待同步') : '等待中',
       TransferStatus.running =>
-        task.speedBytes > 0
+        task.statusDetail == 'scanning'
+            ? '扫描中'
+            : task.speedBytes > 0
             ? formatBytesPerSecond(task.speedBytes)
             : '${task.typeLabel}中',
       TransferStatus.done => '已完成',

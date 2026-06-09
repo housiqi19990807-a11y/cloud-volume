@@ -71,10 +71,17 @@ func UploadDirectory(
 		}
 		if taskID != "" {
 			s3ops.AddTransferTotal(taskID, info.Size())
+			s3ops.AddTransferItems(taskID, 1)
 			s3ops.SetTransferStatusDetail(taskID, "uploading")
 			s3ops.SetTransferTarget(taskID, remoteKey)
 		}
-		return uploadDirectoryFile(ctx, backend, bucket, remoteKey, currentPath, info.Size(), taskID)
+		if err := uploadDirectoryFile(ctx, backend, bucket, remoteKey, currentPath, info.Size(), taskID); err != nil {
+			return err
+		}
+		if taskID != "" {
+			s3ops.AdvanceTransferItems(taskID, 1)
+		}
+		return nil
 	})
 	return err
 }

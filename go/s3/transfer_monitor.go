@@ -24,6 +24,8 @@ type TransferSnapshot struct {
 	CreatedAt      string  `json:"createdAt,omitempty"`
 	BytesCompleted int64   `json:"bytesCompleted"`
 	TotalBytes     int64   `json:"totalBytes"`
+	ItemsCompleted int64   `json:"itemsCompleted,omitempty"`
+	TotalItems     int64   `json:"totalItems,omitempty"`
 	SpeedBytes     float64 `json:"speedBytes"`
 	Error          string  `json:"error,omitempty"`
 }
@@ -185,6 +187,38 @@ func AddTransferTotal(id string, deltaBytes int64) {
 		return
 	}
 	task.snapshot.TotalBytes += deltaBytes
+	task.updatedAt = time.Now()
+}
+
+// AddTransferItems grows a task's item count as directory scanning discovers files.
+func AddTransferItems(id string, deltaItems int64) {
+	if deltaItems <= 0 {
+		return
+	}
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.snapshot.TotalItems += deltaItems
+	task.updatedAt = time.Now()
+}
+
+// AdvanceTransferItems increments the completed item count after file uploads finish.
+func AdvanceTransferItems(id string, deltaItems int64) {
+	if deltaItems <= 0 {
+		return
+	}
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.snapshot.ItemsCompleted += deltaItems
 	task.updatedAt = time.Now()
 }
 

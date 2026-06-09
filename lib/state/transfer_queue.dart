@@ -10,131 +10,10 @@ import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/file_sync_status_badge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+part 'transfer_task.dart';
 part 'transfer_queue_storage.dart';
-
-/// 传输任务状态。
-enum TransferStatus { pending, running, done, failed, canceled }
-
-enum TransferKind { upload, download, copy, move, delete }
-
-/// 单个传输任务。
-class TransferTask {
-  TransferTask({
-    required this.id,
-    required this.kind,
-    required this.bucket,
-    required this.key,
-    required this.localPath,
-    this.targetPath = '',
-    this.status = TransferStatus.pending,
-    this.statusDetail = '',
-    this.createdAt = '',
-    this.bytesCompleted = 0,
-    this.totalBytes = 0,
-    this.speedBytes = 0,
-    this.error,
-  });
-
-  factory TransferTask.fromJson(Map<String, dynamic> json) {
-    return TransferTask(
-      id: (json['id'] ?? '').toString(),
-      kind: _transferKindFromName((json['kind'] ?? '').toString()),
-      bucket: (json['bucket'] ?? '').toString(),
-      key: (json['key'] ?? '').toString(),
-      localPath: (json['localPath'] ?? '').toString(),
-      targetPath: (json['targetPath'] ?? '').toString(),
-      status: _transferStatusFromName((json['status'] ?? '').toString()),
-      statusDetail: (json['statusDetail'] ?? '').toString(),
-      createdAt: (json['createdAt'] ?? '').toString(),
-      bytesCompleted: (json['bytesCompleted'] ?? 0) as int,
-      totalBytes: (json['totalBytes'] ?? 0) as int,
-      speedBytes: (json['speedBytes'] ?? 0).toDouble(),
-      error: json['error']?.toString(),
-    );
-  }
-
-  final String id;
-  final TransferKind kind;
-  final String bucket;
-  final String key;
-  final String localPath;
-  String targetPath;
-  TransferStatus status;
-  String statusDetail;
-  String createdAt;
-  int bytesCompleted;
-  int totalBytes;
-  double speedBytes;
-  String? error;
-
-  String get displayName {
-    final raw = targetPath.isNotEmpty && (isCopy || isMove) ? targetPath : key;
-    final segments = raw.split('/').where((segment) => segment.isNotEmpty);
-    if (segments.isEmpty) {
-      return raw;
-    }
-    return segments.last;
-  }
-
-  String get typeLabel {
-    if (statusDetail == 'mount_read') {
-      return '挂载读取';
-    }
-    return switch (kind) {
-      TransferKind.upload => '上传',
-      TransferKind.download => '下载',
-      TransferKind.copy => '复制',
-      TransferKind.move => '移动',
-      TransferKind.delete => '删除',
-    };
-  }
-
-  String get progressTargetLabel {
-    if (statusDetail == 'mount_read' && targetPath.isNotEmpty) {
-      return targetPath;
-    }
-    return '';
-  }
-
-  bool get isUpload => kind == TransferKind.upload;
-  bool get isDownload => kind == TransferKind.download;
-  bool get isCopy => kind == TransferKind.copy;
-  bool get isMove => kind == TransferKind.move;
-  bool get isDelete => kind == TransferKind.delete;
-  bool get isMountWriteback => id.startsWith('mount-writeback-');
-  bool get isRunning => status == TransferStatus.running;
-  bool get isPending => status == TransferStatus.pending;
-  bool get isSyncWaiting => isMountWriteback && statusDetail == 'sync_wait';
-  bool get isUploadWaiting => isMountWriteback && statusDetail == 'upload_wait';
-  bool get canForceSyncNow =>
-      isUpload && isPending && (!isMountWriteback || isSyncWaiting);
-  bool get isCancelable =>
-      status == TransferStatus.pending || status == TransferStatus.running;
-  bool get isFinished =>
-      status == TransferStatus.done ||
-      status == TransferStatus.failed ||
-      status == TransferStatus.canceled;
-  double get progress =>
-      totalBytes <= 0 ? 0 : (bytesCompleted / totalBytes).clamp(0, 1);
-
-  Map<String, dynamic> toJson() {
-    return <String, dynamic>{
-      'id': id,
-      'kind': kind.name,
-      'bucket': bucket,
-      'key': key,
-      'localPath': localPath,
-      'targetPath': targetPath,
-      'status': status.name,
-      'statusDetail': statusDetail,
-      'createdAt': createdAt,
-      'bytesCompleted': bytesCompleted,
-      'totalBytes': totalBytes,
-      'speedBytes': speedBytes,
-      'error': error,
-    };
-  }
-}
+part 'transfer_queue_sync.dart';
+part 'transfer_queue_metrics.dart';
 
 /// 全局队列：页面和侧边栏共享。
 class TransferQueue extends ChangeNotifier {
@@ -376,6 +255,8 @@ class TransferQueue extends ChangeNotifier {
       if (task.bytesCompleted != snapshot.bytesCompleted ||
           task.totalBytes != snapshot.totalBytes ||
           task.speedBytes != snapshot.speedBytes ||
+          task.itemsCompleted != snapshot.itemsCompleted ||
+          task.totalItems != snapshot.totalItems ||
           task.targetPath != snapshot.targetPath ||
           task.statusDetail != snapshot.statusDetail ||
           task.createdAt != snapshot.createdAt ||
@@ -383,6 +264,8 @@ class TransferQueue extends ChangeNotifier {
         changed = true;
       }
       if (task.totalBytes != snapshot.totalBytes ||
+          task.itemsCompleted != snapshot.itemsCompleted ||
+          task.totalItems != snapshot.totalItems ||
           task.targetPath != snapshot.targetPath ||
           task.statusDetail != snapshot.statusDetail ||
           task.createdAt != snapshot.createdAt ||
@@ -391,6 +274,8 @@ class TransferQueue extends ChangeNotifier {
       }
       task.bytesCompleted = snapshot.bytesCompleted;
       task.totalBytes = snapshot.totalBytes;
+      task.itemsCompleted = snapshot.itemsCompleted;
+      task.totalItems = snapshot.totalItems;
       task.speedBytes = snapshot.speedBytes;
       task.targetPath = snapshot.targetPath;
       task.statusDetail = snapshot.statusDetail;
@@ -405,25 +290,6 @@ class TransferQueue extends ChangeNotifier {
       _scheduleNotifyListeners();
     }
     _ensurePolling();
-  }
-
-  String get uploadSpeedText => _speedTextFor(true);
-  String get downloadSpeedText => _speedTextFor(false);
-  String get objectOperationSpeedText => _speedTextForObjectOps();
-
-  String get speedSummary {
-    final up = uploadSpeedText;
-    final down = downloadSpeedText;
-    final ops = objectOperationSpeedText;
-    if (up.isEmpty && down.isEmpty && ops.isEmpty) {
-      return hasRunning ? '$runningCount 个任务进行中' : '暂无任务';
-    }
-    final parts = <String>[
-      if (up.isNotEmpty) up,
-      if (down.isNotEmpty) down,
-      if (ops.isNotEmpty) ops,
-    ];
-    return parts.join('  ');
   }
 
   List<TransferTask> recentTasks({int limit = 6}) {
@@ -534,49 +400,6 @@ class TransferQueue extends ChangeNotifier {
     }
   }
 
-  FileSyncState syncStateForObject({
-    required String bucket,
-    required String objectKey,
-    required bool isDirectory,
-  }) {
-    final cleanBucket = bucket.trim();
-    if (cleanBucket.isEmpty) {
-      return const FileSyncState.synced();
-    }
-
-    var pending = 0;
-    var running = 0;
-    final dirPrefix = isDirectory ? _ensureDirPrefix(objectKey) : '';
-    for (final entry in _mountWritebackCounts.entries) {
-      final bucketAndPath = entry.key;
-      final separator = bucketAndPath.indexOf('\n');
-      if (separator <= 0) {
-        continue;
-      }
-      if (bucketAndPath.substring(0, separator) != cleanBucket) {
-        continue;
-      }
-      final taskPath = bucketAndPath.substring(separator + 1);
-      final matches = isDirectory
-          ? taskPath.startsWith(dirPrefix)
-          : taskPath == objectKey;
-      if (!matches) {
-        continue;
-      }
-      pending += entry.value.pending;
-      running += entry.value.running;
-    }
-
-    if (running > 0 || pending > 0) {
-      return FileSyncState.pending(
-        pendingCount: pending,
-        runningCount: running,
-        isDirectory: isDirectory,
-      );
-    }
-    return const FileSyncState.synced();
-  }
-
   void _scheduleNotifyListeners() {
     _notifyTimer?.cancel();
     _notifyTimer = Timer(_notifyDebounce, notifyListeners);
@@ -617,14 +440,6 @@ class TransferQueue extends ChangeNotifier {
     }
   }
 
-  String _ensureDirPrefix(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty || trimmed.endsWith('/')) {
-      return trimmed;
-    }
-    return '$trimmed/';
-  }
-
   TransferKind _kindFromWire(String value) {
     switch (value) {
       case 'download':
@@ -654,46 +469,4 @@ class TransferQueue extends ChangeNotifier {
         return TransferStatus.pending;
     }
   }
-
-  String _speedTextFor(bool isUpload) {
-    final total = _tasks
-        .where((task) => task.isUpload == isUpload && task.isRunning)
-        .fold<double>(0, (sum, task) => sum + task.speedBytes);
-    if (total <= 0) return '';
-    final prefix = isUpload ? '↑' : '↓';
-    return '$prefix ${formatBytesPerSecond(total)}';
-  }
-
-  String _speedTextForObjectOps() {
-    final total = _tasks
-        .where((task) => (task.isCopy || task.isMove) && task.isRunning)
-        .fold<double>(0, (sum, task) => sum + task.speedBytes);
-    if (total <= 0) return '';
-    return '↔ ${formatBytesPerSecond(total)}';
-  }
-}
-
-class _MountWritebackPathCounts {
-  int pending = 0;
-  int running = 0;
-}
-
-TransferKind _transferKindFromName(String value) {
-  return switch (value) {
-    'download' => TransferKind.download,
-    'copy' => TransferKind.copy,
-    'move' => TransferKind.move,
-    'delete' => TransferKind.delete,
-    _ => TransferKind.upload,
-  };
-}
-
-TransferStatus _transferStatusFromName(String value) {
-  return switch (value) {
-    'running' => TransferStatus.running,
-    'done' => TransferStatus.done,
-    'failed' => TransferStatus.failed,
-    'canceled' => TransferStatus.canceled,
-    _ => TransferStatus.pending,
-  };
 }

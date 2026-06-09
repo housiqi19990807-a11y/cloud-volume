@@ -48,6 +48,14 @@ class UploadProgressDialog extends StatelessWidget {
           0,
           (sum, task) => sum + task.speedBytes,
         );
+        final totalItems = tasks.fold<int>(
+          0,
+          (sum, task) => sum + task.totalItems,
+        );
+        final completedItems = tasks.fold<int>(
+          0,
+          (sum, task) => sum + task.itemsCompleted,
+        );
         final progress = totalBytes > 0
             ? (completedBytes / totalBytes).clamp(0.0, 1.0)
             : null;
@@ -76,6 +84,8 @@ class UploadProgressDialog extends StatelessWidget {
                   progress: progress,
                   completedBytes: completedBytes,
                   totalBytes: totalBytes,
+                  completedItems: completedItems,
+                  totalItems: totalItems,
                   totalSpeed: totalSpeed,
                   allFinished: allFinished,
                 ),
@@ -91,6 +101,11 @@ class UploadProgressDialog extends StatelessWidget {
                     ),
                     if (!allFinished) ...[
                       const SizedBox(width: 10),
+                      ShadButton.outline(
+                        onPressed: () => _cancelActiveTasks(tasks),
+                        child: const Text('取消上传'),
+                      ),
+                      const SizedBox(width: 10),
                       ShadButton(
                         onPressed: onRunInBackground,
                         child: const Text('后台运行'),
@@ -104,6 +119,12 @@ class UploadProgressDialog extends StatelessWidget {
         );
       },
     );
+  }
+
+  void _cancelActiveTasks(List<TransferTask> tasks) {
+    for (final task in tasks.where((task) => task.isCancelable)) {
+      TransferQueue.instance.cancelTask(task.id);
+    }
   }
 
   String _description({
@@ -134,6 +155,8 @@ class _SummaryCard extends StatelessWidget {
     required this.progress,
     required this.completedBytes,
     required this.totalBytes,
+    required this.completedItems,
+    required this.totalItems,
     required this.totalSpeed,
     required this.allFinished,
   });
@@ -145,6 +168,8 @@ class _SummaryCard extends StatelessWidget {
   final double? progress;
   final int completedBytes;
   final int totalBytes;
+  final int completedItems;
+  final int totalItems;
   final double totalSpeed;
   final bool allFinished;
 
@@ -220,6 +245,8 @@ class _SummaryCard extends StatelessWidget {
                   theme,
                   '${formatBytes(completedBytes)} / ${formatBytes(totalBytes)}',
                 ),
+              if (totalItems > 0)
+                _metaChip(theme, '$completedItems / $totalItems 个文件'),
               if (!allFinished && totalSpeed > 0)
                 _metaChip(theme, formatBytesPerSecond(totalSpeed)),
             ],
@@ -273,9 +300,7 @@ class _TaskList extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final task = tasks[index];
-          final subtitle = task.totalBytes > 0
-              ? '${task.key}  ·  ${formatBytes(task.totalBytes)}'
-              : task.key;
+          final subtitle = _subtitleFor(task);
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
@@ -315,11 +340,40 @@ class _TaskList extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 TransferStatusBadge(task: task),
+                if (task.isCancelable) ...[
+                  const SizedBox(width: 8),
+                  ShadIconButton.ghost(
+                    icon: Icon(
+                      LucideIcons.circleX,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+                    width: 30,
+                    height: 30,
+                    iconSize: 16,
+                    onPressed: () => TransferQueue.instance.cancelTask(task.id),
+                  ),
+                ],
               ],
             ),
           );
         },
       ),
     );
+  }
+
+  String _subtitleFor(TransferTask task) {
+    final parts = <String>[task.key];
+    if (task.totalItems > 0) {
+      parts.add('${task.itemsCompleted} / ${task.totalItems} 个文件');
+    } else if (task.statusDetail == 'scanning') {
+      parts.add('正在扫描文件');
+    }
+    if (task.totalBytes > 0) {
+      parts.add(formatBytes(task.totalBytes));
+    }
+    if (task.progressTargetLabel.isNotEmpty) {
+      parts.add(task.progressTargetLabel);
+    }
+    return parts.join('  ·  ');
   }
 }
