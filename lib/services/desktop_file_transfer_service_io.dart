@@ -39,6 +39,17 @@ class DesktopFileTransferService {
     return _existingFilePaths(uris);
   }
 
+  Future<List<LocalUploadEntry>> localUploadEntries(
+    List<String> localPaths,
+  ) async {
+    final entries = <LocalUploadEntry>[];
+    for (final localPath in localPaths) {
+      entries.addAll(await _localUploadEntriesForPath(localPath));
+    }
+    entries.sort(_compareUploadEntries);
+    return entries;
+  }
+
   Future<void> writeLocalFilesToClipboard(List<String> localPaths) async {
     final clipboard = SystemClipboard.instance;
     if (clipboard == null || localPaths.isEmpty) {
@@ -85,10 +96,83 @@ class DesktopFileTransferService {
         continue;
       }
       final localPath = uri.toFilePath();
-      if (FileSystemEntity.isFileSync(localPath)) {
+      if (FileSystemEntity.isFileSync(localPath) ||
+          FileSystemEntity.isDirectorySync(localPath)) {
         paths.add(localPath);
       }
     }
     return paths;
   }
+
+  Future<List<LocalUploadEntry>> _localUploadEntriesForPath(
+    String localPath,
+  ) async {
+    if (FileSystemEntity.isFileSync(localPath)) {
+      return <LocalUploadEntry>[
+        LocalUploadEntry.file(localPath, path.basename(localPath)),
+      ];
+    }
+    if (!FileSystemEntity.isDirectorySync(localPath)) {
+      return const <LocalUploadEntry>[];
+    }
+    final parentPath = path.dirname(localPath);
+    final entries = <LocalUploadEntry>[
+      LocalUploadEntry.directory(_relativeUploadPath(localPath, parentPath)),
+    ];
+    await for (final entity in Directory(
+      localPath,
+    ).list(recursive: true, followLinks: false)) {
+      final relativePath = _relativeUploadPath(entity.path, parentPath);
+      if (FileSystemEntity.isDirectorySync(entity.path)) {
+        entries.add(LocalUploadEntry.directory(relativePath));
+      } else if (FileSystemEntity.isFileSync(entity.path)) {
+        entries.add(LocalUploadEntry.file(entity.path, relativePath));
+      }
+    }
+    return entries;
+  }
+
+  String _relativeUploadPath(String localPath, String parentPath) {
+    final relativePath = path.relative(localPath, from: parentPath);
+    return path
+        .split(relativePath)
+        .where((segment) => segment.isNotEmpty)
+        .join('/');
+  }
+
+  int _compareUploadEntries(LocalUploadEntry left, LocalUploadEntry right) {
+    if (left.isDirectory != right.isDirectory) {
+      return left.isDirectory ? -1 : 1;
+    }
+    final depthCompare = left.depth.compareTo(right.depth);
+    if (depthCompare != 0) {
+      return depthCompare;
+    }
+    return left.relativeKey.compareTo(right.relativeKey);
+  }
+}
+
+class LocalUploadEntry {
+  const LocalUploadEntry._({
+    required this.localPath,
+    required this.relativeKey,
+    required this.isDirectory,
+  });
+
+  const LocalUploadEntry.file(String localPath, String relativeKey)
+    : this._(
+        localPath: localPath,
+        relativeKey: relativeKey,
+        isDirectory: false,
+      );
+
+  const LocalUploadEntry.directory(String relativeKey)
+    : this._(localPath: '', relativeKey: relativeKey, isDirectory: true);
+
+  final String localPath;
+  final String relativeKey;
+  final bool isDirectory;
+
+  int get depth =>
+      relativeKey.split('/').where((part) => part.isNotEmpty).length;
 }

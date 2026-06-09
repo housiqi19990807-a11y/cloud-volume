@@ -41,8 +41,8 @@ extension _FileManagerPageAccess on _FileManagerPageState {
   bool _ensureCurrentDirectoryWritable() {
     if (_currentDirectoryWritable) return true;
     _showPageMessage(
-      title: '当前目录不可写',
-      message: _currentWriteBlockedReason ?? '当前目录不可写。',
+      title: '上传失败',
+      message: _currentWriteBlockedReason ?? '该目录无操作权限。',
     );
     return false;
   }

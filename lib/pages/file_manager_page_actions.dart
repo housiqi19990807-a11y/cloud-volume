@@ -35,7 +35,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
     await _showUploadProgressDialogForTasks(tasks);
   }
 
-  TransferTask? _queueLocalUpload(String localPath) {
+  TransferTask? _queueLocalUpload(String localPath, {String? relativeKey}) {
     if (_activeBucket == null ||
         _activeBucketEntry == null ||
         localPath.trim().isEmpty) {
@@ -43,7 +43,10 @@ extension _FileManagerPageActions on _FileManagerPageState {
     }
     if (!_ensureCurrentDirectoryWritable()) return null;
     final bucket = _activeBucket!;
-    final key = _prefix + path.basename(localPath);
+    final uploadKey = relativeKey == null || relativeKey.trim().isEmpty
+        ? path.basename(localPath)
+        : relativeKey;
+    final key = _prefix + uploadKey;
     final task = TransferQueue.instance.startTask(
       kind: TransferKind.upload,
       bucket: bucket,

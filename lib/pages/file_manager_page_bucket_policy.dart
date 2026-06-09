@@ -49,14 +49,14 @@ extension _FileManagerPageBucketPolicy on _FileManagerPageState {
 
   String? get _currentWriteBlockedReason {
     if (_activeBucketReadOnly) {
-      return '当前存储桶已配置为只读，无法写入。';
+      return '该目录无操作权限。';
     }
     final reason = _directoryAccess?.reason.trim();
     if (reason?.isNotEmpty == true) {
       return reason;
     }
     if (_activeConfig.storageType == StorageType.webdav) {
-      return '当前 WebDAV 目录暂无写入权限。';
+      return '该目录无操作权限。';
     }
     return null;
   }
