@@ -28,7 +28,10 @@ List<Widget> buildObjectActionMenuItems({
   VoidCallback? onDownload,
 }) {
   return <Widget>[
-    ShadContextMenuItem(onPressed: onOpen, child: const Text('预览')),
+    ShadContextMenuItem(
+      onPressed: onOpen,
+      child: Text(object.isDir ? '打开' : '预览'),
+    ),
     if (!object.isDir && onDownload != null)
       ShadContextMenuItem(onPressed: onDownload, child: const Text('下载')),
     if (!object.isDir && onShare != null)

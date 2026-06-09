@@ -25,7 +25,40 @@ extension _FileManagerObjectBrowserMenus on FileManagerObjectBrowser {
     if (_isSelected(object) && selectedKeys.length > 1) {
       return _buildSelectionMenuItems(selectedKeys.length);
     }
+    final objectItems = buildObjectActionMenuItems(
+      object: object,
+      onOpen: () => _runMenuAction(() => _openObject(object)),
+      onDownload: object.isDir
+          ? null
+          : () => _runMenuAction(() => onDownloadFile(object)),
+      onShare: !supportsShareLinks || object.isDir
+          ? null
+          : () => _runMenuAction(
+              () => onObjectAction(object, FileObjectAction.share),
+            ),
+      onCopy: readOnly
+          ? null
+          : () => _runMenuAction(
+              () => onObjectAction(object, FileObjectAction.copy),
+            ),
+      onMove: readOnly
+          ? null
+          : () => _runMenuAction(
+              () => onObjectAction(object, FileObjectAction.move),
+            ),
+      onRename: readOnly
+          ? null
+          : () => _runMenuAction(
+              () => onObjectAction(object, FileObjectAction.rename),
+            ),
+      onDelete: readOnly
+          ? null
+          : () => _runMenuAction(
+              () => onObjectAction(object, FileObjectAction.delete),
+            ),
+    );
     return <Widget>[
+      ...objectItems.take(1),
       ...buildSelectionActionMenuItems(
         selectedCount: 0,
         onRefresh: onSelectionAction == null
@@ -38,38 +71,7 @@ extension _FileManagerObjectBrowserMenus on FileManagerObjectBrowser {
             ? null
             : () => _runMenuAction(onCreateDirectory!),
       ),
-      ...buildObjectActionMenuItems(
-        object: object,
-        onOpen: () => _runMenuAction(() => _openObject(object)),
-        onDownload: object.isDir
-            ? null
-            : () => _runMenuAction(() => onDownloadFile(object)),
-        onShare: !supportsShareLinks || object.isDir
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.share),
-              ),
-        onCopy: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.copy),
-              ),
-        onMove: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.move),
-              ),
-        onRename: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.rename),
-              ),
-        onDelete: readOnly
-            ? null
-            : () => _runMenuAction(
-                () => onObjectAction(object, FileObjectAction.delete),
-              ),
-      ),
+      ...objectItems.skip(1),
     ];
   }
 
