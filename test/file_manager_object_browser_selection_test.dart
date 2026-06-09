@@ -103,4 +103,87 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets('clicking a directory in selection mode toggles selection', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final objects = <ObjectInfo>[
+      const ObjectInfo(key: 'photos/default.png', size: 1024, isDir: false),
+      const ObjectInfo(key: 'photos/album/', size: 0, isDir: true),
+    ];
+    final selectedKeys = <String>{'photos/default.png'};
+    var openedDirectoryCount = 0;
+
+    await tester.pumpWidget(
+      ShadApp(
+        home: Material(
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              void toggleSelection(ObjectInfo object) {
+                setState(() {
+                  if (!selectedKeys.add(object.key)) {
+                    selectedKeys.remove(object.key);
+                  }
+                });
+              }
+
+              return SizedBox(
+                width: 900,
+                height: 600,
+                child: FileManagerObjectBrowser(
+                  objects: objects,
+                  prefix: '',
+                  isGrid: false,
+                  scrollController: ScrollController(),
+                  hasMore: false,
+                  loadingMore: false,
+                  selectedKeys: selectedKeys,
+                  deletingKeys: const <String>{},
+                  gridIconSize: 44,
+                  listIconSize: 34,
+                  onOpenDirectory: (_) => openedDirectoryCount++,
+                  onOpenFile: (_) {},
+                  onDownloadFile: (_) {},
+                  onNavigateUp: () {},
+                  onToggleSelection: toggleSelection,
+                  onSelectionSetChanged: (keys) {
+                    setState(() {
+                      selectedKeys
+                        ..clear()
+                        ..addAll(keys);
+                    });
+                  },
+                  onToggleSelectAll: () {},
+                  onClearSelection: () {
+                    setState(selectedKeys.clear);
+                  },
+                  onObjectAction: (_, _) {},
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('album'), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+
+    expect(openedDirectoryCount, 0);
+    expect(selectedKeys, contains('photos/album/'));
+
+    await tester.tap(find.text('album'), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+
+    expect(openedDirectoryCount, 0);
+    expect(selectedKeys, isNot(contains('photos/album/')));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

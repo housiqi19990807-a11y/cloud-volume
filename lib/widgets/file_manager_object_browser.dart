@@ -374,6 +374,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
       if (_dismissActiveContextMenu()) {
         return;
       }
+      if (_shouldToggleSelectionOnClick(object)) {
+        onToggleSelection(object);
+        return;
+      }
       _openObject(object);
     };
   }
@@ -383,6 +387,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
   VoidCallback _titleTapHandler(ObjectInfo object) {
     return () {
       if (_dismissActiveContextMenu()) {
+        return;
+      }
+      if (_shouldToggleSelectionOnClick(object)) {
+        onToggleSelection(object);
         return;
       }
       _openObject(object);
@@ -467,6 +475,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
 
   bool _showsSelectionControl(ObjectInfo object) {
     return !_isParentDirectory(object);
+  }
+
+  bool _shouldToggleSelectionOnClick(ObjectInfo object) {
+    return selectedKeys.isNotEmpty && _showsSelectionControl(object);
   }
 
   bool _isParentDirectory(ObjectInfo object) {
