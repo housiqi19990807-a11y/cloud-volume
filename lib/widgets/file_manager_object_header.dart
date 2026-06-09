@@ -1,6 +1,7 @@
 // 文件列表表头：负责名称/大小/修改时间列，以及多选模式下的全选勾选控件。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/widgets/file_manager_drag_selection.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -41,10 +42,12 @@ class FileManagerObjectHeader extends StatelessWidget {
       child: Row(
         children: [
           if (showSelectionControl) ...[
-            ListSelectionControl(
-              selected: allSelected,
-              partiallySelected: partiallySelected,
-              onTap: onToggleSelectAll,
+            FileManagerBlankTapRegion(
+              child: ListSelectionControl(
+                selected: allSelected,
+                partiallySelected: partiallySelected,
+                onTap: onToggleSelectAll,
+              ),
             ),
             const SizedBox(width: 10),
           ],

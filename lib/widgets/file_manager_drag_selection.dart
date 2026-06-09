@@ -30,6 +30,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
   static const double _dragThreshold = 6;
 
   final Map<String, BuildContext> _targets = <String, BuildContext>{};
+  final Set<BuildContext> _blankTapBlockers = <BuildContext>{};
   Offset? _dragStart;
   Offset? _dragCurrent;
   bool _trackingPrimaryPointer = false;
@@ -45,6 +46,14 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     if (current == context) {
       _targets.remove(key);
     }
+  }
+
+  void registerBlankTapBlocker(BuildContext context) {
+    _blankTapBlockers.add(context);
+  }
+
+  void unregisterBlankTapBlocker(BuildContext context) {
+    _blankTapBlockers.remove(context);
   }
 
   @override
@@ -81,7 +90,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     if (local == null) {
       return;
     }
-    final isBlank = !_hitsTarget(local);
+    final isBlank = !_hitsInteractiveRegion(local);
     if (event.buttons == kSecondaryMouseButton) {
       if (isBlank) {
         widget.onBlankSecondaryTapDown?.call(
@@ -193,13 +202,20 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     return Rect.fromPoints(_dragStart!, _dragCurrent!);
   }
 
-  bool _hitsTarget(Offset localPosition) {
+  bool _hitsInteractiveRegion(Offset localPosition) {
+    return _hitsAnyContext(localPosition, [
+      ..._targets.values,
+      ..._blankTapBlockers,
+    ]);
+  }
+
+  bool _hitsAnyContext(Offset localPosition, Iterable<BuildContext> contexts) {
     final regionBox = context.findRenderObject() as RenderBox?;
     if (regionBox == null || !regionBox.attached) {
       return false;
     }
-    for (final targetContext in _targets.values) {
-      final renderObject = targetContext.findRenderObject();
+    for (final candidateContext in contexts) {
+      final renderObject = candidateContext.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.attached) {
         continue;
       }
@@ -291,6 +307,69 @@ class _FileManagerDragSelectionTargetState
 
   void _detachFromScope(String selectionKey) {
     _selectionState?.unregisterTarget(selectionKey, context);
+    _selectionState = null;
+  }
+}
+
+class FileManagerBlankTapRegion extends StatefulWidget {
+  const FileManagerBlankTapRegion({
+    super.key,
+    required this.child,
+    this.enabled = true,
+  });
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<FileManagerBlankTapRegion> createState() =>
+      _FileManagerBlankTapRegionState();
+}
+
+class _FileManagerBlankTapRegionState extends State<FileManagerBlankTapRegion> {
+  _FileManagerDragSelectionState? _selectionState;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _attachToScope();
+  }
+
+  @override
+  void didUpdateWidget(covariant FileManagerBlankTapRegion oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled != widget.enabled) {
+      _detachFromScope();
+      _attachToScope();
+    }
+  }
+
+  @override
+  void dispose() {
+    _detachFromScope();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+
+  void _attachToScope() {
+    final next = _DragSelectionScope.of(context);
+    if (_selectionState == next) {
+      if (widget.enabled) {
+        _selectionState?.registerBlankTapBlocker(context);
+      }
+      return;
+    }
+    _detachFromScope();
+    _selectionState = next;
+    if (widget.enabled) {
+      _selectionState?.registerBlankTapBlocker(context);
+    }
+  }
+
+  void _detachFromScope() {
+    _selectionState?.unregisterBlankTapBlocker(context);
     _selectionState = null;
   }
 }
