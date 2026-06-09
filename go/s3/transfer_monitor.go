@@ -13,21 +13,24 @@ import (
 
 // TransferSnapshot is polled by Flutter to render sidebar and transfers UI.
 type TransferSnapshot struct {
-	ID             string  `json:"id"`
-	Type           string  `json:"type"`
-	Bucket         string  `json:"bucket"`
-	Key            string  `json:"key"`
-	LocalPath      string  `json:"localPath"`
-	TargetPath     string  `json:"targetPath,omitempty"`
-	Status         string  `json:"status"`
-	StatusDetail   string  `json:"statusDetail,omitempty"`
-	CreatedAt      string  `json:"createdAt,omitempty"`
-	BytesCompleted int64   `json:"bytesCompleted"`
-	TotalBytes     int64   `json:"totalBytes"`
-	ItemsCompleted int64   `json:"itemsCompleted,omitempty"`
-	TotalItems     int64   `json:"totalItems,omitempty"`
-	SpeedBytes     float64 `json:"speedBytes"`
-	Error          string  `json:"error,omitempty"`
+	ID                        string  `json:"id"`
+	Type                      string  `json:"type"`
+	Bucket                    string  `json:"bucket"`
+	Key                       string  `json:"key"`
+	LocalPath                 string  `json:"localPath"`
+	TargetPath                string  `json:"targetPath,omitempty"`
+	Status                    string  `json:"status"`
+	StatusDetail              string  `json:"statusDetail,omitempty"`
+	CreatedAt                 string  `json:"createdAt,omitempty"`
+	BytesCompleted            int64   `json:"bytesCompleted"`
+	TotalBytes                int64   `json:"totalBytes"`
+	ItemsCompleted            int64   `json:"itemsCompleted,omitempty"`
+	TotalItems                int64   `json:"totalItems,omitempty"`
+	CurrentFileKey            string  `json:"currentFileKey,omitempty"`
+	CurrentFileBytesCompleted int64   `json:"currentFileBytesCompleted,omitempty"`
+	CurrentFileTotalBytes     int64   `json:"currentFileTotalBytes,omitempty"`
+	SpeedBytes                float64 `json:"speedBytes"`
+	Error                     string  `json:"error,omitempty"`
 }
 
 type transferState struct {
@@ -240,6 +243,21 @@ func SetTransferTarget(id string, targetPath string) {
 	setTransferTarget(id, targetPath)
 }
 
+// SetTransferCurrentFile resets the per-file progress nested under a directory task.
+func SetTransferCurrentFile(id, key string, totalBytes int64) {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.snapshot.CurrentFileKey = key
+	task.snapshot.CurrentFileTotalBytes = totalBytes
+	task.snapshot.CurrentFileBytesCompleted = 0
+	task.updatedAt = time.Now()
+}
+
 func AdvanceTransfer(id string, delta int64) {
 	advanceTransfer(id, delta)
 }
@@ -253,6 +271,12 @@ func advanceTransfer(id string, delta int64) {
 		return
 	}
 	task.snapshot.BytesCompleted += delta
+	if task.snapshot.CurrentFileTotalBytes > 0 {
+		task.snapshot.CurrentFileBytesCompleted += delta
+		if task.snapshot.CurrentFileBytesCompleted > task.snapshot.CurrentFileTotalBytes {
+			task.snapshot.CurrentFileBytesCompleted = task.snapshot.CurrentFileTotalBytes
+		}
+	}
 	task.updatedAt = time.Now()
 
 	elapsed := task.updatedAt.Sub(task.startedAt).Seconds()

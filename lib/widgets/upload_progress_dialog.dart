@@ -328,13 +328,30 @@ class _TaskList extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 11.5,
                           color: theme.colorScheme.mutedForeground,
                         ),
                       ),
+                      if (task.currentFileTotalBytes > 0) ...[
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value:
+                                (task.currentFileBytesCompleted /
+                                        task.currentFileTotalBytes)
+                                    .clamp(0.0, 1.0),
+                            minHeight: 5,
+                            backgroundColor: theme.colorScheme.muted,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -371,7 +388,16 @@ class _TaskList extends StatelessWidget {
     if (task.totalBytes > 0) {
       parts.add(formatBytes(task.totalBytes));
     }
-    if (task.progressTargetLabel.isNotEmpty) {
+    if (task.currentFileKey.isNotEmpty) {
+      final currentBytes = task.currentFileTotalBytes > 0
+          ? '${formatBytes(task.currentFileBytesCompleted)} / ${formatBytes(task.currentFileTotalBytes)}'
+          : '';
+      parts.add(
+        currentBytes.isEmpty
+            ? '当前文件 ${task.currentFileKey}'
+            : '当前文件 ${task.currentFileKey}  $currentBytes',
+      );
+    } else if (task.progressTargetLabel.isNotEmpty) {
       parts.add(task.progressTargetLabel);
     }
     return parts.join('  ·  ');

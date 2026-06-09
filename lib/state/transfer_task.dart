@@ -23,6 +23,9 @@ class TransferTask {
     this.totalBytes = 0,
     this.itemsCompleted = 0,
     this.totalItems = 0,
+    this.currentFileKey = '',
+    this.currentFileBytesCompleted = 0,
+    this.currentFileTotalBytes = 0,
     this.speedBytes = 0,
     this.error,
   });
@@ -42,6 +45,10 @@ class TransferTask {
       totalBytes: (json['totalBytes'] ?? 0) as int,
       itemsCompleted: (json['itemsCompleted'] ?? 0) as int,
       totalItems: (json['totalItems'] ?? 0) as int,
+      currentFileKey: (json['currentFileKey'] ?? '').toString(),
+      currentFileBytesCompleted:
+          (json['currentFileBytesCompleted'] ?? 0) as int,
+      currentFileTotalBytes: (json['currentFileTotalBytes'] ?? 0) as int,
       speedBytes: (json['speedBytes'] ?? 0).toDouble(),
       error: json['error']?.toString(),
     );
@@ -60,6 +67,9 @@ class TransferTask {
   int totalBytes;
   int itemsCompleted;
   int totalItems;
+  String currentFileKey;
+  int currentFileBytesCompleted;
+  int currentFileTotalBytes;
   double speedBytes;
   String? error;
 
@@ -128,6 +138,9 @@ class TransferTask {
       'totalBytes': totalBytes,
       'itemsCompleted': itemsCompleted,
       'totalItems': totalItems,
+      'currentFileKey': currentFileKey,
+      'currentFileBytesCompleted': currentFileBytesCompleted,
+      'currentFileTotalBytes': currentFileTotalBytes,
       'speedBytes': speedBytes,
       'error': error,
     };

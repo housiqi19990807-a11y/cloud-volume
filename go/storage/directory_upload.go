@@ -69,6 +69,7 @@ func UploadDirectory(
 		}
 		if taskID != "" {
 			s3ops.SetTransferTarget(taskID, file.remoteKey)
+			s3ops.SetTransferCurrentFile(taskID, file.remoteKey, file.size)
 		}
 		if err := uploadDirectoryFile(ctx, backend, bucket, file.remoteKey, file.localPath, file.size, taskID); err != nil {
 			return err

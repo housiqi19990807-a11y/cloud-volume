@@ -257,6 +257,10 @@ class TransferQueue extends ChangeNotifier {
           task.speedBytes != snapshot.speedBytes ||
           task.itemsCompleted != snapshot.itemsCompleted ||
           task.totalItems != snapshot.totalItems ||
+          task.currentFileKey != snapshot.currentFileKey ||
+          task.currentFileBytesCompleted !=
+              snapshot.currentFileBytesCompleted ||
+          task.currentFileTotalBytes != snapshot.currentFileTotalBytes ||
           task.targetPath != snapshot.targetPath ||
           task.statusDetail != snapshot.statusDetail ||
           task.createdAt != snapshot.createdAt ||
@@ -266,6 +270,10 @@ class TransferQueue extends ChangeNotifier {
       if (task.totalBytes != snapshot.totalBytes ||
           task.itemsCompleted != snapshot.itemsCompleted ||
           task.totalItems != snapshot.totalItems ||
+          task.currentFileKey != snapshot.currentFileKey ||
+          task.currentFileBytesCompleted !=
+              snapshot.currentFileBytesCompleted ||
+          task.currentFileTotalBytes != snapshot.currentFileTotalBytes ||
           task.targetPath != snapshot.targetPath ||
           task.statusDetail != snapshot.statusDetail ||
           task.createdAt != snapshot.createdAt ||
@@ -276,6 +284,9 @@ class TransferQueue extends ChangeNotifier {
       task.totalBytes = snapshot.totalBytes;
       task.itemsCompleted = snapshot.itemsCompleted;
       task.totalItems = snapshot.totalItems;
+      task.currentFileKey = snapshot.currentFileKey;
+      task.currentFileBytesCompleted = snapshot.currentFileBytesCompleted;
+      task.currentFileTotalBytes = snapshot.currentFileTotalBytes;
       task.speedBytes = snapshot.speedBytes;
       task.targetPath = snapshot.targetPath;
       task.statusDetail = snapshot.statusDetail;
@@ -386,6 +397,11 @@ class TransferQueue extends ChangeNotifier {
     );
     task.statusDetail = snapshot.statusDetail;
     task.createdAt = snapshot.createdAt;
+    task.itemsCompleted = snapshot.itemsCompleted;
+    task.totalItems = snapshot.totalItems;
+    task.currentFileKey = snapshot.currentFileKey;
+    task.currentFileBytesCompleted = snapshot.currentFileBytesCompleted;
+    task.currentFileTotalBytes = snapshot.currentFileTotalBytes;
     _tasks.insert(0, task);
     _tasksById[task.id] = task;
     return task;
