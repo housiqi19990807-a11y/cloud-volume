@@ -1,25 +1,28 @@
-// Upload progress dialog keeps drag, paste, and picker uploads on one unified modal.
+// Batch task progress dialog keeps multi-item operations visible while they run.
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
+import 'package:remote_storage/widgets/batch_task_progress_mode.dart';
 import 'package:remote_storage/widgets/transfer_task_widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-class UploadProgressDialog extends StatelessWidget {
-  const UploadProgressDialog({
+class BatchTaskProgressDialog extends StatelessWidget {
+  const BatchTaskProgressDialog({
     super.key,
     required this.taskIds,
     required this.currentPathLabel,
     required this.onRunInBackground,
     required this.onClose,
+    this.mode,
   });
 
   final List<String> taskIds;
   final String currentPathLabel;
   final VoidCallback onRunInBackground;
   final VoidCallback onClose;
+  final BatchTaskProgressMode? mode;
 
   @override
   Widget build(BuildContext context) {
@@ -59,11 +62,14 @@ class UploadProgressDialog extends StatelessWidget {
         final progress = totalBytes > 0
             ? (completedBytes / totalBytes).clamp(0.0, 1.0)
             : null;
+        final resolvedMode = mode ?? _modeForTasks(tasks);
 
         return ShadDialog(
-          title: Text(allFinished ? '上传完成' : '正在上传'),
+          title: Text(
+            allFinished ? resolvedMode.doneTitle : resolvedMode.runningTitle,
+          ),
           description: Text(
-            _description(
+            resolvedMode.description(
               totalCount: tasks.length,
               activeCount: activeCount,
               failedCount: failedCount,
@@ -88,9 +94,11 @@ class UploadProgressDialog extends StatelessWidget {
                   totalItems: totalItems,
                   totalSpeed: totalSpeed,
                   allFinished: allFinished,
+                  mode: resolvedMode,
                 ),
                 const SizedBox(height: 14),
-                if (tasks.isNotEmpty) _TaskList(tasks: tasks),
+                if (tasks.isNotEmpty)
+                  _TaskList(tasks: tasks, mode: resolvedMode),
                 const SizedBox(height: 18),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -103,7 +111,7 @@ class UploadProgressDialog extends StatelessWidget {
                       const SizedBox(width: 10),
                       ShadButton.outline(
                         onPressed: () => _cancelActiveTasks(tasks),
-                        child: const Text('取消上传'),
+                        child: Text(resolvedMode.cancelLabel),
                       ),
                       const SizedBox(width: 10),
                       ShadButton(
@@ -127,28 +135,11 @@ class UploadProgressDialog extends StatelessWidget {
     }
   }
 
-  String _description({
-    required int totalCount,
-    required int activeCount,
-    required int failedCount,
-    required bool allFinished,
-  }) {
-    if (allFinished) {
-      if (failedCount > 0) {
-        return '共处理 $totalCount 个上传任务，其中 $failedCount 个失败。';
-      }
-      if (totalCount == 1) {
-        return '上传任务已完成。';
-      }
-      return '共处理 $totalCount 个上传任务，全部已完成。';
+  BatchTaskProgressMode _modeForTasks(List<TransferTask> tasks) {
+    if (tasks.isNotEmpty && tasks.every((task) => task.isDelete)) {
+      return BatchTaskProgressMode.delete;
     }
-    if (failedCount > 0) {
-      return '还有 $activeCount 个任务进行中，$failedCount 个任务失败。';
-    }
-    if (totalCount == 1) {
-      return '上传正在进行，可关闭弹框后继续后台上传。';
-    }
-    return '当前有 $activeCount 个上传任务正在进行，可关闭弹框后继续后台上传。';
+    return BatchTaskProgressMode.upload;
   }
 }
 
@@ -165,6 +156,7 @@ class _SummaryCard extends StatelessWidget {
     required this.totalItems,
     required this.totalSpeed,
     required this.allFinished,
+    required this.mode,
   });
 
   final String currentPathLabel;
@@ -178,6 +170,7 @@ class _SummaryCard extends StatelessWidget {
   final int totalItems;
   final double totalSpeed;
   final bool allFinished;
+  final BatchTaskProgressMode mode;
 
   @override
   Widget build(BuildContext context) {
@@ -287,9 +280,10 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _TaskList extends StatelessWidget {
-  const _TaskList({required this.tasks});
+  const _TaskList({required this.tasks, required this.mode});
 
   final List<TransferTask> tasks;
+  final BatchTaskProgressMode mode;
 
   @override
   Widget build(BuildContext context) {
@@ -315,11 +309,7 @@ class _TaskList extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Icon(
-                  LucideIcons.upload,
-                  size: 16,
-                  color: theme.colorScheme.primary,
-                ),
+                Icon(mode.icon, size: 16, color: theme.colorScheme.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(

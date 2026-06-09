@@ -406,7 +406,8 @@ extension _FileManagerPageActions on _FileManagerPageState {
         if (!mounted) return;
         final confirmed = await showDeleteObjectDialog(context, object);
         if (!confirmed) return;
-        _queueObjectDeletes(<ObjectInfo>[object]);
+        final tasks = _queueObjectDeletes(<ObjectInfo>[object]);
+        await _showDeleteProgressDialogForTasks(tasks);
         return;
       }
       if (!mounted || !reloadAfterAction) return;

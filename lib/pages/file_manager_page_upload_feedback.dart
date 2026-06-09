@@ -1,23 +1,46 @@
 part of 'file_manager_page.dart';
 
-// 文件管理页上传反馈：统一弹出上传进度拟态框，允许关闭后继续后台运行。
+// 文件管理页批量任务反馈：统一弹出进度拟态框，允许关闭后继续后台运行。
 
 extension _FileManagerPageUploadFeedback on _FileManagerPageState {
   Future<void> _showUploadProgressDialogForTasks(
     List<TransferTask> tasks,
   ) async {
+    await _showBatchTaskProgressDialogForTasks(
+      tasks,
+      mode: BatchTaskProgressMode.upload,
+      backgroundMessage: '上传已转为后台进行',
+    );
+  }
+
+  Future<void> _showDeleteProgressDialogForTasks(
+    List<TransferTask> tasks,
+  ) async {
+    await _showBatchTaskProgressDialogForTasks(
+      tasks,
+      mode: BatchTaskProgressMode.delete,
+      backgroundMessage: '删除已转为后台进行',
+    );
+  }
+
+  Future<void> _showBatchTaskProgressDialogForTasks(
+    List<TransferTask> tasks, {
+    required BatchTaskProgressMode mode,
+    required String backgroundMessage,
+  }) async {
     if (!mounted || tasks.isEmpty) {
       return;
     }
     final taskIds = tasks.map((task) => task.id).toList(growable: false);
     await showShadDialog<void>(
       context: context,
-      builder: (dialogContext) => UploadProgressDialog(
+      builder: (dialogContext) => BatchTaskProgressDialog(
         taskIds: taskIds,
         currentPathLabel: _uploadTargetLabel,
+        mode: mode,
         onRunInBackground: () {
           Navigator.of(dialogContext).pop();
-          _showPageSnack('上传已转为后台进行');
+          _showPageSnack(backgroundMessage);
         },
         onClose: () => Navigator.of(dialogContext).pop(),
       ),

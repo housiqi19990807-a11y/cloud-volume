@@ -156,6 +156,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     if (!confirmed) {
       return;
     }
-    _queueObjectDeletes(selected);
+    final tasks = _queueObjectDeletes(selected);
+    await _showDeleteProgressDialogForTasks(tasks);
   }
 }

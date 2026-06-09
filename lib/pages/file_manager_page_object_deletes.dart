@@ -5,18 +5,18 @@
 part of 'file_manager_page.dart';
 
 extension _FileManagerPageObjectDeletes on _FileManagerPageState {
-  void _queueObjectDeletes(List<ObjectInfo> objects) {
+  List<TransferTask> _queueObjectDeletes(List<ObjectInfo> objects) {
     if (_activeBucket == null ||
         _activeBucketEntry == null ||
         objects.isEmpty) {
-      return;
+      return const <TransferTask>[];
     }
     final bucketEntry = _activeBucketEntry!;
     final targets = objects
         .where((object) => !_deletingObjectKeys.contains(object.key))
         .toList();
     if (targets.isEmpty) {
-      return;
+      return const <TransferTask>[];
     }
     setState(() {
       for (final object in targets) {
@@ -25,9 +25,20 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
       }
     });
 
-    final futures = targets
-        .map((object) => _runDeleteTask(bucketEntry, object))
+    final tasks = targets
+        .map(
+          (object) => TransferQueue.instance.startTask(
+            kind: TransferKind.delete,
+            bucket: bucketEntry.bucket.name,
+            key: object.key,
+            localPath: '',
+          ),
+        )
         .toList(growable: false);
+    final futures = <Future<Object?>>[];
+    for (var index = 0; index < targets.length; index++) {
+      futures.add(_runDeleteTask(bucketEntry, targets[index], tasks[index]));
+    }
     unawaited(() async {
       final errors = await Future.wait(futures);
       if (!mounted || _activeBucketId != bucketEntry.id) {
@@ -44,18 +55,14 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
         );
       }
     }());
+    return tasks;
   }
 
   Future<Object?> _runDeleteTask(
     FileManagerBucketEntry bucket,
     ObjectInfo object,
+    TransferTask task,
   ) async {
-    final task = TransferQueue.instance.startTask(
-      kind: TransferKind.delete,
-      bucket: bucket.bucket.name,
-      key: object.key,
-      localPath: '',
-    );
     try {
       await widget.api.deleteObject(
         bucket.config,
