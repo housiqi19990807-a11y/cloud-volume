@@ -160,17 +160,7 @@ func (b baiduPanBackend) CreateDirectory(
 	}
 	remotePath := baiduPanObjectPath(path.Join(baiduPanCleanKey(prefix), strings.Trim(strings.TrimSpace(name), "/")))
 	_, err := withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (struct{}, error) {
-		if err := ensureBaiduPanDir(client, path.Dir(remotePath)); err != nil {
-			return struct{}{}, err
-		}
-		_, err := client.Mkdir(remotePath)
-		if err != nil {
-			if dirErr := ensureExistingBaiduPanDir(client, remotePath, err); dirErr == nil {
-				return struct{}{}, nil
-			}
-			return struct{}{}, err
-		}
-		return struct{}{}, nil
+		return struct{}{}, ensureBaiduPanDir(client, remotePath)
 	})
 	return err
 }
@@ -187,6 +177,9 @@ func (b baiduPanBackend) DeleteObject(
 	}
 	_, err := withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (struct{}, error) {
 		_, err := client.DeleteObject(baiduPanObjectPath(key))
+		if err == nil {
+			forgetBaiduPanKnownDir(baiduPanObjectPath(key))
+		}
 		return struct{}{}, err
 	})
 	return err
@@ -369,40 +362,4 @@ func baiduPanTempUploadPath(fileName string, key string) string {
 		base = "upload.bin"
 	}
 	return baiduPanUploadRoot + "/" + uuid.NewString() + "-" + base
-}
-
-func ensureBaiduPanDir(client *xpanclient.Client, remoteDir string) error {
-	clean := path.Clean(strings.TrimSpace(remoteDir))
-	if clean == "." || clean == "/" || clean == "" {
-		return nil
-	}
-	parts := strings.Split(strings.TrimPrefix(clean, "/"), "/")
-	current := ""
-	for _, part := range parts {
-		if strings.TrimSpace(part) == "" {
-			continue
-		}
-		current += "/" + part
-		if _, err := client.Mkdir(current); err != nil {
-			if statErr := ensureExistingBaiduPanDir(client, current, err); statErr != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func ensureExistingBaiduPanDir(
-	client *xpanclient.Client,
-	remoteDir string,
-	originalErr error,
-) error {
-	meta, err := client.StatObject(remoteDir)
-	if err != nil {
-		return originalErr
-	}
-	if meta.IsDir == xpantypes.BoolIntTrue {
-		return nil
-	}
-	return originalErr
 }

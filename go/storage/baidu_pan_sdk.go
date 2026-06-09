@@ -74,20 +74,23 @@ func withBaiduPanClient[T any](
 	var zero T
 
 	baiduPanSDKMu.Lock()
-	defer baiduPanSDKMu.Unlock()
-
 	state := baiduPanStateForConfig(cfg)
+	baiduPanSDKMu.Unlock()
+
 	client := baiduPanClientForState(state)
 	result, err := fn(client)
 	if err == nil || !shouldRefreshBaiduPanToken(err) || state.refreshToken == "" {
 		return result, err
 	}
+	baiduPanSDKMu.Lock()
 	refreshed, refreshErr := refreshBaiduPanStateLocked(state)
 	if refreshErr != nil {
+		baiduPanSDKMu.Unlock()
 		return zero, err
 	}
 	rememberBaiduPanState(baiduPanSessionKeys(cfg, state), refreshed)
 	persistBaiduPanState(cfg, refreshed)
+	baiduPanSDKMu.Unlock()
 	return fn(baiduPanClientForState(refreshed))
 }
 
