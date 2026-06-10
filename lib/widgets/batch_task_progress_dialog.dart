@@ -59,7 +59,9 @@ class BatchTaskProgressDialog extends StatelessWidget {
           0,
           (sum, task) => sum + task.itemsCompleted,
         );
-        final progress = totalBytes > 0
+        final progress = allFinished
+            ? 1.0
+            : totalBytes > 0
             ? (completedBytes / totalBytes).clamp(0.0, 1.0)
             : null;
         final resolvedMode = mode ?? _modeForTasks(tasks);

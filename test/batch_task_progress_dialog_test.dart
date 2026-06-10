@@ -72,4 +72,46 @@ void main() {
     TransferQueue.instance.resetForTest();
     await tester.pump();
   });
+
+  testWidgets('finished delete batch shows determinate complete progress', (
+    tester,
+  ) async {
+    final first = TransferQueue.instance.startTask(
+      kind: TransferKind.delete,
+      bucket: 'bucket-a',
+      key: 'docs/a.txt',
+      localPath: '',
+    )..status = TransferStatus.done;
+    final second = TransferQueue.instance.startTask(
+      kind: TransferKind.delete,
+      bucket: 'bucket-a',
+      key: 'docs/b.txt',
+      localPath: '',
+    )..status = TransferStatus.done;
+
+    await tester.pumpWidget(
+      ShadApp(
+        home: Material(
+          child: BatchTaskProgressDialog(
+            taskIds: <String>[first.id, second.id],
+            currentPathLabel: 'bucket-a / docs',
+            mode: BatchTaskProgressMode.delete,
+            onRunInBackground: () {},
+            onClose: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final indicator = tester.widget<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator).first,
+    );
+    expect(indicator.value, 1.0);
+    expect(find.text('删除完成'), findsOneWidget);
+    expect(find.text('后台运行'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    TransferQueue.instance.resetForTest();
+    await tester.pump();
+  });
 }
