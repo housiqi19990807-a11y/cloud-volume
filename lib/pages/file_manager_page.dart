@@ -52,6 +52,7 @@ part 'file_manager_page_mount.dart';
 part 'file_manager_page_object_loading.dart';
 part 'file_manager_page_object_deletes.dart';
 part 'file_manager_page_paging.dart';
+part 'file_manager_page_preview.dart';
 part 'file_manager_page_restore_sync.dart';
 part 'file_manager_page_selected_actions.dart';
 part 'file_manager_page_state.dart';

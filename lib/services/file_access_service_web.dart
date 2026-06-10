@@ -3,6 +3,7 @@
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -47,13 +48,58 @@ class FileAccessService {
     await _launch(target);
   }
 
+  Future<FileAccessTransferRequest> prepareObjectForExternalOpen({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    final target = api.objectDownloadUri(bucket, object.key, inline: true);
+    if (target == null) {
+      throw UnsupportedError('浏览器端不支持外部应用打开');
+    }
+    final task = TransferQueue.instance.startTask(
+      kind: TransferKind.download,
+      bucket: bucket,
+      key: object.key,
+      localPath: object.displayName,
+    );
+    final completion = _launch(target)
+        .then((_) {
+          TransferQueue.instance.markTaskDone(task.id);
+          return object.displayName;
+        })
+        .catchError((Object error) {
+          TransferQueue.instance.markTaskFailed(task.id, error);
+          throw error;
+        });
+    return FileAccessTransferRequest(task: task, completion: completion);
+  }
+
+  Future<void> openLocalPath(String localPath) async {}
+
   Future<void> downloadObjectWithPicker({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,
     required ObjectInfo object,
   }) async {
-    await downloadObjectToPath(
+    final request = await prepareDownloadObjectWithPicker(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+    await request?.completion;
+  }
+
+  Future<FileAccessTransferRequest?> prepareDownloadObjectWithPicker({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) {
+    return prepareDownloadObjectToPath(
       api: api,
       config: config,
       bucket: bucket,
@@ -68,7 +114,22 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
   }) async {
-    await downloadObjectToPath(
+    final request = await prepareDownloadObjectToDefaultDirectory(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+    await request.completion;
+  }
+
+  Future<FileAccessTransferRequest> prepareDownloadObjectToDefaultDirectory({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) {
+    return prepareDownloadObjectToPath(
       api: api,
       config: config,
       bucket: bucket,
@@ -93,6 +154,23 @@ class FileAccessService {
     required ObjectInfo object,
     required String savePath,
   }) async {
+    final request = await prepareDownloadObjectToPath(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+      savePath: savePath,
+    );
+    await request.completion;
+  }
+
+  Future<FileAccessTransferRequest> prepareDownloadObjectToPath({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+    required String savePath,
+  }) async {
     if (object.isDir) {
       throw UnsupportedError('浏览器端暂不支持文件夹下载');
     }
@@ -106,13 +184,16 @@ class FileAccessService {
       key: object.key,
       localPath: savePath,
     );
-    try {
-      await _launch(target);
-      TransferQueue.instance.markTaskDone(task.id);
-    } catch (error) {
-      TransferQueue.instance.markTaskFailed(task.id, error);
-      rethrow;
-    }
+    final completion = _launch(target)
+        .then((_) {
+          TransferQueue.instance.markTaskDone(task.id);
+          return savePath;
+        })
+        .catchError((Object error) {
+          TransferQueue.instance.markTaskFailed(task.id, error);
+          throw error;
+        });
+    return FileAccessTransferRequest(task: task, completion: completion);
   }
 
   Future<void> evictCacheForObject({

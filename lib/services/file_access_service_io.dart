@@ -7,6 +7,7 @@ import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/file_cache_store.dart';
+import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/local_file_opener.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
@@ -64,7 +65,40 @@ class FileAccessService {
     await LocalFileOpener.openPath(cachePath);
   }
 
+  Future<FileAccessTransferRequest> prepareObjectForExternalOpen({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) {
+    return _ensureCachedObjectRequest(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+  }
+
+  Future<void> openLocalPath(String localPath) {
+    return LocalFileOpener.openPath(localPath);
+  }
+
   Future<String> _ensureCachedObject({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    final request = await _ensureCachedObjectRequest(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+    return request.completion;
+  }
+
+  Future<FileAccessTransferRequest> _ensureCachedObjectRequest({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,
@@ -77,7 +111,7 @@ class FileAccessService {
       remoteObject,
     );
     if (cachedPath != null) {
-      return cachedPath;
+      return FileAccessTransferRequest(completion: Future.value(cachedPath));
     }
 
     final cachePath = await _cacheStore.cachePathFor(
@@ -92,7 +126,12 @@ class FileAccessService {
       localPath: cachePath,
     );
     if (existingTask != null) {
-      throw StateError('文件正在下载，完成后再预览。');
+      return FileAccessTransferRequest(
+        task: existingTask,
+        completion: waitForTransferTaskSuccess(
+          existingTask.id,
+        ).then((_) => cachePath),
+      );
     }
 
     final task = TransferQueue.instance.startTask(
@@ -101,7 +140,7 @@ class FileAccessService {
       key: object.key,
       localPath: cachePath,
     );
-    await _runDownload(
+    final completion = _runDownload(
       api: api,
       config: config,
       task: task,
@@ -120,11 +159,26 @@ class FileAccessService {
           deleteFile: true,
         );
       },
-    );
-    return cachePath;
+    ).then((_) => cachePath);
+    return FileAccessTransferRequest(task: task, completion: completion);
   }
 
   Future<void> downloadObjectWithPicker({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
+    final request = await prepareDownloadObjectWithPicker(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+    await request?.completion;
+  }
+
+  Future<FileAccessTransferRequest?> prepareDownloadObjectWithPicker({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,
@@ -138,9 +192,9 @@ class FileAccessService {
         ),
       );
       if (targetDirectory == null || targetDirectory.trim().isEmpty) {
-        return;
+        return null;
       }
-      await downloadObjectToPath(
+      return prepareDownloadObjectToPath(
         api: api,
         config: config,
         bucket: bucket,
@@ -150,7 +204,6 @@ class FileAccessService {
           object.displayName,
         ),
       );
-      return;
     }
     final initialDirectory = await resolveDefaultDownloadDirectory(
       config.defaultDownloadDirectory,
@@ -161,10 +214,10 @@ class FileAccessService {
       initialDirectory: initialDirectory,
     );
     if (savePath == null || savePath.trim().isEmpty) {
-      return;
+      return null;
     }
 
-    await downloadObjectToPath(
+    return prepareDownloadObjectToPath(
       api: api,
       config: config,
       bucket: bucket,
@@ -179,13 +232,28 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
   }) async {
+    final request = await prepareDownloadObjectToDefaultDirectory(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+    );
+    await request.completion;
+  }
+
+  Future<FileAccessTransferRequest> prepareDownloadObjectToDefaultDirectory({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+  }) async {
     final directory = await resolveDefaultDownloadDirectory(
       config.defaultDownloadDirectory,
     );
     if (directory == null || directory.trim().isEmpty) {
       throw StateError('无法解析默认下载目录，请使用另存为选择保存位置。');
     }
-    await downloadObjectToPath(
+    return prepareDownloadObjectToPath(
       api: api,
       config: config,
       bucket: bucket,
@@ -220,18 +288,36 @@ class FileAccessService {
     required ObjectInfo object,
     required String savePath,
   }) async {
+    final request = await prepareDownloadObjectToPath(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+      savePath: savePath,
+    );
+    await request.completion;
+  }
+
+  Future<FileAccessTransferRequest> prepareDownloadObjectToPath({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+    required String savePath,
+  }) async {
     if (savePath.trim().isEmpty) {
-      return;
+      return FileAccessTransferRequest(completion: Future.value(savePath));
     }
     if (object.isDir) {
-      await _downloadDirectoryToPath(
-        api: api,
-        config: config,
-        bucket: bucket,
-        directory: object,
-        savePath: savePath,
+      return FileAccessTransferRequest(
+        completion: _downloadDirectoryToPath(
+          api: api,
+          config: config,
+          bucket: bucket,
+          directory: object,
+          savePath: savePath,
+        ).then((_) => savePath),
       );
-      return;
     }
 
     final task = TransferQueue.instance.startTask(
@@ -240,12 +326,13 @@ class FileAccessService {
       key: object.key,
       localPath: savePath,
     );
-    await _runDownload(
+    final completion = _runDownload(
       api: api,
       config: config,
       task: task,
       onFailure: () => _deleteFileIfExists(savePath),
-    );
+    ).then((_) => savePath);
+    return FileAccessTransferRequest(task: task, completion: completion);
   }
 
   Future<void> evictCacheForObject({
@@ -293,7 +380,7 @@ class FileAccessService {
         await onFailure();
       }
       if (TransferQueue.instance.statusOf(task.id) == TransferStatus.canceled) {
-        return;
+        throw StateError('下载已取消');
       }
       rethrow;
     }
