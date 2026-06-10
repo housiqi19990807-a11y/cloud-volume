@@ -32,6 +32,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
   final Map<String, BuildContext> _targets = <String, BuildContext>{};
   final Set<BuildContext> _blankTapBlockers = <BuildContext>{};
   Set<String>? _dragBaseSelection;
+  final Set<String> _dragTouchedKeys = <String>{};
   Offset? _dragStart;
   Offset? _dragCurrent;
   bool _trackingPrimaryPointer = false;
@@ -110,6 +111,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     _dragStart = local;
     _dragCurrent = local;
     _dragBaseSelection = Set<String>.of(widget.selectedKeys);
+    _dragTouchedKeys.clear();
     _trackingPrimaryPointer = true;
     _pointerStartedOnTarget = !isBlank;
     _dragging = false;
@@ -157,6 +159,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
       return;
     }
     final selected = Set<String>.of(_dragBaseSelection ?? widget.selectedKeys);
+    final baseSelection = _dragBaseSelection ?? widget.selectedKeys;
     for (final entry in _targets.entries) {
       final renderObject = entry.value.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.attached) {
@@ -168,11 +171,14 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
       );
       final bounds = origin & renderObject.size;
       if (bounds.overlaps(selectionRect)) {
-        if (!(_dragBaseSelection ?? widget.selectedKeys).contains(entry.key)) {
-          selected.add(entry.key);
-        } else {
-          selected.remove(entry.key);
-        }
+        _dragTouchedKeys.add(entry.key);
+      }
+    }
+    for (final key in _dragTouchedKeys) {
+      if (!baseSelection.contains(key)) {
+        selected.add(key);
+      } else {
+        selected.remove(key);
       }
     }
     if (!_sameSelection(selected, widget.selectedKeys)) {
@@ -188,6 +194,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
       _dragStart = null;
       _dragCurrent = null;
       _dragBaseSelection = null;
+      _dragTouchedKeys.clear();
       _trackingPrimaryPointer = false;
       _pointerStartedOnTarget = false;
       _dragging = false;

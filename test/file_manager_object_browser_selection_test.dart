@@ -239,6 +239,73 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets('drag selection keeps touched items toggled after scrolling', (
+    tester,
+  ) async {
+    final selectedKeys = <String>{'a', 'outside'};
+    var scrolled = false;
+    StateSetter? updateLayout;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            updateLayout = setState;
+            return Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 320,
+                height: 180,
+                child: FileManagerDragSelection(
+                  enabled: true,
+                  selectedKeys: selectedKeys,
+                  onSelectionChanged: (keys) {
+                    setState(() {
+                      selectedKeys
+                        ..clear()
+                        ..addAll(keys);
+                    });
+                  },
+                  child: Stack(
+                    children: [
+                      if (!scrolled)
+                        const _DragSelectionBox(selectionKey: 'a', left: 50),
+                      _DragSelectionBox(
+                        selectionKey: 'b',
+                        left: scrolled ? 120 : 240,
+                      ),
+                      const _DragSelectionBox(
+                        selectionKey: 'outside',
+                        left: 280,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.down(const Offset(20, 20));
+    await gesture.moveTo(const Offset(100, 110));
+    await tester.pump();
+    expect(selectedKeys, unorderedEquals(<String>{'outside'}));
+
+    updateLayout?.call(() => scrolled = true);
+    await tester.pump();
+    await gesture.moveTo(const Offset(190, 110));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(selectedKeys, unorderedEquals(<String>{'b', 'outside'}));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 
 class _DragSelectionBox extends StatelessWidget {
