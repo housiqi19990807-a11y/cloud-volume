@@ -106,13 +106,13 @@ class BatchTaskProgressDialog extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    ShadButton.outline(
-                      onPressed: onClose,
-                      child: Text(allFinished ? '关闭' : '稍后查看'),
-                    ),
-                    if (!allFinished) ...[
-                      const SizedBox(width: 10),
+                    if (allFinished)
                       ShadButton.outline(
+                        onPressed: onClose,
+                        child: const Text('关闭'),
+                      )
+                    else ...[
+                      ShadButton.destructive(
                         onPressed: () => _cancelActiveTasks(tasks),
                         child: Text(resolvedMode.cancelLabel),
                       ),
@@ -379,7 +379,7 @@ class _TaskList extends StatelessWidget {
                   ShadIconButton.ghost(
                     icon: Icon(
                       LucideIcons.circleX,
-                      color: theme.colorScheme.mutedForeground,
+                      color: theme.colorScheme.destructive,
                     ),
                     width: 30,
                     height: 30,
