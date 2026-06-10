@@ -35,6 +35,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
     required this.selectedKeys,
     required this.deletingKeys,
     this.readOnly = false,
+    this.supportsDirectoryDownload = true,
     required this.gridIconSize,
     required this.listIconSize,
     this.mountedToDesktop = false,
@@ -72,6 +73,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
   final Set<String> selectedKeys;
   final Set<String> deletingKeys;
   final bool readOnly;
+  final bool supportsDirectoryDownload;
   final double gridIconSize;
   final double listIconSize;
   final String? mountBucketName;
@@ -184,7 +186,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                         ? _syncBadge(object, queue)
                         : null,
                     onTap: _tapHandler(object),
-                    onDoubleTap: _doubleTapHandler(object),
+                    onDoubleTap: null,
                     onTitleTap: _titleTapHandler(object),
                     onSelectionTap: _selectionTapHandler(object),
                     isSelected: _isSelected(object),
@@ -264,7 +266,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                       statusWidget: _syncBadge(object, queue),
                       modifiedLabel: _modifiedLabel(object),
                       onTap: _tapHandler(object),
-                      onDoubleTap: _doubleTapHandler(object),
+                      onDoubleTap: null,
                       onTitleTap: _titleTapHandler(object),
                       onSelectionTap: _selectionTapHandler(object),
                       isSelected: _isSelected(object),
@@ -381,8 +383,6 @@ class FileManagerObjectBrowser extends StatelessWidget {
       _openObject(object);
     };
   }
-
-  VoidCallback? _doubleTapHandler(ObjectInfo object) => null;
 
   VoidCallback _titleTapHandler(ObjectInfo object) {
     return () {

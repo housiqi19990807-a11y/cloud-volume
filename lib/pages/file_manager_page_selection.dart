@@ -85,11 +85,15 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     if (_activeBucket == null) {
       return;
     }
-    final files = _selectedObjects.where((object) => !object.isDir).toList();
-    if (files.isEmpty) {
+    final selected = _selectedObjects;
+    if (selected.isEmpty) {
       return;
     }
     if (widget.api.capabilities.supportsBrowserTransfers) {
+      final files = selected.where((object) => !object.isDir).toList();
+      if (files.isEmpty) {
+        return;
+      }
       try {
         for (final object in files) {
           unawaited(
@@ -123,7 +127,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     }
 
     try {
-      for (final object in files) {
+      for (final object in selected) {
         unawaited(
           FileAccessService.instance.downloadObjectToPath(
             api: widget.api,

@@ -462,6 +462,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
       selectedKeys: _selectedObjectKeys,
       deletingKeys: _deletingObjectKeys,
       readOnly: _activeBucketReadOnly,
+      supportsDirectoryDownload:
+          widget.api.capabilities.supportsDownloadDirectory,
       gridIconSize: _gridIconSize,
       listIconSize: _listIconSize,
       mountedToDesktop: _activeMountStatus?.mounted ?? false,

@@ -93,6 +93,9 @@ class FileAccessService {
     required ObjectInfo object,
     required String savePath,
   }) async {
+    if (object.isDir) {
+      throw UnsupportedError('浏览器端暂不支持文件夹下载');
+    }
     final target = api.objectDownloadUri(bucket, object.key);
     if (target == null) {
       throw UnsupportedError('当前客户端不支持浏览器下载');

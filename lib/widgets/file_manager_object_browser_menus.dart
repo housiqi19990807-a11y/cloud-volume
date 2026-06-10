@@ -28,7 +28,7 @@ extension _FileManagerObjectBrowserMenus on FileManagerObjectBrowser {
     final objectItems = buildObjectActionMenuItems(
       object: object,
       onOpen: () => _runMenuAction(() => _openObject(object)),
-      onDownload: object.isDir
+      onDownload: object.isDir && !supportsDirectoryDownload
           ? null
           : () => _runMenuAction(() => onDownloadFile(object)),
       onShare: !supportsShareLinks || object.isDir

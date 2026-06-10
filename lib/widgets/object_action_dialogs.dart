@@ -32,7 +32,7 @@ List<Widget> buildObjectActionMenuItems({
       onPressed: onOpen,
       child: Text(object.isDir ? '打开' : '预览'),
     ),
-    if (!object.isDir && onDownload != null)
+    if (onDownload != null)
       ShadContextMenuItem(onPressed: onDownload, child: const Text('下载')),
     if (!object.isDir && onShare != null)
       ShadContextMenuItem(onPressed: onShare, child: const Text('创建分享')),

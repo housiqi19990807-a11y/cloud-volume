@@ -130,6 +130,28 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
   }) async {
+    if (object.isDir) {
+      final targetDirectory = await FilePicker.getDirectoryPath(
+        dialogTitle: '下载到',
+        initialDirectory: await resolveDefaultDownloadDirectory(
+          config.defaultDownloadDirectory,
+        ),
+      );
+      if (targetDirectory == null || targetDirectory.trim().isEmpty) {
+        return;
+      }
+      await downloadObjectToPath(
+        api: api,
+        config: config,
+        bucket: bucket,
+        object: object,
+        savePath: _uniqueDownloadDirectoryPath(
+          targetDirectory,
+          object.displayName,
+        ),
+      );
+      return;
+    }
     final initialDirectory = await resolveDefaultDownloadDirectory(
       config.defaultDownloadDirectory,
     );
@@ -168,7 +190,9 @@ class FileAccessService {
       config: config,
       bucket: bucket,
       object: object,
-      savePath: _uniqueDownloadPath(directory, object.displayName),
+      savePath: object.isDir
+          ? _uniqueDownloadDirectoryPath(directory, object.displayName)
+          : _uniqueDownloadPath(directory, object.displayName),
     );
   }
 
@@ -197,6 +221,16 @@ class FileAccessService {
     required String savePath,
   }) async {
     if (savePath.trim().isEmpty) {
+      return;
+    }
+    if (object.isDir) {
+      await _downloadDirectoryToPath(
+        api: api,
+        config: config,
+        bucket: bucket,
+        directory: object,
+        savePath: savePath,
+      );
       return;
     }
 
@@ -265,6 +299,66 @@ class FileAccessService {
     }
   }
 
+  Future<void> _downloadDirectoryToPath({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo directory,
+    required String savePath,
+  }) async {
+    final root = Directory(savePath);
+    await root.create(recursive: true);
+    final files = await _listFilesRecursively(
+      api: api,
+      config: config,
+      bucket: bucket,
+      prefix: directory.key,
+    );
+    for (final file in files) {
+      final relativeKey = path.posix.relative(file.key, from: directory.key);
+      final localPath = path.joinAll([
+        savePath,
+        ...path.posix.split(relativeKey),
+      ]);
+      await Directory(path.dirname(localPath)).create(recursive: true);
+      await downloadObjectToPath(
+        api: api,
+        config: config,
+        bucket: bucket,
+        object: file,
+        savePath: localPath,
+      );
+    }
+  }
+
+  Future<List<ObjectInfo>> _listFilesRecursively({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required String prefix,
+  }) async {
+    final items = await api.listObjects(config, bucket, prefix);
+    final files = <ObjectInfo>[];
+    for (final item in items) {
+      if (item.key == prefix) {
+        continue;
+      }
+      if (item.isDir) {
+        files.addAll(
+          await _listFilesRecursively(
+            api: api,
+            config: config,
+            bucket: bucket,
+            prefix: item.key,
+          ),
+        );
+      } else {
+        files.add(item);
+      }
+    }
+    return files;
+  }
+
   Future<void> _deleteFileIfExists(String localPath) async {
     final file = File(localPath);
     if (await file.exists()) {
@@ -288,6 +382,23 @@ class FileAccessService {
     return path.join(
       directory,
       '$baseName-${DateTime.now().millisecondsSinceEpoch}$extension',
+    );
+  }
+
+  String _uniqueDownloadDirectoryPath(String directory, String name) {
+    var candidate = path.join(directory, name);
+    if (!Directory(candidate).existsSync() && !File(candidate).existsSync()) {
+      return candidate;
+    }
+    for (var index = 1; index < 1000; index += 1) {
+      candidate = path.join(directory, '$name ($index)');
+      if (!Directory(candidate).existsSync() && !File(candidate).existsSync()) {
+        return candidate;
+      }
+    }
+    return path.join(
+      directory,
+      '$name-${DateTime.now().millisecondsSinceEpoch}',
     );
   }
 }
