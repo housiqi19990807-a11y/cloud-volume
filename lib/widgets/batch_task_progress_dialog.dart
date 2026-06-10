@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/batch_task_progress_mode.dart';
@@ -59,10 +60,10 @@ class BatchTaskProgressDialog extends StatelessWidget {
           0,
           (sum, task) => sum + task.itemsCompleted,
         );
-        final progress = allFinished
-            ? 1.0
-            : totalBytes > 0
+        final progress = totalBytes > 0
             ? (completedBytes / totalBytes).clamp(0.0, 1.0)
+            : allFinished
+            ? 1.0
             : null;
         final resolvedMode = mode ?? _modeForTasks(tasks);
 
@@ -307,6 +308,7 @@ class _TaskList extends StatelessWidget {
         itemBuilder: (context, index) {
           final task = tasks[index];
           final subtitle = _subtitleFor(task);
+          final errorText = _errorTextFor(task);
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
@@ -337,6 +339,19 @@ class _TaskList extends StatelessWidget {
                           color: theme.colorScheme.mutedForeground,
                         ),
                       ),
+                      if (errorText.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          errorText,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.25,
+                            color: theme.colorScheme.destructive,
+                          ),
+                        ),
+                      ],
                       if (task.currentFileTotalBytes > 0) ...[
                         const SizedBox(height: 8),
                         ClipRRect(
@@ -403,5 +418,16 @@ class _TaskList extends StatelessWidget {
       parts.add(task.progressTargetLabel);
     }
     return parts.join('  ·  ');
+  }
+
+  String _errorTextFor(TransferTask task) {
+    if (task.status != TransferStatus.failed) {
+      return '';
+    }
+    final raw = task.error?.trim() ?? '';
+    if (raw.isEmpty) {
+      return '失败原因未返回，请查看 bridge 日志。';
+    }
+    return describeBridgeError(raw);
   }
 }

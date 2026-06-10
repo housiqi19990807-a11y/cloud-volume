@@ -3,11 +3,15 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -29,6 +33,33 @@ func TestUploadDirectoryCreatesTreeAndUploadsFiles(t *testing.T) {
 		t.Fatalf("directories = %#v, want %#v", backend.directories, wantDirs)
 	}
 	wantFiles := []string{"remote/album/cover.txt", "remote/album/nested/track.txt"}
+	sort.Strings(backend.files)
+	if !reflect.DeepEqual(backend.files, wantFiles) {
+		t.Fatalf("files = %#v, want %#v", backend.files, wantFiles)
+	}
+}
+
+func TestUploadDirectoryContinuesAfterFileFailure(t *testing.T) {
+	root := t.TempDir()
+	mustMkdir(t, filepath.Join(root, "album"))
+	mustWriteFile(t, filepath.Join(root, "album", "bad.txt"), "bad")
+	mustWriteFile(t, filepath.Join(root, "album", "good-a.txt"), "good")
+	mustWriteFile(t, filepath.Join(root, "album", "good-b.txt"), "good")
+	backend := &directoryUploadTestBackend{
+		failKeys: map[string]error{
+			"remote/album/bad.txt": errors.New("backend rejected object"),
+		},
+	}
+
+	err := UploadDirectory(context.Background(), backend, "bucket", "remote/", filepath.Join(root, "album"), "")
+	if err == nil {
+		t.Fatal("UploadDirectory returned nil error")
+	}
+	if !strings.Contains(err.Error(), "remote/album/bad.txt") {
+		t.Fatalf("error %q did not include failed remote key", err)
+	}
+	sort.Strings(backend.files)
+	wantFiles := []string{"remote/album/good-a.txt", "remote/album/good-b.txt"}
 	if !reflect.DeepEqual(backend.files, wantFiles) {
 		t.Fatalf("files = %#v, want %#v", backend.files, wantFiles)
 	}
@@ -49,8 +80,10 @@ func mustWriteFile(t *testing.T, path, content string) {
 }
 
 type directoryUploadTestBackend struct {
+	mu          sync.Mutex
 	directories []string
 	files       []string
+	failKeys    map[string]error
 }
 
 func (b *directoryUploadTestBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
@@ -74,6 +107,8 @@ func (b *directoryUploadTestBackend) DirectoryAccess(context.Context, string, st
 }
 
 func (b *directoryUploadTestBackend) CreateDirectory(_ context.Context, _, prefix, name string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.directories = append(b.directories, cleanRemoteJoin(prefix, name))
 	return nil
 }
@@ -119,9 +154,14 @@ func (b *directoryUploadTestBackend) UploadFile(context.Context, string, string,
 }
 
 func (b *directoryUploadTestBackend) UploadReader(_ context.Context, _, key string, body io.Reader, _ int64, _, _ string) error {
+	if err := b.failKeys[key]; err != nil {
+		return err
+	}
 	if _, err := io.Copy(io.Discard, body); err != nil {
 		return err
 	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.files = append(b.files, key)
 	return nil
 }

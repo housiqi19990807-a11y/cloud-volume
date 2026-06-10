@@ -3,7 +3,6 @@ package storage
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 	"sync"
 
@@ -33,8 +32,8 @@ var (
 )
 
 func init() {
-	// Keep one reusable HTTP client for SDK calls so OAuth and file APIs share settings.
-	xpanhttp.SetClient(&http.Client{})
+	// Keep one reusable HTTP client for SDK calls and retry transient upstream throttling.
+	xpanhttp.SetClient(newBaiduPanRetryHTTPClient())
 	// The SDK's conservative default rate limit is too low for 4 MB upload chunks.
 	xpanhttp.SetRateLimitEnabled(false)
 }

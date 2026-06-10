@@ -31,6 +31,11 @@ func (b baiduPanBackend) SupportsMountPrefetch() bool {
 	return false
 }
 
+// DirectoryUploadConcurrency keeps Baidu Pan directory uploads below RPM limits.
+func (b baiduPanBackend) DirectoryUploadConcurrency() int {
+	return 1
+}
+
 func (b baiduPanBackend) bucketConfig(bucket string) storageconfig.RemoteStorageConfig {
 	return b.cfg.WithBucketSettingsApplied(bucket)
 }

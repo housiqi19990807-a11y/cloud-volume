@@ -3,6 +3,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -154,8 +155,8 @@ func uploadDirectoryFiles(
 	jobs := make(chan directoryUploadFile)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var firstErr error
-	workerCount := directoryUploadConcurrency
+	failures := directoryUploadFailures{}
+	workerCount := directoryUploadWorkerCount(backend, len(files))
 	if len(files) < workerCount {
 		workerCount = len(files)
 	}
@@ -165,7 +166,7 @@ func uploadDirectoryFiles(
 			defer wg.Done()
 			for file := range jobs {
 				if err := ctx.Err(); err != nil {
-					recordDirectoryUploadError(&mu, &firstErr, err, cancel)
+					recordDirectoryUploadError(&mu, &failures, err, cancel)
 					return
 				}
 				if taskID != "" {
@@ -173,8 +174,16 @@ func uploadDirectoryFiles(
 					s3ops.SetTransferCurrentFile(taskID, file.remoteKey, file.size)
 				}
 				if err := uploadDirectoryFile(ctx, backend, bucket, file.remoteKey, file.localPath, file.size, taskID); err != nil {
-					recordDirectoryUploadError(&mu, &firstErr, err, cancel)
-					return
+					recordDirectoryUploadError(
+						&mu,
+						&failures,
+						fmt.Errorf("upload %s to %s: %w", file.localPath, file.remoteKey, err),
+						cancel,
+					)
+					if isDirectoryUploadStopError(err) {
+						return
+					}
+					continue
 				}
 				if taskID != "" {
 					s3ops.AdvanceTransferItems(taskID, 1)
@@ -182,29 +191,73 @@ func uploadDirectoryFiles(
 			}
 		}()
 	}
+sendFiles:
 	for _, file := range files {
-		if err := ctx.Err(); err != nil {
-			break
+		select {
+		case <-ctx.Done():
+			break sendFiles
+		case jobs <- file:
 		}
-		jobs <- file
 	}
 	close(jobs)
 	wg.Wait()
-	return firstErr
+	return failures.Err()
 }
 
 func recordDirectoryUploadError(
 	mu *sync.Mutex,
-	firstErr *error,
+	failures *directoryUploadFailures,
 	err error,
 	cancel context.CancelFunc,
 ) {
 	mu.Lock()
 	defer mu.Unlock()
-	if *firstErr == nil {
-		*firstErr = err
+	failures.Add(err)
+	if isDirectoryUploadStopError(err) {
 		cancel()
 	}
+}
+
+func directoryUploadWorkerCount(backend Backend, fileCount int) int {
+	workerCount := directoryUploadConcurrency
+	if tuned, ok := backend.(interface{ DirectoryUploadConcurrency() int }); ok {
+		if value := tuned.DirectoryUploadConcurrency(); value > 0 {
+			workerCount = value
+		}
+	}
+	if fileCount > 0 && fileCount < workerCount {
+		return fileCount
+	}
+	return workerCount
+}
+
+func isDirectoryUploadStopError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+type directoryUploadFailures struct {
+	errs []error
+}
+
+func (f *directoryUploadFailures) Add(err error) {
+	if err == nil {
+		return
+	}
+	f.errs = append(f.errs, err)
+}
+
+func (f *directoryUploadFailures) Err() error {
+	if len(f.errs) == 0 {
+		return nil
+	}
+	return f
+}
+
+func (f *directoryUploadFailures) Error() string {
+	if len(f.errs) == 1 {
+		return f.errs[0].Error()
+	}
+	return fmt.Sprintf("%d files failed; first error: %v", len(f.errs), f.errs[0])
 }
 
 func directoryUploadRemoteKey(rootPath, currentPath, cleanPrefix string) (string, error) {
