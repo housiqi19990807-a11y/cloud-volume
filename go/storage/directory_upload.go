@@ -181,11 +181,11 @@ func uploadDirectoryFiles(
 				}
 				if err := uploadDirectoryFileWithRetry(ctx, backend, bucket, file, taskID); err != nil {
 					log.Printf(
-						"[storage/directory-upload] upload-file-error bucket=%q key=%q local_path=%q err=%v",
+						"[storage/directory-upload] upload-file-error bucket=%q key=%q local_path=%q err=%s",
 						bucket,
 						file.remoteKey,
 						file.localPath,
-						err,
+						describeDirectoryUploadError(err),
 					)
 					recordDirectoryUploadError(
 						&mu,
@@ -246,18 +246,29 @@ func uploadDirectoryFileWithRetry(
 			return err
 		}
 		log.Printf(
-			"[storage/directory-upload] retry-file bucket=%q key=%q local_path=%q attempt=%d sleep=%s err=%v",
+			"[storage/directory-upload] retry-file bucket=%q key=%q local_path=%q attempt=%d sleep=%s err=%s",
 			bucket,
 			file.remoteKey,
 			file.localPath,
 			attempt+1,
 			delay,
-			err,
+			describeDirectoryUploadError(err),
 		)
 		if err := sleepDirectoryUploadRetry(ctx, delay); err != nil {
 			return err
 		}
 	}
+}
+
+func describeDirectoryUploadError(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	text := strings.TrimSpace(err.Error())
+	if text != "" {
+		return text
+	}
+	return fmt.Sprintf("%T %#v", err, err)
 }
 
 func rollbackDirectoryUploadBytes(taskID string, bytesRead int64) {
