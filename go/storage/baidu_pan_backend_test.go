@@ -62,3 +62,12 @@ func TestBaiduPanBucketLabel(t *testing.T) {
 		t.Fatalf("bucket label: got %q", got)
 	}
 }
+
+func TestBaiduPanDirectoryUploadConcurrency(t *testing.T) {
+	t.Parallel()
+
+	backend := baiduPanBackend{}
+	if got := backend.DirectoryUploadConcurrency(); got != 2 {
+		t.Fatalf("directory upload concurrency = %d, want 2", got)
+	}
+}
