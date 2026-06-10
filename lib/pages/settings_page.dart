@@ -151,6 +151,12 @@ class _SettingsPageState extends State<SettingsPage> {
     RemoteStorageConfig config,
   ) {
     final sections = <Widget>[
+      _buildCard(
+        theme,
+        '应用更新',
+        SettingsUpdateSection(theme: theme, currentVersion: kAppRuntimeVersion),
+      ),
+      const SizedBox(height: 20),
       _buildCard(theme, '外观', const ThemePicker()),
       if (widget.api.capabilities.supportsDownloadDirectory) ...[
         const SizedBox(height: 20),
@@ -322,12 +328,6 @@ class _SettingsPageState extends State<SettingsPage> {
         theme,
         '关于云卷',
         SettingsAboutSection(theme: theme, versionText: kAppRuntimeVersion),
-      ),
-      const SizedBox(height: 20),
-      _buildCard(
-        theme,
-        '更新',
-        SettingsUpdateSection(theme: theme, currentVersion: kAppRuntimeVersion),
       ),
     ];
   }
