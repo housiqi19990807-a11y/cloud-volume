@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	s3ops "remote-storage/go/s3"
 )
@@ -122,22 +124,26 @@ func uploadDirectoryFile(
 	localPath string,
 	size int64,
 	taskID string,
-) error {
+) (int64, error) {
 	file, err := os.Open(localPath)
 	if err != nil {
-		return fmt.Errorf("open local file: %w", err)
+		return 0, fmt.Errorf("open local file: %w", err)
 	}
 	defer file.Close()
 	reader := io.Reader(file)
+	var bytesRead int64
 	if taskID != "" {
 		reader = &directoryProgressReader{
-			ctx:    ctx,
-			reader: file,
-			taskID: taskID,
-			key:    key,
+			ctx:         ctx,
+			reader:      file,
+			taskID:      taskID,
+			key:         key,
+			bytesRead:   &bytesRead,
+			bytesReadMu: &sync.Mutex{},
 		}
 	}
-	return backend.UploadReader(ctx, bucket, key, reader, size, "", path.Base(localPath))
+	err = backend.UploadReader(ctx, bucket, key, reader, size, "", path.Base(localPath))
+	return bytesRead, err
 }
 
 func uploadDirectoryFiles(
@@ -173,7 +179,14 @@ func uploadDirectoryFiles(
 					s3ops.SetTransferTarget(taskID, file.remoteKey)
 					s3ops.SetTransferCurrentFile(taskID, file.remoteKey, file.size)
 				}
-				if err := uploadDirectoryFile(ctx, backend, bucket, file.remoteKey, file.localPath, file.size, taskID); err != nil {
+				if err := uploadDirectoryFileWithRetry(ctx, backend, bucket, file, taskID); err != nil {
+					log.Printf(
+						"[storage/directory-upload] upload-file-error bucket=%q key=%q local_path=%q err=%v",
+						bucket,
+						file.remoteKey,
+						file.localPath,
+						err,
+					)
 					recordDirectoryUploadError(
 						&mu,
 						&failures,
@@ -204,6 +217,56 @@ sendFiles:
 	return failures.Err()
 }
 
+func uploadDirectoryFileWithRetry(
+	ctx context.Context,
+	backend Backend,
+	bucket string,
+	file directoryUploadFile,
+	taskID string,
+) error {
+	for attempt := 0; ; attempt++ {
+		if attempt > 0 && taskID != "" {
+			s3ops.SetTransferCurrentFile(taskID, file.remoteKey, file.size)
+		}
+		bytesRead, err := uploadDirectoryFile(
+			ctx,
+			backend,
+			bucket,
+			file.remoteKey,
+			file.localPath,
+			file.size,
+			taskID,
+		)
+		if err == nil || isDirectoryUploadStopError(err) {
+			return err
+		}
+		rollbackDirectoryUploadBytes(taskID, bytesRead)
+		delay, retry := directoryUploadRetryDelay(backend, err, attempt)
+		if !retry {
+			return err
+		}
+		log.Printf(
+			"[storage/directory-upload] retry-file bucket=%q key=%q local_path=%q attempt=%d sleep=%s err=%v",
+			bucket,
+			file.remoteKey,
+			file.localPath,
+			attempt+1,
+			delay,
+			err,
+		)
+		if err := sleepDirectoryUploadRetry(ctx, delay); err != nil {
+			return err
+		}
+	}
+}
+
+func rollbackDirectoryUploadBytes(taskID string, bytesRead int64) {
+	if taskID == "" || bytesRead <= 0 {
+		return
+	}
+	s3ops.AdvanceTransfer(taskID, -bytesRead)
+}
+
 func recordDirectoryUploadError(
 	mu *sync.Mutex,
 	failures *directoryUploadFailures,
@@ -229,6 +292,29 @@ func directoryUploadWorkerCount(backend Backend, fileCount int) int {
 		return fileCount
 	}
 	return workerCount
+}
+
+func directoryUploadRetryDelay(backend Backend, err error, attempt int) (time.Duration, bool) {
+	if retryable, ok := backend.(interface {
+		DirectoryUploadRetryDelay(error, int) (time.Duration, bool)
+	}); ok {
+		return retryable.DirectoryUploadRetryDelay(err, attempt)
+	}
+	return 0, false
+}
+
+func sleepDirectoryUploadRetry(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func isDirectoryUploadStopError(err error) bool {
@@ -299,10 +385,12 @@ func cleanRemoteJoin(prefix, key string) string {
 }
 
 type directoryProgressReader struct {
-	ctx    context.Context
-	reader io.Reader
-	taskID string
-	key    string
+	ctx         context.Context
+	reader      io.Reader
+	taskID      string
+	key         string
+	bytesRead   *int64
+	bytesReadMu *sync.Mutex
 }
 
 type directoryUploadPlan struct {
@@ -322,6 +410,11 @@ func (r *directoryProgressReader) Read(p []byte) (int, error) {
 	}
 	n, err := r.reader.Read(p)
 	if n > 0 {
+		if r.bytesRead != nil && r.bytesReadMu != nil {
+			r.bytesReadMu.Lock()
+			*r.bytesRead += int64(n)
+			r.bytesReadMu.Unlock()
+		}
 		s3ops.AdvanceTransferCurrentFile(r.taskID, r.key, int64(n))
 	}
 	return n, err

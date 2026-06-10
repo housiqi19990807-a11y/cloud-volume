@@ -37,17 +37,15 @@ func (m *manager) listMountedObjectPage(
 	}
 	session := m.session
 	if !mountSessionMatches(session, cfg, bucket, MountOptions{}) || session == nil || session.access == nil {
-		activeBucket := activeSessionBucket(session)
 		m.mu.Unlock()
-		log.Printf("[mount/object-page] remote-fallback bucket=%q prefix=%q active_bucket=%q", bucket, prefix, activeBucket)
 		return s3ops.ObjectPage{}, false, nil
 	}
 	access := session.access
 	m.mu.Unlock()
 
-	log.Printf("[mount/object-page] mounted-list bucket=%q prefix=%q", bucket, prefix)
 	items, err := access.listDirectory(context.Background(), prefix)
 	if err != nil {
+		log.Printf("[mount/object-page] mounted-list-error bucket=%q prefix=%q err=%v", bucket, prefix, err)
 		return s3ops.ObjectPage{}, true, err
 	}
 	sortObjectInfos(items)
@@ -83,11 +81,4 @@ func paginateObjectInfos(
 		page.NextToken = strconv.Itoa(end)
 	}
 	return page
-}
-
-func activeSessionBucket(session *mountSession) string {
-	if session == nil {
-		return ""
-	}
-	return session.bucket
 }

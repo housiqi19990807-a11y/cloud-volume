@@ -36,6 +36,14 @@ func (b baiduPanBackend) DirectoryUploadConcurrency() int {
 	return 2
 }
 
+// DirectoryUploadRetryDelay retries per-file failures that often come from transient RPM limits.
+func (b baiduPanBackend) DirectoryUploadRetryDelay(err error, attempt int) (time.Duration, bool) {
+	if err == nil || attempt >= len(baiduPanThrottleRetryDelays) {
+		return 0, false
+	}
+	return baiduPanThrottleRetryDelays[attempt], true
+}
+
 func (b baiduPanBackend) bucketConfig(bucket string) storageconfig.RemoteStorageConfig {
 	return b.cfg.WithBucketSettingsApplied(bucket)
 }
@@ -64,15 +72,6 @@ func (b baiduPanBackend) ListObjectsPage(
 		pageSize = 200
 	}
 	remoteDir := baiduPanDirectoryPath(prefix)
-	log.Printf(
-		"[storage/baidu-pan] list start bucket=%q prefix=%q remote_dir=%q start=%d next_token=%q limit=%d",
-		bucket,
-		strings.TrimSpace(prefix),
-		remoteDir,
-		start,
-		strings.TrimSpace(nextToken),
-		pageSize,
-	)
 	return withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (ObjectPage, error) {
 		res, err := client.ListObjects(remoteDir, &xpanfile.ListAllReq{
 			Start: start,
@@ -100,17 +99,6 @@ func (b baiduPanBackend) ListObjectsPage(
 		if res.HasMore == xpantypes.BoolIntTrue {
 			page.NextToken = strconv.Itoa(res.Cursor)
 		}
-		log.Printf(
-			"[storage/baidu-pan] list done bucket=%q prefix=%q remote_dir=%q start=%d returned=%d has_more=%t next_token=%q duration=%s",
-			bucket,
-			strings.TrimSpace(prefix),
-			remoteDir,
-			start,
-			len(items),
-			res.HasMore == xpantypes.BoolIntTrue,
-			page.NextToken,
-			time.Since(startedAt).Round(time.Millisecond),
-		)
 		return page, nil
 	})
 }

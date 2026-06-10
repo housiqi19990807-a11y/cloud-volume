@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestUploadDirectoryCreatesTreeAndUploadsFiles(t *testing.T) {
@@ -65,6 +66,30 @@ func TestUploadDirectoryContinuesAfterFileFailure(t *testing.T) {
 	}
 }
 
+func TestUploadDirectoryRetriesFileFailure(t *testing.T) {
+	root := t.TempDir()
+	mustMkdir(t, filepath.Join(root, "album"))
+	mustWriteFile(t, filepath.Join(root, "album", "eventual.txt"), "eventual")
+	backend := &retryDirectoryUploadTestBackend{
+		directoryUploadTestBackend: &directoryUploadTestBackend{
+			failAttempts: map[string]int{
+				"remote/album/eventual.txt": 2,
+			},
+		},
+	}
+
+	err := UploadDirectory(context.Background(), backend, "bucket", "remote/", filepath.Join(root, "album"), "")
+	if err != nil {
+		t.Fatalf("UploadDirectory returned error: %v", err)
+	}
+	if got := backend.attempts["remote/album/eventual.txt"]; got != 3 {
+		t.Fatalf("attempts = %d, want 3", got)
+	}
+	if !reflect.DeepEqual(backend.files, []string{"remote/album/eventual.txt"}) {
+		t.Fatalf("files = %#v", backend.files)
+	}
+}
+
 func mustMkdir(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(path, 0o755); err != nil {
@@ -80,10 +105,12 @@ func mustWriteFile(t *testing.T, path, content string) {
 }
 
 type directoryUploadTestBackend struct {
-	mu          sync.Mutex
-	directories []string
-	files       []string
-	failKeys    map[string]error
+	mu           sync.Mutex
+	directories  []string
+	files        []string
+	failKeys     map[string]error
+	failAttempts map[string]int
+	attempts     map[string]int
 }
 
 func (b *directoryUploadTestBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
@@ -154,6 +181,17 @@ func (b *directoryUploadTestBackend) UploadFile(context.Context, string, string,
 }
 
 func (b *directoryUploadTestBackend) UploadReader(_ context.Context, _, key string, body io.Reader, _ int64, _, _ string) error {
+	b.mu.Lock()
+	if b.attempts == nil {
+		b.attempts = map[string]int{}
+	}
+	b.attempts[key]++
+	attempt := b.attempts[key]
+	failAttempts := b.failAttempts[key]
+	b.mu.Unlock()
+	if failAttempts > 0 && attempt <= failAttempts {
+		return errors.New("transient backend error")
+	}
 	if err := b.failKeys[key]; err != nil {
 		return err
 	}
@@ -164,6 +202,14 @@ func (b *directoryUploadTestBackend) UploadReader(_ context.Context, _, key stri
 	defer b.mu.Unlock()
 	b.files = append(b.files, key)
 	return nil
+}
+
+type retryDirectoryUploadTestBackend struct {
+	*directoryUploadTestBackend
+}
+
+func (b *retryDirectoryUploadTestBackend) DirectoryUploadRetryDelay(error, int) (time.Duration, bool) {
+	return 0, true
 }
 
 func (b *directoryUploadTestBackend) DownloadFile(context.Context, string, string, string, string) error {

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 
 	storageconfig "remote-storage/go/config"
 	bucketmount "remote-storage/go/mount"
@@ -31,13 +30,6 @@ func listObjectPage(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	log.Printf(
-		"[bridge/paging] list_object_page bucket=%q prefix=%q next_token=%q page_size=%d",
-		input.Bucket,
-		input.Prefix,
-		input.NextToken,
-		input.PageSize,
-	)
 	if input.Config.Normalized().StorageType != storageconfig.StorageTypeWebDAV {
 		if page, handled, err := bucketmount.ListMountedObjectPage(
 			input.Config,
