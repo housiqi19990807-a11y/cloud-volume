@@ -73,11 +73,11 @@ func (b baiduPanBackend) ListObjectsPage(
 	}
 	remoteDir := baiduPanDirectoryPath(prefix)
 	return withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (ObjectPage, error) {
-		res, err := client.ListObjects(remoteDir, &xpanfile.ListAllReq{
+		res, err := listBaiduPanObjectsWithRetry(client, remoteDir, &xpanfile.ListAllReq{
 			Start: start,
 			Limit: int(pageSize),
 			Order: xpantypes.ListOrderName,
-		})
+		}, startedAt)
 		if err != nil {
 			log.Printf(
 				"[storage/baidu-pan] list error bucket=%q prefix=%q remote_dir=%q start=%d next_token=%q duration=%s err=%v",
@@ -101,6 +101,36 @@ func (b baiduPanBackend) ListObjectsPage(
 		}
 		return page, nil
 	})
+}
+
+func listBaiduPanObjectsWithRetry(
+	client *xpanclient.Client,
+	remoteDir string,
+	req *xpanfile.ListAllReq,
+	startedAt time.Time,
+) (*xpanfile.ListRes, error) {
+	var lastErr error
+	for attempt := 0; attempt <= baiduPanThrottleRetryCount; attempt++ {
+		res, err := client.ListObjects(remoteDir, req)
+		if err == nil || !isBaiduPanThrottleError(err) {
+			return res, err
+		}
+		lastErr = err
+		if attempt == baiduPanThrottleRetryCount {
+			return nil, err
+		}
+		delay := baiduPanThrottleRetryDelay(nil, attempt)
+		log.Printf(
+			"[storage/baidu-pan] list throttled remote_dir=%q attempt=%d sleep=%s elapsed=%s err=%v",
+			remoteDir,
+			attempt+1,
+			delay,
+			time.Since(startedAt).Round(time.Millisecond),
+			err,
+		)
+		time.Sleep(delay)
+	}
+	return nil, lastErr
 }
 
 func (b baiduPanBackend) HeadObject(

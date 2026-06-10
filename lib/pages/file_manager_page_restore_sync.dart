@@ -45,12 +45,12 @@ extension _FileManagerPageRestoreSync on _FileManagerPageState {
     }
     final prefix = _prefix;
     try {
-      final page = await widget.api.listObjectPage(
-        _activeConfig,
-        bucket,
+      final page = await _listObjectPageCached(
+        _activeBucketEntry!,
         prefix,
         '',
         _FileManagerPageState._listPageSize,
+        forceRefresh: true,
       );
       if (!mounted ||
           _activeBucket != bucket ||
@@ -77,6 +77,7 @@ extension _FileManagerPageRestoreSync on _FileManagerPageState {
     String bucketId,
     String prefix,
   ) {
+    _invalidateObjectListingCache(bucketId: bucketId);
     _pendingUploadRefreshes[taskId] = _PendingUploadRefresh(
       bucketId: bucketId,
       prefix: prefix,

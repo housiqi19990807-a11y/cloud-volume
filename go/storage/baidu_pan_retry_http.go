@@ -113,7 +113,18 @@ func isBaiduPanThrottleResponse(resp *http.Response, body []byte) bool {
 		strings.Contains(resp.Request.URL.Host, "baidupcs") {
 		return true
 	}
-	text := strings.ToLower(string(body))
+	return isBaiduPanThrottleText(string(body))
+}
+
+func isBaiduPanThrottleError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return isBaiduPanThrottleText(err.Error())
+}
+
+func isBaiduPanThrottleText(raw string) bool {
+	text := strings.ToLower(raw)
 	if strings.Contains(text, "rate") ||
 		strings.Contains(text, "limit") ||
 		strings.Contains(text, "too many") ||
@@ -124,13 +135,15 @@ func isBaiduPanThrottleResponse(resp *http.Response, body []byte) bool {
 		strings.Contains(text, "过于频繁") {
 		return true
 	}
-	return len(bytes.TrimSpace(body)) == 0
+	return len(strings.TrimSpace(raw)) == 0
 }
 
 func baiduPanThrottleRetryDelay(resp *http.Response, attempt int) time.Duration {
-	if retryAfter := strings.TrimSpace(resp.Header.Get("Retry-After")); retryAfter != "" {
-		if seconds, err := strconv.Atoi(retryAfter); err == nil && seconds > 0 {
-			return time.Duration(seconds) * time.Second
+	if resp != nil {
+		if retryAfter := strings.TrimSpace(resp.Header.Get("Retry-After")); retryAfter != "" {
+			if seconds, err := strconv.Atoi(retryAfter); err == nil && seconds > 0 {
+				return time.Duration(seconds) * time.Second
+			}
 		}
 	}
 	if attempt < len(baiduPanThrottleRetryDelays) {

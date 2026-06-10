@@ -9,6 +9,7 @@ import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/file_preview_source.dart';
+import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
@@ -48,6 +49,7 @@ part 'file_manager_page_access.dart';
 part 'file_manager_page_bucket_policy.dart';
 part 'file_manager_page_bucket_view.dart';
 part 'file_manager_page_mount.dart';
+part 'file_manager_page_object_loading.dart';
 part 'file_manager_page_object_deletes.dart';
 part 'file_manager_page_paging.dart';
 part 'file_manager_page_restore_sync.dart';
@@ -111,6 +113,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   final Set<String> _mountBusyBuckets = <String>{};
   final Set<String> _selectedObjectKeys = <String>{};
   final Set<String> _deletingObjectKeys = <String>{};
+  final Map<_ObjectListingCacheKey, ObjectListPage> _objectListingCache =
+      <_ObjectListingCacheKey, ObjectListPage>{};
   Timer? _mountStatusRefreshTimer;
   bool _mountStatusRefreshInFlight = false;
   String _objectsNextToken = '';
@@ -166,6 +170,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       final bucketEntries = await _loadBucketEntries();
       if (!mounted) return false;
       setState(() {
+        _objectListingCache.clear();
         _buckets = bucketEntries;
         _activeBucketEntry = null;
         _objects = null;
@@ -202,97 +207,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
       });
       return false;
     }
-  }
-
-  Future<bool> _loadObjects(
-    FileManagerBucketEntry bucketEntry,
-    String prefix,
-  ) async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final page = await widget.api.listObjectPage(
-        bucketEntry.config,
-        bucketEntry.bucket.name,
-        prefix,
-        '',
-        _listPageSize,
-      );
-      if (!mounted) return false;
-      setState(() {
-        final visibleKeys = page.items.map((object) => object.key).toSet();
-        _activeBucketEntry = bucketEntry;
-        _objects = page.items;
-        _trashItems = null;
-        _prefix = prefix;
-        _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
-        _showTrash = false;
-        _objectsNextToken = page.nextToken;
-        _objectsHasMore = page.hasMore;
-        _pagingObjects = false;
-        _directoryAccess = null;
-        _checkingDirectoryAccess =
-            bucketEntry.config.storageType == StorageType.webdav;
-        _trashNextToken = '';
-        _trashHasMore = false;
-        _pagingTrash = false;
-        _selectedObjectKeys.clear();
-        _deletingObjectKeys.removeWhere((key) => !visibleKeys.contains(key));
-        _loading = false;
-      });
-      if (_contentScrollController.hasClients) {
-        _contentScrollController.jumpTo(0);
-      }
-      if (bucketEntry.config.supportsMounts &&
-          widget.api.capabilities.supportsMounts) {
-        unawaited(_refreshMountStatus(bucketEntry));
-      }
-      if (bucketEntry.config.storageType == StorageType.webdav) {
-        unawaited(_refreshDirectoryAccess(bucketEntry, prefix));
-      }
-      return true;
-    } catch (e) {
-      if (!mounted) return false;
-      setState(() {
-        _error = describeBridgeError(e);
-        _loading = false;
-      });
-      return false;
-    }
-  }
-
-  Future<void> _navToBucket(FileManagerBucketEntry bucketEntry) {
-    if (_isTrashHome) {
-      return _openBucketTrash(bucketEntry);
-    }
-    return _loadObjects(bucketEntry, '');
-  }
-
-  Future<void> _navToPrefix(String prefix) {
-    if (_activeBucketEntry == null) return Future.value();
-    return _loadObjects(_activeBucketEntry!, prefix);
-  }
-
-  Future<void> _navUp() {
-    if (_activeBucketEntry == null) return Future.value();
-    final parts = _prefix.split('/').where((s) => s.isNotEmpty).toList();
-    if (parts.isEmpty) return _loadBuckets();
-    parts.removeLast();
-    return _loadObjects(
-      _activeBucketEntry!,
-      parts.map((part) => '$part/').join(),
-    );
-  }
-
-  Future<void> _navCrumb(int index) {
-    if (_activeBucketEntry == null) return Future.value();
-    if (index < 0) return _loadBuckets();
-    return _loadObjects(
-      _activeBucketEntry!,
-      _breadcrumbs.sublist(0, index + 1).map((segment) => '$segment/').join(),
-    );
   }
 
   void _startMountStatusRefreshTimer() {
@@ -432,7 +346,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
         message: _error!,
         onRetry: _activeBucket == null
             ? () => unawaited(_loadBuckets())
-            : () => unawaited(_loadObjects(_activeBucketEntry!, _prefix)),
+            : () => unawaited(
+                _loadObjects(_activeBucketEntry!, _prefix, forceRefresh: true),
+              ),
         secondaryActionLabel: _activeBucket == null ? '重新配置认证信息' : null,
         onSecondaryAction: _activeBucket == null ? widget.onEditConfig : null,
       );

@@ -110,7 +110,10 @@ extension _FileManagerPageActions on _FileManagerPageState {
                   );
                   if (!mounted || !dialogContext.mounted) return;
                   Navigator.of(dialogContext).pop();
-                  await _loadObjects(_activeBucketEntry!, _prefix);
+                  await _reloadObjectsAfterBucketMutation(
+                    _activeBucketEntry!,
+                    _prefix,
+                  );
                 } catch (error) {
                   setDialogState(() {
                     creating = false;
@@ -140,7 +143,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
       );
       TransferQueue.instance.markTaskDone(task.id);
       if (!mounted || _activeBucketId != bucket.id) return;
-      await _loadObjects(bucket, _prefix);
+      await _reloadObjectsAfterBucketMutation(bucket, _prefix);
     } catch (error) {
       TransferQueue.instance.markTaskFailed(task.id, error);
     }
@@ -163,7 +166,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
       );
       TransferQueue.instance.markTaskDone(task.id);
       if (!mounted || _activeBucketId != bucket.id) return;
-      await _loadObjects(bucket, _prefix);
+      await _reloadObjectsAfterBucketMutation(bucket, _prefix);
     } catch (error) {
       TransferQueue.instance.markTaskFailed(task.id, error);
     }
@@ -411,7 +414,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
         return;
       }
       if (!mounted || !reloadAfterAction) return;
-      await _loadObjects(_activeBucketEntry!, _prefix);
+      await _reloadObjectsAfterBucketMutation(_activeBucketEntry!, _prefix);
     } catch (error) {
       _showPageError(error);
     }

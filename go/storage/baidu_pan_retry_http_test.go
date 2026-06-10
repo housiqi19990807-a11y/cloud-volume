@@ -76,3 +76,23 @@ func TestBaiduPanRetryHTTPClientDoesNotRetryAuth403(t *testing.T) {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusForbidden)
 	}
 }
+
+func TestBaiduPanThrottleErrorMatchesSDKFrequencyText(t *testing.T) {
+	t.Parallel()
+
+	if !isBaiduPanThrottleError(errString("hit frequency limit")) {
+		t.Fatalf("expected SDK frequency text to be retryable")
+	}
+	if !isBaiduPanThrottleError(errString("请求过于频繁")) {
+		t.Fatalf("expected Chinese frequency text to be retryable")
+	}
+	if isBaiduPanThrottleError(errString("invalid token")) {
+		t.Fatalf("auth errors must not be treated as throttling")
+	}
+}
+
+type errString string
+
+func (e errString) Error() string {
+	return string(e)
+}

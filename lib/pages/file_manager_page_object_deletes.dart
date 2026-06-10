@@ -44,7 +44,7 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
       if (!mounted || _activeBucketId != bucketEntry.id) {
         return;
       }
-      await _loadObjects(bucketEntry, _prefix);
+      await _reloadObjectsAfterBucketMutation(bucketEntry, _prefix);
       final failures = errors.whereType<Object>().toList(growable: false);
       if (failures.isNotEmpty) {
         _showPageMessage(

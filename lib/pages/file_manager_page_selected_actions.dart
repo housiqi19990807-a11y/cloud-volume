@@ -10,7 +10,7 @@ extension _FileManagerPageSelectedActions on _FileManagerPageState {
       return;
     }
     if (action == FileSelectionAction.refresh) {
-      await _loadObjects(_activeBucketEntry!, _prefix);
+      await _loadObjects(_activeBucketEntry!, _prefix, forceRefresh: true);
       return;
     }
     if (action == FileSelectionAction.upload) {
@@ -81,7 +81,7 @@ extension _FileManagerPageSelectedActions on _FileManagerPageState {
       );
     }
     if (!mounted) return;
-    await _loadObjects(_activeBucketEntry!, _prefix);
+    await _reloadObjectsAfterBucketMutation(_activeBucketEntry!, _prefix);
   }
 
   String _resolvedBatchTargetPath({
