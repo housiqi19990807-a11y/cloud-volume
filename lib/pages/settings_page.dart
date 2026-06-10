@@ -19,6 +19,7 @@ import 'package:remote_storage/widgets/settings_sections.dart'
         WebDavCredentialsSection;
 import 'package:remote_storage/widgets/settings_sync_section.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
+import 'package:remote_storage/widgets/settings_update_section.dart';
 import 'package:remote_storage/widgets/windows_settings_sections.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -321,6 +322,12 @@ class _SettingsPageState extends State<SettingsPage> {
         theme,
         '关于云卷',
         SettingsAboutSection(theme: theme, versionText: kAppRuntimeVersion),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '更新',
+        SettingsUpdateSection(theme: theme, currentVersion: kAppRuntimeVersion),
       ),
     ];
   }
