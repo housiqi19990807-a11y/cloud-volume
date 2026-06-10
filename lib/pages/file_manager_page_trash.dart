@@ -10,10 +10,7 @@ extension _FileManagerPageTrash on _FileManagerPageState {
     if (targetBucket == null) {
       return false;
     }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _beginLoading(message: '加载回收站...');
     try {
       final page = await widget.api.listTrashPage(
         targetBucket.config,
@@ -36,7 +33,7 @@ extension _FileManagerPageTrash on _FileManagerPageState {
         _trashHasMore = page.hasMore;
         _pagingTrash = false;
         _selectedObjectKeys.clear();
-        _loading = false;
+        _endLoading();
       });
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
@@ -46,7 +43,7 @@ extension _FileManagerPageTrash on _FileManagerPageState {
       if (!mounted) return false;
       setState(() {
         _error = error.toString();
-        _loading = false;
+        _endLoading();
       });
       return false;
     }

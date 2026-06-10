@@ -92,6 +92,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   static const double _listIconSize = 20;
   static const double _bucketGridIconSize = 72;
   static const Duration _mountStatusRefreshInterval = Duration(seconds: 4);
+  static const Duration _loadingDetailDelay = Duration(seconds: 2);
   static const int _listPageSize = 200;
   static const int _trashPageSize = 80;
 
@@ -104,6 +105,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   String _prefix = '';
   List<String> _breadcrumbs = [];
   bool _loading = false;
+  String _loadingMessage = '加载中...';
+  String? _loadingDetail;
   String? _error;
   bool _isGrid = false;
   bool _showTrash = false;
@@ -115,6 +118,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   final Set<String> _deletingObjectKeys = <String>{};
   final Map<_ObjectListingCacheKey, ObjectListPage> _objectListingCache =
       <_ObjectListingCacheKey, ObjectListPage>{};
+  Timer? _loadingDetailTimer;
   Timer? _mountStatusRefreshTimer;
   bool _mountStatusRefreshInFlight = false;
   String _objectsNextToken = '';
@@ -144,6 +148,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   @override
   void dispose() {
+    _loadingDetailTimer?.cancel();
     _mountStatusRefreshTimer?.cancel();
     ObjectListingNotifier.instance.removeListener(_handleObjectListingMutation);
     TransferQueue.instance.removeListener(_handleUploadTaskRefresh);
@@ -162,10 +167,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Future<bool> _loadBuckets() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _beginLoading(message: '加载存储桶...');
     try {
       final bucketEntries = await _loadBucketEntries();
       if (!mounted) return false;
@@ -190,7 +192,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         _mountBusyBuckets.clear();
         _selectedObjectKeys.clear();
         _deletingObjectKeys.clear();
-        _loading = false;
+        _endLoading();
       });
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
@@ -203,7 +205,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       if (!mounted) return false;
       setState(() {
         _error = describeBridgeError(e);
-        _loading = false;
+        _endLoading();
       });
       return false;
     }
@@ -219,6 +221,32 @@ class _FileManagerPageState extends State<FileManagerPage> {
       _mountStatusRefreshInterval,
       (_) => unawaited(_refreshVisibleMountStatuses()),
     );
+  }
+
+  void _beginLoading({String message = '加载中...', String? delayedDetail}) {
+    _loadingDetailTimer?.cancel();
+    setState(() {
+      _loading = true;
+      _loadingMessage = message;
+      _loadingDetail = null;
+      _error = null;
+    });
+    if (delayedDetail == null) {
+      return;
+    }
+    _loadingDetailTimer = Timer(_loadingDetailDelay, () {
+      if (!mounted || !_loading) {
+        return;
+      }
+      setState(() => _loadingDetail = delayedDetail);
+    });
+  }
+
+  void _endLoading() {
+    _loadingDetailTimer?.cancel();
+    _loadingDetailTimer = null;
+    _loading = false;
+    _loadingDetail = null;
   }
 
   @override
@@ -336,9 +364,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Widget _buildContent(ShadThemeData theme) {
     if (_loading) {
-      return const Center(
-        child: AppLoadingIndicator(size: 22, strokeWidth: 2.4),
-      );
+      return _buildLoadingView(theme);
     }
     if (_error != null) {
       return FileManagerErrorView(
@@ -356,6 +382,36 @@ class _FileManagerPageState extends State<FileManagerPage> {
     if (_activeBucket == null) return _buildBucketView(theme);
     if (_showTrash) return _buildTrashView(theme);
     return _buildObjectView(theme);
+  }
+
+  Widget _buildLoadingView(ShadThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AppLoadingIndicator(size: 22, strokeWidth: 2.4),
+          const SizedBox(height: 12),
+          Text(
+            _loadingMessage,
+            style: theme.textTheme.p.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (_loadingDetail != null) ...[
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Text(
+                _loadingDetail!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: theme.colorScheme.mutedForeground,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildObjectView(ShadThemeData theme) {

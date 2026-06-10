@@ -35,10 +35,18 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
     String prefix, {
     bool forceRefresh = false,
   }) async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final mayWaitForBaiduRetry =
+        bucketEntry.config.storageType == StorageType.baiduPan &&
+        (forceRefresh ||
+            !_hasObjectListingCache(
+              bucketEntry,
+              prefix,
+              '',
+              _FileManagerPageState._listPageSize,
+            ));
+    _beginLoading(
+      delayedDetail: mayWaitForBaiduRetry ? '百度网盘可能触发频率限制，正在等待自动重试...' : null,
+    );
     try {
       final page = await _listObjectPageCached(
         bucketEntry,
@@ -67,7 +75,7 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
         _pagingTrash = false;
         _selectedObjectKeys.clear();
         _deletingObjectKeys.removeWhere((key) => !visibleKeys.contains(key));
-        _loading = false;
+        _endLoading();
       });
       _afterObjectListingLoaded(bucketEntry, prefix);
       return true;
@@ -75,7 +83,7 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
       if (!mounted) return false;
       setState(() {
         _error = describeBridgeError(e);
-        _loading = false;
+        _endLoading();
       });
       return false;
     }
@@ -143,6 +151,22 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
     );
     _objectListingCache[key] = page;
     return page;
+  }
+
+  bool _hasObjectListingCache(
+    FileManagerBucketEntry bucketEntry,
+    String prefix,
+    String nextToken,
+    int pageSize,
+  ) {
+    return _objectListingCache.containsKey(
+      _ObjectListingCacheKey(
+        bucketId: bucketEntry.id,
+        prefix: prefix,
+        nextToken: nextToken,
+        pageSize: pageSize,
+      ),
+    );
   }
 
   void _invalidateObjectListingCache({String? bucketId, String? prefix}) {
