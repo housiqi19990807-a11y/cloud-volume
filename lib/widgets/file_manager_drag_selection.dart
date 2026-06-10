@@ -31,6 +31,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
 
   final Map<String, BuildContext> _targets = <String, BuildContext>{};
   final Set<BuildContext> _blankTapBlockers = <BuildContext>{};
+  Set<String>? _dragBaseSelection;
   Offset? _dragStart;
   Offset? _dragCurrent;
   bool _trackingPrimaryPointer = false;
@@ -108,6 +109,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     }
     _dragStart = local;
     _dragCurrent = local;
+    _dragBaseSelection = Set<String>.of(widget.selectedKeys);
     _trackingPrimaryPointer = true;
     _pointerStartedOnTarget = !isBlank;
     _dragging = false;
@@ -154,7 +156,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     if (selectionRect == null || regionBox == null) {
       return;
     }
-    final selected = <String>{};
+    final selected = Set<String>.of(_dragBaseSelection ?? widget.selectedKeys);
     for (final entry in _targets.entries) {
       final renderObject = entry.value.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.attached) {
@@ -166,7 +168,11 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
       );
       final bounds = origin & renderObject.size;
       if (bounds.overlaps(selectionRect)) {
-        selected.add(entry.key);
+        if (!(_dragBaseSelection ?? widget.selectedKeys).contains(entry.key)) {
+          selected.add(entry.key);
+        } else {
+          selected.remove(entry.key);
+        }
       }
     }
     if (!_sameSelection(selected, widget.selectedKeys)) {
@@ -181,6 +187,7 @@ class _FileManagerDragSelectionState extends State<FileManagerDragSelection> {
     setState(() {
       _dragStart = null;
       _dragCurrent = null;
+      _dragBaseSelection = null;
       _trackingPrimaryPointer = false;
       _pointerStartedOnTarget = false;
       _dragging = false;

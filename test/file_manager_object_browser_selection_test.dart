@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_storage/models/s3_objects.dart';
+import 'package:remote_storage/widgets/file_manager_drag_selection.dart';
 import 'package:remote_storage/widgets/file_manager_object_browser.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -186,4 +187,78 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'drag selection toggles intersected items into existing selection',
+    (tester) async {
+      final selectedKeys = <String>{'a', 'outside'};
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 320,
+                  height: 180,
+                  child: FileManagerDragSelection(
+                    enabled: true,
+                    selectedKeys: selectedKeys,
+                    onSelectionChanged: (keys) {
+                      setState(() {
+                        selectedKeys
+                          ..clear()
+                          ..addAll(keys);
+                      });
+                    },
+                    child: Stack(
+                      children: const [
+                        _DragSelectionBox(selectionKey: 'a', left: 50),
+                        _DragSelectionBox(selectionKey: 'b', left: 120),
+                        _DragSelectionBox(selectionKey: 'outside', left: 240),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.down(const Offset(20, 20));
+      await gesture.moveTo(const Offset(190, 110));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(selectedKeys, unorderedEquals(<String>{'b', 'outside'}));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+}
+
+class _DragSelectionBox extends StatelessWidget {
+  const _DragSelectionBox({required this.selectionKey, required this.left});
+
+  final String selectionKey;
+  final double left;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: left,
+      top: 50,
+      width: 40,
+      height: 40,
+      child: FileManagerDragSelectionTarget(
+        selectionKey: selectionKey,
+        enabled: true,
+        child: ColoredBox(color: Colors.blue),
+      ),
+    );
+  }
 }
