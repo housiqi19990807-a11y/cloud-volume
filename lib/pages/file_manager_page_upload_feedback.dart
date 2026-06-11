@@ -23,6 +23,16 @@ extension _FileManagerPageUploadFeedback on _FileManagerPageState {
     );
   }
 
+  Future<void> _showDownloadProgressDialogForTasks(
+    List<TransferTask> tasks,
+  ) async {
+    await _showBatchTaskProgressDialogForTasks(
+      tasks,
+      mode: BatchTaskProgressMode.download,
+      backgroundMessage: '下载已转为后台进行',
+    );
+  }
+
   Future<void> _showBatchTaskProgressDialogForTasks(
     List<TransferTask> tasks, {
     required BatchTaskProgressMode mode,

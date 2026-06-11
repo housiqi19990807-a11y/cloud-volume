@@ -95,9 +95,10 @@ extension _FileManagerPageSelection on _FileManagerPageState {
         return;
       }
       try {
+        final requests = <FileAccessTransferRequest>[];
         for (final object in files) {
-          unawaited(
-            FileAccessService.instance.downloadObjectToPath(
+          requests.add(
+            await FileAccessService.instance.prepareDownloadObjectToPath(
               api: widget.api,
               config: _activeConfig,
               bucket: _activeBucket!,
@@ -107,6 +108,10 @@ extension _FileManagerPageSelection on _FileManagerPageState {
           );
         }
         _clearSelection();
+        for (final request in requests) {
+          _watchDownloadRequest(request);
+        }
+        await _showDownloadProgressDialogForTasks(_tasksForRequests(requests));
       } catch (error) {
         if (!mounted) {
           return;
@@ -127,9 +132,10 @@ extension _FileManagerPageSelection on _FileManagerPageState {
     }
 
     try {
+      final requests = <FileAccessTransferRequest>[];
       for (final object in selected) {
-        unawaited(
-          FileAccessService.instance.downloadObjectToPath(
+        requests.add(
+          await FileAccessService.instance.prepareDownloadObjectToPath(
             api: widget.api,
             config: _activeConfig,
             bucket: _activeBucket!,
@@ -139,6 +145,10 @@ extension _FileManagerPageSelection on _FileManagerPageState {
         );
       }
       _clearSelection();
+      for (final request in requests) {
+        _watchDownloadRequest(request);
+      }
+      await _showDownloadProgressDialogForTasks(_tasksForRequests(requests));
     } catch (error) {
       if (!mounted) {
         return;

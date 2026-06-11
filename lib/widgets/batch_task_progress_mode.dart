@@ -16,6 +16,18 @@ enum BatchTaskProgressMode {
     cancelLabel: '取消上传',
     icon: LucideIcons.upload,
   ),
+  download(
+    runningTitle: '正在下载',
+    doneTitle: '下载完成',
+    runningText: '下载正在进行，可关闭弹框后继续后台下载。',
+    batchRunningText: '当前有 {active} 个下载任务正在进行，可关闭弹框后继续后台下载。',
+    doneText: '下载任务已完成。',
+    batchDoneText: '共处理 {total} 个下载任务，全部已完成。',
+    failedDoneText: '共处理 {total} 个下载任务，其中 {failed} 个失败。',
+    failedRunningText: '还有 {active} 个任务进行中，{failed} 个任务失败。',
+    cancelLabel: '取消下载',
+    icon: LucideIcons.download,
+  ),
   delete(
     runningTitle: '正在删除',
     doneTitle: '删除完成',

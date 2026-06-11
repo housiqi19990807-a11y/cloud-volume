@@ -175,15 +175,31 @@ extension _FileManagerPageActions on _FileManagerPageState {
   Future<void> _downloadObject(ObjectInfo object) async {
     if (_activeBucket == null) return;
     try {
-      await FileAccessService.instance.downloadObjectWithPicker(
-        api: widget.api,
-        config: _activeConfig,
-        bucket: _activeBucket!,
-        object: object,
-      );
+      final request = await FileAccessService.instance
+          .prepareDownloadObjectToDefaultDirectory(
+            api: widget.api,
+            config: _activeConfig,
+            bucket: _activeBucket!,
+            object: object,
+          );
+      _watchDownloadRequest(request);
+      await _showDownloadProgressDialogForTasks(_tasksForRequests([request]));
     } catch (error) {
       _showPageError(error);
     }
+  }
+
+  void _watchDownloadRequest(FileAccessTransferRequest request) {
+    unawaited(request.completion.then<void>((_) {}).catchError((_) {}));
+  }
+
+  List<TransferTask> _tasksForRequests(
+    Iterable<FileAccessTransferRequest> requests,
+  ) {
+    return requests
+        .map((request) => request.task)
+        .whereType<TransferTask>()
+        .toList(growable: false);
   }
 
   Future<void> _handleObjectAction(
