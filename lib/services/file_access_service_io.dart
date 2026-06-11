@@ -7,6 +7,7 @@ import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/file_cache_store.dart';
+import 'package:remote_storage/services/file_access_download_cache_io.dart';
 import 'package:remote_storage/services/file_access_paths_io.dart';
 import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/local_file_opener.dart';
@@ -164,21 +165,6 @@ class FileAccessService {
     return FileAccessTransferRequest(task: task, completion: completion);
   }
 
-  Future<void> downloadObjectWithPicker({
-    required RemoteStorageGateway api,
-    required RemoteStorageConfig config,
-    required String bucket,
-    required ObjectInfo object,
-  }) async {
-    final request = await prepareDownloadObjectWithPicker(
-      api: api,
-      config: config,
-      bucket: bucket,
-      object: object,
-    );
-    await request?.completion;
-  }
-
   Future<FileAccessTransferRequest?> prepareDownloadObjectWithPicker({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,
@@ -225,21 +211,6 @@ class FileAccessService {
       object: object,
       savePath: savePath,
     );
-  }
-
-  Future<void> downloadObjectToDefaultDirectory({
-    required RemoteStorageGateway api,
-    required RemoteStorageConfig config,
-    required String bucket,
-    required ObjectInfo object,
-  }) async {
-    final request = await prepareDownloadObjectToDefaultDirectory(
-      api: api,
-      config: config,
-      bucket: bucket,
-      object: object,
-    );
-    await request.completion;
   }
 
   Future<FileAccessTransferRequest> prepareDownloadObjectToDefaultDirectory({
@@ -332,11 +303,18 @@ class FileAccessService {
       key: object.key,
       localPath: savePath,
     );
-    final completion = _runDownload(
-      api: api,
+    final completion = runDownloadToPathWithCache(
+      cacheStore: _cacheStore,
       config: config,
       task: task,
-      onFailure: () => _deleteFileIfExists(savePath),
+      object: object,
+      savePath: savePath,
+      remoteDownload: () => _runDownload(
+        api: api,
+        config: config,
+        task: task,
+        onFailure: () => deleteFileIfExists(savePath),
+      ),
     ).then((_) => savePath);
     return FileAccessTransferRequest(task: task, completion: completion);
   }
@@ -444,6 +422,16 @@ class FileAccessService {
         ...path.posix.split(relativeKey),
       ]);
       await Directory(path.dirname(localPath)).create(recursive: true);
+      final copied = await copyCachedObjectToPath(
+        cacheStore: _cacheStore,
+        config: config,
+        bucket: bucket,
+        object: file,
+        savePath: localPath,
+      );
+      if (copied) {
+        continue;
+      }
       await downloadObjectToPath(
         api: api,
         config: config,
@@ -480,12 +468,5 @@ class FileAccessService {
       }
     }
     return files;
-  }
-
-  Future<void> _deleteFileIfExists(String localPath) async {
-    final file = File(localPath);
-    if (await file.exists()) {
-      await file.delete();
-    }
   }
 }
