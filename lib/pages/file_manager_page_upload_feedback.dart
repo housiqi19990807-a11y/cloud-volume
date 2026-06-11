@@ -42,19 +42,24 @@ extension _FileManagerPageUploadFeedback on _FileManagerPageState {
       return;
     }
     final taskIds = tasks.map((task) => task.id).toList(growable: false);
-    await showShadDialog<void>(
-      context: context,
-      builder: (dialogContext) => BatchTaskProgressDialog(
-        taskIds: taskIds,
-        currentPathLabel: _uploadTargetLabel,
-        mode: mode,
-        onRunInBackground: () {
-          Navigator.of(dialogContext).pop();
-          _showPageSnack(backgroundMessage);
-        },
-        onClose: () => Navigator.of(dialogContext).pop(),
-      ),
-    );
+    TransferQueue.instance.markTasksForeground(taskIds);
+    try {
+      await showShadDialog<void>(
+        context: context,
+        builder: (dialogContext) => BatchTaskProgressDialog(
+          taskIds: taskIds,
+          currentPathLabel: _uploadTargetLabel,
+          mode: mode,
+          onRunInBackground: () {
+            Navigator.of(dialogContext).pop();
+            _showPageSnack(backgroundMessage);
+          },
+          onClose: () => Navigator.of(dialogContext).pop(),
+        ),
+      );
+    } finally {
+      TransferQueue.instance.clearTasksForeground(taskIds);
+    }
   }
 
   String get _uploadTargetLabel {

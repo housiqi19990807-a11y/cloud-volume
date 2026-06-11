@@ -68,7 +68,7 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
     if (!mounted) {
       return;
     }
-    if (TransferQueue.instance.hasRunning) {
+    if (TransferQueue.instance.hasSidebarRunning) {
       _controller.repeat(reverse: true);
     } else {
       _controller.stop();
@@ -80,7 +80,7 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final queue = TransferQueue.instance;
-    final foreground = queue.hasRunning ? widget.accent : widget.muted;
+    final foreground = queue.hasSidebarRunning ? widget.accent : widget.muted;
     return MouseRegion(
       onEnter: (_) => _showHoverCard(),
       onExit: (_) => _scheduleHideHoverCard(),
@@ -114,12 +114,12 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: queue.hasRunning
+                    color: queue.hasSidebarRunning
                         ? widget.accent.withValues(alpha: 0.08)
                         : Colors.white.withValues(alpha: 0.34),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: queue.hasRunning
+                      color: queue.hasSidebarRunning
                           ? widget.accent.withValues(alpha: 0.18)
                           : theme.colorScheme.border.withValues(alpha: 0.45),
                     ),
@@ -134,7 +134,7 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
                           ),
                         ),
                         child: Opacity(
-                          opacity: queue.hasRunning ? 1 : 0.9,
+                          opacity: queue.hasSidebarRunning ? 1 : 0.9,
                           child: Icon(
                             LucideIcons.arrowLeftRight,
                             size: 16,
@@ -157,7 +157,7 @@ class _SidebarTransferStatusState extends State<SidebarTransferStatus>
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              queue.speedSummary,
+                              queue.sidebarSpeedSummary,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -187,7 +187,7 @@ class _TransferHoverCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasks = TransferQueue.instance.recentTasks();
+    final tasks = TransferQueue.instance.recentSidebarTasks();
     return Container(
       constraints: const BoxConstraints(maxHeight: 300),
       padding: const EdgeInsets.all(10),

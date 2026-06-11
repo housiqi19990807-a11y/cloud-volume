@@ -15,6 +15,7 @@ part 'transfer_queue_storage.dart';
 part 'transfer_queue_sync.dart';
 part 'transfer_queue_metrics.dart';
 part 'transfer_queue_local_progress.dart';
+part 'transfer_queue_foreground.dart';
 
 /// 全局队列：页面和侧边栏共享。
 class TransferQueue extends ChangeNotifier {
@@ -27,6 +28,7 @@ class TransferQueue extends ChangeNotifier {
 
   final List<TransferTask> _tasks = [];
   final Map<String, TransferTask> _tasksById = <String, TransferTask>{};
+  final Set<String> _foregroundTaskIds = <String>{};
   final Map<String, _MountWritebackPathCounts> _mountWritebackCounts =
       <String, _MountWritebackPathCounts>{};
   RemoteStorageGateway? _api;
@@ -327,6 +329,7 @@ class TransferQueue extends ChangeNotifier {
     _restoreFuture = null;
     _tasks.clear();
     _tasksById.clear();
+    _foregroundTaskIds.clear();
     _mountWritebackCounts.clear();
     _cancelRequestedIds.clear();
     notifyListeners();
