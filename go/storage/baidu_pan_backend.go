@@ -147,7 +147,7 @@ func (b baiduPanBackend) HeadObject(
 	}
 	remotePath := baiduPanObjectPath(clean)
 	return withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (ObjectInfo, error) {
-		meta, err := client.StatObject(remotePath)
+		meta, err := baiduPanStatObjectByPath(client, remotePath)
 		if err != nil {
 			return ObjectInfo{}, err
 		}

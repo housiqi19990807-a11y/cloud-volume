@@ -3,6 +3,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,8 +11,11 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	xpanclient "github.com/lfhy/xpan/client"
+	xpanfile "github.com/lfhy/xpan/file"
+	xpantypes "github.com/lfhy/xpan/types"
 
 	s3ops "remote-storage/go/s3"
 )
@@ -83,7 +87,7 @@ func (b baiduPanBackend) DownloadFile(
 		defer func() { s3ops.FinishQueuedTransfer(taskID, finishErr) }()
 	}
 	_, finishErr = withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (int64, error) {
-		reader, err := client.GetObject(baiduPanObjectPath(key))
+		reader, err := baiduPanOpenObjectReader(client, key)
 		if err != nil {
 			return 0, err
 		}
@@ -108,7 +112,7 @@ func (b baiduPanBackend) StreamObjectToHTTP(
 		ctx = context.Background()
 	}
 	_, err := withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (int64, error) {
-		reader, err := client.GetObject(baiduPanObjectPath(key))
+		reader, err := baiduPanOpenObjectReader(client, key)
 		if err != nil {
 			return 0, err
 		}
@@ -116,6 +120,57 @@ func (b baiduPanBackend) StreamObjectToHTTP(
 		return io.Copy(w, reader)
 	})
 	return err
+}
+
+func baiduPanOpenObjectReader(client *xpanclient.Client, key string) (io.ReadCloser, error) {
+	meta, err := baiduPanStatObjectByPath(client, baiduPanObjectPath(key))
+	if err != nil {
+		return nil, err
+	}
+	return xpanfile.Download(meta.Dlink)
+}
+
+func baiduPanStatObjectByPath(
+	client *xpanclient.Client,
+	remotePath string,
+) (*xpanfile.FilemetasItem, error) {
+	found, err := baiduPanListItemByPath(client, remotePath)
+	if err != nil {
+		return nil, err
+	}
+	if found == nil {
+		return nil, errors.New("file not found")
+	}
+	return client.StatObjectUseFsId(found.FsId)
+}
+
+func baiduPanListItemByPath(
+	client *xpanclient.Client,
+	remotePath string,
+) (*xpanfile.ListItem, error) {
+	cleanPath := baiduPanObjectPath(remotePath)
+	parentDir := path.Dir(cleanPath)
+	startedAt := time.Now()
+	start := 0
+	for {
+		res, err := listBaiduPanObjectsWithRetry(client, parentDir, &xpanfile.ListAllReq{
+			Start: start,
+			Limit: 1000,
+			Order: xpantypes.ListOrderName,
+		}, startedAt)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range res.List {
+			if baiduPanObjectPath(item.Path) == cleanPath {
+				return item, nil
+			}
+		}
+		if res.HasMore != xpantypes.BoolIntTrue {
+			return nil, nil
+		}
+		start = res.Cursor
+	}
 }
 
 func (b baiduPanBackend) uploadReaderInternal(
@@ -190,7 +245,7 @@ func (b baiduPanBackend) readObjectRange(
 		return nil, err
 	}
 	return withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) ([]byte, error) {
-		reader, err := client.GetObject(baiduPanObjectPath(key))
+		reader, err := baiduPanOpenObjectReader(client, key)
 		if err != nil {
 			return nil, err
 		}
