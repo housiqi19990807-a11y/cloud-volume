@@ -93,7 +93,10 @@ func (b baiduPanBackend) ListObjectsPage(
 		}
 		items := make([]ObjectInfo, 0, len(res.List))
 		for _, item := range res.List {
-			items = append(items, baiduPanObjectInfo(item))
+			if baiduPanListItemIsSelf(remoteDir, item) {
+				continue
+			}
+			items = append(items, baiduPanObjectInfo(remoteDir, item))
 		}
 		page := ObjectPage{Items: items}
 		if res.HasMore == xpantypes.BoolIntTrue {
@@ -310,9 +313,9 @@ func (b baiduPanBackend) ensureBucketWritable(bucket string) error {
 	return nil
 }
 
-func baiduPanObjectInfo(item *xpanfile.ListItem) ObjectInfo {
-	key := strings.TrimPrefix(strings.TrimSpace(item.Path), "/")
+func baiduPanObjectInfo(parentDir string, item *xpanfile.ListItem) ObjectInfo {
 	isDir := item.IsDir == xpantypes.BoolIntTrue
+	key := baiduPanListItemKey(parentDir, item)
 	if isDir && key != "" && !strings.HasSuffix(key, "/") {
 		key += "/"
 	}
@@ -322,6 +325,21 @@ func baiduPanObjectInfo(item *xpanfile.ListItem) ObjectInfo {
 		LastModified: item.ServerMtime.String(),
 		IsDir:        isDir,
 	}
+}
+
+func baiduPanListItemIsSelf(parentDir string, item *xpanfile.ListItem) bool {
+	return baiduPanCleanKey(item.Path) == baiduPanCleanKey(parentDir)
+}
+
+func baiduPanListItemKey(parentDir string, item *xpanfile.ListItem) string {
+	if key := baiduPanCleanKey(item.Path); key != "" {
+		return key
+	}
+	name := strings.Trim(strings.TrimSpace(item.Name), "/")
+	if name == "" {
+		return ""
+	}
+	return baiduPanCleanKey(path.Join(baiduPanDirectoryPath(parentDir), name))
 }
 
 func baiduPanObjectInfoFromMeta(

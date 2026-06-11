@@ -5,6 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	xpanfile "github.com/lfhy/xpan/file"
+	xpantypes "github.com/lfhy/xpan/types"
+
 	storageconfig "remote-storage/go/config"
 )
 
@@ -48,6 +51,42 @@ func TestBaiduPanTempUploadPath(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "-archive.zip") {
 		t.Fatalf("temp upload path should preserve the filename suffix, got %q", got)
+	}
+}
+
+func TestBaiduPanListItemSkipsSelfEntry(t *testing.T) {
+	t.Parallel()
+
+	item := &xpanfile.ListItem{
+		Path:  "/AI/cpa",
+		Name:  "cpa",
+		IsDir: xpantypes.BoolIntTrue,
+	}
+	if !baiduPanListItemIsSelf("/AI/cpa", item) {
+		t.Fatalf("expected current directory entry to be treated as self")
+	}
+}
+
+func TestBaiduPanListItemKeepsReturnedPath(t *testing.T) {
+	t.Parallel()
+
+	item := &xpanfile.ListItem{
+		Path:  "/AI/cpa/report.txt",
+		Name:  "ignored.txt",
+		IsDir: xpantypes.BoolIntFalse,
+	}
+	if got := baiduPanListItemKey("/AI/cpa", item); got != "AI/cpa/report.txt" {
+		t.Fatalf("list item key = %q, want %q", got, "AI/cpa/report.txt")
+	}
+}
+
+func TestBaiduPanListItemFallsBackToName(t *testing.T) {
+	t.Parallel()
+
+	item := &xpanfile.ListItem{Name: "child", IsDir: xpantypes.BoolIntTrue}
+	info := baiduPanObjectInfo("/AI/cpa", item)
+	if info.Key != "AI/cpa/child/" {
+		t.Fatalf("fallback directory key = %q, want %q", info.Key, "AI/cpa/child/")
 	}
 }
 
