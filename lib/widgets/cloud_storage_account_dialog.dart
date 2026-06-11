@@ -1,4 +1,5 @@
-// 新增账号弹窗先选择存储类型，再展示对应认证字段。
+// 新增账号弹窗先选择存储类型，再展示对应的认证字段。
+// 表单沿用配置初始化引导页的“标签 + 输入框”样式，便于用户辨识每一项。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
@@ -6,6 +7,7 @@ import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+/// 新增/编辑账号时提交给上层的草稿数据。
 class CloudStorageAccountDraft {
   const CloudStorageAccountDraft({
     required this.storageType,
@@ -38,6 +40,7 @@ class CloudStorageAccountDraft {
   final bool hasBaiduRefreshToken;
 }
 
+/// 账号管理页使用的新增/编辑账号对话框。
 class CloudStorageAccountDialog extends StatefulWidget {
   const CloudStorageAccountDialog({
     super.key,
@@ -132,21 +135,33 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
               value: _storageType,
               onChanged: (value) => setState(() => _storageType = value),
             ),
-            const SizedBox(height: 12),
-            ShadInput(
-              controller: _nameController,
-              placeholder: const Text('名称'),
-              onChanged: (_) => _syncMappedBucketName(),
+            const SizedBox(height: 18),
+            _LabeledField(
+              label: '名称',
+              child: ShadInput(
+                controller: _nameController,
+                placeholder: Text(
+                  isBaiduPan
+                      ? '例如：我的百度网盘'
+                      : isWebDav
+                      ? '例如：IHEP WebDAV'
+                      : '例如：对象存储账号',
+                ),
+                onChanged: (_) => _syncMappedBucketName(),
+              ),
             ),
             if (isWebDav) ...[
-              const SizedBox(height: 12),
-              ShadInput(
-                controller: _mappedBucketNameController,
-                placeholder: const Text('映射桶名称，默认使用名称'),
-                onChanged: (_) => _mappedBucketNameEdited = true,
+              const SizedBox(height: 14),
+              _LabeledField(
+                label: '映射桶名称',
+                child: ShadInput(
+                  controller: _mappedBucketNameController,
+                  placeholder: const Text('默认使用名称'),
+                  onChanged: (_) => _mappedBucketNameEdited = true,
+                ),
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             if (isBaiduPan) ..._baiduPanFields(),
             if (!isBaiduPan && !isWebDav) ..._s3Fields(),
             if (!isBaiduPan && isWebDav) ..._webdavFields(),
@@ -173,29 +188,41 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   List<Widget> _s3Fields() {
     return [
-      ShadInput(
-        controller: _endpointController,
-        placeholder: const Text('https://s3.example.com'),
-      ),
-      const SizedBox(height: 12),
-      ShadInput(
-        controller: _regionController,
-        placeholder: const Text('Region，例如 auto'),
-      ),
-      const SizedBox(height: 12),
-      ShadInput(
-        controller: _accessKeyController,
-        placeholder: const Text('Access Key ID'),
-      ),
-      const SizedBox(height: 12),
-      ShadInput(
-        controller: _secretKeyController,
-        placeholder: Text(
-          widget.editing ? '留空则保留当前 Secret Key' : 'Secret Access Key',
+      _LabeledField(
+        label: '网关地址',
+        child: ShadInput(
+          controller: _endpointController,
+          placeholder: const Text('https://s3.example.com'),
         ),
-        obscureText: true,
       ),
       const SizedBox(height: 14),
+      _LabeledField(
+        label: '区域',
+        child: ShadInput(
+          controller: _regionController,
+          placeholder: const Text('Region，例如 auto'),
+        ),
+      ),
+      const SizedBox(height: 14),
+      _LabeledField(
+        label: '访问密钥 ID',
+        child: ShadInput(
+          controller: _accessKeyController,
+          placeholder: const Text('Access Key ID'),
+        ),
+      ),
+      const SizedBox(height: 14),
+      _LabeledField(
+        label: '访问密钥',
+        child: ShadInput(
+          controller: _secretKeyController,
+          placeholder: Text(
+            widget.editing ? '留空则保留当前 Secret Key' : 'Secret Access Key',
+          ),
+          obscureText: true,
+        ),
+      ),
+      const SizedBox(height: 16),
       _S3AdvancedOptions(
         usePathStyle: _usePathStyle,
         onPathStyleChanged: (value) => setState(() => _usePathStyle = value),
@@ -205,22 +232,33 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   List<Widget> _webdavFields() {
     return [
-      ShadInput(
-        controller: _endpointController,
-        placeholder: const Text(
-          'https://dav.example.com/remote.php/dav/files/me',
+      _LabeledField(
+        label: 'WebDAV 地址',
+        child: ShadInput(
+          controller: _endpointController,
+          placeholder: const Text(
+            'https://dav.example.com/remote.php/dav/files/me',
+          ),
         ),
       ),
-      const SizedBox(height: 12),
-      ShadInput(
-        controller: _webdavUsernameController,
-        placeholder: const Text('WebDAV 用户名'),
+      const SizedBox(height: 14),
+      _LabeledField(
+        label: '用户名',
+        child: ShadInput(
+          controller: _webdavUsernameController,
+          placeholder: const Text('输入 WebDAV 用户名'),
+        ),
       ),
-      const SizedBox(height: 12),
-      ShadInput(
-        controller: _webdavPasswordController,
-        placeholder: Text(widget.editing ? '留空则保留当前 WebDAV 密码' : 'WebDAV 密码'),
-        obscureText: true,
+      const SizedBox(height: 14),
+      _LabeledField(
+        label: '密码',
+        child: ShadInput(
+          controller: _webdavPasswordController,
+          placeholder: Text(
+            widget.editing ? '留空则保留当前 WebDAV 密码' : '输入 WebDAV 登录密码',
+          ),
+          obscureText: true,
+        ),
       ),
     ];
   }
@@ -352,6 +390,34 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         setState(() => _openingBaiduAuthPage = false);
       }
     }
+  }
+}
+
+/// 表单字段：左侧标签 + 下方输入控件，统一对话框内的视觉节奏。
+class _LabeledField extends StatelessWidget {
+  const _LabeledField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: theme.colorScheme.foreground,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
   }
 }
 
