@@ -96,6 +96,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
       }
       try {
         final requests = <FileAccessTransferRequest>[];
+        final directoryLister = _downloadDirectoryLister();
         for (final object in files) {
           requests.add(
             await FileAccessService.instance.prepareDownloadObjectToPath(
@@ -104,6 +105,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
               bucket: _activeBucket!,
               object: object,
               savePath: object.displayName,
+              directoryLister: directoryLister,
             ),
           );
         }
@@ -133,6 +135,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
 
     try {
       final requests = <FileAccessTransferRequest>[];
+      final directoryLister = _downloadDirectoryLister();
       for (final object in selected) {
         requests.add(
           await FileAccessService.instance.prepareDownloadObjectToPath(
@@ -141,6 +144,7 @@ extension _FileManagerPageSelection on _FileManagerPageState {
             bucket: _activeBucket!,
             object: object,
             savePath: path.join(targetDirectory, object.displayName),
+            directoryLister: directoryLister,
           ),
         );
       }

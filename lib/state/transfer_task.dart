@@ -58,7 +58,7 @@ class TransferTask {
   final TransferKind kind;
   final String bucket;
   final String key;
-  final String localPath;
+  String localPath;
   String targetPath;
   TransferStatus status;
   String statusDetail;

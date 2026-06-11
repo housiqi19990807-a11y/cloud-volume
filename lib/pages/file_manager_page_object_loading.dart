@@ -153,6 +153,33 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
     return page;
   }
 
+  FileAccessDirectoryLister? _downloadDirectoryLister() {
+    final bucketEntry = _activeBucketEntry;
+    if (bucketEntry == null) {
+      return null;
+    }
+    return (prefix) => _listObjectsForDownload(bucketEntry, prefix);
+  }
+
+  Future<List<ObjectInfo>> _listObjectsForDownload(
+    FileManagerBucketEntry bucketEntry,
+    String prefix,
+  ) async {
+    final items = <ObjectInfo>[];
+    var nextToken = '';
+    do {
+      final page = await _listObjectPageCached(
+        bucketEntry,
+        prefix,
+        nextToken,
+        _FileManagerPageState._listPageSize,
+      );
+      items.addAll(page.items);
+      nextToken = page.nextToken;
+    } while (nextToken.isNotEmpty);
+    return items;
+  }
+
   bool _hasObjectListingCache(
     FileManagerBucketEntry bucketEntry,
     String prefix,

@@ -175,13 +175,13 @@ extension _FileManagerPageActions on _FileManagerPageState {
   Future<void> _downloadObject(ObjectInfo object) async {
     if (_activeBucket == null) return;
     try {
-      final request = await FileAccessService.instance
-          .prepareDownloadObjectToDefaultDirectory(
-            api: widget.api,
-            config: _activeConfig,
-            bucket: _activeBucket!,
-            object: object,
-          );
+      final request = FileAccessService.instance.startDownloadObjectWithPicker(
+        api: widget.api,
+        config: _activeConfig,
+        bucket: _activeBucket!,
+        object: object,
+        directoryLister: _downloadDirectoryLister(),
+      );
       _watchDownloadRequest(request);
       await _showDownloadProgressDialogForTasks(_tasksForRequests([request]));
     } catch (error) {

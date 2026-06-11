@@ -92,11 +92,14 @@ func (b baiduPanBackend) ListObjectsPage(
 			return ObjectPage{}, err
 		}
 		items := make([]ObjectInfo, 0, len(res.List))
+		cfg := b.bucketConfig(bucket)
 		for _, item := range res.List {
 			if baiduPanListItemIsSelf(remoteDir, item) {
 				continue
 			}
-			items = append(items, baiduPanObjectInfo(remoteDir, item))
+			info := baiduPanObjectInfo(remoteDir, item)
+			rememberBaiduPanFsid(cfg, bucket, info.Key, item.FsId)
+			items = append(items, info)
 		}
 		page := ObjectPage{Items: items}
 		if res.HasMore == xpantypes.BoolIntTrue {
@@ -145,9 +148,9 @@ func (b baiduPanBackend) HeadObject(
 	if clean == "" {
 		return ObjectInfo{Key: "", IsDir: true}, nil
 	}
-	remotePath := baiduPanObjectPath(clean)
-	return withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (ObjectInfo, error) {
-		meta, err := baiduPanStatObjectByPath(client, remotePath)
+	cfg := b.bucketConfig(bucket)
+	return withBaiduPanClient(cfg, func(client *xpanclient.Client) (ObjectInfo, error) {
+		meta, err := baiduPanStatObject(client, cfg, bucket, clean)
 		if err != nil {
 			return ObjectInfo{}, err
 		}
@@ -204,6 +207,7 @@ func (b baiduPanBackend) DeleteObject(
 	_, err := withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (struct{}, error) {
 		_, err := client.DeleteObject(baiduPanObjectPath(key))
 		if err == nil {
+			forgetBaiduPanFsid(b.bucketConfig(bucket), bucket, key)
 			forgetBaiduPanKnownDir(baiduPanObjectPath(key))
 		}
 		return struct{}{}, err

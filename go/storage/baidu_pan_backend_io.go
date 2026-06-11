@@ -17,6 +17,7 @@ import (
 	xpanfile "github.com/lfhy/xpan/file"
 	xpantypes "github.com/lfhy/xpan/types"
 
+	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
 )
 
@@ -86,8 +87,9 @@ func (b baiduPanBackend) DownloadFile(
 		s3ops.StartQueuedTransfer(taskID, "download", bucket, key, localPath, info.Size, cancel)
 		defer func() { s3ops.FinishQueuedTransfer(taskID, finishErr) }()
 	}
-	_, finishErr = withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (int64, error) {
-		reader, err := baiduPanOpenObjectReader(client, key)
+	cfg := b.bucketConfig(bucket)
+	_, finishErr = withBaiduPanClient(cfg, func(client *xpanclient.Client) (int64, error) {
+		reader, err := baiduPanOpenObjectReader(client, cfg, bucket, key)
 		if err != nil {
 			return 0, err
 		}
@@ -111,8 +113,9 @@ func (b baiduPanBackend) StreamObjectToHTTP(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	_, err := withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) (int64, error) {
-		reader, err := baiduPanOpenObjectReader(client, key)
+	cfg := b.bucketConfig(bucket)
+	_, err := withBaiduPanClient(cfg, func(client *xpanclient.Client) (int64, error) {
+		reader, err := baiduPanOpenObjectReader(client, cfg, bucket, key)
 		if err != nil {
 			return 0, err
 		}
@@ -122,8 +125,14 @@ func (b baiduPanBackend) StreamObjectToHTTP(
 	return err
 }
 
-func baiduPanOpenObjectReader(client *xpanclient.Client, key string) (io.ReadCloser, error) {
-	meta, err := baiduPanStatObjectByPath(client, baiduPanObjectPath(key))
+func baiduPanOpenObjectReader(
+	client *xpanclient.Client,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+	key string,
+) (io.ReadCloser, error) {
+	clean := baiduPanCleanKey(key)
+	meta, err := baiduPanStatObject(client, cfg, bucket, clean)
 	if err != nil {
 		return nil, err
 	}
@@ -244,8 +253,9 @@ func (b baiduPanBackend) readObjectRange(
 	if err != nil {
 		return nil, err
 	}
-	return withBaiduPanClient(b.bucketConfig(bucket), func(client *xpanclient.Client) ([]byte, error) {
-		reader, err := baiduPanOpenObjectReader(client, key)
+	cfg := b.bucketConfig(bucket)
+	return withBaiduPanClient(cfg, func(client *xpanclient.Client) ([]byte, error) {
+		reader, err := baiduPanOpenObjectReader(client, cfg, bucket, key)
 		if err != nil {
 			return nil, err
 		}

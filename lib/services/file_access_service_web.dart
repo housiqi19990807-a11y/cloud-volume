@@ -98,6 +98,7 @@ class FileAccessService {
     required RemoteStorageConfig config,
     required String bucket,
     required ObjectInfo object,
+    FileAccessDirectoryLister? directoryLister,
   }) {
     return prepareDownloadObjectToPath(
       api: api,
@@ -106,6 +107,31 @@ class FileAccessService {
       object: object,
       savePath: object.displayName,
     );
+  }
+
+  FileAccessTransferRequest startDownloadObjectWithPicker({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required ObjectInfo object,
+    FileAccessDirectoryLister? directoryLister,
+  }) {
+    final task = TransferQueue.instance.startTask(
+      kind: TransferKind.download,
+      bucket: bucket,
+      key: object.key,
+      localPath: object.displayName,
+    );
+    final completion = prepareDownloadObjectToPath(
+      api: api,
+      config: config,
+      bucket: bucket,
+      object: object,
+      savePath: object.displayName,
+      existingTask: task,
+      directoryLister: directoryLister,
+    ).then((request) => request.completion);
+    return FileAccessTransferRequest(task: task, completion: completion);
   }
 
   Future<void> downloadObjectToDefaultDirectory({
@@ -153,6 +179,7 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
     required String savePath,
+    FileAccessDirectoryLister? directoryLister,
   }) async {
     final request = await prepareDownloadObjectToPath(
       api: api,
@@ -170,6 +197,8 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
     required String savePath,
+    TransferTask? existingTask,
+    FileAccessDirectoryLister? directoryLister,
   }) async {
     if (object.isDir) {
       throw UnsupportedError('浏览器端暂不支持文件夹下载');
@@ -178,12 +207,14 @@ class FileAccessService {
     if (target == null) {
       throw UnsupportedError('当前客户端不支持浏览器下载');
     }
-    final task = TransferQueue.instance.startTask(
-      kind: TransferKind.download,
-      bucket: bucket,
-      key: object.key,
-      localPath: savePath,
-    );
+    final task =
+        existingTask ??
+        TransferQueue.instance.startTask(
+          kind: TransferKind.download,
+          bucket: bucket,
+          key: object.key,
+          localPath: savePath,
+        );
     final completion = _launch(target)
         .then((_) {
           TransferQueue.instance.markTaskDone(task.id);

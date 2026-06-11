@@ -397,6 +397,9 @@ class _TaskList extends StatelessWidget {
 
   String _subtitleFor(TransferTask task) {
     final parts = <String>[task.key];
+    if (task.statusDetail == 'selecting_path') {
+      parts.add('等待选择保存位置');
+    }
     if (task.totalItems > 0) {
       parts.add('${task.itemsCompleted} / ${task.totalItems} 个文件');
     } else if (task.statusDetail == 'scanning') {

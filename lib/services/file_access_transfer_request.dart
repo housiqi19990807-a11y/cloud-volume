@@ -2,7 +2,11 @@
 
 import 'dart:async';
 
+import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+
+typedef FileAccessDirectoryLister =
+    Future<List<ObjectInfo>> Function(String prefix);
 
 class FileAccessTransferRequest {
   const FileAccessTransferRequest({required this.completion, this.task});

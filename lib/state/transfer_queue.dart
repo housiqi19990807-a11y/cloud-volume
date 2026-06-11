@@ -14,6 +14,7 @@ part 'transfer_task.dart';
 part 'transfer_queue_storage.dart';
 part 'transfer_queue_sync.dart';
 part 'transfer_queue_metrics.dart';
+part 'transfer_queue_local_progress.dart';
 
 /// 全局队列：页面和侧边栏共享。
 class TransferQueue extends ChangeNotifier {

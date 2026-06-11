@@ -23,7 +23,11 @@ class TransferStatusBadge extends StatelessWidget {
     final theme = ShadTheme.of(context);
     final text = switch (task.status) {
       TransferStatus.pending =>
-        task.isUpload ? (task.isUploadWaiting ? '等待上传' : '等待同步') : '等待中',
+        task.statusDetail == 'selecting_path'
+            ? '选择路径'
+            : task.isUpload
+            ? (task.isUploadWaiting ? '等待上传' : '等待同步')
+            : '等待中',
       TransferStatus.running =>
         task.statusDetail == 'scanning'
             ? '扫描中'
