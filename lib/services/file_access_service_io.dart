@@ -7,6 +7,7 @@ import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/file_cache_store.dart';
+import 'package:remote_storage/services/file_access_paths_io.dart';
 import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/local_file_opener.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -199,7 +200,7 @@ class FileAccessService {
         config: config,
         bucket: bucket,
         object: object,
-        savePath: _uniqueDownloadDirectoryPath(
+        savePath: uniqueDownloadDirectoryPath(
           targetDirectory,
           object.displayName,
         ),
@@ -259,8 +260,8 @@ class FileAccessService {
       bucket: bucket,
       object: object,
       savePath: object.isDir
-          ? _uniqueDownloadDirectoryPath(directory, object.displayName)
-          : _uniqueDownloadPath(directory, object.displayName),
+          ? uniqueDownloadDirectoryPath(directory, object.displayName)
+          : uniqueDownloadPath(directory, object.displayName),
     );
   }
 
@@ -309,15 +310,20 @@ class FileAccessService {
       return FileAccessTransferRequest(completion: Future.value(savePath));
     }
     if (object.isDir) {
-      return FileAccessTransferRequest(
-        completion: _downloadDirectoryToPath(
-          api: api,
-          config: config,
-          bucket: bucket,
-          directory: object,
-          savePath: savePath,
-        ).then((_) => savePath),
+      final task = TransferQueue.instance.startTask(
+        kind: TransferKind.download,
+        bucket: bucket,
+        key: object.key,
+        localPath: savePath,
       );
+      final completion = _runDirectoryDownload(
+        api: api,
+        config: config,
+        task: task,
+        directory: object,
+        savePath: savePath,
+      ).then((_) => savePath);
+      return FileAccessTransferRequest(task: task, completion: completion);
     }
 
     final task = TransferQueue.instance.startTask(
@@ -386,10 +392,37 @@ class FileAccessService {
     }
   }
 
+  Future<void> _runDirectoryDownload({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required TransferTask task,
+    required ObjectInfo directory,
+    required String savePath,
+  }) async {
+    try {
+      await _downloadDirectoryToPath(
+        api: api,
+        config: config,
+        bucket: task.bucket,
+        task: task,
+        directory: directory,
+        savePath: savePath,
+      );
+      TransferQueue.instance.markTaskDone(task.id);
+    } catch (error) {
+      TransferQueue.instance.markTaskFailed(task.id, error);
+      if (TransferQueue.instance.statusOf(task.id) == TransferStatus.canceled) {
+        throw StateError('下载已取消');
+      }
+      rethrow;
+    }
+  }
+
   Future<void> _downloadDirectoryToPath({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,
+    required TransferTask task,
     required ObjectInfo directory,
     required String savePath,
   }) async {
@@ -402,6 +435,9 @@ class FileAccessService {
       prefix: directory.key,
     );
     for (final file in files) {
+      if (TransferQueue.instance.statusOf(task.id) == TransferStatus.canceled) {
+        throw StateError('下载已取消');
+      }
       final relativeKey = path.posix.relative(file.key, from: directory.key);
       final localPath = path.joinAll([
         savePath,
@@ -451,41 +487,5 @@ class FileAccessService {
     if (await file.exists()) {
       await file.delete();
     }
-  }
-
-  String _uniqueDownloadPath(String directory, String fileName) {
-    var candidate = path.join(directory, fileName);
-    if (!File(candidate).existsSync()) {
-      return candidate;
-    }
-    final extension = path.extension(fileName);
-    final baseName = path.basenameWithoutExtension(fileName);
-    for (var index = 1; index < 1000; index += 1) {
-      candidate = path.join(directory, '$baseName ($index)$extension');
-      if (!File(candidate).existsSync()) {
-        return candidate;
-      }
-    }
-    return path.join(
-      directory,
-      '$baseName-${DateTime.now().millisecondsSinceEpoch}$extension',
-    );
-  }
-
-  String _uniqueDownloadDirectoryPath(String directory, String name) {
-    var candidate = path.join(directory, name);
-    if (!Directory(candidate).existsSync() && !File(candidate).existsSync()) {
-      return candidate;
-    }
-    for (var index = 1; index < 1000; index += 1) {
-      candidate = path.join(directory, '$name ($index)');
-      if (!Directory(candidate).existsSync() && !File(candidate).existsSync()) {
-        return candidate;
-      }
-    }
-    return path.join(
-      directory,
-      '$name-${DateTime.now().millisecondsSinceEpoch}',
-    );
   }
 }
