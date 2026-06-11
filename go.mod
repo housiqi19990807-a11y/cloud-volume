@@ -10,7 +10,7 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/google/uuid v1.6.0
 	github.com/hanwen/go-fuse/v2 v2.10.1
-	github.com/lfhy/xpan v0.1.4
+	github.com/lfhy/xpan v0.1.5
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/pelletier/go-toml/v2 v2.3.1
