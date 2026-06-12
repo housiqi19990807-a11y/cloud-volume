@@ -10,6 +10,8 @@ import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/transfer_task_widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+part 'transfers_page_retry.dart';
+
 class TransfersPage extends StatefulWidget {
   const TransfersPage({
     super.key,
@@ -299,6 +301,9 @@ class _TransfersPageState extends State<TransfersPage> {
                       : null,
                   onStartNowPressed: queue.canTriggerTask(task.id)
                       ? () => unawaited(queue.triggerTaskNow(task.id))
+                      : null,
+                  onRetryPressed: task.isRetryableFileTransfer
+                      ? () => unawaited(_retryFileTransfer(task))
                       : null,
                 );
               },

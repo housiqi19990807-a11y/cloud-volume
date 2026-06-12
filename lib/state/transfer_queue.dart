@@ -16,6 +16,7 @@ part 'transfer_queue_sync.dart';
 part 'transfer_queue_metrics.dart';
 part 'transfer_queue_local_progress.dart';
 part 'transfer_queue_foreground.dart';
+part 'transfer_queue_directory_children.dart';
 
 /// 全局队列：页面和侧边栏共享。
 class TransferQueue extends ChangeNotifier {
@@ -54,14 +55,18 @@ class TransferQueue extends ChangeNotifier {
   }
 
   TransferTask startTask({
+    String? id,
     required TransferKind kind,
     required String bucket,
     required String key,
     required String localPath,
     String targetPath = '',
   }) {
+    if (id != null && _tasksById.containsKey(id)) {
+      return _tasksById[id]!;
+    }
     final task = TransferTask(
-      id: 'transfer_${DateTime.now().microsecondsSinceEpoch}_${_seed++}',
+      id: id ?? 'transfer_${DateTime.now().microsecondsSinceEpoch}_${_seed++}',
       kind: kind,
       bucket: bucket,
       key: key,
@@ -149,6 +154,7 @@ class TransferQueue extends ChangeNotifier {
     if (_api != null) {
       await _api!.cancelTransfer(id);
     }
+    await _cancelDirectoryChildTasks(id);
     _ensurePolling();
   }
 

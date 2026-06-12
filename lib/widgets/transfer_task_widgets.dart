@@ -73,6 +73,7 @@ class TransferTaskRow extends StatefulWidget {
     this.showDivider = true,
     this.onCancelPressed,
     this.onStartNowPressed,
+    this.onRetryPressed,
   });
 
   final TransferTask task;
@@ -82,6 +83,7 @@ class TransferTaskRow extends StatefulWidget {
   final VoidCallback onToggleSelected;
   final VoidCallback? onCancelPressed;
   final VoidCallback? onStartNowPressed;
+  final VoidCallback? onRetryPressed;
 
   @override
   State<TransferTaskRow> createState() => _TransferTaskRowState();
@@ -201,6 +203,20 @@ class _TransferTaskRowState extends State<TransferTaskRow> {
                         height: 28,
                         iconSize: 16,
                         onPressed: widget.onStartNowPressed,
+                      ),
+                    ),
+                  if (widget.onRetryPressed != null)
+                    AppTooltip(
+                      message: '重试任务',
+                      child: ShadIconButton.ghost(
+                        icon: Icon(
+                          LucideIcons.refreshCw,
+                          color: theme.colorScheme.primary,
+                        ),
+                        width: 28,
+                        height: 28,
+                        iconSize: 16,
+                        onPressed: widget.onRetryPressed,
                       ),
                     ),
                   const SizedBox(width: 8),

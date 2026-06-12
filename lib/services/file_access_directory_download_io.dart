@@ -36,33 +36,91 @@ Future<void> runDirectoryDownloadToPath({
     totalItems: files.length,
     totalBytes: files.fold<int>(0, (sum, file) => sum + file.size),
   );
-  for (final file in files) {
+  final fileTasks = <_DirectoryDownloadFileTask>[
+    for (final file in files)
+      _DirectoryDownloadFileTask(
+        object: file,
+        localPath: _localPathForDirectoryFile(
+          directory: directory,
+          file: file,
+          savePath: savePath,
+        ),
+        task: TransferQueue.instance.startTask(
+          id: '${task.id}:file:${file.key}',
+          kind: TransferKind.download,
+          bucket: bucket,
+          key: file.key,
+          localPath: _localPathForDirectoryFile(
+            directory: directory,
+            file: file,
+            savePath: savePath,
+          ),
+        ),
+      ),
+  ];
+  for (final fileTask in fileTasks) {
+    final file = fileTask.object;
     if (TransferQueue.instance.statusOf(task.id) == TransferStatus.canceled) {
       throw StateError('下载已取消');
     }
-    final relativeKey = path.posix.relative(file.key, from: directory.key);
-    final localPath = path.joinAll([
-      savePath,
-      ...path.posix.split(relativeKey),
-    ]);
+    final localPath = fileTask.localPath;
     await Directory(path.dirname(localPath)).create(recursive: true);
     TransferQueue.instance.updateTaskCurrentFile(
       task.id,
       key: file.key,
       totalBytes: file.size,
     );
-    final copied = await copyCachedObjectToPath(
-      cacheStore: cacheStore,
-      config: config,
-      bucket: bucket,
-      object: file,
-      savePath: localPath,
+    TransferQueue.instance.markTaskRunning(
+      fileTask.task.id,
+      statusDetail: 'directory_child',
+      totalBytes: file.size,
+      resetProgress: true,
     );
-    if (!copied) {
-      await api.downloadFile(config, bucket, file.key, localPath, '');
+    try {
+      final copied = await copyCachedObjectToPath(
+        cacheStore: cacheStore,
+        config: config,
+        bucket: bucket,
+        object: file,
+        savePath: localPath,
+      );
+      if (!copied) {
+        await api.downloadFile(
+          config,
+          bucket,
+          file.key,
+          localPath,
+          fileTask.task.id,
+        );
+      }
+      TransferQueue.instance.markTaskDone(fileTask.task.id);
+    } catch (error) {
+      TransferQueue.instance.markTaskFailed(fileTask.task.id, error);
+      rethrow;
     }
     TransferQueue.instance.advanceTaskDirectoryFile(task.id, bytes: file.size);
   }
+}
+
+String _localPathForDirectoryFile({
+  required ObjectInfo directory,
+  required ObjectInfo file,
+  required String savePath,
+}) {
+  final relativeKey = path.posix.relative(file.key, from: directory.key);
+  return path.joinAll([savePath, ...path.posix.split(relativeKey)]);
+}
+
+class _DirectoryDownloadFileTask {
+  const _DirectoryDownloadFileTask({
+    required this.object,
+    required this.localPath,
+    required this.task,
+  });
+
+  final ObjectInfo object;
+  final String localPath;
+  final TransferTask task;
 }
 
 Future<List<ObjectInfo>> listFilesRecursively({

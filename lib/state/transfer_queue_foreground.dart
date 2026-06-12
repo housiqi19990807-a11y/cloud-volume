@@ -1,9 +1,9 @@
 part of 'transfer_queue.dart';
 
-// Foreground task tracking keeps modal-owned work out of the sidebar summary.
+// Foreground task tracking lets dialogs mark ownership while the sidebar still
+// reflects the full live queue instead of looking idle during modal transfers.
 extension TransferQueueForeground on TransferQueue {
-  Iterable<TransferTask> get sidebarTaskView =>
-      _tasks.where((task) => !_foregroundTaskIds.contains(task.id));
+  Iterable<TransferTask> get sidebarTaskView => _tasks;
 
   bool get hasSidebarRunning =>
       sidebarTaskView.any((task) => task.isRunning || task.isPending);

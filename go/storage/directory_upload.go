@@ -18,6 +18,7 @@ import (
 )
 
 const directoryUploadConcurrency = 4
+const directoryChildStatusDetail = "directory_child"
 
 // UploadDirectory recursively creates remote directories and uploads files.
 func UploadDirectory(
@@ -51,7 +52,7 @@ func UploadDirectory(
 	if !rootInfo.IsDir() {
 		return fmt.Errorf("local path is not a directory: %s", localPath)
 	}
-	plan, err := planDirectoryUpload(ctx, localPath, cleanPrefix, taskID)
+	plan, err := planDirectoryUpload(ctx, localPath, cleanPrefix, taskID, bucket)
 	if err != nil {
 		return err
 	}
@@ -76,7 +77,8 @@ func planDirectoryUpload(
 	ctx context.Context,
 	localPath,
 	cleanPrefix,
-	taskID string,
+	taskID,
+	bucket string,
 ) (directoryUploadPlan, error) {
 	plan := directoryUploadPlan{}
 	err := filepath.WalkDir(localPath, func(currentPath string, entry os.DirEntry, walkErr error) error {
@@ -106,10 +108,16 @@ func planDirectoryUpload(
 			s3ops.AddTransferItems(taskID, 1)
 			s3ops.SetTransferTarget(taskID, remoteKey)
 		}
+		childTaskID := directoryUploadChildTaskID(taskID, remoteKey)
+		if childTaskID != "" {
+			s3ops.QueueTransfer(childTaskID, "upload", bucket, remoteKey, currentPath, info.Size())
+			s3ops.SetTransferStatusDetail(childTaskID, directoryChildStatusDetail)
+		}
 		plan.files = append(plan.files, directoryUploadFile{
 			localPath: currentPath,
 			remoteKey: remoteKey,
 			size:      info.Size(),
+			childID:   childTaskID,
 		})
 		return nil
 	})
@@ -134,12 +142,13 @@ func uploadDirectoryFile(
 	var bytesRead int64
 	if taskID != "" {
 		reader = &directoryProgressReader{
-			ctx:         ctx,
-			reader:      file,
-			taskID:      taskID,
-			key:         key,
-			bytesRead:   &bytesRead,
-			bytesReadMu: &sync.Mutex{},
+			ctx:          ctx,
+			reader:       file,
+			parentTaskID: taskID,
+			childTaskID:  directoryUploadChildTaskID(taskID, key),
+			key:          key,
+			bytesRead:    &bytesRead,
+			bytesReadMu:  &sync.Mutex{},
 		}
 	}
 	err = backend.UploadReader(ctx, bucket, key, reader, size, "", path.Base(localPath))
@@ -179,7 +188,14 @@ func uploadDirectoryFiles(
 					s3ops.SetTransferTarget(taskID, file.remoteKey)
 					s3ops.SetTransferCurrentFile(taskID, file.remoteKey, file.size)
 				}
+				if file.childID != "" {
+					s3ops.StartQueuedTransfer(file.childID, "upload", bucket, file.remoteKey, file.localPath, file.size, nil)
+					s3ops.SetTransferStatusDetail(file.childID, directoryChildStatusDetail)
+				}
 				if err := uploadDirectoryFileWithRetry(ctx, backend, bucket, file, taskID); err != nil {
+					if file.childID != "" {
+						s3ops.FinishQueuedTransfer(file.childID, err)
+					}
 					log.Printf(
 						"[storage/directory-upload] upload-file-error bucket=%q key=%q local_path=%q err=%s",
 						bucket,
@@ -198,6 +214,9 @@ func uploadDirectoryFiles(
 					}
 					continue
 				}
+				if file.childID != "" {
+					s3ops.FinishQueuedTransfer(file.childID, nil)
+				}
 				if taskID != "" {
 					s3ops.AdvanceTransferItems(taskID, 1)
 				}
@@ -214,7 +233,11 @@ sendFiles:
 	}
 	close(jobs)
 	wg.Wait()
-	return failures.Err()
+	if err := failures.Err(); err != nil {
+		finishUnfinishedDirectoryChildren(files, err)
+		return err
+	}
+	return nil
 }
 
 func uploadDirectoryFileWithRetry(
@@ -240,7 +263,7 @@ func uploadDirectoryFileWithRetry(
 		if err == nil || isDirectoryUploadStopError(err) {
 			return err
 		}
-		rollbackDirectoryUploadBytes(taskID, bytesRead)
+		rollbackDirectoryUploadBytes(taskID, file.childID, bytesRead)
 		delay, retry := directoryUploadRetryDelay(backend, err, attempt)
 		if !retry {
 			return err
@@ -271,11 +294,14 @@ func describeDirectoryUploadError(err error) string {
 	return fmt.Sprintf("%T %#v", err, err)
 }
 
-func rollbackDirectoryUploadBytes(taskID string, bytesRead int64) {
+func rollbackDirectoryUploadBytes(taskID, childTaskID string, bytesRead int64) {
 	if taskID == "" || bytesRead <= 0 {
 		return
 	}
 	s3ops.AdvanceTransfer(taskID, -bytesRead)
+	if childTaskID != "" {
+		s3ops.AdvanceTransfer(childTaskID, -bytesRead)
+	}
 }
 
 func recordDirectoryUploadError(
@@ -289,6 +315,19 @@ func recordDirectoryUploadError(
 	failures.Add(err)
 	if isDirectoryUploadStopError(err) {
 		cancel()
+	}
+}
+
+func finishUnfinishedDirectoryChildren(files []directoryUploadFile, err error) {
+	for _, file := range files {
+		if file.childID == "" {
+			continue
+		}
+		snapshot, ok := s3ops.GetTransferSnapshot(file.childID)
+		if !ok || (snapshot.Status != "pending" && snapshot.Status != "running") {
+			continue
+		}
+		s3ops.FinishQueuedTransfer(file.childID, err)
 	}
 }
 
@@ -396,12 +435,13 @@ func cleanRemoteJoin(prefix, key string) string {
 }
 
 type directoryProgressReader struct {
-	ctx         context.Context
-	reader      io.Reader
-	taskID      string
-	key         string
-	bytesRead   *int64
-	bytesReadMu *sync.Mutex
+	ctx          context.Context
+	reader       io.Reader
+	parentTaskID string
+	childTaskID  string
+	key          string
+	bytesRead    *int64
+	bytesReadMu  *sync.Mutex
 }
 
 type directoryUploadPlan struct {
@@ -413,6 +453,7 @@ type directoryUploadFile struct {
 	localPath string
 	remoteKey string
 	size      int64
+	childID   string
 }
 
 func (r *directoryProgressReader) Read(p []byte) (int, error) {
@@ -426,7 +467,17 @@ func (r *directoryProgressReader) Read(p []byte) (int, error) {
 			*r.bytesRead += int64(n)
 			r.bytesReadMu.Unlock()
 		}
-		s3ops.AdvanceTransferCurrentFile(r.taskID, r.key, int64(n))
+		s3ops.AdvanceTransferCurrentFile(r.parentTaskID, r.key, int64(n))
+		if r.childTaskID != "" {
+			s3ops.AdvanceTransfer(r.childTaskID, int64(n))
+		}
 	}
 	return n, err
+}
+
+func directoryUploadChildTaskID(parentTaskID, remoteKey string) string {
+	if strings.TrimSpace(parentTaskID) == "" {
+		return ""
+	}
+	return parentTaskID + ":file:" + remoteKey
 }

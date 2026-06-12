@@ -108,6 +108,8 @@ class TransferTask {
   bool get isMove => kind == TransferKind.move;
   bool get isDelete => kind == TransferKind.delete;
   bool get isMountWriteback => id.startsWith('mount-writeback-');
+  bool get isDirectoryChild =>
+      statusDetail == 'directory_child' || id.contains(':file:');
   bool get isRunning => status == TransferStatus.running;
   bool get isPending => status == TransferStatus.pending;
   bool get isSyncWaiting => isMountWriteback && statusDetail == 'sync_wait';
@@ -115,7 +117,13 @@ class TransferTask {
   bool get canForceSyncNow =>
       isUpload && isPending && (!isMountWriteback || isSyncWaiting);
   bool get isCancelable =>
-      status == TransferStatus.pending || status == TransferStatus.running;
+      !isDirectoryChild &&
+      (status == TransferStatus.pending || status == TransferStatus.running);
+  bool get isRetryableFileTransfer =>
+      status == TransferStatus.failed &&
+      (isUpload || isDownload) &&
+      localPath.trim().isNotEmpty &&
+      totalItems == 0;
   bool get isFinished =>
       status == TransferStatus.done ||
       status == TransferStatus.failed ||

@@ -24,6 +24,33 @@ extension TransferQueueLocalProgress on TransferQueue {
     _ensurePolling();
   }
 
+  void markTaskRunning(
+    String id, {
+    String statusDetail = '',
+    int? totalBytes,
+    bool resetProgress = false,
+  }) {
+    final task = _taskById(id);
+    if (task == null || (task.isFinished && !resetProgress)) return;
+    task.status = TransferStatus.running;
+    task.statusDetail = statusDetail;
+    task.error = null;
+    if (resetProgress) {
+      task.bytesCompleted = 0;
+      task.itemsCompleted = 0;
+      task.speedBytes = 0;
+      task.currentFileKey = '';
+      task.currentFileBytesCompleted = 0;
+      task.currentFileTotalBytes = 0;
+    }
+    if (totalBytes != null) {
+      task.totalBytes = totalBytes;
+    }
+    scheduleTransferQueuePersist(this);
+    _scheduleNotifyListeners();
+    _ensurePolling();
+  }
+
   void updateTaskLocalPath(String id, String localPath) {
     final task = _taskById(id);
     if (task == null || task.isFinished) return;
