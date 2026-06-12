@@ -97,11 +97,19 @@ func (b webDAVBackend) CreateDirectory(ctx context.Context, bucket, prefix, name
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 || resp.StatusCode == http.StatusMethodNotAllowed {
+	statusCode := resp.StatusCode
+	status := resp.Status
+	_ = resp.Body.Close()
+	if statusCode >= 200 && statusCode < 300 {
 		return nil
 	}
-	return fmt.Errorf("webdav mkcol: %s", resp.Status)
+	if statusCode == http.StatusMethodNotAllowed {
+		exists, err := b.directoryExists(ctx, dir)
+		if err == nil && exists {
+			return nil
+		}
+	}
+	return fmt.Errorf("webdav mkcol: %s", status)
 }
 
 func (b webDAVBackend) DeleteObject(ctx context.Context, bucket, key string, isDirectory bool, _ string) error {
@@ -230,6 +238,22 @@ func (b webDAVBackend) put(ctx context.Context, key string, body io.Reader) erro
 		return nil
 	}
 	return fmt.Errorf("webdav put: %s", resp.Status)
+}
+
+func (b webDAVBackend) directoryExists(ctx context.Context, key string) (bool, error) {
+	dirKey := webDAVDirectoryKey(key)
+	entries, err := b.propfind(ctx, dirKey, "0")
+	if err != nil {
+		return false, err
+	}
+	requested := cleanRemotePath(dirKey)
+	for _, entry := range entries {
+		info, ok := b.objectInfoFromHeadResponse(entry, requested)
+		if ok && info.IsDir {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (b webDAVBackend) copyMove(ctx context.Context, method, sourceKey, targetKey string) error {
