@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class BaiduPanAuthSection extends StatelessWidget {
@@ -105,7 +106,7 @@ class BaiduPanAuthSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          ShadInput(
+          CloudStorageTechnicalInput(
             controller: codeController,
             placeholder: const Text('粘贴百度授权页显示的授权码'),
           ),

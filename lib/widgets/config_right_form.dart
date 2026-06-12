@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
+import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 
 /// 配置页右侧完整表单。
 class ConfigRightFormPanel extends StatelessWidget {
@@ -185,8 +186,9 @@ class ConfigRightFormPanel extends StatelessWidget {
                       ] else ...[
                         _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
                         const SizedBox(height: 6),
-                        ShadInput(
+                        CloudStorageTechnicalInput(
                           controller: endpointController,
+                          keyboardType: TextInputType.url,
                           placeholder: Text(
                             isWebDav
                                 ? 'https://dav.example.com/remote.php/dav/files/me'
@@ -201,27 +203,26 @@ class ConfigRightFormPanel extends StatelessWidget {
                           webdavPasswordController != null) ...[
                         _fieldLabel(context, '用户名'),
                         const SizedBox(height: 6),
-                        ShadInput(
+                        CloudStorageTechnicalInput(
                           controller: webdavUsernameController!,
                           placeholder: const Text('输入 WebDAV 用户名'),
                         ),
                         const SizedBox(height: 18),
                         _fieldLabel(context, '密码'),
                         const SizedBox(height: 6),
-                        ShadInput(
+                        CloudStorageSecretInput(
                           controller: webdavPasswordController!,
                           placeholder: Text(
                             hasStoredWebdavPassword
                                 ? '留空则保留当前已保存的 WebDAV 密码'
                                 : '输入 WebDAV 登录密码',
                           ),
-                          obscureText: true,
                         ),
                       ] else if (!isBaiduPan) ...[
                         // 访问密钥 ID。
                         _fieldLabel(context, '访问密钥 ID'),
                         const SizedBox(height: 6),
-                        ShadInput(
+                        CloudStorageTechnicalInput(
                           controller: accessKeyController,
                           placeholder: const Text('输入 Access Key ID'),
                         ),
@@ -229,14 +230,13 @@ class ConfigRightFormPanel extends StatelessWidget {
                         // 访问密钥。
                         _fieldLabel(context, '访问密钥'),
                         const SizedBox(height: 6),
-                        ShadInput(
+                        CloudStorageSecretInput(
                           controller: secretKeyController,
                           placeholder: Text(
                             hasStoredSecretKey
                                 ? '留空则保留当前已保存的 Secret Access Key'
                                 : '输入 Secret Access Key',
                           ),
-                          obscureText: true,
                         ),
                       ],
                       // 高级设置入口。
@@ -378,7 +378,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                     const SizedBox(height: 8),
                     _fieldLabel(dialogContext, '区域'),
                     const SizedBox(height: 5),
-                    ShadInput(
+                    CloudStorageTechnicalInput(
                       controller: rgCtrl,
                       placeholder: const Text('auto / us-east-1'),
                     ),

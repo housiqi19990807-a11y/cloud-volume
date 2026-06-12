@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
+import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -136,7 +137,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
               onChanged: (value) => setState(() => _storageType = value),
             ),
             const SizedBox(height: 18),
-            _LabeledField(
+            CloudStorageLabeledField(
               label: '名称',
               child: ShadInput(
                 controller: _nameController,
@@ -152,7 +153,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
             ),
             if (isWebDav) ...[
               const SizedBox(height: 14),
-              _LabeledField(
+              CloudStorageLabeledField(
                 label: '映射桶名称',
                 child: ShadInput(
                   controller: _mappedBucketNameController,
@@ -188,38 +189,38 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   List<Widget> _s3Fields() {
     return [
-      _LabeledField(
+      CloudStorageLabeledField(
         label: '网关地址',
-        child: ShadInput(
+        child: CloudStorageTechnicalInput(
           controller: _endpointController,
+          keyboardType: TextInputType.url,
           placeholder: const Text('https://s3.example.com'),
         ),
       ),
       const SizedBox(height: 14),
-      _LabeledField(
+      CloudStorageLabeledField(
         label: '区域',
-        child: ShadInput(
+        child: CloudStorageTechnicalInput(
           controller: _regionController,
           placeholder: const Text('Region，例如 auto'),
         ),
       ),
       const SizedBox(height: 14),
-      _LabeledField(
+      CloudStorageLabeledField(
         label: '访问密钥 ID',
-        child: ShadInput(
+        child: CloudStorageTechnicalInput(
           controller: _accessKeyController,
           placeholder: const Text('Access Key ID'),
         ),
       ),
       const SizedBox(height: 14),
-      _LabeledField(
+      CloudStorageLabeledField(
         label: '访问密钥',
-        child: ShadInput(
+        child: CloudStorageSecretInput(
           controller: _secretKeyController,
           placeholder: Text(
             widget.editing ? '留空则保留当前 Secret Key' : 'Secret Access Key',
           ),
-          obscureText: true,
         ),
       ),
       const SizedBox(height: 16),
@@ -232,32 +233,32 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   List<Widget> _webdavFields() {
     return [
-      _LabeledField(
+      CloudStorageLabeledField(
         label: 'WebDAV 地址',
-        child: ShadInput(
+        child: CloudStorageTechnicalInput(
           controller: _endpointController,
+          keyboardType: TextInputType.url,
           placeholder: const Text(
             'https://dav.example.com/remote.php/dav/files/me',
           ),
         ),
       ),
       const SizedBox(height: 14),
-      _LabeledField(
+      CloudStorageLabeledField(
         label: '用户名',
-        child: ShadInput(
+        child: CloudStorageTechnicalInput(
           controller: _webdavUsernameController,
           placeholder: const Text('输入 WebDAV 用户名'),
         ),
       ),
       const SizedBox(height: 14),
-      _LabeledField(
+      CloudStorageLabeledField(
         label: '密码',
-        child: ShadInput(
+        child: CloudStorageSecretInput(
           controller: _webdavPasswordController,
           placeholder: Text(
             widget.editing ? '留空则保留当前 WebDAV 密码' : '输入 WebDAV 登录密码',
           ),
-          obscureText: true,
         ),
       ),
     ];
@@ -390,34 +391,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         setState(() => _openingBaiduAuthPage = false);
       }
     }
-  }
-}
-
-/// 表单字段：左侧标签 + 下方输入控件，统一对话框内的视觉节奏。
-class _LabeledField extends StatelessWidget {
-  const _LabeledField({required this.label, required this.child});
-
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: theme.colorScheme.foreground,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        child,
-      ],
-    );
   }
 }
 
