@@ -81,7 +81,7 @@ make run
 `make run` 是本仓库的标准启动方式：
 
 - macOS: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`，再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
-- macOS 调试挂载卡住时，可直接查看 `~/.cloud-volume/runtime/logs/bridge.log`；当前版本会额外记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 等阶段日志，并为 `osascript` / `umount` / `diskutil` / `mount -t webdav` 加上超时，便于区分是旧挂载残留清理卡住，还是新挂载本身失败。排查 WebDAV 目录可写/只读误判时，可在同一日志里搜索 `[webdav/access]` 查看 PROPFIND / OPTIONS 判定链路。
+- macOS 调试挂载卡住时，可直接查看 `~/.cloud-volume/runtime/logs/bridge.log`；当前版本会额外记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 等阶段日志，并为 `osascript` / `umount` / `diskutil` / `mount -t webdav` 加上超时，便于区分是旧挂载残留清理卡住，还是新挂载本身失败。排查 WebDAV 目录可写/只读误判时，可在同一日志里搜索 `[webdav/access]` 查看 PROPFIND / OPTIONS 判定链路；排查新建目录失败时，可搜索 `[webdav/mkdir]` 查看 `MKCOL` 状态码、`405` 后的目录存在性反查以及最终错误。
 - Linux: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.so`，并把它随 Linux bundle 一起安装后再启动 Flutter Linux 应用
 
 平台相关命令：
