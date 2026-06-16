@@ -146,6 +146,10 @@ extension _FileManagerPageActions on _FileManagerPageState {
       await _reloadObjectsAfterBucketMutation(bucket, _prefix);
     } catch (error) {
       TransferQueue.instance.markTaskFailed(task.id, error);
+      // 即使上传失败，也刷新当前目录让部分上传的对象（或回收站里的临时分片）立即可见。
+      if (mounted && _activeBucketId == bucket.id) {
+        await _reloadObjectsAfterBucketMutation(bucket, _prefix);
+      }
     }
   }
 

@@ -110,8 +110,10 @@ func withPerPartUploadTimeout(ctx context.Context, partSize int64) (context.Cont
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// Detach from the parent's deadline so a slow part does not poison its
+	// siblings, then apply the part-size-aware timeout on the detached base.
 	timeout := uploadTimeoutForBytes(partSize)
-	return context.WithTimeout(ctx, timeout)
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 }
 
 func uploadTimeoutForBytes(size int64) time.Duration {
@@ -165,6 +167,9 @@ func uploadPendingPartsConcurrent(
 		workerCount = len(pending)
 	}
 
+	// The concurrent pool only cancels on user-initiated failures. Per-part
+	// timeouts are now isolated inside uploadSinglePendingPart (detached from
+	// this ctx), so a slow part no longer cancels its siblings through ctx.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -178,6 +183,11 @@ func uploadPendingPartsConcurrent(
 		go func() {
 			defer wg.Done()
 			for part := range partCh {
+				// Honor user cancellation between parts, but do NOT let the
+				// shared ctx become the per-part deadline.
+				if ctx.Err() != nil {
+					return
+				}
 				completedPart, err := uploadSinglePendingPart(
 					ctx,
 					client,
@@ -249,31 +259,43 @@ func uploadSinglePendingPart(
 ) (resumablePartInfo, error) {
 	offset := int64(part.partNumber-1) * state.PartSize
 	section := io.NewSectionReader(file, offset, part.size)
-	body := io.ReadSeeker(section)
-	if taskID != "" {
-		body = &contextReadSeeker{
-			ctx:    ctx,
-			reader: section,
-			onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
-		}
+	partInfo := resumablePartInfo{
+		PartNumber: part.partNumber,
+		Size:       part.size,
 	}
-	partCtx, cancel := withPerPartUploadTimeout(ctx, part.size)
-	defer cancel()
-
-	partOut, err := client.UploadPart(partCtx, &s3.UploadPartInput{
-		Bucket:        &bucket,
-		Key:           &key,
-		UploadId:      &state.UploadID,
-		PartNumber:    aws.Int32(part.partNumber),
-		Body:          body,
-		ContentLength: aws.Int64(part.size),
-	})
-	if err != nil {
+	// Each attempt rebuilds the progress-wrapped body so backoff retries start
+	// from the part's beginning and the progress counter stays accurate.
+	perAttemptTimeout := uploadTimeoutForBytes(part.size)
+	upload := func(attemptCtx context.Context) error {
+		// Reset the section reader for each attempt so retries re-upload the
+		// whole part instead of resuming from the previous attempt's offset.
+		if _, err := section.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		var body io.ReadSeeker = section
+		if taskID != "" {
+			body = &contextReadSeeker{
+				ctx:    attemptCtx,
+				reader: section,
+				onRead: func(n int) { advanceTransfer(taskID, int64(n)) },
+			}
+		}
+		partOut, err := client.UploadPart(attemptCtx, &s3.UploadPartInput{
+			Bucket:        &bucket,
+			Key:           &key,
+			UploadId:      &state.UploadID,
+			PartNumber:    aws.Int32(part.partNumber),
+			Body:          body,
+			ContentLength: aws.Int64(part.size),
+		})
+		if err != nil {
+			return err
+		}
+		partInfo.ETag = aws.ToString(partOut.ETag)
+		return nil
+	}
+	if err := retryUploadPartWithTimeout(ctx, perAttemptTimeout, upload); err != nil {
 		return resumablePartInfo{}, err
 	}
-	return resumablePartInfo{
-		PartNumber: part.partNumber,
-		ETag:       aws.ToString(partOut.ETag),
-		Size:       part.size,
-	}, nil
+	return partInfo, nil
 }

@@ -47,6 +47,19 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
     _beginLoading(
       delayedDetail: mayWaitForBaiduRetry ? '百度网盘可能触发频率限制，正在等待自动重试...' : null,
     );
+    // 显式刷新：先清掉当前页缓存再请求，避免请求失败时还显示旧的列表。
+    if (forceRefresh) {
+      _invalidateObjectListingCache(bucketId: bucketEntry.id, prefix: prefix);
+      // 清掉内存里的列表，让加载态/错误态能在请求过程中正确显示。
+      if (mounted) {
+        setState(() {
+          _objects = null;
+          _objectsNextToken = '';
+          _objectsHasMore = false;
+          _pagingObjects = false;
+        });
+      }
+    }
     try {
       final page = await _listObjectPageCached(
         bucketEntry,
@@ -135,6 +148,7 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
       pageSize: pageSize,
     );
     if (forceRefresh) {
+      // 显式刷新/写后重载：必须把整页缓存清掉，否则切换页 token 时还会命中旧条目。
       _invalidateObjectListingCache(bucketId: bucketEntry.id, prefix: prefix);
     } else {
       final cached = _objectListingCache[key];
@@ -149,6 +163,8 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
       nextToken,
       pageSize,
     );
+    // 即便是 forceRefresh，也只在请求成功后才写入缓存；失败时不污染缓存，
+    // 这样用户重试时仍会真正请求后端而不是返回上一次的错误快照。
     _objectListingCache[key] = page;
     return page;
   }
