@@ -142,6 +142,110 @@ class _TransfersPageState extends State<TransfersPage> {
     }
   }
 
+  void _removeSelectedTasks(TransferQueue queue) {
+    if (_runningBatchAction) {
+      return;
+    }
+    setState(() => _runningBatchAction = true);
+    try {
+      final removed = queue.removeTasks(_selectedTaskIds);
+      if (!mounted) {
+        return;
+      }
+      if (removed == 0) {
+        showAppToast(context, message: '当前选中没有可移除的记录；只有已完成的任务可以移除。');
+        _clearSelectionMaybe();
+        return;
+      }
+      setState(_selectedTaskIds.clear);
+      showAppToast(context, title: '已移除记录', message: '已移除 $removed 条已完成记录。');
+    } finally {
+      if (mounted) {
+        setState(() => _runningBatchAction = false);
+      }
+    }
+  }
+
+  Future<void> _confirmClearFinished(TransferQueue queue) async {
+    if (_runningBatchAction) {
+      return;
+    }
+    final finishedCount = queue.taskView.where(_isRemovableFinished).length;
+    if (finishedCount == 0) {
+      showAppToast(context, message: '当前没有已完成的任务可以清空。');
+      return;
+    }
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (dialogContext) => ShadDialog(
+        title: const Text('清空已完成记录'),
+        description: Text('将删除 $finishedCount 条已完成/失败/取消的记录，不会影响实际文件。'),
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ShadButton.outline(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 10),
+                  ShadButton.destructive(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: const Text('清空'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    setState(() => _runningBatchAction = true);
+    try {
+      final removed = queue.clearFinished();
+      if (mounted) {
+        setState(_selectedTaskIds.clear);
+        if (removed > 0) {
+          showAppToast(
+            context,
+            title: '已清空记录',
+            message: '已清空 $removed 条已完成记录。',
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _runningBatchAction = false);
+      }
+    }
+  }
+
+  bool _isRemovableFinished(TransferTask task) => task.isFinished && !task.isDirectoryChild;
+
+  void _clearSelectionMaybe() {
+    // No-op hook; kept for symmetry with future auto-clear on filter changes.
+  }
+
+  void _removeTask(TransferTask task, TransferQueue queue) {
+    final removed = queue.removeTask(task.id);
+    if (!mounted) return;
+    if (removed) {
+      setState(() => _selectedTaskIds.remove(task.id));
+      showAppToast(context, message: '已从记录移除 “${task.displayName}”。');
+    } else {
+      showAppToast(context, message: '该任务尚未结束，无法移除。');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -200,11 +304,24 @@ class _TransfersPageState extends State<TransfersPage> {
                   selectedVisibleCount: selectedVisibleCount,
                   startableCount: queue.triggerableTaskCount(_selectedTaskIds),
                   cancelableCount: queue.cancelableTaskCount(_selectedTaskIds),
+                  removableCount: queue.removableTaskCount(_selectedTaskIds),
                   runningBatchAction: _runningBatchAction,
                   onStartSelected: () => unawaited(_startSelectedTasks(queue)),
                   onCancelSelected: () =>
                       unawaited(_cancelSelectedTasks(queue)),
+                  onRemoveSelected: () => _removeSelectedTasks(queue),
                   onClearSelection: _clearSelection,
+                ),
+              ),
+            if (queue.taskView.any(_isRemovableFinished))
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: ShadButton.outline(
+                  size: ShadButtonSize.sm,
+                  onPressed: _runningBatchAction
+                      ? null
+                      : () => unawaited(_confirmClearFinished(queue)),
+                  child: const Text('清空已完成'),
                 ),
               ),
           ],
@@ -304,6 +421,9 @@ class _TransfersPageState extends State<TransfersPage> {
                       : null,
                   onRetryPressed: task.isRetryableFileTransfer
                       ? () => unawaited(_retryFileTransfer(task))
+                      : null,
+                  onRemovePressed: queue.canRemoveTask(task.id)
+                      ? () => _removeTask(task, queue)
                       : null,
                 );
               },

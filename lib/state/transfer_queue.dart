@@ -132,8 +132,19 @@ class TransferQueue extends ChangeNotifier {
 
   bool canCancelTask(String id) => _canCancelTask(_taskById(id));
 
+  /// Reports whether a task can be removed from the queue (i.e. it exists,
+  /// has finished, and is not a managed directory child).
+  bool canRemoveTask(String id) {
+    final task = _taskById(id);
+    return task != null && _canRemoveTask(task);
+  }
+
   int cancelableTaskCount(Iterable<String> ids) =>
       _countTasks(ids, _canCancelTask);
+
+  /// Number of selected tasks that can be removed from the history list.
+  int removableTaskCount(Iterable<String> ids) =>
+      _countTasks(ids, (task) => task != null && _canRemoveTask(task));
 
   bool canTriggerTask(String id) => _canTriggerTask(_taskById(id));
 
@@ -203,6 +214,66 @@ class TransferQueue extends ChangeNotifier {
   }
 
   bool isCancelRequested(String id) => _cancelRequestedIds.contains(id);
+
+  /// Removes a single finished task from the queue. Returns true when a task
+  /// was actually removed. Active (pending/running) tasks cannot be removed —
+  /// callers should cancel them first.
+  bool removeTask(String id) {
+    final task = _tasksById[id];
+    if (task == null) {
+      return false;
+    }
+    if (!_canRemoveTask(task)) {
+      return false;
+    }
+    _tasks.removeWhere((t) => t.id == id);
+    _tasksById.remove(id);
+    _foregroundTaskIds.remove(id);
+    _cancelRequestedIds.remove(id);
+    _rebuildMountWritebackCounts();
+    scheduleTransferQueuePersist(this);
+    _scheduleNotifyListeners();
+    return true;
+  }
+
+  /// Removes the given selection of finished tasks. Returns the number of
+  /// entries actually purged. Active or directory-child tasks are skipped.
+  int removeTasks(Iterable<String> ids) {
+    var removed = 0;
+    for (final id in ids.toSet()) {
+      if (removeTask(id)) {
+        removed++;
+      }
+    }
+    return removed;
+  }
+
+  /// Removes every finished task (done / failed / canceled). Returns how many
+  /// entries were purged. Used by the toolbar "清空已完成" action.
+  int clearFinished() {
+    final before = _tasks.length;
+    _tasks.removeWhere(_canRemoveTask);
+    if (_tasks.length == before) {
+      return 0;
+    }
+    final remainingIds = _tasks.map((task) => task.id).toSet();
+    _tasksById.removeWhere((id, _) => !remainingIds.contains(id));
+    _foregroundTaskIds.removeWhere((id) => !remainingIds.contains(id));
+    _cancelRequestedIds.removeWhere((id) => !remainingIds.contains(id));
+    _rebuildMountWritebackCounts();
+    scheduleTransferQueuePersist(this);
+    _scheduleNotifyListeners();
+    return before - _tasks.length;
+  }
+
+  bool _canRemoveTask(TransferTask task) {
+    if (task.isDirectoryChild) {
+      // Directory upload children are managed by their parent task; do not let
+      // users delete them individually to avoid dangling parent references.
+      return false;
+    }
+    return task.isFinished;
+  }
 
   TransferStatus? statusOf(String id) => _taskById(id)?.status;
 

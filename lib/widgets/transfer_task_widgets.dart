@@ -74,6 +74,7 @@ class TransferTaskRow extends StatefulWidget {
     this.onCancelPressed,
     this.onStartNowPressed,
     this.onRetryPressed,
+    this.onRemovePressed,
   });
 
   final TransferTask task;
@@ -84,6 +85,7 @@ class TransferTaskRow extends StatefulWidget {
   final VoidCallback? onCancelPressed;
   final VoidCallback? onStartNowPressed;
   final VoidCallback? onRetryPressed;
+  final VoidCallback? onRemovePressed;
 
   @override
   State<TransferTaskRow> createState() => _TransferTaskRowState();
@@ -219,6 +221,20 @@ class _TransferTaskRowState extends State<TransferTaskRow> {
                         onPressed: widget.onRetryPressed,
                       ),
                     ),
+                  if (widget.onRemovePressed != null)
+                    AppTooltip(
+                      message: '从记录移除',
+                      child: ShadIconButton.ghost(
+                        icon: Icon(
+                          LucideIcons.trash2,
+                          color: theme.colorScheme.mutedForeground,
+                        ),
+                        width: 28,
+                        height: 28,
+                        iconSize: 16,
+                        onPressed: widget.onRemovePressed,
+                      ),
+                    ),
                   const SizedBox(width: 8),
                   TransferStatusBadge(task: widget.task),
                 ],
@@ -238,9 +254,11 @@ class TransferTaskSelectionActions extends StatelessWidget {
     required this.selectedVisibleCount,
     required this.startableCount,
     required this.cancelableCount,
+    required this.removableCount,
     required this.runningBatchAction,
     required this.onStartSelected,
     required this.onCancelSelected,
+    required this.onRemoveSelected,
     required this.onClearSelection,
   });
 
@@ -248,9 +266,11 @@ class TransferTaskSelectionActions extends StatelessWidget {
   final int selectedVisibleCount;
   final int startableCount;
   final int cancelableCount;
+  final int removableCount;
   final bool runningBatchAction;
   final VoidCallback onStartSelected;
   final VoidCallback onCancelSelected;
+  final VoidCallback onRemoveSelected;
   final VoidCallback onClearSelection;
 
   @override
@@ -309,6 +329,13 @@ class TransferTaskSelectionActions extends StatelessWidget {
               ? null
               : onCancelSelected,
           child: Text(cancelableCount > 0 ? '批量取消 $cancelableCount' : '批量取消'),
+        ),
+        ShadButton.outline(
+          size: ShadButtonSize.sm,
+          onPressed: runningBatchAction || removableCount == 0
+              ? null
+              : onRemoveSelected,
+          child: Text(removableCount > 0 ? '移除记录 $removableCount' : '移除记录'),
         ),
         ShadButton.ghost(
           size: ShadButtonSize.sm,
