@@ -10,6 +10,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/settings_about_section.dart';
+import 'package:remote_storage/widgets/settings_reset_user_config_section.dart';
 import 'package:remote_storage/widgets/settings_sections.dart'
     show
         DownloadDirectorySection,
@@ -70,6 +71,8 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
   bool _cleaningStaleWindowsProcesses = false;
+  bool _resettingUserConfig = false;
+  String? _resetUserConfigError;
 
   bool get _showsWindowsTab => isWindowsPlatform;
 
@@ -260,6 +263,17 @@ class _SettingsPageState extends State<SettingsPage> {
           errorText: _webdavCredentialsError,
           onSave: (username, password) =>
               _saveWebdavCredentials(config, username, password),
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '账号重置',
+        SettingsResetUserConfigSection(
+          theme: theme,
+          busy: _resettingUserConfig,
+          errorText: _resetUserConfigError,
+          onReset: _resetUserConfig,
         ),
       ),
     ];

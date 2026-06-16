@@ -168,6 +168,14 @@ class _FakeApi implements RemoteStorageGateway {
   Future<void> deleteProfile(String name) async {}
 
   @override
+  Future<BootstrapState> resetUserConfig() async =>
+      BootstrapState(
+        configPath: '/tmp/.remote-storage/config.toml',
+        configured: false,
+        config: RemoteStorageConfig.empty(),
+      );
+
+  @override
   Future<BootstrapState> setActiveProfile(String name) async =>
       loadBootstrapState();
 

@@ -235,6 +235,26 @@ func DeleteProfile(name string) error {
 	return nil
 }
 
+// ResetAllProfiles removes every stored account plus the legacy default config
+// sources, leaving the app in a first-run state. The active profile marker is
+// cleared too so the next bootstrap falls back to the setup flow.
+func ResetAllProfiles() error {
+	dir, err := ProfilesDir()
+	if err != nil {
+		return err
+	}
+	if err := removeDirIfExists(dir); err != nil {
+		return err
+	}
+	if err := deleteDefaultProfileSources(); err != nil {
+		return err
+	}
+	if activePath, err := ActiveProfilePath(); err == nil {
+		_ = os.Remove(activePath)
+	}
+	return nil
+}
+
 func deleteDefaultProfileSources() error {
 	defaultPath, err := DefaultConfigPath()
 	if err != nil {
@@ -379,6 +399,15 @@ func pathExists(path string) bool {
 
 func removeFileIfExists(path string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// removeDirIfExists clears a directory tree but ignores missing paths so the
+// reset flow stays idempotent across fresh and existing installs.
+func removeDirIfExists(path string) error {
+	if err := os.RemoveAll(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil

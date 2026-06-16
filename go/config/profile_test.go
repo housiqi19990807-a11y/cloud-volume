@@ -122,6 +122,50 @@ func TestDeleteDefaultProfileRemovesMigratableSources(t *testing.T) {
 	}
 }
 
+func TestResetAllProfilesClearsEveryAccount(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+
+	if err := SaveProfile("alpha", validTestConfig()); err != nil {
+		t.Fatalf("SaveProfile alpha returned error: %v", err)
+	}
+	if err := SetActiveProfile("alpha"); err != nil {
+		t.Fatalf("SetActiveProfile returned error: %v", err)
+	}
+	// Seed a legacy default config too so we confirm it gets removed as well.
+	legacyConfigPath := filepath.Join(home, legacyConfigDirName, configFileName)
+	if err := os.MkdirAll(filepath.Dir(legacyConfigPath), 0o700); err != nil {
+		t.Fatalf("create legacy config dir: %v", err)
+	}
+	if err := os.WriteFile(legacyConfigPath, []byte("endpoint = \"https://legacy.example\"\n"), 0o600); err != nil {
+		t.Fatalf("write legacy config: %v", err)
+	}
+
+	if err := ResetAllProfiles(); err != nil {
+		t.Fatalf("ResetAllProfiles returned error: %v", err)
+	}
+
+	profiles, err := ListProfiles()
+	if err != nil {
+		t.Fatalf("ListProfiles returned error: %v", err)
+	}
+	if len(profiles) != 0 {
+		t.Fatalf("profiles = %v, want empty after reset", profiles)
+	}
+	defaultPath, err := DefaultConfigPath()
+	if err != nil {
+		t.Fatalf("DefaultConfigPath returned error: %v", err)
+	}
+	for _, path := range []string{defaultPath, legacyConfigPath} {
+		assertPathMissing(t, path)
+	}
+	activePath, err := ActiveProfilePath()
+	if err != nil {
+		t.Fatalf("ActiveProfilePath returned error: %v", err)
+	}
+	assertPathMissing(t, activePath)
+}
+
 func validTestConfig() RemoteStorageConfig {
 	return RemoteStorageConfig{
 		Endpoint:           "https://current.example",

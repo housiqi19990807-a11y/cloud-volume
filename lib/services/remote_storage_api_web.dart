@@ -206,6 +206,15 @@ class RemoteStorageApi
   }
 
   @override
+  Future<BootstrapState> resetUserConfig() async {
+    final payload =
+        await _invoke('reset_user_config', <String, dynamic>{'confirm': true})
+            as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    return BootstrapState.fromJson(payload);
+  }
+
+  @override
   Future<BootstrapState> setActiveProfile(String name) async {
     final payload =
         await _invoke('set_active_profile', <String, dynamic>{'name': name})

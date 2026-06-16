@@ -62,6 +62,12 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if method == "reset_user_config" && !s.authenticated(r) {
+		// Resetting accounts wipes the active login, so require an existing
+		// session first to avoid anonymous callers clearing stored config.
+		writeError(w, http.StatusUnauthorized, fmt.Errorf("login required"))
+		return
+	}
 	if method != "load_bootstrap_state" &&
 		method != "save_config" &&
 		method != "list_profiles" &&
@@ -82,6 +88,12 @@ func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+	if method == "reset_user_config" {
+		// Wiping accounts also drops the active session so the browser returns to
+		// the first-run setup flow instead of staying logged in against empty config.
+		s.sessions.Delete(s.sessionToken(r))
+		s.clearSessionCookie(w, r)
 	}
 	writeSuccess(w, result)
 }
@@ -130,6 +142,17 @@ func (s *Server) invokeMethod(
 			return nil, http.StatusInternalServerError, err
 		}
 		return map[string]any{"ok": true}, http.StatusOK, nil
+	case "reset_user_config":
+		if err := storageconfig.ResetAllProfiles(); err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		// Reset the per-server WebDAV server state so stale mounts/credentials do
+		// not leak across the wipe.
+		if err := s.webdav.Reset(); err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		state, err := loadBootstrapState()
+		return state, http.StatusOK, err
 	case "set_active_profile":
 		if strings.TrimSpace(input.Name) == "" {
 			return nil, http.StatusBadRequest, fmt.Errorf("missing profile name")

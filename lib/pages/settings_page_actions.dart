@@ -362,4 +362,29 @@ extension _SettingsPageActions on _SettingsPageState {
       showAppErrorToast(context, title: '退出登录失败', message: error.toString());
     }
   }
+
+  Future<void> _resetUserConfig() async {
+    _updateState(() {
+      _resettingUserConfig = true;
+      _resetUserConfigError = null;
+    });
+    try {
+      await widget.api.resetUserConfig();
+      if (!mounted) return;
+      showAppToast(
+        context,
+        title: '账号已重置',
+        message: '已清空全部账号信息，即将返回初始化配置页。',
+      );
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _resetUserConfigError = error.toString());
+      showAppErrorToast(context, title: '账号重置失败', message: error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _resettingUserConfig = false);
+      }
+    }
+  }
 }

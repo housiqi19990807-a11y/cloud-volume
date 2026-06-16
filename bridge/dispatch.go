@@ -46,6 +46,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return authorizeBaiduPan(args)
 	case "delete_profile":
 		return deleteProfile(args)
+	case "reset_user_config":
+		return resetUserConfig(args)
 	case "set_active_profile":
 		return setActiveProfile(args)
 	// Storage operations.
@@ -212,6 +214,23 @@ func deleteProfile(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+// resetUserConfig wipes every stored account plus legacy default config
+// sources so the desktop shell returns to the first-run setup flow.
+func resetUserConfig(args json.RawMessage) (any, error) {
+	var input struct {
+		Confirm bool `json:"confirm"`
+	}
+	// The payload is informational today, but keep decodeArgs so a future
+	// confirmation token can be validated without changing the contract.
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := storageconfig.ResetAllProfiles(); err != nil {
+		return nil, err
+	}
+	return loadBootstrapState()
 }
 
 func setActiveProfile(args json.RawMessage) (any, error) {
