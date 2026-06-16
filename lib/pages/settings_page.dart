@@ -14,10 +14,10 @@ import 'package:remote_storage/widgets/settings_reset_user_config_section.dart';
 import 'package:remote_storage/widgets/settings_sections.dart'
     show
         DownloadDirectorySection,
-        CacheDirectorySection,
         ThemePicker,
         VisibilitySection,
         WebDavCredentialsSection;
+import 'package:remote_storage/widgets/settings_cache_section.dart';
 import 'package:remote_storage/widgets/settings_sync_section.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:remote_storage/widgets/settings_update_section.dart';
@@ -52,6 +52,12 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _downloadDirectoryError;
   bool _savingCacheDirectory = false;
   String? _cacheDirectoryError;
+  CacheStats? _cacheStats;
+  bool _loadingCacheStats = false;
+  bool _cleaningCache = false;
+  bool _openingCache = false;
+  bool _savingCacheRules = false;
+  String? _cacheRulesError;
   bool _savingVisibility = false;
   String? _visibilityError;
   bool _savingTrashSettings = false;
@@ -180,14 +186,26 @@ class _SettingsPageState extends State<SettingsPage> {
       _buildCard(
         theme,
         '缓存设置',
-        CacheDirectorySection(
+        SettingsCacheSection(
           theme: theme,
-          displayPath: config.resolvedCacheDirectory,
-          hasCustomPath: config.cacheDirectory.trim().isNotEmpty,
-          saving: _savingCacheDirectory,
-          errorText: _cacheDirectoryError,
+          api: widget.api,
+          config: config,
+          saving: _savingCacheDirectory || _savingCacheRules,
+          errorText: _cacheDirectoryError ?? _cacheRulesError,
+          stats: _cacheStats,
+          loadingStats: _loadingCacheStats,
+          cleaning: _cleaningCache,
+          opening: _openingCache,
           onPickDirectory: () => _pickCacheDirectory(config),
           onResetDirectory: () => _resetCacheDirectory(config),
+          onRefreshStats: () => refreshCacheStats(config),
+          onOpenDirectory: () => openCacheDirectory(config),
+          onCleanAll: () => cleanCache(config, clearAll: true),
+          onCleanRules: () => cleanCache(config, clearAll: false),
+          onAutoCleanupChanged: (value) =>
+              saveCacheAutoCleanup(config, value),
+          onMaxSizeChanged: (value) => saveCacheMaxSize(config, value),
+          onMaxAgeChanged: (value) => saveCacheMaxAge(config, value),
         ),
       ),
       const SizedBox(height: 20),
@@ -412,5 +430,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _resetCacheDirectory(RemoteStorageConfig config) async {
     await _saveCacheDirectory(config, '');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Load cache stats once the page is mounted so the card shows real usage.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      refreshCacheStats(widget.state.config);
+    });
   }
 }

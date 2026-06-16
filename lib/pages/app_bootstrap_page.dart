@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:remote_storage/services/cache_maintenance_service.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -69,6 +70,10 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
         }
 
         final session = snapshot.data!;
+        CacheMaintenanceService.instance.configure(
+          session.api,
+          session.state.config,
+        );
         final shouldShowSetup = _showSetupAnyway || !session.state.configured;
         if (shouldShowSetup) {
           return ConfigSetupPage(

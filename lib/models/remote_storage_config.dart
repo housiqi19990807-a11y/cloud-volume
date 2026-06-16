@@ -125,6 +125,9 @@ class RemoteStorageConfig {
     required this.windowsMountMode,
     required this.windowsThisPcEntryEnabled,
     required this.windowsWritebackConcurrency,
+    required this.cacheAutoCleanupEnabled,
+    required this.cacheMaxSizeMb,
+    required this.cacheMaxAgeDays,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -154,10 +157,13 @@ class RemoteStorageConfig {
       writebackQuietSeconds: 10,
       mountMetadataCacheSeconds: 60,
       usePathStyle: true,
-      windowsMountMode: WindowsMountMode.cloudFilesCached,
-      windowsThisPcEntryEnabled: false,
-      windowsWritebackConcurrency: 4,
-    );
+        windowsMountMode: WindowsMountMode.cloudFilesCached,
+        windowsThisPcEntryEnabled: false,
+        windowsWritebackConcurrency: 4,
+        cacheAutoCleanupEnabled: false,
+        cacheMaxSizeMb: 0,
+        cacheMaxAgeDays: 0,
+      );
   }
 
   factory RemoteStorageConfig.fromJson(Map<String, dynamic> json) {
@@ -263,6 +269,22 @@ class RemoteStorageConfig {
                 json['windows_writeback_concurrency'],
           ) ??
           4,
+      cacheAutoCleanupEnabled:
+          _boolFromDynamic(
+            json['cacheAutoCleanupEnabled'] ??
+                json['cache_auto_cleanup_enabled'],
+          ) ??
+          false,
+      cacheMaxSizeMb:
+          _intFromDynamic(
+            json['cacheMaxSizeMb'] ?? json['cache_max_size_mb'],
+          ) ??
+          0,
+      cacheMaxAgeDays:
+          _intFromDynamic(
+            json['cacheMaxAgeDays'] ?? json['cache_max_age_days'],
+          ) ??
+          0,
     );
   }
 
@@ -294,6 +316,9 @@ class RemoteStorageConfig {
   final WindowsMountMode windowsMountMode;
   final bool windowsThisPcEntryEnabled;
   final int windowsWritebackConcurrency;
+  final bool cacheAutoCleanupEnabled;
+  final int cacheMaxSizeMb;
+  final int cacheMaxAgeDays;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
@@ -378,6 +403,9 @@ class RemoteStorageConfig {
       'windowsMountMode': windowsMountMode.storageValue,
       'windowsThisPcEntryEnabled': windowsThisPcEntryEnabled,
       'windowsWritebackConcurrency': windowsWritebackConcurrency,
+      'cacheAutoCleanupEnabled': cacheAutoCleanupEnabled,
+      'cacheMaxSizeMb': cacheMaxSizeMb,
+      'cacheMaxAgeDays': cacheMaxAgeDays,
     };
   }
 
@@ -410,6 +438,9 @@ class RemoteStorageConfig {
     WindowsMountMode? windowsMountMode,
     bool? windowsThisPcEntryEnabled,
     int? windowsWritebackConcurrency,
+    bool? cacheAutoCleanupEnabled,
+    int? cacheMaxSizeMb,
+    int? cacheMaxAgeDays,
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
@@ -446,6 +477,10 @@ class RemoteStorageConfig {
           windowsThisPcEntryEnabled ?? this.windowsThisPcEntryEnabled,
       windowsWritebackConcurrency:
           windowsWritebackConcurrency ?? this.windowsWritebackConcurrency,
+      cacheAutoCleanupEnabled:
+          cacheAutoCleanupEnabled ?? this.cacheAutoCleanupEnabled,
+      cacheMaxSizeMb: cacheMaxSizeMb ?? this.cacheMaxSizeMb,
+      cacheMaxAgeDays: cacheMaxAgeDays ?? this.cacheMaxAgeDays,
     );
   }
 

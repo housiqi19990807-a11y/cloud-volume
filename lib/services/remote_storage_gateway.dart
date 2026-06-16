@@ -22,6 +22,7 @@ class RemoteStorageCapabilities {
     required this.supportsWebDavAccess,
     required this.supportsBrowserTransfers,
     required this.supportsDesktopWindowControls,
+    required this.supportsCacheDirectoryOpen,
   });
 
   const RemoteStorageCapabilities.desktop()
@@ -31,7 +32,8 @@ class RemoteStorageCapabilities {
       supportsSessionLogin = false,
       supportsWebDavAccess = false,
       supportsBrowserTransfers = false,
-      supportsDesktopWindowControls = true;
+      supportsDesktopWindowControls = true,
+      supportsCacheDirectoryOpen = true;
 
   const RemoteStorageCapabilities.web()
     : supportsMounts = false,
@@ -40,7 +42,8 @@ class RemoteStorageCapabilities {
       supportsSessionLogin = true,
       supportsWebDavAccess = true,
       supportsBrowserTransfers = true,
-      supportsDesktopWindowControls = false;
+      supportsDesktopWindowControls = false,
+      supportsCacheDirectoryOpen = false;
 
   final bool supportsMounts;
   final bool supportsNativeOpen;
@@ -49,6 +52,7 @@ class RemoteStorageCapabilities {
   final bool supportsWebDavAccess;
   final bool supportsBrowserTransfers;
   final bool supportsDesktopWindowControls;
+  final bool supportsCacheDirectoryOpen;
 }
 
 abstract class RemoteStorageGateway {
@@ -203,12 +207,69 @@ abstract class RemoteStorageGateway {
   );
   Future<void> cleanupMounts();
   Future<int> cleanupStaleWindowsProcesses();
+  Future<CacheStats> getCacheStats(RemoteStorageConfig config);
+  Future<void> openCacheDirectory(RemoteStorageConfig config);
+  Future<CleanCacheResult> cleanCache(
+    RemoteStorageConfig config, {
+    required bool clearAll,
+  });
   Future<BucketMountStatus> unmountBucket(String bucket);
   Future<BucketMountStatus> getBucketMountStatus(String bucket);
   Future<BucketMountStatus> openBucketMount(String bucket);
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
+
+/// [CacheStats] mirrors the Go-side cache directory summary used by Settings.
+class CacheStats {
+  const CacheStats({
+    required this.path,
+    required this.exists,
+    required this.sizeBytes,
+    required this.fileCount,
+    required this.lastModified,
+  });
+
+  factory CacheStats.fromJson(Map<String, dynamic> json) {
+    return CacheStats(
+      path: (json['path'] ?? '').toString(),
+      exists: json['exists'] == true,
+      sizeBytes: (json['sizeBytes'] ?? 0) as int,
+      fileCount: (json['fileCount'] ?? 0) as int,
+      lastModified: (json['lastModified'] ?? '').toString(),
+    );
+  }
+
+  final String path;
+  final bool exists;
+  final int sizeBytes;
+  final int fileCount;
+  final String lastModified;
+}
+
+/// [CleanCacheResult] reports how much the most recent cleanup pass reclaimed.
+class CleanCacheResult {
+  const CleanCacheResult({
+    required this.beforeBytes,
+    required this.afterBytes,
+    required this.removed,
+    required this.freedBytes,
+  });
+
+  factory CleanCacheResult.fromJson(Map<String, dynamic> json) {
+    return CleanCacheResult(
+      beforeBytes: (json['beforeBytes'] ?? 0) as int,
+      afterBytes: (json['afterBytes'] ?? 0) as int,
+      removed: (json['removed'] ?? 0) as int,
+      freedBytes: (json['freedBytes'] ?? 0) as int,
+    );
+  }
+
+  final int beforeBytes;
+  final int afterBytes;
+  final int removed;
+  final int freedBytes;
+}
 
 class MountBucketOptions {
   const MountBucketOptions({this.mountPath = '', this.readOnly = false});

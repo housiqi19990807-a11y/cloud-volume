@@ -32,6 +32,7 @@ type invokeEnvelope struct {
 	TrashID     string                            `json:"trashId"`
 	DurationSec int                               `json:"durationSec"`
 	ID          string                            `json:"id"`
+	ClearAll    bool                              `json:"clearAll"`
 }
 
 func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
@@ -316,6 +317,15 @@ func (s *Server) invokeMethod(
 		return map[string]any{"ok": true}, http.StatusOK, s.webdav.Reset()
 	case "cleanup_stale_windows_processes":
 		return map[string]any{"ok": true, "count": 0}, http.StatusOK, nil
+	case "get_cache_stats":
+		stats, err := storageconfig.GetCacheStats(config)
+		return stats, http.StatusOK, err
+	case "clean_cache":
+		result, err := storageconfig.CleanCache(
+			config,
+			storageconfig.CleanCacheRequest{ClearAll: input.ClearAll},
+		)
+		return result, http.StatusOK, err
 	default:
 		return nil, http.StatusNotFound, fmt.Errorf("unsupported bridge method %q", method)
 	}

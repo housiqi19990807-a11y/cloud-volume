@@ -222,6 +222,10 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           widget.initialState.config.windowsThisPcEntryEnabled,
       windowsWritebackConcurrency:
           widget.initialState.config.windowsWritebackConcurrency,
+      cacheAutoCleanupEnabled:
+          widget.initialState.config.cacheAutoCleanupEnabled,
+      cacheMaxSizeMb: widget.initialState.config.cacheMaxSizeMb,
+      cacheMaxAgeDays: widget.initialState.config.cacheMaxAgeDays,
     );
 
     if (!config.isConfigured) {

@@ -155,6 +155,21 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<BootstrapState> resetUserConfig() async => throw UnimplementedError();
 
   @override
+  Future<CacheStats> getCacheStats(RemoteStorageConfig config) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> openCacheDirectory(RemoteStorageConfig config) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<CleanCacheResult> cleanCache(
+    RemoteStorageConfig config, {
+    required bool clearAll,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
   Future<BootstrapState> setActiveProfile(String name) async =>
       throw UnimplementedError();
 

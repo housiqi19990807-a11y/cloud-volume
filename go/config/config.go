@@ -35,6 +35,9 @@ type RemoteStorageConfig struct {
 	WindowsMountMode            string                    `json:"windowsMountMode" toml:"windows_mount_mode"`
 	WindowsThisPcEntryEnabled   bool                      `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
 	WindowsWritebackConcurrency int                       `json:"windowsWritebackConcurrency" toml:"windows_writeback_concurrency"`
+	CacheAutoCleanupEnabled     bool                      `json:"cacheAutoCleanupEnabled" toml:"cache_auto_cleanup_enabled"`
+	CacheMaxSizeMB              int                       `json:"cacheMaxSizeMb" toml:"cache_max_size_mb"`
+	CacheMaxAgeDays             int                       `json:"cacheMaxAgeDays" toml:"cache_max_age_days"`
 }
 
 type BucketSettings struct {
@@ -57,6 +60,8 @@ const (
 	maxMountMetadataCacheSeconds       = 3600
 	defaultWindowsWritebackConcurrency = 4
 	maxWindowsWritebackConcurrency     = 32
+	maxCacheMaxSizeMB                  = 8 * 1024 * 1024 // 8 TiB upper bound keeps the field sane while still allowing large tiers
+	maxCacheMaxAgeDays                 = 3650
 )
 
 // BootstrapState is the typed payload returned to Flutter during startup.
@@ -81,10 +86,11 @@ func DefaultConfig() RemoteStorageConfig {
 		WindowsMountMode:            WindowsMountModeCloudFilesCached,
 		WindowsThisPcEntryEnabled:   false,
 		WindowsWritebackConcurrency: defaultWindowsWritebackConcurrency,
+		CacheAutoCleanupEnabled:     false,
+		CacheMaxSizeMB:              0,
+		CacheMaxAgeDays:             0,
 	}
 }
-
-// Normalized trims user input and keeps prefix formatting stable across reads and writes.
 func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 	return RemoteStorageConfig{
 		Endpoint:                    strings.TrimSpace(c.Endpoint),
@@ -115,6 +121,9 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		WindowsMountMode:            normalizeWindowsMountMode(c.WindowsMountMode),
 		WindowsThisPcEntryEnabled:   c.WindowsThisPcEntryEnabled,
 		WindowsWritebackConcurrency: normalizeWindowsWritebackConcurrency(c.WindowsWritebackConcurrency),
+		CacheAutoCleanupEnabled:     c.CacheAutoCleanupEnabled,
+		CacheMaxSizeMB:              normalizeCacheMaxSizeMB(c.CacheMaxSizeMB),
+		CacheMaxAgeDays:             normalizeCacheMaxAgeDays(c.CacheMaxAgeDays),
 	}
 }
 
@@ -402,6 +411,30 @@ func normalizeWindowsWritebackConcurrency(value int) int {
 		return defaultWindowsWritebackConcurrency
 	case value > maxWindowsWritebackConcurrency:
 		return maxWindowsWritebackConcurrency
+	default:
+		return value
+	}
+}
+
+// normalizeCacheMaxSizeMB clamps the configured cache size cap. 0 means unlimited.
+func normalizeCacheMaxSizeMB(value int) int {
+	switch {
+	case value < 0:
+		return 0
+	case value > maxCacheMaxSizeMB:
+		return maxCacheMaxSizeMB
+	default:
+		return value
+	}
+}
+
+// normalizeCacheMaxAgeDays clamps the configured cache retention window. 0 means unlimited.
+func normalizeCacheMaxAgeDays(value int) int {
+	switch {
+	case value < 0:
+		return 0
+	case value > maxCacheMaxAgeDays:
+		return maxCacheMaxAgeDays
 	default:
 		return value
 	}

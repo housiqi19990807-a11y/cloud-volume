@@ -116,6 +116,9 @@ class _FakeApi implements RemoteStorageGateway {
             windowsMountMode: WindowsMountMode.cloudFilesCached,
             windowsThisPcEntryEnabled: false,
             windowsWritebackConcurrency: 4,
+            cacheAutoCleanupEnabled: false,
+            cacheMaxSizeMb: 0,
+            cacheMaxAgeDays: 0,
           )
         : RemoteStorageConfig.empty(),
   );
@@ -173,6 +176,31 @@ class _FakeApi implements RemoteStorageGateway {
         configPath: '/tmp/.remote-storage/config.toml',
         configured: false,
         config: RemoteStorageConfig.empty(),
+      );
+
+  @override
+  Future<CacheStats> getCacheStats(RemoteStorageConfig config) async =>
+      const CacheStats(
+        path: '/tmp/.remote-storage/cache',
+        exists: false,
+        sizeBytes: 0,
+        fileCount: 0,
+        lastModified: '',
+      );
+
+  @override
+  Future<void> openCacheDirectory(RemoteStorageConfig config) async {}
+
+  @override
+  Future<CleanCacheResult> cleanCache(
+    RemoteStorageConfig config, {
+    required bool clearAll,
+  }) async =>
+      const CleanCacheResult(
+        beforeBytes: 0,
+        afterBytes: 0,
+        removed: 0,
+        freedBytes: 0,
       );
 
   @override

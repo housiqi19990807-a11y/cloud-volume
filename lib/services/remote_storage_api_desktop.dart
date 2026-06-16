@@ -14,7 +14,6 @@ import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
-
 part 'remote_storage_api_desktop_shares.dart';
 part 'remote_storage_api_desktop_paging.dart';
 
@@ -445,6 +444,33 @@ class RemoteStorageApi
       return (result['count'] ?? 0) as int;
     }
     return 0;
+  }
+
+  @override
+  Future<CacheStats> getCacheStats(RemoteStorageConfig config) async {
+    final result = await runBridgeCall('get_cache_stats', <String, dynamic>{
+      'config': config.toJson(),
+    });
+    return CacheStats.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> openCacheDirectory(RemoteStorageConfig config) async {
+    await runBridgeCall('open_cache_directory', <String, dynamic>{
+      'config': config.toJson(),
+    });
+  }
+
+  @override
+  Future<CleanCacheResult> cleanCache(
+    RemoteStorageConfig config, {
+    required bool clearAll,
+  }) async {
+    final result = await runBridgeCall('clean_cache', <String, dynamic>{
+      'config': config.toJson(),
+      'clearAll': clearAll,
+    });
+    return CleanCacheResult.fromJson(result as Map<String, dynamic>);
   }
 
   @override

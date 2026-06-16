@@ -387,4 +387,159 @@ extension _SettingsPageActions on _SettingsPageState {
       }
     }
   }
+
+  // --- Cache maintenance actions ---
+
+  Future<void> refreshCacheStats(RemoteStorageConfig config) async {
+    if (_loadingCacheStats) {
+      return;
+    }
+    _updateState(() {
+      _loadingCacheStats = true;
+      _cacheDirectoryError = null;
+    });
+    try {
+      final stats = await widget.api.getCacheStats(config);
+      if (!mounted) return;
+      _updateState(() => _cacheStats = stats);
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _cacheDirectoryError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _loadingCacheStats = false);
+      }
+    }
+  }
+
+  Future<void> openCacheDirectory(RemoteStorageConfig config) async {
+    _updateState(() {
+      _openingCache = true;
+      _cacheDirectoryError = null;
+    });
+    try {
+      await widget.api.openCacheDirectory(config);
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _cacheDirectoryError = error.toString());
+      showAppErrorToast(
+        context,
+        title: '打开缓存目录失败',
+        message: error.toString(),
+      );
+    } finally {
+      if (mounted) {
+        _updateState(() => _openingCache = false);
+      }
+    }
+  }
+
+  Future<void> cleanCache(
+    RemoteStorageConfig config, {
+    required bool clearAll,
+  }) async {
+    _updateState(() {
+      _cleaningCache = true;
+      _cacheDirectoryError = null;
+    });
+    try {
+      final result = await widget.api.cleanCache(config, clearAll: clearAll);
+      if (!mounted) return;
+      await refreshCacheStats(config);
+      if (!mounted) return;
+      showAppToast(
+        context,
+        title: clearAll ? '缓存已清空' : '缓存已按规则清理',
+        message: result.removed == 0
+            ? '当前没有需要清理的缓存。'
+            : '已删除 ${result.removed} 个文件，释放 ${_humanizeBytes(result.freedBytes)}。',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _cacheDirectoryError = error.toString());
+      showAppErrorToast(context, title: '清理缓存失败', message: error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _cleaningCache = false);
+      }
+    }
+  }
+
+  Future<void> saveCacheAutoCleanup(
+    RemoteStorageConfig config,
+    bool enabled,
+  ) async {
+    _updateState(() {
+      _savingCacheRules = true;
+      _cacheRulesError = null;
+    });
+    try {
+      await widget.api.saveConfig(
+        config.copyWith(cacheAutoCleanupEnabled: enabled),
+      );
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _cacheRulesError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _savingCacheRules = false);
+      }
+    }
+  }
+
+  Future<void> saveCacheMaxSize(RemoteStorageConfig config, int size) async {
+    _updateState(() {
+      _savingCacheRules = true;
+      _cacheRulesError = null;
+    });
+    try {
+      await widget.api.saveConfig(config.copyWith(cacheMaxSizeMb: size));
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _cacheRulesError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _savingCacheRules = false);
+      }
+    }
+  }
+
+  Future<void> saveCacheMaxAge(RemoteStorageConfig config, int age) async {
+    _updateState(() {
+      _savingCacheRules = true;
+      _cacheRulesError = null;
+    });
+    try {
+      await widget.api.saveConfig(config.copyWith(cacheMaxAgeDays: age));
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      _updateState(() => _cacheRulesError = error.toString());
+    } finally {
+      if (mounted) {
+        _updateState(() => _savingCacheRules = false);
+      }
+    }
+  }
+
+  static String _humanizeBytes(int bytes) {
+    if (bytes <= 0) {
+      return '0 B';
+    }
+    const units = <String>['B', 'KB', 'MB', 'GB', 'TB'];
+    double size = bytes.toDouble();
+    int unit = 0;
+    while (size >= 1024 && unit < units.length - 1) {
+      size /= 1024;
+      unit++;
+    }
+    return size >= 100 || unit == 0
+        ? '${size.toStringAsFixed(0)} ${units[unit]}'
+        : '${size.toStringAsFixed(2)} ${units[unit]}';
+  }
 }

@@ -114,6 +114,12 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return cleanupMounts()
 	case "cleanup_stale_windows_processes":
 		return cleanupStaleWindowsProcesses()
+	case "get_cache_stats":
+		return getCacheStats(args)
+	case "open_cache_directory":
+		return openCacheDirectory(args)
+	case "clean_cache":
+		return cleanCache(args)
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}
@@ -231,6 +237,41 @@ func resetUserConfig(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return loadBootstrapState()
+}
+
+// getCacheStats reports the resolved cache directory size for the settings card.
+func getCacheStats(args json.RawMessage) (any, error) {
+	var input bucketArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	return storageconfig.GetCacheStats(input.Config)
+}
+
+// openCacheDirectory reveals the resolved cache directory in the desktop shell.
+func openCacheDirectory(args json.RawMessage) (any, error) {
+	var input bucketArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := storageconfig.OpenCacheDirectory(input.Config); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
+// cleanCache runs either a full wipe or a rules-based eviction pass.
+func cleanCache(args json.RawMessage) (any, error) {
+	var input struct {
+		Config   storageconfig.RemoteStorageConfig `json:"config"`
+		ClearAll bool                               `json:"clearAll"`
+	}
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	return storageconfig.CleanCache(input.Config, storageconfig.CleanCacheRequest{
+		ClearAll: input.ClearAll,
+	})
 }
 
 func setActiveProfile(args json.RawMessage) (any, error) {

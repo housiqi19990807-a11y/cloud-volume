@@ -354,6 +354,30 @@ class RemoteStorageApi
   }
 
   @override
+  Future<CacheStats> getCacheStats(RemoteStorageConfig config) async {
+    final result = await _invoke('get_cache_stats');
+    return CacheStats.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> openCacheDirectory(RemoteStorageConfig config) {
+    // Browsers cannot reveal a local directory; the settings UI hides this
+    // action on web via capabilities.
+    throw UnsupportedError('Web 端暂不支持打开本地缓存目录');
+  }
+
+  @override
+  Future<CleanCacheResult> cleanCache(
+    RemoteStorageConfig config, {
+    required bool clearAll,
+  }) async {
+    final result = await _invoke('clean_cache', <String, dynamic>{
+      'clearAll': clearAll,
+    });
+    return CleanCacheResult.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
   Future<BucketMountStatus> unmountBucket(String bucket) async {
     final result = await _invoke('unmount_bucket', <String, dynamic>{
       'bucket': bucket,
