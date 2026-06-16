@@ -23,15 +23,10 @@ func DefaultConfigPath() (string, error) {
 }
 
 // appDataRoot returns the root folder for config and runtime data.
+// On every platform it lives under the user home directory (e.g. ~/.cloud-volume),
+// which keeps Windows from needing write access to the (often Program Files)
+// install directory.
 func appDataRoot() (string, error) {
-	if runtime.GOOS == "windows" {
-		exePath, err := os.Executable()
-		if err != nil {
-			return "", fmt.Errorf("resolve executable path: %w", err)
-		}
-		return filepath.Dir(exePath), nil
-	}
-
 	homePath, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve user home: %w", err)
@@ -40,10 +35,33 @@ func appDataRoot() (string, error) {
 }
 
 // legacyAppDataRoot returns the pre-Cloud Volume config root for upgrades.
+// On Windows it additionally covers the install-dir layout used by older
+// Cloud Volume builds, where config/runtime/cache lived next to cloud-volume.exe.
 func legacyAppDataRoot() (string, error) {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve user home: %w", err)
 	}
-	return filepath.Join(homePath, legacyConfigDirName), nil
+	legacyRoot := filepath.Join(homePath, legacyConfigDirName)
+	if pathExists(filepath.Join(legacyRoot, configFileName)) ||
+		pathExists(filepath.Join(legacyRoot, profilesDir)) {
+		return legacyRoot, nil
+	}
+	if runtime.GOOS == "windows" {
+		if installRoot, err := windowsInstallRoot(); err == nil && installRoot != "" {
+			return installRoot, nil
+		}
+	}
+	return legacyRoot, nil
+}
+
+// windowsInstallRoot returns the directory holding cloud-volume.exe, used to
+// migrate config/runtime data emitted by older Windows installs that wrote
+// alongside the executable.
+func windowsInstallRoot() (string, error) {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolve executable path: %w", err)
+	}
+	return filepath.Dir(exePath), nil
 }

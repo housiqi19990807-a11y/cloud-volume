@@ -3,13 +3,24 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
+
+// setTestHome redirects os.UserHomeDir to an isolated temp directory on every
+// platform: $HOME on Unix and $USERPROFILE on Windows.
+func setTestHome(t *testing.T, home string) {
+	t.Helper()
+	t.Setenv("HOME", home)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", home)
+	}
+}
 
 // Profile migration tests protect upgrades from the old Remote Storage data root.
 func TestMigrateDefaultCopiesLegacyConfigToCloudVolumeProfile(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	legacyConfigPath := filepath.Join(home, legacyConfigDirName, configFileName)
 	if err := os.MkdirAll(filepath.Dir(legacyConfigPath), 0o700); err != nil {
@@ -40,7 +51,7 @@ func TestMigrateDefaultCopiesLegacyConfigToCloudVolumeProfile(t *testing.T) {
 
 func TestMigrateDefaultCopiesLegacyProfiles(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	legacyProfilePath := filepath.Join(home, legacyConfigDirName, profilesDir, "default.toml")
 	if err := os.MkdirAll(filepath.Dir(legacyProfilePath), 0o700); err != nil {
@@ -71,7 +82,7 @@ func TestMigrateDefaultCopiesLegacyProfiles(t *testing.T) {
 
 func TestDeleteDefaultProfileRemovesMigratableSources(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	config := validTestConfig()
 	if err := SaveProfile("default", config); err != nil {

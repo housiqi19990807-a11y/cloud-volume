@@ -59,9 +59,9 @@
 
 ### 首次启动
 
-- 应用通过 Go FFI bridge 读取默认配置：macOS/Linux 使用 `~/.cloud-volume/config.toml`，Windows 使用安装目录下、与 `cloud-volume.exe` 同级的 `config.toml`。
-- 默认缓存目录跟随同一个工作路径：macOS/Linux 为 `~/.cloud-volume/cache`，Windows 为安装目录下与 `cloud-volume.exe` 同级的 `cache/`；也可以在设置页改到其他目录。
-- 升级启动时如果新位置还没有配置，会自动从旧的 `~/.remote-storage/config.toml` 或 `~/.remote-storage/profiles/*.toml` 迁移到新位置；迁移成功后会删除旧配置源，避免账号删除后又被旧配置恢复。
+- 应用通过 Go FFI bridge 读取默认配置：macOS / Linux / Windows 统一使用用户主目录下的 `~/.cloud-volume/config.toml`，不再写到安装目录，避免在 `C:\Program Files\Cloud Volume` 这类需要管理员权限的目录下首次启动时写不进配置文件。
+- 默认缓存目录跟随同一个工作路径：所有平台均为 `~/.cloud-volume/cache`；也可以在设置页改到其他目录。
+- 升级启动时如果新位置还没有配置，会自动从旧的 `~/.remote-storage/config.toml`、`~/.remote-storage/profiles/*.toml` 迁移到新位置；旧版 Windows 安装目录下与 `cloud-volume.exe` 同级的 `config.toml` 也会一并迁移；迁移成功后会删除旧配置源，避免账号删除后又被旧配置恢复。
 - 如果配置缺失或不完整，会先进入初始化配置页；初始化流程会先选择账号类型，目前支持 S3 对象存储、WebDAV 和百度网盘，再进入对应账号表单。
 - S3 对象存储初始化需要填写 `endpoint/access_key_id/secret_access_key`，高级设置里可调整 `region` 与 path-style URL；WebDAV 初始化需要填写服务地址、用户名和密码；百度网盘初始化会通过桌面端 `oob` OAuth 流程打开授权页，用户需要把网页返回的授权码手动粘贴回应用完成登录。
 - 如果访问密钥、签名或网络配置有误，初始化页会把常见 S3 / 网络错误转换成更友好的中文提示。
@@ -400,7 +400,7 @@ If a remount fails because the install directory's `runtime/mounts/<bucket>/writ
 The Cloud Files placeholder path now coalesces repeated directory fetch callbacks and skips placeholder creation for entries that already exist locally, which reduces Explorer browse loops and placeholder callback errors on busy folders.
 ## Runtime Logs
 
-Go bridge runtime logs are written to `~/.cloud-volume/runtime/logs/bridge.log` on macOS/Linux and `runtime/logs/bridge.log` under the install directory on Windows, which now includes Windows Cloud Files fetch-data and placeholder diagnostics for mount failures.
+Go bridge runtime logs are written to `~/.cloud-volume/runtime/logs/bridge.log` on macOS, Linux, and Windows, which now includes Windows Cloud Files fetch-data and placeholder diagnostics for mount failures.
 
 ## UI Responsiveness
 

@@ -13,6 +13,7 @@ import (
 
 func TestAuthLoginAndCookieProtectedInvoke(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
 
 	config := storageconfig.DefaultConfig()
 	config.Endpoint = "https://example.invalid"
@@ -104,6 +105,7 @@ func TestAuthLoginAndCookieProtectedInvoke(t *testing.T) {
 
 func TestSaveConfigCreatesSessionForFirstRun(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
 
 	server := NewServer(Options{})
 	handler := server.Handler()
