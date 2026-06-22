@@ -30,13 +30,21 @@ func (m *manager) listMountedObjectPage(
 	pageSize int32,
 ) (s3ops.ObjectPage, bool, error) {
 	m.mu.Lock()
-	if err := m.syncSessionLocked(); err != nil {
+	trimmedBucket := normalizeBucketName(bucket)
+	existing, ok := m.sessions[trimmedBucket]
+	if !ok {
 		m.mu.Unlock()
-		log.Printf("[mount/object-page] sync-error bucket=%q prefix=%q err=%v", bucket, prefix, err)
-		return s3ops.ObjectPage{}, false, err
+		return s3ops.ObjectPage{}, false, nil
 	}
-	session := m.session
-	if !mountSessionMatches(session, cfg, bucket, MountOptions{}) || session == nil || session.access == nil {
+	if !m.syncSessionLocked(existing) {
+		delete(m.sessions, trimmedBucket)
+		delete(m.lastProbes, existing.mountTarget)
+		m.mu.Unlock()
+		log.Printf("[mount/object-page] sync-inactive bucket=%q prefix=%q", bucket, prefix)
+		return s3ops.ObjectPage{}, false, nil
+	}
+	session := existing
+	if !mountSessionMatches(session, cfg, trimmedBucket, MountOptions{}) || session.access == nil {
 		m.mu.Unlock()
 		return s3ops.ObjectPage{}, false, nil
 	}

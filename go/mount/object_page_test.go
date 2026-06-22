@@ -57,9 +57,15 @@ func TestListMountedObjectPageIncludesPendingLocalFiles(t *testing.T) {
 		mounted: true,
 	}
 
-	previous := globalManager.session
-	globalManager.session = session
-	defer func() { globalManager.session = previous }()
+	previous := globalManager.sessions["test-bucket"]
+	globalManager.sessions["test-bucket"] = session
+	defer func() {
+		if previous == nil {
+			delete(globalManager.sessions, "test-bucket")
+		} else {
+			globalManager.sessions["test-bucket"] = previous
+		}
+	}()
 
 	page, handled, err := ListMountedObjectPage(
 		session.config,

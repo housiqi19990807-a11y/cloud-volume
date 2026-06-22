@@ -14,19 +14,27 @@ func TriggerQueuedTransfer(taskID string) bool {
 func (m *manager) cancelQueuedTransfer(taskID string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if m.session == nil || m.session.access == nil || m.session.access.writeback == nil {
-		return false
+	for _, session := range m.sessions {
+		if session.access == nil || session.access.writeback == nil {
+			continue
+		}
+		if session.access.writeback.cancelTask(taskID) {
+			return true
+		}
 	}
-	return m.session.access.writeback.cancelTask(taskID)
+	return false
 }
 
 func (m *manager) triggerQueuedTransfer(taskID string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if m.session == nil || m.session.access == nil || m.session.access.writeback == nil {
-		return false
+	for _, session := range m.sessions {
+		if session.access == nil || session.access.writeback == nil {
+			continue
+		}
+		if session.access.writeback.triggerTask(taskID) {
+			return true
+		}
 	}
-	return m.session.access.writeback.triggerTask(taskID)
+	return false
 }

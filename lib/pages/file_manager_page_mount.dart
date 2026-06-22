@@ -104,11 +104,16 @@ extension _FileManagerPageMount on _FileManagerPageState {
       }
       return;
     }
-    final mountedBucket = _currentMountedBucketEntry();
-    if (mountedBucket == null) {
+    final buckets = _buckets;
+    if (buckets == null) {
       return;
     }
-    await _refreshMountStatus(mountedBucket);
+    for (final bucket in buckets) {
+      if (_bucketMountStatuses[bucket.id]?.mounted == true ||
+          _mountBusyBuckets.contains(bucket.id)) {
+        await _refreshMountStatus(bucket);
+      }
+    }
   }
 
   Future<void> _refreshBucketMountStatuses(
@@ -137,19 +142,6 @@ extension _FileManagerPageMount on _FileManagerPageState {
     } catch (_) {
       // 挂载状态查询失败不阻断文件浏览；用户显式操作时再显示错误。
     }
-  }
-
-  FileManagerBucketEntry? _currentMountedBucketEntry() {
-    final buckets = _buckets;
-    if (buckets == null) {
-      return null;
-    }
-    for (final bucket in buckets) {
-      if (_bucketMountStatuses[bucket.id]?.mounted == true) {
-        return bucket;
-      }
-    }
-    return null;
   }
 
   Future<void> _mountBucket([FileManagerBucketEntry? bucket]) async {
@@ -223,23 +215,6 @@ extension _FileManagerPageMount on _FileManagerPageState {
     }
     if (!mounted) return;
     setState(() {
-      if (status.mounted) {
-        final keys = _bucketMountStatuses.keys.toList();
-        for (final key in keys) {
-          final existing = _bucketMountStatuses[key];
-          if (existing == null || key == bucketId) {
-            continue;
-          }
-          _bucketMountStatuses[key] = BucketMountStatus(
-            mounted: false,
-            bucket: existing.bucket,
-            mountPath: existing.mountPath,
-            serverUrl: existing.serverUrl,
-            port: existing.port,
-            lastError: existing.lastError,
-          );
-        }
-      }
       _bucketMountStatuses[bucketId] = status;
     });
   }

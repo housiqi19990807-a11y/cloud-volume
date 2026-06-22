@@ -12,13 +12,15 @@ import (
 )
 
 type manager struct {
-	mu           sync.Mutex
-	session      *mountSession
-	lastProbe    mountProbeSnapshot
-	lastProbeFor string
+	mu         sync.Mutex
+	sessions   map[string]*mountSession
+	lastProbes map[string]mountProbeSnapshot
 }
 
-var globalManager = &manager{}
+var globalManager = &manager{
+	sessions:   make(map[string]*mountSession),
+	lastProbes: make(map[string]mountProbeSnapshot),
+}
 
 // MountBucket starts the platform mount backend for one bucket at a time.
 func MountBucket(
@@ -38,7 +40,7 @@ func MountBucketWithOptions(
 	return globalManager.mountBucket(cfg, bucket, options)
 }
 
-// UnmountBucket unmounts the current mount when it matches the provided bucket.
+// UnmountBucket unmounts the requested bucket if it is currently mounted.
 func UnmountBucket(bucket string) (BucketMountStatus, error) {
 	return globalManager.unmountBucket(bucket)
 }
@@ -53,7 +55,7 @@ func OpenBucketMount(bucket string) (BucketMountStatus, error) {
 	return globalManager.openBucketMount(bucket)
 }
 
-// CleanupMounts unmounts any active bucket volume during app shutdown.
+// CleanupMounts unmounts all active bucket volumes during app shutdown.
 func CleanupMounts() error {
 	return globalManager.cleanupMounts()
 }
@@ -75,21 +77,16 @@ func (m *manager) mountBucket(
 	}
 	log.Printf("[mount/manager] mount-start bucket=%q root_prefix=%q", trimmedBucket, normalizeRootPrefix(cfg.RootPrefix))
 
-	if err := m.syncSessionLocked(); err != nil {
-		return BucketMountStatus{}, err
-	}
-	if m.session != nil && m.session.bucket == trimmedBucket {
-		if mountSessionMatches(m.session, cfg, trimmedBucket, options) {
-			return m.session.status(), nil
+	if existing, ok := m.sessions[trimmedBucket]; ok {
+		if m.syncSessionLocked(existing) {
+			if mountSessionMatches(existing, cfg, trimmedBucket, options) {
+				return existing.status(), nil
+			}
 		}
-		if err := m.unmountCurrentLocked(); err != nil {
-			return BucketMountStatus{}, err
-		}
-	}
-	if m.session != nil {
-		if err := m.unmountCurrentLocked(); err != nil {
-			return BucketMountStatus{}, err
-		}
+		// Either no longer active or config changed: unmount and remove.
+		m.unmountSessionLocked(existing)
+		delete(m.sessions, trimmedBucket)
+		delete(m.lastProbes, existing.mountTarget)
 	}
 	if cfg.BucketSettingsFor(trimmedBucket).ReadOnly {
 		options.ReadOnly = true
@@ -111,9 +108,8 @@ func (m *manager) mountBucket(
 		return BucketMountStatus{}, err
 	}
 
-	m.session = session
-	m.lastProbe = mountProbeSnapshot{}
-	m.lastProbeFor = ""
+	m.sessions[trimmedBucket] = session
+	delete(m.lastProbes, session.mountTarget)
 	log.Printf("[mount/manager] mount-done bucket=%q path=%q url=%q", session.bucket, session.mountPath, session.serverURL)
 	return session.status(), nil
 }
@@ -122,20 +118,18 @@ func (m *manager) unmountBucket(bucket string) (BucketMountStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if err := m.syncSessionLocked(); err != nil {
-		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, err
-	}
-	if m.session == nil {
-		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, nil
-	}
-	if trimmed := normalizeBucketName(bucket); trimmed != "" && trimmed != m.session.bucket {
-		return BucketMountStatus{Bucket: trimmed}, nil
+	trimmedBucket := normalizeBucketName(bucket)
+	existing, ok := m.sessions[trimmedBucket]
+	if !ok {
+		return BucketMountStatus{Bucket: trimmedBucket}, nil
 	}
 
-	status := m.session.status()
-	if err := m.unmountCurrentLocked(); err != nil {
+	status := existing.status()
+	if err := m.unmountSessionLocked(existing); err != nil {
 		return status, err
 	}
+	delete(m.sessions, trimmedBucket)
+	delete(m.lastProbes, existing.mountTarget)
 	status.Mounted = false
 	return status, nil
 }
@@ -144,101 +138,92 @@ func (m *manager) getBucketMountStatus(bucket string) (BucketMountStatus, error)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if err := m.syncSessionLocked(); err != nil {
-		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, err
+	trimmedBucket := normalizeBucketName(bucket)
+	existing, ok := m.sessions[trimmedBucket]
+	if !ok {
+		return BucketMountStatus{Bucket: trimmedBucket}, nil
 	}
-	if m.session == nil {
-		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, nil
+	if !m.syncSessionLocked(existing) {
+		delete(m.sessions, trimmedBucket)
+		delete(m.lastProbes, existing.mountTarget)
+		return BucketMountStatus{Bucket: trimmedBucket}, nil
 	}
-	if trimmed := normalizeBucketName(bucket); trimmed != "" && trimmed != m.session.bucket {
-		return BucketMountStatus{Bucket: trimmed}, nil
-	}
-	return m.session.status(), nil
+	return existing.status(), nil
 }
 
 func (m *manager) openBucketMount(bucket string) (BucketMountStatus, error) {
 	m.mu.Lock()
-	if err := m.syncSessionLocked(); err != nil {
+	trimmedBucket := normalizeBucketName(bucket)
+	existing, ok := m.sessions[trimmedBucket]
+	if !ok {
 		m.mu.Unlock()
-		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, err
+		return BucketMountStatus{Bucket: trimmedBucket}, fmt.Errorf("bucket is not mounted")
 	}
-	session := m.session
+	if !m.syncSessionLocked(existing) {
+		delete(m.sessions, trimmedBucket)
+		delete(m.lastProbes, existing.mountTarget)
+		m.mu.Unlock()
+		return BucketMountStatus{Bucket: trimmedBucket}, fmt.Errorf("bucket is not mounted")
+	}
+	session := existing
 	m.mu.Unlock()
 
-	if session == nil {
-		return BucketMountStatus{Bucket: normalizeBucketName(bucket)}, fmt.Errorf("bucket is not mounted")
-	}
-	if trimmed := normalizeBucketName(bucket); trimmed != "" && trimmed != session.bucket {
-		return BucketMountStatus{Bucket: trimmed}, fmt.Errorf("bucket %q is not mounted", trimmed)
-	}
 	if err := openMountPath(session.mountPath); err != nil {
 		return session.status(), err
 	}
 	return session.status(), nil
 }
 
-func (m *manager) syncSessionLocked() error {
-	if m.session == nil {
-		m.lastProbe = mountProbeSnapshot{}
-		m.lastProbeFor = ""
-		return nil
+// syncSessionLocked checks if a session is still active and returns true if it is.
+// If not active, it stops the backend. The caller should remove the session from
+// the map when false is returned.
+func (m *manager) syncSessionLocked(session *mountSession) bool {
+	if session == nil || session.stopping {
+		return false
 	}
-	if m.session.stopping {
-		return nil
-	}
-	active, err := m.cachedSessionActiveLocked(m.session)
+	active, err := m.cachedSessionActiveLocked(session)
 	if err != nil {
-		m.session.lastError = err.Error()
-		return err
+		session.lastError = err.Error()
+		_ = session.backend.Stop(session)
+		return false
 	}
 	if active {
-		m.session.mounted = true
-		return nil
+		session.mounted = true
+		return true
 	}
-	_ = m.session.backend.Stop(m.session)
-	m.session = nil
-	m.lastProbe = mountProbeSnapshot{}
-	m.lastProbeFor = ""
-	return nil
+	_ = session.backend.Stop(session)
+	return false
 }
 
 func (m *manager) cachedSessionActiveLocked(session *mountSession) (bool, error) {
-	if session == nil {
-		return false, nil
-	}
 	if session.stopping {
 		return false, nil
 	}
-	if m.lastProbeFor == session.mountTarget &&
-		!m.lastProbe.checkedAt.IsZero() &&
-		time.Since(m.lastProbe.checkedAt) < mountProbeCacheTTL {
-		return m.lastProbe.active, m.lastProbe.err
+	target := session.mountTarget
+	if probe, ok := m.lastProbes[target]; ok && !probe.checkedAt.IsZero() && time.Since(probe.checkedAt) < mountProbeCacheTTL {
+		return probe.active, probe.err
 	}
 	active, err := session.backend.IsActive(session)
-	m.lastProbe = mountProbeSnapshot{
+	m.lastProbes[target] = mountProbeSnapshot{
 		checkedAt: time.Now(),
 		active:    active,
 		err:       err,
 	}
-	m.lastProbeFor = session.mountTarget
 	return active, err
 }
 
-func (m *manager) unmountCurrentLocked() error {
-	if m.session == nil {
+func (m *manager) unmountSessionLocked(session *mountSession) error {
+	if session == nil {
 		return nil
 	}
-	m.session.stopping = true
-	log.Printf("[mount/manager] unmount-current bucket=%q target=%q", m.session.bucket, m.session.mountTarget)
-	err := m.session.backend.Stop(m.session)
-	m.session = nil
-	m.lastProbe = mountProbeSnapshot{}
-	m.lastProbeFor = ""
+	session.stopping = true
+	log.Printf("[mount/manager] unmount-session bucket=%q target=%q", session.bucket, session.mountTarget)
+	err := session.backend.Stop(session)
 	if err != nil {
-		log.Printf("[mount/manager] unmount-current-error err=%v", err)
+		log.Printf("[mount/manager] unmount-session-error bucket=%q err=%v", session.bucket, err)
 		return err
 	}
-	log.Printf("[mount/manager] unmount-current-done")
+	log.Printf("[mount/manager] unmount-session-done bucket=%q", session.bucket)
 	return nil
 }
 
@@ -246,10 +231,14 @@ func (m *manager) cleanupMounts() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	log.Printf("[mount/manager] cleanup-start")
-	if err := m.unmountCurrentLocked(); err != nil {
-		log.Printf("[mount/manager] cleanup-current-error err=%v", err)
-		return err
+	for bucket, session := range m.sessions {
+		if err := m.unmountSessionLocked(session); err != nil {
+			log.Printf("[mount/manager] cleanup-session-error bucket=%q err=%v", bucket, err)
+		}
+		delete(m.lastProbes, session.mountTarget)
 	}
+	m.sessions = make(map[string]*mountSession)
+	m.lastProbes = make(map[string]mountProbeSnapshot)
 	if err := cleanupAllManagedMounts(); err != nil {
 		log.Printf("[mount/manager] cleanup-managed-error err=%v", err)
 		return err
