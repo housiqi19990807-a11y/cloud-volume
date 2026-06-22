@@ -9,6 +9,7 @@
 - 设置页“通用设置”底部新增“账号重置”入口：确认后一键清空所有已保存的账号、密钥与 WebDAV 凭据（包含旧版 `~/.remote-storage` 与旧 Windows 安装目录下的遗留配置），并回到首次启动初始化页。已挂载桶与缓存目录不受影响，可重新配置后继续使用；Web 端在重置的同时会清掉当前会话 Cookie，避免对空配置继续保留登录态。
 - 设置页“通用设置”底部新增“配置管理”卡片，把原来跨 tab 显示的 `重新配置`、`刷新状态`、`退出登录` 统一收进通用设置内部，避免 Windows 设置页也重复出现这些通用操作。
 - 修复 Windows 下 `flutter run -d windows` 运行时缓存管理报 `unsupported bridge method get_cache_stats` 的问题：原因是 `windows/CMakeLists.txt` 中的 `install` 命令限制了 `CONFIGURATIONS Profile;Release`，导致 Debug 配置（`flutter run` 默认）不会把最新编译的 `remote_storage_bridge.dll` 复制到 runner 目录，runner 加载的是旧版本 DLL。已移除该限制，现在 Debug 配置也会正确复制最新 bridge DLL。
+- Windows 设置页暂时隐藏“Windows 挂载模式”卡片，不再允许用户从界面切换模式，保留底层逻辑供后续统一打开。
 - Windows 默认配置、缓存与运行时目录现在统一改回用户主目录下的 `~/.cloud-volume`（与 macOS/Linux 一致），不再写到安装目录下与 `cloud-volume.exe` 同级的位置；这样在 `C:\Program Files\Cloud Volume` 这类需要管理员权限的安装目录下首次启动时不会再因为写不进 `config.toml` / `runtime/` / `cache/` 而失败。升级启动时如果主目录下还没有配置，也会继续从安装目录下旧的 `config.toml` 迁移过来。
 - WebDAV 新建目录现在会在 bridge 日志里记录 `[webdav/mkdir]` 开始、`MKCOL` 响应、`405` 后目录存在性反查以及最终错误，方便排查目录创建失败但界面只看到错误提示的情况。
 - 修复 WebDAV 新建目录时把 `MKCOL 405 Method Not Allowed` 一律当作成功的问题；现在只有反查确认目标目录已经存在时才视为幂等成功，否则会把真实的创建失败反馈到界面。

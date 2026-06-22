@@ -68,8 +68,6 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _mountMetadataCacheError;
   bool _savingWebdavCredentials = false;
   String? _webdavCredentialsError;
-  bool _savingWindowsMountMode = false;
-  String? _windowsMountModeError;
   bool _savingWindowsThisPcEntry = false;
   String? _windowsThisPcEntryError;
   bool _savingWindowsWritebackConcurrency = false;
@@ -316,18 +314,6 @@ class _SettingsPageState extends State<SettingsPage> {
     RemoteStorageConfig config,
   ) {
     return [
-      _buildCard(
-        theme,
-        'Windows 挂载模式',
-        WindowsMountModeSection(
-          theme: theme,
-          mode: config.windowsMountMode,
-          saving: _savingWindowsMountMode,
-          errorText: _windowsMountModeError,
-          onChanged: (value) => _saveWindowsMountMode(config, value),
-        ),
-      ),
-      const SizedBox(height: 20),
       _buildCard(
         theme,
         'Windows 入口',

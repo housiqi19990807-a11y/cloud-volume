@@ -218,31 +218,6 @@ extension _SettingsPageActions on _SettingsPageState {
     }
   }
 
-  Future<void> _saveWindowsMountMode(
-    RemoteStorageConfig config,
-    WindowsMountMode? mode,
-  ) async {
-    if (mode == null || mode == config.windowsMountMode) {
-      return;
-    }
-    _updateState(() {
-      _savingWindowsMountMode = true;
-      _windowsMountModeError = null;
-    });
-    try {
-      await widget.api.saveConfig(config.copyWith(windowsMountMode: mode));
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      _updateState(() => _windowsMountModeError = error.toString());
-    } finally {
-      if (mounted) {
-        _updateState(() => _savingWindowsMountMode = false);
-      }
-    }
-  }
-
   Future<void> _saveWindowsThisPcEntry(
     RemoteStorageConfig config,
     bool enabled,
