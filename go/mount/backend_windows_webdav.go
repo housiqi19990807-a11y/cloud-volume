@@ -74,8 +74,7 @@ func (b *windowsWebDAVBackend) IsActive(session *mountSession) (bool, error) {
 }
 
 func (b *windowsWebDAVBackend) CleanupStale(session *mountSession) error {
-	_ = session
-	return cleanupManagedWindowsWebDAVMounts()
+	return cleanupManagedWindowsWebDAVMountForBucket(session.bucket)
 }
 
 func ensureWindowsMountPath(path string) error {

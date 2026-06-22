@@ -5,6 +5,7 @@ package mount
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,14 +73,20 @@ func cleanupManagedWindowsWebDAVMounts() error {
 	return nil
 }
 
-func listManagedWindowsWebDAVMounts() ([]string, error) {
+// webdavMountEntry pairs a mapped drive letter with the remote URL it points to.
+type webdavMountEntry struct {
+	local  string
+	remote string
+}
+
+func listManagedWindowsWebDAVMountEntries() ([]webdavMountEntry, error) {
 	cmd := exec.Command("net", "use")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("list mapped drives: %w: %s", err, string(output))
 	}
 	lines := strings.Split(string(output), "\n")
-	matches := make([]string, 0)
+	entries := make([]webdavMountEntry, 0)
 	for _, line := range lines {
 		fields := strings.Fields(strings.TrimSpace(line))
 		if len(fields) < 3 {
@@ -91,10 +98,58 @@ func listManagedWindowsWebDAVMounts() ([]string, error) {
 			continue
 		}
 		if strings.Contains(strings.ToLower(remote), "127.0.0.1") {
-			matches = append(matches, local+`\`)
+			entries = append(entries, webdavMountEntry{
+				local:  local + `\`,
+				remote: remote,
+			})
 		}
 	}
-	return matches, nil
+	return entries, nil
+}
+
+func listManagedWindowsWebDAVMounts() ([]string, error) {
+	entries, err := listManagedWindowsWebDAVMountEntries()
+	if err != nil {
+		return nil, err
+	}
+	drives := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		drives = append(drives, entry.local)
+	}
+	return drives, nil
+}
+
+// cleanupManagedWindowsWebDAVMountForBucket unmounts only the WebDAV drive that
+// belongs to the given bucket. It matches the bucket name embedded in the remote
+// URL path so that drives for other buckets remain untouched during multi-bucket mounts.
+func cleanupManagedWindowsWebDAVMountForBucket(bucket string) error {
+	mountName := managedMountPrefix + bucket
+	entries, err := listManagedWindowsWebDAVMountEntries()
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !webdavRemoteMatchesBucket(entry.remote, mountName) {
+			continue
+		}
+		if err := unmountWebDAVOnWindows(entry.local); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// webdavRemoteMatchesBucket checks whether a net use remote URL was created for
+// the given mount name. The remote URL is percent-encoded by url.URL.String(),
+// so we decode it before comparing the trailing path segment to avoid partial
+// matches between buckets whose names share a prefix.
+func webdavRemoteMatchesBucket(remote, mountName string) bool {
+	decoded, err := url.PathUnescape(remote)
+	if err != nil {
+		decoded = remote
+	}
+	trimmed := strings.TrimSuffix(decoded, "/")
+	return strings.HasSuffix(trimmed, "/"+mountName)
 }
 
 func allocateWindowsDriveLetter() (string, error) {

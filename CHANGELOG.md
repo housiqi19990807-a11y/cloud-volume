@@ -3,6 +3,7 @@
 ## Unreleased
 
 - 修复挂载只能挂一个桶的问题：Go 后端 `mount/manager` 从单 `session` 指针改为按 bucket 索引的 `sessions` map，挂载新桶时不再自动卸载旧桶；Flutter 端同步移除 `_applyMountStatus` 中强制把其他桶标记为已卸载的逻辑，以及 `_refreshVisibleMountStatusesOnce` 中只刷新单个桶的限制。现在支持同时挂载多个桶，每个桶的挂载状态独立维护。
+- 修复同时挂载多个桶后点击前一个桶提示 `bucket is not mounted` 的问题：Windows 后端 `CleanupStale` 之前会清理全部桶的 Cloud Files 和 WebDAV 挂载，现在改为仅清理当前桶对应的挂载；`cleanupManagedWindowsWebDAVMountForBucket` 会按桶名精确匹配 `net use` 映射，避免污染其它桶的驱动器。
 - 任务队列页现在支持清理历史记录：已完成 / 失败 / 已取消的任务行右键/行内新增“从记录移除”按钮；多选时批量操作区会显示“移除记录 N”；标题栏新增“清空已完成”一键清掉全部已结束记录（带二次确认）。运行中或等待中的任务不会被删除，目录上传的子任务由父任务托管也不会被单独移除；移除记录只清理本地历史，不影响实际远端文件。
 - 修复上传超大文件（如 30 GB）被父 context 超时一刀切全部杀掉的问题：每个分块现在都用 `context.WithoutCancel` 派生出独立超时的子 context，单个分块的 timeout 不再传染到其它分块；同时给每个分块加上最多 10 次自动重试（首次 0s、第二次 1s、第三次 2s…依次类推的线性退避），覆盖 5xx、`RequestTimeout`、`SlowDown`/`Throttling`、连接重置、`EOF`/`UnexpectedEOF` 等常见瞬态错误，用户主动取消或非瞬态错误（如 `AccessDenied`、`InvalidPart`）不会重试。
 - 修复上传失败后文件列表不刷新、点击“刷新”也不重新请求的问题：刷新流程现在会先清掉内存中的对象列表缓存并清空当前列表显示，再向后端重新请求；同时上传成功/失败都会触发当前目录重载，失败时也能立即看到部分上传的对象。

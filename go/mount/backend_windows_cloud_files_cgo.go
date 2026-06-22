@@ -215,14 +215,42 @@ func (b *windowsCloudFilesBackend) IsActive(session *mountSession) (bool, error)
 	return true, nil
 }
 
+// CleanupStale only removes stale Cloud Files artifacts for the specific bucket
+// being mounted. Previous implementations cleaned ALL buckets under the root,
+// which broke concurrent multi-bucket mounts by tearing down other active sessions.
 func (b *windowsCloudFilesBackend) CleanupStale(session *mountSession) error {
-	_ = session
-	if err := cleanupManagedWindowsCloudFilesArtifacts(); err != nil {
+	if err := cleanupManagedWindowsCloudFilesForBucket(session.bucket); err != nil {
 		return err
 	}
-	return cleanupManagedWindowsWebDAVMounts()
+	return cleanupManagedWindowsWebDAVMountForBucket(session.bucket)
 }
 
+// cleanupManagedWindowsCloudFilesForBucket removes only the Cloud Files sync-root
+// directory for the given bucket, deregistering its provider first.
+func cleanupManagedWindowsCloudFilesForBucket(bucket string) error {
+	mountPath, err := windowsCloudFilesMountPath(bucket)
+	if err != nil {
+		return err
+	}
+	if _, statErr := os.Stat(mountPath); os.IsNotExist(statErr) {
+		return nil
+	}
+	provider := newCloudFilesProvider(mountPath, windowsCFProviderID, "")
+	if err := provider.Deregister(); err != nil {
+		log.Printf("[mount/cloud-files] cleanup-bucket-deregister bucket=%q path=%q error=%v", bucket, mountPath, err)
+	} else {
+		log.Printf("[mount/cloud-files] cleanup-bucket-deregister bucket=%q path=%q", bucket, mountPath)
+	}
+	if err := os.RemoveAll(mountPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("[mount/cloud-files] cleanup-bucket-remove bucket=%q path=%q error=%v", bucket, mountPath, err)
+		return err
+	}
+	log.Printf("[mount/cloud-files] cleanup-bucket-remove bucket=%q path=%q", bucket, mountPath)
+	return nil
+}
+
+// cleanupManagedWindowsCloudFilesArtifacts removes ALL Cloud Files sync-root
+// directories under the managed root. Used only during full cleanup/shutdown.
 func cleanupManagedWindowsCloudFilesArtifacts() error {
 	if err := cleanupLegacyWindowsShellNamespaces(); err != nil {
 		return err
