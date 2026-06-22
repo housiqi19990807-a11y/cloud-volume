@@ -24,6 +24,13 @@ String describeBridgeError(Object error) {
   if (raw.contains('NoSuchBucket')) {
     return '目标 bucket 不存在，或当前账户没有访问它的权限。';
   }
+  if (raw.contains('NoSuchKey') ||
+      lower.contains('notfound') ||
+      lower.contains('not found') ||
+      lower.contains('file does not exist') ||
+      lower.contains('statuscode: 404')) {
+    return '文件已被删除或不存在，请刷新目录后重试。';
+  }
   if (raw.contains('只读') || raw.contains('暂无写入权限')) {
     return '该目录无操作权限。';
   }

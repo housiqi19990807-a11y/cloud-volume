@@ -34,14 +34,16 @@ mixin _RemoteStoragePagingApiMixin implements RemoteStorageGateway {
     String bucket,
     String prefix,
     String nextToken,
-    int pageSize,
-  ) async {
+    int pageSize, {
+    bool forceRefresh = false,
+  }) async {
     final result = await runBridgeCall('list_object_page', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'prefix': prefix,
       'nextToken': nextToken,
       'pageSize': pageSize,
+      'forceRefresh': forceRefresh,
     });
     return ObjectListPage.fromJson(result as Map<String, dynamic>);
   }

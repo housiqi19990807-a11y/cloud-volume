@@ -22,6 +22,28 @@ func ListMountedObjectPage(
 	return globalManager.listMountedObjectPage(cfg, bucket, prefix, nextToken, pageSize)
 }
 
+// InvalidateListCacheForPrefix drops cached directory listings for the given
+// bucket and prefix so the next ListMountedObjectPage call fetches fresh data.
+func InvalidateListCacheForPrefix(cfg storageconfig.RemoteStorageConfig, bucket, prefix string) {
+	globalManager.invalidateListCacheForPrefix(cfg, bucket, prefix)
+}
+
+func (m *manager) invalidateListCacheForPrefix(cfg storageconfig.RemoteStorageConfig, bucket, prefix string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	trimmedBucket := normalizeBucketName(bucket)
+	session, ok := m.sessions[trimmedBucket]
+	if !ok || session.access == nil {
+		return
+	}
+	if !mountSessionMatches(session, cfg, trimmedBucket, MountOptions{}) {
+		return
+	}
+	log.Printf("[mount/object-page] invalidate-list-cache bucket=%q prefix=%q", trimmedBucket, prefix)
+	session.access.InvalidateListCache(prefix)
+}
+
 func (m *manager) listMountedObjectPage(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket,

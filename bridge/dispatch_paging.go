@@ -11,11 +11,12 @@ import (
 
 // Paging bridge methods expose continuation-token listing for long directories and trash views.
 type objectPageArgs struct {
-	Config    storageconfig.RemoteStorageConfig `json:"config"`
-	Bucket    string                            `json:"bucket"`
-	Prefix    string                            `json:"prefix"`
-	NextToken string                            `json:"nextToken"`
-	PageSize  int32                             `json:"pageSize"`
+	Config       storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket       string                            `json:"bucket"`
+	Prefix       string                            `json:"prefix"`
+	NextToken    string                            `json:"nextToken"`
+	PageSize     int32                             `json:"pageSize"`
+	ForceRefresh bool                              `json:"forceRefresh"`
 }
 
 type trashPageArgs struct {
@@ -31,6 +32,9 @@ func listObjectPage(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	if input.Config.Normalized().StorageType != storageconfig.StorageTypeWebDAV {
+		if input.ForceRefresh {
+			bucketmount.InvalidateListCacheForPrefix(input.Config, input.Bucket, input.Prefix)
+		}
 		if page, handled, err := bucketmount.ListMountedObjectPage(
 			input.Config,
 			input.Bucket,

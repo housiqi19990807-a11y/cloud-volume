@@ -190,8 +190,9 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
     String bucket,
     String prefix,
     String nextToken,
-    int pageSize,
-  ) async => throw UnimplementedError();
+    int pageSize, {
+    bool forceRefresh = false,
+  }) async => throw UnimplementedError();
 
   @override
   Future<ObjectInfo> headObject(

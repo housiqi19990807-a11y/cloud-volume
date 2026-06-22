@@ -3,6 +3,7 @@ package mount
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -100,6 +101,11 @@ func (a *bucketAccess) statPath(
 	value, err, _ := a.group.Do(flightKey, func() (any, error) {
 		info, err := a.fetchStat(ctx, clean)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// Remote file was deleted: clear any stale metadata so subsequent
+				// accesses do not keep returning cached info for a ghost file.
+				a.cache.invalidatePath(clean)
+			}
 			return nil, err
 		}
 		a.cache.storeObject(clean, info)
@@ -132,6 +138,9 @@ func (a *bucketAccess) ensureLocalFile(
 
 	info, err := a.fetchStat(ctx, clean)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			a.cache.invalidatePath(clean)
+		}
 		return "", s3ops.ObjectInfo{}, err
 	}
 	a.cache.storeObject(clean, info)
@@ -204,5 +213,17 @@ func (a *bucketAccess) readRemoteRange(
 ) ([]byte, error) {
 	timeoutCtx, cancel := a.withTransferTimeout(ctx)
 	defer cancel()
-	return a.backend.ReadObjectRange(timeoutCtx, a.bucket, a.remoteKey(virtualPath), offset, length)
+	data, err := a.backend.ReadObjectRange(timeoutCtx, a.bucket, a.remoteKey(virtualPath), offset, length)
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		// Remote file was deleted while the metadata cache was still stale.
+		// Invalidate the cached entries so subsequent access re-fetches from remote.
+		a.cache.invalidatePath(virtualPath)
+	}
+	return data, err
+}
+
+// InvalidateListCache drops cached directory listings for the given prefix so
+// the next listDirectory call fetches fresh data from the remote backend.
+func (a *bucketAccess) InvalidateListCache(prefix string) {
+	a.cache.invalidateListCache(prefix)
 }

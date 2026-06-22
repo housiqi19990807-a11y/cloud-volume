@@ -427,6 +427,22 @@ func (c *bucketCache) invalidatePathLocked(virtualPath string) {
 	}
 }
 
+// invalidateListCache drops all cached directory listings for the given prefix
+// and its children so the next list call hits the remote backend.
+func (c *bucketCache) invalidateListCache(virtualPrefix string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	clean := cleanVirtualPath(virtualPrefix)
+	delete(c.listCache, clean)
+	prefixWithSlash := ensureDirSuffix(clean)
+	for key := range c.listCache {
+		if clean == "" || strings.HasPrefix(key, prefixWithSlash) {
+			delete(c.listCache, key)
+		}
+	}
+}
+
 func (c *bucketCache) invalidateParentsLocked(virtualPath string) {
 	clean := cleanVirtualPath(virtualPath)
 	delete(c.listCache, clean)

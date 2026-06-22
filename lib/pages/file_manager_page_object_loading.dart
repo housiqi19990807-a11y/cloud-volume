@@ -162,6 +162,7 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
       prefix,
       nextToken,
       pageSize,
+      forceRefresh: forceRefresh,
     );
     // 即便是 forceRefresh，也只在请求成功后才写入缓存；失败时不污染缓存，
     // 这样用户重试时仍会真正请求后端而不是返回上一次的错误快照。

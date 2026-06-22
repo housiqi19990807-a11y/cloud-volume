@@ -28,8 +28,9 @@ mixin _RemoteStorageWebPagingApiMixin implements RemoteStorageGateway {
     String bucket,
     String prefix,
     String nextToken,
-    int pageSize,
-  ) async {
+    int pageSize, {
+    bool forceRefresh = false,
+  }) async {
     final result = await _invoke('list_object_page', <String, dynamic>{
       'bucket': bucket,
       'prefix': prefix,

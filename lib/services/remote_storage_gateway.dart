@@ -86,8 +86,9 @@ abstract class RemoteStorageGateway {
     String bucket,
     String prefix,
     String nextToken,
-    int pageSize,
-  );
+    int pageSize, {
+    bool forceRefresh = false,
+  });
   Future<ObjectInfo> headObject(
     RemoteStorageConfig config,
     String bucket,
