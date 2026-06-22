@@ -30,10 +30,15 @@
 - Do not write compiled binaries or build artifacts to the repository root.
 - Route local Go and Flutter build outputs to `bin/`, `build/`, or tool-managed build directories.
 - For ad-hoc Go smoke validation from the repository root, do not run bare `go build .`.
-- Use `go build -o bin/...` for manual bridge smoke tests, and remove temporary one-off outputs if they were created.
+- Use `go build -o bin/...` for manual bridge smoke tests, and remove temporary one-off outputs if they were created.  
+  On Windows this means `go build -buildmode=c-shared -o bin/bridge/remote_storage_bridge.dll ./bridge` with `CGO_ENABLED=1` and a MinGW toolchain (e.g. MSYS2 UCRT64) available via `BRIDGE_CC`/`BRIDGE_CXX`.
 - The macOS app must be started through the Go binding workflow, not plain Flutter alone.
 - `make run` is the canonical local launch command. It first runs `make bridge`, which builds `./bridge` as `bin/bridge/libremote_storage_bridge.dylib`, then launches Flutter with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer flutter run -d macos`.
 - When validating integrated app startup, prefer `make run` over a bare `flutter run -d macos` so the bridge binary and Xcode path are both set correctly.
+- The Windows app must also be started through the Go binding workflow.  
+  `scripts/run_windows.ps1` is the canonical Windows launch command. It resolves a Flutter binary and an MSYS2 MinGW toolchain, builds `./bridge` as `bin/bridge/remote_storage_bridge.dll`, then launches Flutter with `flutter run -d windows`.  
+  `.un_windows.ps1 -Build` builds the release bundle instead of running.  
+  When validating integrated app startup on Windows, prefer `run_windows.ps1` over a bare `flutter run -d windows` so the bridge DLL and CGO toolchain are both set correctly.
 
 ## Git Workflow
 
