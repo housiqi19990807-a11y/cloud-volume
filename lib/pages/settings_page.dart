@@ -82,8 +82,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool get _showsWindowsTab => isWindowsPlatform;
 
-  bool get _showsFooterActions => _activeTab != _SettingsTab.about;
-
   void _updateState(VoidCallback action) => setState(action);
 
   @override
@@ -144,10 +142,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-            if (_showsFooterActions) ...[
-              const SizedBox(height: 24),
-              _buildFooterActions(),
-            ],
             const SizedBox(height: 40),
           ],
         ),
@@ -294,6 +288,25 @@ class _SettingsPageState extends State<SettingsPage> {
           onReset: _resetUserConfig,
         ),
       ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '配置管理',
+        Row(
+          children: [
+            ShadButton(onPressed: widget.onEditConfig, child: const Text('重新配置')),
+            const SizedBox(width: 10),
+            ShadButton.outline(
+              onPressed: widget.onRefresh,
+              child: const Text('刷新状态'),
+            ),
+            if (widget.api.capabilities.supportsSessionLogin) ...[
+              const SizedBox(width: 10),
+              ShadButton.outline(onPressed: _logout, child: const Text('退出登录')),
+            ],
+          ],
+        ),
+      ),
     ];
     return sections;
   }
@@ -362,23 +375,6 @@ class _SettingsPageState extends State<SettingsPage> {
         SettingsAboutSection(theme: theme, versionText: kAppRuntimeVersion),
       ),
     ];
-  }
-
-  Widget _buildFooterActions() {
-    return Row(
-      children: [
-        ShadButton(onPressed: widget.onEditConfig, child: const Text('重新配置')),
-        const SizedBox(width: 10),
-        ShadButton.outline(
-          onPressed: widget.onRefresh,
-          child: const Text('刷新状态'),
-        ),
-        if (widget.api.capabilities.supportsSessionLogin) ...[
-          const SizedBox(width: 10),
-          ShadButton.outline(onPressed: _logout, child: const Text('退出登录')),
-        ],
-      ],
-    );
   }
 
   Widget _buildCard(ShadThemeData theme, String title, Widget child) {
