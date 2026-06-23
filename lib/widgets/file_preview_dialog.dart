@@ -22,6 +22,7 @@ class FilePreviewDialog extends StatelessWidget {
     this.onOpenWithSystem,
     required this.onSaveAs,
     required this.onDownload,
+    this.unavailable = false,
   });
 
   final ObjectInfo object;
@@ -33,6 +34,8 @@ class FilePreviewDialog extends StatelessWidget {
   final VoidCallback? onOpenWithSystem;
   final VoidCallback onSaveAs;
   final VoidCallback onDownload;
+  // 当远端对象已不存在时为 true：此时只保留关闭动作，不再提供下载/另存为/外部打开。
+  final bool unavailable;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +71,7 @@ class FilePreviewDialog extends StatelessWidget {
             _ActionBar(
               transfer: transfer,
               loading: loading,
+              unavailable: unavailable,
               onOpenWithSystem: onOpenWithSystem,
               onSaveAs: onSaveAs,
               onDownload: onDownload,
@@ -83,6 +87,7 @@ class _ActionBar extends StatelessWidget {
   const _ActionBar({
     required this.transfer,
     required this.loading,
+    required this.unavailable,
     required this.onOpenWithSystem,
     required this.onSaveAs,
     required this.onDownload,
@@ -90,6 +95,8 @@ class _ActionBar extends StatelessWidget {
 
   final FilePreviewTransferState? transfer;
   final bool loading;
+  // 远端对象不存在时为 true：隐藏下载相关动作，只保留关闭。
+  final bool unavailable;
   final VoidCallback? onOpenWithSystem;
   final VoidCallback onSaveAs;
   final VoidCallback onDownload;
@@ -128,23 +135,26 @@ class _ActionBar extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
-        if (onOpenWithSystem != null) ...[
+        // 对象已被远端删除：下载/另存为/外部打开没有意义，直接收起。
+        if (!unavailable) ...[
+          if (onOpenWithSystem != null) ...[
+            const SizedBox(width: 10),
+            ShadButton.outline(
+              onPressed: onOpenWithSystem,
+              child: const Text('外部应用打开'),
+            ),
+          ],
           const SizedBox(width: 10),
           ShadButton.outline(
-            onPressed: onOpenWithSystem,
-            child: const Text('外部应用打开'),
+            onPressed: loading ? null : onSaveAs,
+            child: const Text('另存为'),
+          ),
+          const SizedBox(width: 10),
+          ShadButton(
+            onPressed: loading ? null : onDownload,
+            child: const Text('下载'),
           ),
         ],
-        const SizedBox(width: 10),
-        ShadButton.outline(
-          onPressed: loading ? null : onSaveAs,
-          child: const Text('另存为'),
-        ),
-        const SizedBox(width: 10),
-        ShadButton(
-          onPressed: loading ? null : onDownload,
-          child: const Text('下载'),
-        ),
       ],
     );
   }

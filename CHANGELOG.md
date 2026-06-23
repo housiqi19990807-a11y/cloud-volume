@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 修复打开预览的文件在远端已被删除（404/NoSuchKey）时，预览拟态框仍显示"外部应用打开 / 另存为 / 下载"按钮的问题：现在这类错误会判定为"对象不存在"，弹框只保留"取消/关闭"，关闭弹框后会自动触发当前目录的元数据刷新，让已删除的条目从列表中消失。
+
 - 修复 Windows Cloud Files 缓存读取路径的一个回归：`readCachedRange` 在清理 sync-root 占位标记后总是重新走 `ensureLocalFile`，当缓存元数据已命中但远端 HEAD/下载失败（例如远端对象已被删除）时会直接返回 `file does not exist`，导致占位符水合失败。现在会先检查缓存元数据与本地缓存文件，命中时直接从本地缓存按范围读取，避免不必要的远端往返；同时把本地范围读取逻辑抽取为 `readLocalRange` 复用。
 
 - 修复 Windows 下 Alt+F4 / 任务栏关闭不会弹出“隐藏到托盘 / 退出云卷”确认框、直接退出的体验问题：原生窗口现在在托盘激活时拦截 `WM_CLOSE` 并通过新增的 `requestClose` 通道方法回调到 Flutter，统一走应用内关闭按钮的确认流程；新增 `WindowControls.shouldConfirmClose` / `registerCloseRequestHandler` 配套 API，`DesktopWindowControls` 在生命周期内自动接管 OS 关闭请求。

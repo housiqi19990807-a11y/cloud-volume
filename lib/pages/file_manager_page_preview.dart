@@ -17,6 +17,8 @@ extension _FileManagerPagePreview on _FileManagerPageState {
     FilePreviewTransferState? transfer;
     FilePreviewSource? source;
     String? errorText;
+    // 远端对象不存在时置为 true：用于隐藏下载相关动作并在关闭弹窗后刷新目录元数据。
+    var unavailable = false;
 
     await showShadDialog(
       context: context,
@@ -45,6 +47,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                       if (!dialogContext.mounted) return;
                       setDialogState(() {
                         errorText = describeBridgeError(error);
+                        unavailable = isObjectMissingError(error);
                         loading = false;
                       });
                     }),
@@ -57,6 +60,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
               loading: loading,
               transfer: transfer,
               errorText: errorText,
+              unavailable: unavailable,
               onOpenWithSystem: () {
                 if (transfer != null) return;
                 transfer = _runningTransferState(_PreviewTransferAction.open);
@@ -80,6 +84,9 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                     dialogContext: dialogContext,
                     setDialogState: setDialogState,
                     setTransfer: (value) => transfer = value,
+                    onMissingDetected: () {
+                      unavailable = true;
+                    },
                   ),
                 );
               },
@@ -96,6 +103,9 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                     dialogContext: dialogContext,
                     setDialogState: setDialogState,
                     setTransfer: (value) => transfer = value,
+                    onMissingDetected: () {
+                      unavailable = true;
+                    },
                   ),
                 );
               },
@@ -104,6 +114,11 @@ extension _FileManagerPagePreview on _FileManagerPageState {
         );
       },
     );
+    // 关闭弹窗后，如果是因为对象在远端已不存在，触发一次目录元数据刷新，
+    // 让已删除的条目从列表中消失。
+    if (unavailable && _activeBucketEntry != null && mounted) {
+      await _reloadObjectsAfterBucketMutation(_activeBucketEntry!, _prefix);
+    }
   }
 
   Future<void> _runPreviewTransfer({
@@ -112,6 +127,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
     required BuildContext dialogContext,
     required StateSetter setDialogState,
     required ValueChanged<FilePreviewTransferState?> setTransfer,
+    VoidCallback? onMissingDetected,
   }) async {
     final bucket = _activeBucket;
     if (bucket == null) return;
@@ -164,6 +180,10 @@ extension _FileManagerPagePreview on _FileManagerPageState {
       if (!dialogContext.mounted) {
         _showPageError(error);
         return;
+      }
+      final missing = isObjectMissingError(error);
+      if (missing) {
+        onMissingDetected?.call();
       }
       setDialogState(() {
         setTransfer(

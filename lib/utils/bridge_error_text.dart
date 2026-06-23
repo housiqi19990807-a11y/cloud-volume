@@ -24,11 +24,7 @@ String describeBridgeError(Object error) {
   if (raw.contains('NoSuchBucket')) {
     return '目标 bucket 不存在，或当前账户没有访问它的权限。';
   }
-  if (raw.contains('NoSuchKey') ||
-      lower.contains('notfound') ||
-      lower.contains('not found') ||
-      lower.contains('file does not exist') ||
-      lower.contains('statuscode: 404')) {
+  if (_isObjectMissingRaw(raw, lower)) {
     return '文件已被删除或不存在，请刷新目录后重试。';
   }
   if (raw.contains('只读') || raw.contains('暂无写入权限')) {
@@ -44,6 +40,26 @@ String describeBridgeError(Object error) {
     return '无法连接到对象存储服务。请检查 Endpoint、网络连接和代理设置后重试。';
   }
   return raw;
+}
+
+// 判定桥接错误是否表示远端对象已不存在（404/NoSuchKey 等）。
+// describeBridgeError 与对外暴露的 isObjectMissingError 共用同一组关键字，
+// 避免判定逻辑分散后出现两边不一致。
+bool _isObjectMissingRaw(String raw, String lower) {
+  return raw.contains('NoSuchKey') ||
+      lower.contains('notfound') ||
+      lower.contains('not found') ||
+      lower.contains('file does not exist') ||
+      lower.contains('statuscode: 404');
+}
+
+// 对外暴露的"对象已不存在"判定，UI 可据此隐藏下载/另存为等动作并触发元数据刷新。
+bool isObjectMissingError(Object error) {
+  final raw = _extractBridgeErrorMessage(error);
+  if (raw.isEmpty) {
+    return false;
+  }
+  return _isObjectMissingRaw(raw, raw.toLowerCase());
 }
 
 String _extractBridgeErrorMessage(Object error) {
