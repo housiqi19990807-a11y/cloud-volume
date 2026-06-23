@@ -207,11 +207,10 @@ package_macos_dmg() {
   local dmg_path="$2"
   local stage_dir fix_script
   stage_dir="$(mktemp -d)"
-  fix_script="$ROOT_DIR/packaging/macos/双击修复已损坏问题.command"
+  fix_readme="$ROOT_DIR/packaging/macos/修复已损坏问题.txt"
   ditto "$app_bundle" "$stage_dir/$(basename "$app_bundle")"
-  [[ -f "$fix_script" ]] || fail "Missing macOS quarantine helper: $fix_script"
-  cp "$fix_script" "$stage_dir/$(basename "$fix_script")"
-  chmod +x "$stage_dir/$(basename "$fix_script")"
+  [[ -f "$fix_readme" ]] || fail "Missing macOS quarantine helper: $fix_readme"
+  cp "$fix_readme" "$stage_dir/$(basename "$fix_readme")"
   ln -s /Applications "$stage_dir/Applications"
   rm -f "$dmg_path"
   hdiutil create \

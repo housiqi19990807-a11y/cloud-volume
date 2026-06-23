@@ -99,7 +99,7 @@
 - Windows 安装包现在始终显示安装目录页面；即使复用上一次记住的安装路径，升级安装时也仍然可以手动改到新的目标目录。
 - macOS 和 Windows 托盘菜单现在都会显式处理右键菜单事件，避免依赖平台默认行为导致右键无响应或菜单一闪而过。
 - Windows 安装包的默认安装目录现在固定为 `C:\Program Files\Cloud Volume`，不再直接使用中文产品名作为安装路径，以降低部分环境和第三方组件在中文路径下的兼容性风险。
-- macOS 打包 DMG 现在会内置一个名为 `双击修复已损坏问题.command` 的辅助脚本，用户把应用拖到 `Applications` 后可直接双击移除 `com.apple.quarantine`，不必再手动打开终端输入修复命令。
+- macOS 打包 DMG 内置的修复辅助脚本从可双击的 `双击修复已损坏问题.command` 改为纯文本 `修复已损坏问题.txt`。原来的 `.command` 文件本身也会被 Gatekeeper 加上隔离属性，双击时同样提示「已损坏」要移到废纸篓，反而误导用户。改用纯文本引导后，用户只需按说明在终端执行 `xattr -dr com.apple.quarantine /Applications/云卷.app` 即可。
 - macOS 托盘图标恢复使用内置品牌模板资源，并按侧边栏品牌图的横向比例设置尺寸，避免状态栏里的云形被方形缩放挤压得不自然。
 - 修正打包桌面版启动时的 bridge 加载顺序：应用现在会优先使用 bundle 内置的 Go bridge 动态库，只有开发环境下才回退到仓库根目录与本地 `bin/bridge` 构建路径，避免 release 包启动时报 `Could not locate the Remote Storage repository root.`。
 - Release 文案生成脚本现在会自动附带更新记录、问题修复、macOS “已损坏” 处理方法、国内 GitHub 加速下载说明，以及构建产物的校验和与体积信息，后续 tag 发布不再只有纯资产清单。
