@@ -116,18 +116,27 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
           ShowTrayContextMenu(anchor);
           return 0;
         }
-        case WM_RBUTTONUP:
-        case WM_RBUTTONDOWN: {
-          POINT anchor;
-          GetCursorPos(&anchor);
-          ShowTrayContextMenu(anchor);
-          return 0;
-        }
+        // NOTE: WM_RBUTTONUP/WM_RBUTTONDOWN are intentionally NOT handled
+        // here. With NOTIFYICON_VERSION_4 the shell already posts a single
+        // WM_CONTEXTMENU for right-clicks; handling the button messages too
+        // causes the context menu to appear twice / on the down-click.
       }
       break;
 
     case WM_COMMAND:
       if (HandleTrayCommand(LOWORD(wparam))) {
+        return 0;
+      }
+      break;
+
+    case WM_CLOSE:
+      // When the tray is active, swallow WM_CLOSE and route it back through
+      // the Flutter "hide to tray vs exit" confirmation so Alt+F4, taskbar
+      // close, and the in-app close button all behave the same way. Without
+      // this, only the in-app button would prompt and OS-level close would
+      // quit the app immediately.
+      if (tray_icon_added_) {
+        CloseViaChannel();
         return 0;
       }
       break;
@@ -181,8 +190,25 @@ void FlutterWindow::RegisterWindowChannel() {
           result->Success(flutter::EncodableValue(IsWindowMaximized()));
           return;
         }
+        if (method == "shouldConfirmClose") {
+          // When the tray icon is active the host intercepts WM_CLOSE so
+          // Alt+F4 / taskbar close also surface the "hide to tray vs exit"
+          // prompt; without the tray the in-app close button just quits.
+          result->Success(flutter::EncodableValue(tray_icon_added_));
+          return;
+        }
         result->NotImplemented();
       });
+}
+
+void FlutterWindow::CloseViaChannel() {
+  // Reuse the Flutter close path so the "hide to tray vs exit" dialog drives
+  // every close gesture (in-app button, Alt+F4, taskbar close). The Dart side
+  // decides whether to hide to tray or actually quit via WindowControls.close.
+  if (window_channel_) {
+    window_channel_->InvokeMethod(
+        "requestClose", std::make_unique<flutter::EncodableValue>());
+  }
 }
 
 void FlutterWindow::InitializeTrayIcon() {

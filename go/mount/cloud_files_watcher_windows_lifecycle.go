@@ -101,12 +101,17 @@ func (w *windowsSyncWatcher) watchPlaceholderDirectories(baseDir string, items [
 	// Fetch-placeholder callbacks may arrive after a directory was opened
 	// through Explorer but before an earlier placeholder watch ever stuck.
 	// Re-arming the current directory here makes nested local writes visible.
+	// Also drop any leftover "ignore placeholder writeback" marker on the
+	// directory itself: when Explorer explicitly fetches this directory it is
+	// being opened/refreshed, so we want to see subsequent user writes.
+	w.state.clearIgnore(baseDir)
 	w.addWatch(baseDir)
 	for _, item := range items {
 		if !item.IsDirectory {
 			continue
 		}
 		fullPath := filepath.Join(baseDir, filepath.FromSlash(item.RelativePath))
+		w.state.clearIgnore(fullPath)
 		w.addWatch(fullPath)
 	}
 }

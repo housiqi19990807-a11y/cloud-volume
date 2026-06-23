@@ -33,8 +33,12 @@ func openMountPath(mountPath string) error {
 	if shellExecuteSucceeded(result) {
 		return nil
 	}
-	if callErr != windows.ERROR_SUCCESS && callErr != nil {
-		return fmt.Errorf("open mount path: %w", callErr)
+	// ShellExecuteW returns the failure cause in `result` (<= 32). The errno
+	// from syscall is always non-nil even on success, so only surface it when
+	// it carries a real OS error; otherwise fall back to the result code,
+	// which is what callers actually need to diagnose the failure.
+	if callErr != nil && callErr != windows.ERROR_SUCCESS {
+		return fmt.Errorf("open mount path: %w (result=%d)", callErr, result)
 	}
 	return fmt.Errorf("open mount path: shell execute returned %d", result)
 }

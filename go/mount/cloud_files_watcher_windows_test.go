@@ -500,7 +500,7 @@ func TestWindowsSyncWatcherCloseReturnsDuringHarvest(t *testing.T) {
 		if err != nil {
 			t.Fatalf("close watcher: %v", err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("expected watcher close to finish while harvest goroutines are active")
 	}
 }

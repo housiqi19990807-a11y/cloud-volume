@@ -229,6 +229,22 @@ Win32Window::MessageHandler(HWND hwnd,
       }
       return 0;
 
+    case WM_QUERYENDSESSION:
+      // Allow logoff/shutdown to proceed. Returning TRUE lets the OS continue
+      // and guarantees we also receive WM_ENDSESSION, where the hosted engine
+      // gets a chance to tear down cleanly (the tray path otherwise hides the
+      // window and the bridge never sees a normal shutdown signal).
+      return TRUE;
+
+    case WM_ENDSESSION:
+      // When the session is actually ending, force a real destroy so the
+      // Flutter engine and any bridge-owned resources release before the
+      // process exits, instead of being killed mid-write by the OS.
+      if (wparam == TRUE) {
+        Destroy();
+      }
+      return 0;
+
     case WM_DPICHANGED: {
       auto newRectSize = reinterpret_cast<RECT*>(lparam);
       LONG newWidth = newRectSize->right - newRectSize->left;

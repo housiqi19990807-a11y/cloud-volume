@@ -25,28 +25,40 @@ func CleanupStaleWindowsProcesses() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("resolve workspace root: %w", err)
 	}
-	targetPrefix := strings.ToLower(filepath.Clean(
-		filepath.Join(workspaceRoot, "build", "windows", "x64", "runner"),
-	))
+	// Match every architecture's runner output directory (x64, arm64, ...) so
+	// stale debug runners from any local build flavor are released together.
+	targetGlob := filepath.Join(workspaceRoot, "build", "windows", "*", "runner")
 	currentPID := os.Getpid()
-	escapedPrefix := strings.ReplaceAll(targetPrefix, "'", "''")
+	escapedGlob := strings.ReplaceAll(strings.ToLower(filepath.Clean(targetGlob)), "'", "''")
 
 	script := fmt.Sprintf(`
-$targetPrefix = '%s'
+$targetGlob = '%s'
 $currentPid = %d
 $killed = 0
+$runnerDirs = @()
+foreach ($globDir in Get-ChildItem -Path $targetGlob -Directory -ErrorAction SilentlyContinue) {
+  $runnerDirs += $globDir.FullName.ToLowerInvariant()
+}
 $processes = Get-CimInstance Win32_Process -Filter "Name = 'cloud-volume.exe'"
 foreach ($process in $processes) {
   if ($process.ProcessId -eq $currentPid) { continue }
   $path = $process.ExecutablePath
   if (-not $path) { continue }
   $clean = [System.IO.Path]::GetFullPath($path).ToLowerInvariant()
-  if (-not $clean.StartsWith($targetPrefix)) { continue }
-  Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
-  $killed++
+  $matches = $false
+  foreach ($runnerDir in $runnerDirs) {
+    if ($clean.StartsWith($runnerDir)) { $matches = $true; break }
+  }
+  if (-not $matches) { continue }
+  # SilentlyContinue so a single elevated/already-exited process does not abort
+  # the whole cleanup pass and leave remaining stale runners alive.
+  Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+  if (-not (Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue)) {
+    $killed++
+  }
 }
 Write-Output $killed
-`, escapedPrefix, currentPID)
+`, escapedGlob, currentPID)
 
 	cmd := exec.Command(exePath, "-NoProfile", "-Command", script)
 	var stdout bytes.Buffer

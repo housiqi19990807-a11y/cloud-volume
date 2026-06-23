@@ -23,7 +23,18 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
   void initState() {
     super.initState();
     _refreshMaximized();
+    // Route OS-level close gestures (Alt+F4 / taskbar close on Windows) through
+    // the same confirmation flow as the in-app close button.
+    WindowControls.registerCloseRequestHandler(_handleCloseRequest);
   }
+
+  @override
+  void dispose() {
+    WindowControls.registerCloseRequestHandler(null);
+    super.dispose();
+  }
+
+  Future<void> _handleCloseRequest() => _confirmClose();
 
   Future<void> _refreshMaximized() async {
     if (!WindowControls.supported) return;
@@ -48,62 +59,75 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
 
   Future<void> _confirmClose() async {
     if (_busy || !mounted) return;
-
-    final choice = await showShadDialog<_CloseAction>(
-      context: context,
-      builder: (dialogContext) => ShadDialog(
-        title: const Text('关闭云卷？'),
-        description: Text(
-          WindowControls.supportsTray
-              ? '你可以隐藏到托盘，或者直接退出应用。'
-              : '你可以先最小化窗口，或者直接退出应用。',
-        ),
-        child: SizedBox(
-          width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ShadButton.outline(
-                    onPressed: () => Navigator.of(dialogContext).pop(
-                      WindowControls.supportsTray
-                          ? _CloseAction.tray
-                          : _CloseAction.minimize,
+    setState(() => _busy = true);
+    try {
+      final confirm = await WindowControls.shouldConfirmClose();
+      if (!mounted) return;
+      if (!confirm) {
+        // Host is not intercepting close (e.g. non-tray builds): quit directly.
+        await WindowControls.close();
+        return;
+      }
+      final choice = await showShadDialog<_CloseAction>(
+        context: context,
+        builder: (dialogContext) => ShadDialog(
+          title: const Text('关闭云卷？'),
+          description: Text(
+            WindowControls.supportsTray
+                ? '你可以隐藏到托盘，或者直接退出应用。'
+                : '你可以先最小化窗口，或者直接退出应用。',
+          ),
+          child: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ShadButton.outline(
+                      onPressed: () => Navigator.of(dialogContext).pop(
+                        WindowControls.supportsTray
+                            ? _CloseAction.tray
+                            : _CloseAction.minimize,
+                      ),
+                      child: Text(
+                        WindowControls.supportsTray ? '隐藏到托盘' : '最小化窗口',
+                      ),
                     ),
-                    child: Text(
-                      WindowControls.supportsTray ? '隐藏到托盘' : '最小化窗口',
+                    const SizedBox(width: 10),
+                    ShadButton(
+                      onPressed: () =>
+                          Navigator.of(dialogContext).pop(_CloseAction.exit),
+                      child: const Text('退出云卷'),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  ShadButton(
-                    onPressed: () =>
-                        Navigator.of(dialogContext).pop(_CloseAction.exit),
-                    child: const Text('退出云卷'),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    switch (choice) {
-      case _CloseAction.tray:
-        await WindowControls.hideToTray();
-        break;
-      case _CloseAction.minimize:
-        await WindowControls.minimize();
-        break;
-      case _CloseAction.exit:
-        await WindowControls.close();
-        break;
-      case null:
-        break;
+      switch (choice) {
+        case _CloseAction.tray:
+          await WindowControls.hideToTray();
+          break;
+        case _CloseAction.minimize:
+          await WindowControls.minimize();
+          break;
+        case _CloseAction.exit:
+          await WindowControls.close();
+          break;
+        case null:
+          break;
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 

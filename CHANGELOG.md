@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- 修复 Windows Cloud Files 缓存读取路径的一个回归：`readCachedRange` 在清理 sync-root 占位标记后总是重新走 `ensureLocalFile`，当缓存元数据已命中但远端 HEAD/下载失败（例如远端对象已被删除）时会直接返回 `file does not exist`，导致占位符水合失败。现在会先检查缓存元数据与本地缓存文件，命中时直接从本地缓存按范围读取，避免不必要的远端往返；同时把本地范围读取逻辑抽取为 `readLocalRange` 复用。
+
+- 修复 Windows 下 Alt+F4 / 任务栏关闭不会弹出“隐藏到托盘 / 退出云卷”确认框、直接退出的体验问题：原生窗口现在在托盘激活时拦截 `WM_CLOSE` 并通过新增的 `requestClose` 通道方法回调到 Flutter，统一走应用内关闭按钮的确认流程；新增 `WindowControls.shouldConfirmClose` / `registerCloseRequestHandler` 配套 API，`DesktopWindowControls` 在生命周期内自动接管 OS 关闭请求。
+- 新增 Windows 单实例保护：`main.cpp` 通过命名互斥量 `CloudVolume.Singleton` 阻止第二次启动再开一个进程和重复的托盘图标。
+- 补充 Windows 关机/注销时的优雅退出：`Win32Window` 现在显式响应 `WM_QUERYENDSESSION` / `WM_ENDSESSION`，会话结束时强制销毁窗口，让 Flutter engine 与 bridge 资源有机会正常释放，而不是被 OS 直接杀掉。
+- 修复托盘右键菜单可能弹出两次或在按下时弹出的问题：移除 `WM_RBUTTONUP` / `WM_RBUTTONDOWN` 的手动处理，`NOTIFYICON_VERSION_4` 下完全依赖 shell 投递的 `WM_CONTEXTMENU`。
+- 修复 Windows 上用“外部应用打开”打开含空格或特殊字符路径时 `cmd /c start` 解析失败的问题：路径现在用引号包裹。
+- 修复 `openMountPath` 在 `ShellExecuteW` 失败时把 `syscall.Errno` 当作“真实错误”的误导性分支（实际只在 errno 非成功值时才透传，否则回退到返回值码），错误信息现在同时包含 result 值。
+- 扩大 `CleanupStaleWindowsProcesses` 的清理范围：从只匹配 `build/windows/x64/runner` 改为 glob 匹配 `build/windows/*/runner`，覆盖 arm64 等其它架构的本地 debug runner；并把 `Stop-Process` 改为 `SilentlyContinue`，单个进程（已提升权限或已退出）失败不再中止整轮清理，计数改为按真实退出结果统计。
+- 修正 `AGENTS.md` 中 Windows 启动命令损坏为 `.un_windows.ps1` 的笔误，恢复为 `.\run_windows.ps1 -Build`。
+- 修复 Windows Cloud Files watcher 的一个偶发竞态：当某目录的 placeholder 写回忽略窗口未过期时，`watchPlaceholderDirectories`（Explorer 显式拉取该目录时触发）虽然重新挂了 fsnotify，但目录本身的 `shouldIgnore` 仍返回 true，导致打开后的嵌套复制写入被丢弃，`TestFetchPlaceholderCallbackRearmsOpenedDirectoryWatch` 在并发压力下偶发失败。现在显式拉取目录时会调用 `clearIgnore` 清掉该目录的占位忽略窗口，让随后的真实写入进入队列。
+- 把 `TestWindowsSyncWatcherCloseReturnsDuringHarvest` 的关闭等待超时从 3 秒放宽到 10 秒，缓解高负载机器上 watcher 关闭与 harvest goroutine 收尾偶发超过 3 秒导致的偶发失败（关闭逻辑本身不变）。
+- 整理 `windows_installer.iss` 的签名配置：当只传 `SignTool`（视为完整 signtool 命令行）时不再强行依赖 PFX 变量，澄清三种签名输入（完整命令行 / PFX 对 / 主题名）的互斥关系。
+
+
 - 修复 Windows 下隐藏到托盘后再点击托盘无法恢复主窗口、关闭应用重新打开也只剩托盘不显示主界面的问题：根因是隐藏用 `SW_HIDE`，而恢复路径用的是 `SW_RESTORE`/`SW_MAXIMIZE`，对纯隐藏的窗口是 no-op，主窗口永远不会再被显示出来。现在恢复托盘和启动时统一改走 `SW_SHOWNORMAL`/`SW_SHOWMAXIMIZED`，并在 `OnCreate` 里直接显式显示主窗口作为安全网，避免首帧回调未触发时应用启动到只剩托盘的状态；隐藏前会记住最大化状态，恢复后窗口形状保持一致。
 
 - 修复挂载只能挂一个桶的问题：Go 后端 `mount/manager` 从单 `session` 指针改为按 bucket 索引的 `sessions` map，挂载新桶时不再自动卸载旧桶；Flutter 端同步移除 `_applyMountStatus` 中强制把其他桶标记为已卸载的逻辑，以及 `_refreshVisibleMountStatusesOnce` 中只刷新单个桶的限制。现在支持同时挂载多个桶，每个桶的挂载状态独立维护。

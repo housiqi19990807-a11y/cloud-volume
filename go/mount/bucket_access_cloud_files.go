@@ -36,15 +36,30 @@ func (a *bucketAccess) readCachedRange(
 	if length <= 0 {
 		return nil, nil
 	}
-	if item, ok := a.cache.localFile(virtualPath); ok && a.isSyncRootLocalPath(item.localPath) {
+	clean := cleanVirtualPath(virtualPath)
+	if item, ok := a.cache.localFile(clean); ok && a.isSyncRootLocalPath(item.localPath) {
 		// Cloud Files hydration must not read back from the sync-root placeholder
 		// itself, or the reader will recurse into the same CFAPI callback chain.
-		a.cache.clearLocalFileMarker(virtualPath)
+		a.cache.clearLocalFileMarker(clean)
 	}
+	// If cached metadata already describes the object and the downloaded cache
+	// file is present, hydrate from that copy instead of forcing a remote stat
+	// round-trip for bytes that are already local.
+	if info, ok := a.cache.cachedObject(clean); ok && !info.IsDir {
+		cachePath := a.cachePathFor(clean)
+		if isUsableLocalFile(cachePath, info.Size) {
+			return readLocalRange(cachePath, info, offset, length)
+		}
+	}
+
 	localPath, info, err := a.ensureLocalFile(ctx, virtualPath)
 	if err != nil {
 		return nil, err
 	}
+	return readLocalRange(localPath, info, offset, length)
+}
+
+func readLocalRange(localPath string, info s3ops.ObjectInfo, offset, length int64) ([]byte, error) {
 	file, err := os.Open(localPath)
 	if err != nil {
 		return nil, err

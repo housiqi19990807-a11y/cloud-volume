@@ -402,6 +402,16 @@ func (s *windowsPathState) ignore(
 	}
 }
 
+// clearIgnore drops any pending ignore window for a path. This is used when an
+// explicit open/fetch callback re-arms a placeholder directory, meaning the
+// directory is now user-visible and subsequent writes beneath it should be
+// treated as real edits rather than placeholder bookkeeping noise.
+func (s *windowsPathState) clearIgnore(localPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.ignored, filepath.Clean(localPath))
+}
+
 func (s *windowsPathState) shouldIgnore(localPath string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

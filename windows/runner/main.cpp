@@ -133,6 +133,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
   window.SetQuitOnClose(true);
 
+  // Single-instance guard: if another cloud-volume.exe is already running,
+  // bail out instead of spawning a second tray icon + engine. A named mutex
+  // held for the lifetime of this process is the standard lightweight check.
+  HANDLE singleton_mutex = ::CreateMutex(nullptr, TRUE, L"CloudVolume.Singleton");
+  if (singleton_mutex != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+    // The already-running instance owns its own window; just exit this one.
+    ::ReleaseMutex(singleton_mutex);
+    ::CloseHandle(singleton_mutex);
+    return EXIT_SUCCESS;
+  }
+  // Keep the mutex handle alive for the process lifetime; the OS releases it
+  // automatically on exit. We intentionally do not close it before wWinMain
+  // returns so a second instance started during shutdown still sees it.
+  (void)singleton_mutex;
+
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
     ::TranslateMessage(&msg);

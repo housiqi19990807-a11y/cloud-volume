@@ -61,8 +61,17 @@ OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseFilename}
 WizardStyle=modern
 UninstallDisplayIcon={app}\cloud-volume.exe
+; Signing configuration: callers pass either a full `SignTool` command line
+; (named-tool indirection, the normal Inno Setup usage), a PFX pair, or just a
+; subject name. Only one of these is expected; they are mutually exclusive.
 #if SignTool != ""
-SignTool=signtool /f "{#SignPfxPath}" /p "{#SignPfxPassword}" /fd sha256 /tr "{#SignTimestampUrl}" /td sha256 $f
+  #if SignPfxPath != ""
+    SignTool=signtool /f "{#SignPfxPath}" /p "{#SignPfxPassword}" /fd sha256 /tr "{#SignTimestampUrl}" /td sha256 $f
+  #else
+    ; Treat SignTool as a full signtool.exe command line (Inno's named-tool
+    ; indirection is not used here) so CI can pass its own complete invocation.
+    SignTool={#SignTool}
+  #endif
 #elif SignPfxPath != ""
 SignTool=signtool /f "{#SignPfxPath}" /p "{#SignPfxPassword}" /fd sha256 /tr "{#SignTimestampUrl}" /td sha256 $f
 #elif SignSubject != ""

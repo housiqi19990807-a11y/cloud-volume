@@ -37,7 +37,7 @@
 - When validating integrated app startup, prefer `make run` over a bare `flutter run -d macos` so the bridge binary and Xcode path are both set correctly.
 - The Windows app must also be started through the Go binding workflow.  
   `scripts/run_windows.ps1` is the canonical Windows launch command. It resolves a Flutter binary and an MSYS2 MinGW toolchain, builds `./bridge` as `bin/bridge/remote_storage_bridge.dll`, then launches Flutter with `flutter run -d windows`.  
-  `.un_windows.ps1 -Build` builds the release bundle instead of running.  
+  `.\run_windows.ps1 -Build` builds the release bundle instead of running.  
   When validating integrated app startup on Windows, prefer `run_windows.ps1` over a bare `flutter run -d windows` so the bridge DLL and CGO toolchain are both set correctly.
 
 ## Git Workflow
