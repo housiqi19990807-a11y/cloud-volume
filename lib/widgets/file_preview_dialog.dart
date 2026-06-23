@@ -109,6 +109,19 @@ class _ActionBar extends StatelessWidget {
         builder: (context, _) {
           final task = transfer!.currentTask;
           final running = !transfer!.done && (task == null || !task.isFinished);
+          // 远端对象已不存在时不再保留取消/后台运行，进度面板已经显示错误，
+          // 用户除了关闭弹框（随后会触发目录刷新）没有其它合理动作。
+          if (unavailable) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ShadButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('关闭'),
+                ),
+              ],
+            );
+          }
           return Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
