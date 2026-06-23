@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 修复 Windows 下隐藏到托盘后再点击托盘无法恢复主窗口、关闭应用重新打开也只剩托盘不显示主界面的问题：根因是隐藏用 `SW_HIDE`，而恢复路径用的是 `SW_RESTORE`/`SW_MAXIMIZE`，对纯隐藏的窗口是 no-op，主窗口永远不会再被显示出来。现在恢复托盘和启动时统一改走 `SW_SHOWNORMAL`/`SW_SHOWMAXIMIZED`，并在 `OnCreate` 里直接显式显示主窗口作为安全网，避免首帧回调未触发时应用启动到只剩托盘的状态；隐藏前会记住最大化状态，恢复后窗口形状保持一致。
+
 - 修复挂载只能挂一个桶的问题：Go 后端 `mount/manager` 从单 `session` 指针改为按 bucket 索引的 `sessions` map，挂载新桶时不再自动卸载旧桶；Flutter 端同步移除 `_applyMountStatus` 中强制把其他桶标记为已卸载的逻辑，以及 `_refreshVisibleMountStatusesOnce` 中只刷新单个桶的限制。现在支持同时挂载多个桶，每个桶的挂载状态独立维护。
 - 修复同时挂载多个桶后点击前一个桶提示 `bucket is not mounted` 的问题：Windows 后端 `CleanupStale` 之前会清理全部桶的 Cloud Files 和 WebDAV 挂载，现在改为仅清理当前桶对应的挂载；`cleanupManagedWindowsWebDAVMountForBucket` 会按桶名精确匹配 `net use` 映射，避免污染其它桶的驱动器。
 - 修复远端文件已删除但本地元数据缓存仍存在时，读取文件卡住或报错不明确的问题：挂载层在 stat 或 range-read 返回 404 时会立即清除对应的元数据缓存条目，避免后续访问继续命中幽灵缓存；UI 刷新按钮现在会同步清掉 Go 后端挂载层的目录缓存（新增 `forceRefresh` 桥接参数），确保点刷新后真正从远端拉最新列表；`describeBridgeError` 也补充了 `NoSuchKey` / `NotFound` / 404 等错误的中文提示，不再显示原始 Go 错误字符串。

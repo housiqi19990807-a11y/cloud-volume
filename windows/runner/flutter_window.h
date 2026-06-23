@@ -31,6 +31,7 @@ class FlutterWindow : public Win32Window {
   void RemoveTrayIcon();
   void HideToTray();
   void RestoreFromTray();
+  void EnsureVisible();
   void ShowTrayContextMenu(POINT anchor);
   bool HandleTrayCommand(UINT command_id);
 
@@ -48,6 +49,11 @@ class FlutterWindow : public Win32Window {
   // The Windows tray icon keeps the app accessible after hiding the window.
   NOTIFYICONDATA tray_icon_data_{};
   bool tray_icon_added_ = false;
+
+  // Remembered so RestoreFromTray can re-apply the same shape after the window
+  // was hidden via HideToTray. SW_HIDE clears WS_MAXIMIZE on restore, so we
+  // store the state at hide time.
+  bool was_maximized_before_hide_ = false;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

@@ -55,13 +55,18 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    // Guard against the window being closed before the first frame lands, which
+    // would dereference a torn-down window from the engine's frame callback.
+    if (GetHandle() != nullptr) {
+      EnsureVisible();
+    }
   });
 
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
-  flutter_controller_->ForceRedraw();
+  // Some sessions on Windows never receive the SetNextFrameCallback invocation
+  // (e.g. the engine restored a cached surface or the callback raced the very
+  // first frame). Always show the host window explicitly as a safety net so the
+  // app never boots into a hidden window that the user can only reach via tray.
+  EnsureVisible();
 
   return true;
 }
@@ -206,13 +211,37 @@ void FlutterWindow::RemoveTrayIcon() {
 }
 
 void FlutterWindow::HideToTray() {
+  // Remember the maximized state before hiding so RestoreFromTray can bring the
+  // window back in the exact same shape. Without this, a hidden window would
+  // lose track of whether it used to fill the work area.
+  was_maximized_before_hide_ = IsWindowMaximized();
   ShowWindow(GetHandle(), SW_HIDE);
 }
 
 void FlutterWindow::RestoreFromTray() {
-  const bool maximized = IsWindowMaximized();
-  ShowWindow(GetHandle(), maximized ? SW_MAXIMIZE : SW_RESTORE);
+  // SW_RESTORE only transitions a window out of the minimized/maximized state.
+  // It is a no-op for a window that was hidden via SW_HIDE, so the tray click
+  // path must explicitly SW_SHOW first. Restoring from tray then re-applies the
+  // remembered maximized state when applicable. Without this, clicking the tray
+  // icon after "hide to tray" would never bring the main window back.
+  if (was_maximized_before_hide_) {
+    ShowWindow(GetHandle(), SW_SHOWMAXIMIZED);
+  } else {
+    ShowWindow(GetHandle(), SW_SHOWNORMAL);
+  }
   SetForegroundWindow(GetHandle());
+}
+
+void FlutterWindow::EnsureVisible() {
+  // Centralized "make sure the host window is on screen" helper. Covers both
+  // the first-frame startup path and any future restore-from-hidden flow so we
+  // never end up with a tray-only app after a relaunch.
+  const HWND handle = GetHandle();
+  if (handle == nullptr) {
+    return;
+  }
+  ShowWindow(handle, SW_SHOWNORMAL);
+  SetForegroundWindow(handle);
 }
 
 void FlutterWindow::ShowTrayContextMenu(POINT anchor) {
