@@ -125,10 +125,13 @@ extension _FileManagerPagePreview on _FileManagerPageState {
         );
       },
     );
-    // 关闭弹窗后，如果是因为对象在远端已不存在，再补一次目录元数据刷新，
-    // 兜住"用户在错误出现前就关弹窗"或 preparePreviewSource 失败的情况。
-    if (unavailable && _activeBucketEntry != null && mounted) {
-      await _reloadObjectsAfterBucketMutation(_activeBucketEntry!, _prefix);
+    // 弹窗关闭时无条件刷一下当前目录元数据：兼容"对象已被远端删除"
+    // 的所有路径（预览加载失败、下载/另存为/外部打开返回 404，甚至用户
+    // 在错误出现前就关弹窗），避免列表里继续显示已不存在的条目。
+    // 刷新会带上"仍在同一 bucket/prefix"的保护，所以即使对象没被删，
+    // 最多也只是多拉一次列表，不会有副作用。
+    if (_activeBucketEntry != null && mounted) {
+      await _refreshActiveListingIfStillCurrent();
     }
   }
 
