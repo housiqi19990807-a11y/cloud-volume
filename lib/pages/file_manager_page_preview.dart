@@ -72,6 +72,11 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                     dialogContext: dialogContext,
                     setDialogState: setDialogState,
                     setTransfer: (value) => transfer = value,
+                    onMissingDetected: () {
+                      setDialogState(() {
+                        unavailable = true;
+                      });
+                    },
                   ),
                 );
               },
@@ -85,7 +90,9 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                     setDialogState: setDialogState,
                     setTransfer: (value) => transfer = value,
                     onMissingDetected: () {
-                      unavailable = true;
+                      setDialogState(() {
+                        unavailable = true;
+                      });
                     },
                   ),
                 );
@@ -104,7 +111,11 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                     setDialogState: setDialogState,
                     setTransfer: (value) => transfer = value,
                     onMissingDetected: () {
-                      unavailable = true;
+                      // 让 _ActionBar 立即切到 unavailable 分支，不再显示
+                      // 取消下载/后台运行，并把按钮文案收敛为"关闭"。
+                      setDialogState(() {
+                        unavailable = true;
+                      });
                     },
                   ),
                 );
@@ -114,8 +125,8 @@ extension _FileManagerPagePreview on _FileManagerPageState {
         );
       },
     );
-    // 关闭弹窗后，如果是因为对象在远端已不存在，触发一次目录元数据刷新，
-    // 让已删除的条目从列表中消失。
+    // 关闭弹窗后，如果是因为对象在远端已不存在，再补一次目录元数据刷新，
+    // 兜住"用户在错误出现前就关弹窗"或 preparePreviewSource 失败的情况。
     if (unavailable && _activeBucketEntry != null && mounted) {
       await _reloadObjectsAfterBucketMutation(_activeBucketEntry!, _prefix);
     }
@@ -183,6 +194,10 @@ extension _FileManagerPagePreview on _FileManagerPageState {
       }
       final missing = isObjectMissingError(error);
       if (missing) {
+        // 远端对象已不存在：立即触发一次目录元数据刷新，让已删除的条目
+        // 从列表中消失，不依赖弹窗被关闭的时机（用户可能直接关弹窗而
+        // 非"取消"，原来的关闭后判定会漏掉）。
+        unawaited(_refreshActiveListingIfStillCurrent());
         onMissingDetected?.call();
       }
       setDialogState(() {
@@ -191,6 +206,15 @@ extension _FileManagerPagePreview on _FileManagerPageState {
         );
       });
     }
+  }
+
+  // 仅当用户仍在同一个 bucket/prefix 时才刷新，避免页面已切走的误刷新。
+  Future<void> _refreshActiveListingIfStillCurrent() async {
+    final entry = _activeBucketEntry;
+    final prefix = _prefix;
+    if (entry == null || !mounted) return;
+    if (_activeBucketId != entry.id || _prefix != prefix) return;
+    await _reloadObjectsAfterBucketMutation(entry, prefix);
   }
 
   FilePreviewTransferState _runningTransferState(
