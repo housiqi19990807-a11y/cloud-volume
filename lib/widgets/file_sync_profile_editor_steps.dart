@@ -58,19 +58,31 @@ Widget stepPickEndpoints({
       if (self.widget.buckets.isEmpty)
         _bucketEmptyHint(theme)
       else
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 200),
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: self.widget.buckets.length,
-            itemBuilder: (context, i) {
-              final entry = self.widget.buckets[i];
-              final selected = self._selectedBucket?.id == entry.id;
-              return _bucketTile(theme, entry, selected, () {
-                self.markDirty(() => self._selectedBucket = entry);
+        ShadSelect<String>(
+          initialValue: self._selectedBucket?.id,
+          placeholder: const Text('选择存储桶'),
+          selectedOptionBuilder: (context, value) {
+            final entry = self.widget.buckets.firstWhere(
+              (b) => b.id == value,
+              orElse: () => self.widget.buckets.first,
+            );
+            return Text('${entry.bucket.name}（${entry.sourceLabel}）');
+          },
+          options: self.widget.buckets
+              .map((entry) => ShadOption<String>(
+                    value: entry.id,
+                    child: Text('${entry.bucket.name}（${entry.sourceLabel}）'),
+                  ))
+              .toList(growable: false),
+          onChanged: (v) {
+            if (v != null) {
+              self.markDirty(() {
+                self._selectedBucket = self.widget.buckets.firstWhere(
+                  (b) => b.id == v,
+                );
               });
-            },
-          ),
+            }
+          },
         ),
       const SizedBox(height: 16),
       stepLabel(theme, '远端目录前缀（可留空）'),
@@ -108,66 +120,6 @@ Widget _bucketEmptyHint(ShadThemeData theme) {
   );
 }
 
-Widget _bucketTile(
-  ShadThemeData theme,
-  FileManagerBucketEntry entry,
-  bool selected,
-  VoidCallback onTap,
-) {
-  return GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: selected
-            ? theme.colorScheme.primary.withValues(alpha: 0.08)
-            : theme.colorScheme.secondary,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: selected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.border.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            selected ? LucideIcons.circleCheckBig : LucideIcons.database,
-            size: 16,
-            color: selected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.mutedForeground,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.bucket.name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.foreground,
-                  ),
-                ),
-                Text(
-                  entry.sourceLabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
 
 /// 步骤 2「同步策略」：同步方向、冲突策略、同步周期、静默时间、排除规则、启用开关。
 Widget stepSyncStrategy({
