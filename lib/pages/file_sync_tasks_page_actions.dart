@@ -3,11 +3,65 @@ part of 'file_sync_tasks_page.dart';
 // 文件同步任务页的配置管理动作：新增、编辑、删除、启停、立即同步。
 // 与设置页解耦——这里是同步配置的唯一 CRUD 入口。
 extension _FileSyncTasksActions on _FileSyncTasksPageState {
+  // 加载所有账号下的桶列表，供编辑器选择目标桶。逻辑与文件管理页一致。
+    Future<void> _loadBuckets() async {
+      markDirty(() => _loadingBuckets = true);
+      try {
+        final entries = <FileManagerBucketEntry>[];
+        final sources = <_BucketSource>[];
+        if (widget.profiles.isEmpty) {
+          sources.add(_BucketSource(
+            profileName: 'default',
+            sourceLabel: _sourceLabel(widget.config),
+            config: widget.config,
+          ));
+        } else {
+          for (final profile in widget.profiles) {
+            final config = await widget.api.loadProfile(profile.name);
+            sources.add(_BucketSource(
+              profileName: profile.name,
+              sourceLabel: _sourceLabel(config),
+              config: config,
+            ));
+          }
+        }
+        for (final source in sources) {
+          final buckets = await widget.api.listBuckets(source.config);
+          for (final bucket in buckets) {
+            entries.add(FileManagerBucketEntry.fromBucketInfo(
+              bucket: bucket,
+              profileName: source.profileName,
+              sourceLabel: source.sourceLabel,
+              config: source.config,
+            ));
+          }
+        }
+        entries.sort((a, b) {
+          final sc = a.sourceLabel.compareTo(b.sourceLabel);
+          return sc != 0 ? sc : a.bucket.name.compareTo(b.bucket.name);
+        });
+        if (mounted) markDirty(() => _buckets = entries);
+      } catch (_) {
+        // 桶列表加载失败时静默，编辑器会显示空桶提示。
+      } finally {
+        if (mounted) markDirty(() => _loadingBuckets = false);
+      }
+    }
+
+  String _sourceLabel(dynamic config) {
+      if (config is! RemoteStorageConfig) return '账号';
+      final name = config.displayName.trim().isNotEmpty
+          ? config.displayName.trim()
+          : config.accessKeyId.trim();
+      final label = name.isEmpty ? '账号' : name;
+      return '$label · ${config.storageType.label}';
+    }
+
   Future<void> _addProfile() async {
     await showShadDialog(
       context: context,
       builder: (_) => FileSyncProfileEditor(
-        profiles: widget.profiles,
+        buckets: _buckets,
         onSave: _saveProfile,
       ),
     );
@@ -17,7 +71,7 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
     await showShadDialog(
       context: context,
       builder: (_) => FileSyncProfileEditor(
-        profiles: widget.profiles,
+        buckets: _buckets,
         initial: runtime.profile,
         onSave: _saveProfile,
       ),
@@ -90,4 +144,17 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
       showAppErrorToast(context, message: '同步失败：$e');
     }
   }
+}
+
+/// 桶来源的内部辅助结构。
+class _BucketSource {
+  const _BucketSource({
+    required this.profileName,
+    required this.sourceLabel,
+    required this.config,
+  });
+
+  final String profileName;
+  final String sourceLabel;
+  final RemoteStorageConfig config;
 }

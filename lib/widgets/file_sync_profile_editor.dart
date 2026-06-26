@@ -1,8 +1,9 @@
-// 文件同步配置编辑弹窗：分三步完成配置，降低单屏信息密度。
-// 步骤 1 基础信息 → 步骤 2 同步目标 → 步骤 3 同步策略。
+// 文件同步配置编辑弹窗：分两步完成配置，降低单屏信息密度。
+// 步骤 1 选择桶（桶列表来自文件管理的同一数据源，自动绑定关联账号）
+// 步骤 2 同步设置（远端前缀、本地目录、同步方向与策略）。
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -11,13 +12,13 @@ part 'file_sync_profile_editor_steps.dart';
 class FileSyncProfileEditor extends StatefulWidget {
   const FileSyncProfileEditor({
     super.key,
-    required this.profiles,
+    required this.buckets,
     required this.onSave,
     this.initial,
   });
 
-  /// 已有账号 profile 列表，供选择关联账号。
-  final List<ProfileInfo> profiles;
+  /// 文件管理页加载的桶列表，供用户直接选择目标桶。
+  final List<FileManagerBucketEntry> buckets;
   final Future<bool> Function(SyncProfile profile) onSave;
   final SyncProfile? initial;
 
@@ -27,14 +28,13 @@ class FileSyncProfileEditor extends StatefulWidget {
 
 class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   final _nameController = TextEditingController();
-  final _bucketController = TextEditingController();
   final _remotePrefixController = TextEditingController();
   final _localPathController = TextEditingController();
   final _excludeController = TextEditingController();
 
-  // 当前步骤索引（0 = 基础信息，1 = 同步目标，2 = 同步策略）。
+  // 当前步骤索引（0 = 选择桶，1 = 同步设置）。
   int _step = 0;
-  String _accountProfile = '';
+  FileManagerBucketEntry? _selectedBucket;
   SyncDirection _direction = SyncDirection.twoway;
   SyncConflictPolicy _conflictPolicy = SyncConflictPolicy.newest;
   int _intervalSeconds = 300;
@@ -43,19 +43,14 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   bool _saving = false;
   String? _errorText;
 
-  static const _stepLabels = ['基础信息', '同步目标', '同步策略'];
+  static const _stepLabels = ['同步两端', '同步策略'];
 
   @override
   void initState() {
     super.initState();
-    if (widget.profiles.isNotEmpty) {
-      _accountProfile = widget.profiles.first.name;
-    }
     final initial = widget.initial;
     if (initial == null) return;
     _nameController.text = initial.name;
-    _accountProfile = initial.accountProfile;
-    _bucketController.text = initial.bucket;
     _remotePrefixController.text = initial.remotePrefix;
     _localPathController.text = initial.localPath;
     _direction = initial.direction;
@@ -64,38 +59,37 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     _quietSeconds = initial.quietSeconds;
     _excludeController.text = initial.excludePatterns.join('\n');
     _enabled = initial.enabled;
+    // 编辑时回填已选桶。
+    _selectedBucket = widget.buckets
+        .where((b) =>
+            b.bucket.name == initial.bucket &&
+            b.profileName == initial.accountProfile)
+        .firstOrNull;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _bucketController.dispose();
     _remotePrefixController.dispose();
     _localPathController.dispose();
     _excludeController.dispose();
     super.dispose();
   }
 
-  /// 供 steps 顶层函数触发重建。setState 只能在 State 实例方法内调用，
-  /// 所以 steps 通过此公开方法间接调用。
+  /// 供 steps 顶层函数触发重建。
   void markDirty(VoidCallback fn) => setState(fn);
 
-  // 步骤校验：每步「下一步」前检查必填字段。
+  // 步骤校验：第一步必须选桶，第二步必须选本地目录。
   bool _validateCurrentStep() {
     setState(() => _errorText = null);
     switch (_step) {
       case 0:
-        if (_nameController.text.trim().isEmpty) {
-          setState(() => _errorText = '请输入配置名称');
-          return false;
-        }
-      case 1:
-        if (_bucketController.text.trim().isEmpty) {
-          setState(() => _errorText = '请输入远端桶名');
-          return false;
-        }
         if (_localPathController.text.trim().isEmpty) {
           setState(() => _errorText = '请选择本地目录');
+          return false;
+        }
+        if (_selectedBucket == null) {
+          setState(() => _errorText = '请选择一个存储桶');
           return false;
         }
     }
@@ -104,7 +98,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
 
   void _next() {
     if (!_validateCurrentStep()) return;
-    if (_step < 2) {
+    if (_step < 1) {
       setState(() => _step++);
     } else {
       _submit();
@@ -128,6 +122,11 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   }
 
   Future<void> _submit() async {
+    final bucket = _selectedBucket!;
+    // 名称留空时用「桶名/前缀」或桶名做默认值。
+    final name = _nameController.text.trim().isEmpty
+        ? (bucket.bucket.name)
+        : _nameController.text.trim();
     setState(() {
       _saving = true;
       _errorText = null;
@@ -146,9 +145,10 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
       quietSeconds: 10,
       enabled: true,
     )).copyWith(
-      name: _nameController.text.trim(),
-      accountProfile: _accountProfile,
-      bucket: _bucketController.text.trim(),
+      name: name,
+      // 从选中的桶条目自动绑定关联账号。
+      accountProfile: bucket.profileName,
+      bucket: bucket.bucket.name,
       remotePrefix: _remotePrefixController.text.trim(),
       localPath: _localPathController.text.trim(),
       direction: _direction,
@@ -188,10 +188,9 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
           children: [
             _buildStepIndicator(theme),
             const SizedBox(height: 20),
-            // 步骤内容区：根据 _step 渲染对应的字段组。
+            // 步骤内容区。
             switch (_step) {
-              0 => stepBasicInfo(theme: theme, self: this),
-              1 => stepSyncTarget(theme: theme, self: this),
+              0 => stepPickEndpoints(theme: theme, self: this),
               _ => stepSyncStrategy(theme: theme, self: this),
             },
             if (_errorText != null) ...[
@@ -212,7 +211,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     );
   }
 
-  /// 步骤指示器：三个圆点 + 当前步骤标签 + 进度条。
+  /// 步骤指示器。
   Widget _buildStepIndicator(ShadThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -271,12 +270,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     );
   }
 
-  Widget _buildStepDot(
-    ShadThemeData theme,
-    int index,
-    bool isActive,
-    bool isDone,
-  ) {
+  Widget _buildStepDot(ShadThemeData theme, int index, bool isActive, bool isDone) {
     final color = isActive || isDone
         ? theme.colorScheme.primary
         : theme.colorScheme.border;
@@ -304,9 +298,9 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     );
   }
 
-  /// 底部导航：第一步只有「下一步」，中间步骤有「上一步 / 下一步」，最后一步有「上一步 / 保存」。
+  /// 底部导航。
   Widget _buildNavButtons(ShadThemeData theme) {
-    final isLast = _step == 2;
+    final isLast = _step == 1;
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [

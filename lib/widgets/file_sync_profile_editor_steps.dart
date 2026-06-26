@@ -1,8 +1,8 @@
 // ignore_for_file: library_private_types_in_public_api
 part of 'file_sync_profile_editor.dart';
 
-// 分步配置的字段构建方法。作为顶层函数接收 _FileSyncProfileEditorState，
-// 这样能访问所有字段和 setState，同时把代码量分到两个文件。
+// 分步配置的字段构建方法。顶层函数接收 _FileSyncProfileEditorState，
+// 通过它访问字段和 markDirty。
 
 const _intervalOptions = <int>[60, 120, 300, 600, 1800, 3600];
 const _quietOptions = <int>[0, 5, 10, 30, 60, 120];
@@ -21,65 +21,19 @@ Widget stepLabel(ShadThemeData theme, String text) {
   );
 }
 
-/// 步骤 1：配置名称 + 关联账号。
-Widget stepBasicInfo({
+/// 步骤 1「同步两端」：选本地目录 + 选远端桶。
+/// 配置名称和远端目录前缀也在此步，因为它们描述的是同步的两端。
+Widget stepPickEndpoints({
   required ShadThemeData theme,
   required _FileSyncProfileEditorState self,
 }) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      stepLabel(theme, '配置名称'),
+      stepLabel(theme, '配置名称（可选）'),
       ShadInput(
         controller: self._nameController,
-        placeholder: const Text('例如：工作文档同步'),
-      ),
-      const SizedBox(height: 16),
-      stepLabel(theme, '关联账号'),
-      if (self.widget.profiles.isEmpty)
-        Text(
-          '暂无已配置账号，请先在账号管理中添加。',
-          style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground),
-        )
-      else
-        ShadSelect<String>(
-          initialValue: self._accountProfile,
-          placeholder: const Text('选择账号'),
-          selectedOptionBuilder: (context, value) => Text(value),
-          options: self.widget.profiles
-              .map((p) => ShadOption<String>(value: p.name, child: Text(p.name)))
-              .toList(growable: false),
-          onChanged: (v) {
-            if (v != null) self.markDirty(() => self._accountProfile = v);
-          },
-        ),
-      const SizedBox(height: 12),
-      Text(
-        '选择此同步配置使用的远程存储账号。',
-        style: TextStyle(fontSize: 11, color: theme.colorScheme.mutedForeground),
-      ),
-    ],
-  );
-}
-
-/// 步骤 2：远端桶名、远端目录前缀、本地目录。
-Widget stepSyncTarget({
-  required ShadThemeData theme,
-  required _FileSyncProfileEditorState self,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      stepLabel(theme, '远端桶名'),
-      ShadInput(
-        controller: self._bucketController,
-        placeholder: const Text('例如：my-bucket'),
-      ),
-      const SizedBox(height: 16),
-      stepLabel(theme, '远端目录前缀（可留空）'),
-      ShadInput(
-        controller: self._remotePrefixController,
-        placeholder: const Text('例如：docs/work'),
+        placeholder: const Text('留空则使用桶名'),
       ),
       const SizedBox(height: 16),
       stepLabel(theme, '本地目录'),
@@ -99,11 +53,124 @@ Widget stepSyncTarget({
           ),
         ],
       ),
+      const SizedBox(height: 16),
+      stepLabel(theme, '远端桶'),
+      if (self.widget.buckets.isEmpty)
+        _bucketEmptyHint(theme)
+      else
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 200),
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: self.widget.buckets.length,
+            itemBuilder: (context, i) {
+              final entry = self.widget.buckets[i];
+              final selected = self._selectedBucket?.id == entry.id;
+              return _bucketTile(theme, entry, selected, () {
+                self.markDirty(() => self._selectedBucket = entry);
+              });
+            },
+          ),
+        ),
+      const SizedBox(height: 16),
+      stepLabel(theme, '远端目录前缀（可留空）'),
+      ShadInput(
+        controller: self._remotePrefixController,
+        placeholder: const Text('例如：docs/work'),
+      ),
     ],
   );
 }
 
-/// 步骤 3：同步方向、冲突策略、同步周期、静默时间、排除规则、启用开关。
+Widget _bucketEmptyHint(ShadThemeData theme) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(vertical: 24),
+    decoration: BoxDecoration(
+      color: theme.colorScheme.secondary,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Column(
+      children: [
+        Icon(LucideIcons.cloudOff, size: 28, color: theme.colorScheme.mutedForeground),
+        const SizedBox(height: 8),
+        Text(
+          '没有可用的存储桶',
+          style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '请先在文件管理页确认桶列表已加载。',
+          style: TextStyle(fontSize: 11, color: theme.colorScheme.mutedForeground),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _bucketTile(
+  ShadThemeData theme,
+  FileManagerBucketEntry entry,
+  bool selected,
+  VoidCallback onTap,
+) {
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(8),
+    child: Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected
+            ? theme.colorScheme.primary.withValues(alpha: 0.08)
+            : theme.colorScheme.secondary,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.border.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            selected ? LucideIcons.circleCheckBig : LucideIcons.database,
+            size: 16,
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.mutedForeground,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.bucket.name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.foreground,
+                  ),
+                ),
+                Text(
+                  entry.sourceLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// 步骤 2「同步策略」：同步方向、冲突策略、同步周期、静默时间、排除规则、启用开关。
 Widget stepSyncStrategy({
   required ShadThemeData theme,
   required _FileSyncProfileEditorState self,

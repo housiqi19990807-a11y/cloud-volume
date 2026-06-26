@@ -2,6 +2,8 @@
 // 与通用任务队列互补——这里只显示 sync_ 类型的任务，并提供配置 CRUD 与立即同步入口。
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/file_manager_bucket_entry.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
@@ -25,7 +27,7 @@ class FileSyncTasksPage extends StatefulWidget {
   final RemoteStorageGateway api;
   final dynamic config;
 
-  /// 已配置的账号列表，供同步配置编辑器选择关联账号。
+  /// 已配置的账号列表，供加载各账号下的桶列表。
   final List<ProfileInfo> profiles;
   final bool active;
 
@@ -34,11 +36,15 @@ class FileSyncTasksPage extends StatefulWidget {
 }
 
 class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
+  List<FileManagerBucketEntry> _buckets = const [];
+  bool _loadingBuckets = false;
+
   @override
   void initState() {
     super.initState();
     TransferQueue.instance.addListener(_onQueueChanged);
     SyncProfileNotifier.instance.addListener(_onProfilesChanged);
+    _loadBuckets();
   }
 
   @override
@@ -47,6 +53,9 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
     SyncProfileNotifier.instance.removeListener(_onProfilesChanged);
     super.dispose();
   }
+
+  /// 供 actions part 文件触发重建。
+  void markDirty(VoidCallback fn) => setState(fn);
 
   void _onQueueChanged() {
     if (mounted) setState(() {});
@@ -96,11 +105,11 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
                   ],
                 ),
                 ShadButton(
-                  onPressed: _addProfile,
-                  child: const Row(
+                  onPressed: _loadingBuckets ? null : _addProfile,
+                  child: Row(
                     children: [
                       Icon(LucideIcons.plus, size: 16),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Text('新建配置'),
                     ],
                   ),
