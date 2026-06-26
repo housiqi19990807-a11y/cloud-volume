@@ -58,31 +58,34 @@ Widget stepPickEndpoints({
       if (self.widget.buckets.isEmpty)
         _bucketEmptyHint(theme)
       else
-        ShadSelect<String>(
-          initialValue: self._selectedBucket?.id,
-          placeholder: const Text('选择存储桶'),
-          selectedOptionBuilder: (context, value) {
-            final entry = self.widget.buckets.firstWhere(
-              (b) => b.id == value,
-              orElse: () => self.widget.buckets.first,
-            );
-            return Text('${entry.bucket.name}（${entry.sourceLabel}）');
-          },
-          options: self.widget.buckets
-              .map((entry) => ShadOption<String>(
-                    value: entry.id,
-                    child: Text('${entry.bucket.name}（${entry.sourceLabel}）'),
-                  ))
-              .toList(growable: false),
-          onChanged: (v) {
-            if (v != null) {
-              self.markDirty(() {
-                self._selectedBucket = self.widget.buckets.firstWhere(
-                  (b) => b.id == v,
-                );
-              });
-            }
-          },
+        SizedBox(
+          width: double.infinity,
+          child: ShadSelect<String>(
+            initialValue: self._selectedBucket?.id,
+            placeholder: const Text('选择存储桶'),
+            selectedOptionBuilder: (context, value) {
+              final entry = self.widget.buckets.firstWhere(
+                (b) => b.id == value,
+                orElse: () => self.widget.buckets.first,
+              );
+              return Text('${entry.bucket.name}（${entry.sourceLabel}）');
+            },
+            options: self.widget.buckets
+                .map((entry) => ShadOption<String>(
+                      value: entry.id,
+                      child: Text('${entry.bucket.name}（${entry.sourceLabel}）'),
+                    ))
+                .toList(growable: false),
+            onChanged: (v) {
+              if (v != null) {
+                self.markDirty(() {
+                  self._selectedBucket = self.widget.buckets.firstWhere(
+                    (b) => b.id == v,
+                  );
+                });
+              }
+            },
+          ),
         ),
       const SizedBox(height: 16),
       stepLabel(theme, '远端目录前缀（可留空）'),
@@ -130,57 +133,69 @@ Widget stepSyncStrategy({
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       stepLabel(theme, '同步方向'),
-      ShadSelect<String>(
-        initialValue: self._direction.value,
-        selectedOptionBuilder: (context, value) =>
-            Text(SyncDirection.fromValue(value).label),
-        options: SyncDirection.values
-            .map((d) => ShadOption<String>(value: d.value, child: Text(d.label)))
-            .toList(growable: false),
-        onChanged: (v) {
-          if (v != null) {
-            self.markDirty(() => self._direction = SyncDirection.fromValue(v));
-          }
-        },
+      SizedBox(
+        width: double.infinity,
+        child: ShadSelect<String>(
+          initialValue: self._direction.value,
+          selectedOptionBuilder: (context, value) =>
+              Text(SyncDirection.fromValue(value).label),
+          options: SyncDirection.values
+              .map((d) => ShadOption<String>(value: d.value, child: Text(d.label)))
+              .toList(growable: false),
+          onChanged: (v) {
+            if (v != null) {
+              self.markDirty(() => self._direction = SyncDirection.fromValue(v));
+            }
+          },
+      ),
       ),
       const SizedBox(height: 16),
       stepLabel(theme, '冲突策略'),
-      ShadSelect<String>(
-        initialValue: self._conflictPolicy.value,
-        selectedOptionBuilder: (context, value) =>
-            Text(SyncConflictPolicy.fromValue(value).label),
-        options: SyncConflictPolicy.values
-            .map((p) => ShadOption<String>(value: p.value, child: Text(p.label)))
-            .toList(growable: false),
-        onChanged: (v) {
-          if (v != null) {
-            self.markDirty(() => self._conflictPolicy = SyncConflictPolicy.fromValue(v));
-          }
-        },
+      SizedBox(
+        width: double.infinity,
+        child: ShadSelect<String>(
+          initialValue: self._conflictPolicy.value,
+          selectedOptionBuilder: (context, value) =>
+              Text(SyncConflictPolicy.fromValue(value).label),
+          options: SyncConflictPolicy.values
+              .map((p) => ShadOption<String>(value: p.value, child: Text(p.label)))
+              .toList(growable: false),
+          onChanged: (v) {
+            if (v != null) {
+              self.markDirty(() => self._conflictPolicy = SyncConflictPolicy.fromValue(v));
+            }
+          },
+      ),
       ),
       const SizedBox(height: 16),
       stepLabel(theme, '同步周期'),
-      ShadSelect<int>(
-        initialValue: self._intervalSeconds,
-        selectedOptionBuilder: (context, value) => Text(_intervalLabel(value)),
-        options: _intervalOptions
-            .map((s) => ShadOption<int>(value: s, child: Text(_intervalLabel(s))))
-            .toList(growable: false),
-        onChanged: (v) {
-          if (v != null) self.markDirty(() => self._intervalSeconds = v);
-        },
+      SizedBox(
+        width: double.infinity,
+        child: ShadSelect<int>(
+          initialValue: self._intervalSeconds,
+          selectedOptionBuilder: (context, value) => Text(_intervalLabel(value)),
+          options: _intervalOptions
+              .map((s) => ShadOption<int>(value: s, child: Text(_intervalLabel(s))))
+              .toList(growable: false),
+          onChanged: (v) {
+            if (v != null) self.markDirty(() => self._intervalSeconds = v);
+          },
+      ),
       ),
       const SizedBox(height: 16),
       stepLabel(theme, '热数据静默时间'),
-      ShadSelect<int>(
-        initialValue: self._quietSeconds,
-        selectedOptionBuilder: (context, value) => Text(_quietLabel(value)),
-        options: _quietOptions
-            .map((s) => ShadOption<int>(value: s, child: Text(_quietLabel(s))))
-            .toList(growable: false),
-        onChanged: (v) {
-          if (v != null) self.markDirty(() => self._quietSeconds = v);
-        },
+      SizedBox(
+        width: double.infinity,
+        child: ShadSelect<int>(
+          initialValue: self._quietSeconds,
+          selectedOptionBuilder: (context, value) => Text(_quietLabel(value)),
+          options: _quietOptions
+              .map((s) => ShadOption<int>(value: s, child: Text(_quietLabel(s))))
+              .toList(growable: false),
+          onChanged: (v) {
+            if (v != null) self.markDirty(() => self._quietSeconds = v);
+          },
+      ),
       ),
       const SizedBox(height: 6),
       Text(
