@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 同步配置编辑器重构为三步向导：将原来单屏 8 个字段的拟态框拆分为「基础信息 → 同步目标 → 同步策略」三个步骤，每步带步骤指示器和进度条，并加入逐步校验（下一步前检查必填项）。字段构建逻辑拆到 `file_sync_profile_editor_steps.dart`（part 文件），主文件通过 `markDirty` 方法供 steps 触发重建。
+
 - 文件同步配置入口迁移：将同步配置的新增、编辑、删除、启停操作从「系统设置 → 文件同步」子 Tab 移至「文件同步任务」页面，使其成为同步配置的唯一管理入口。设置页不再包含文件同步 Tab，删除了 `settings_file_sync_section.dart`；文件同步页新增「新建配置」按钮和完整的配置卡片操作，CRUD 逻辑拆分到 `file_sync_tasks_page_actions.dart`。
 
 - 修复 `pubspec.yaml` 把 Dart SDK 约束钉死在 `^3.12.0` 导致 `make run` 在 Flutter 3.41（Dart 3.11.4）等较旧但可用的 stable 通道直接失败的问题：约束改为 `>=3.11.0 <4.0.0`，clone 后无需升级 Flutter 即可直接 `make run`。
