@@ -114,9 +114,8 @@ Widget _bucketTile(
   bool selected,
   VoidCallback onTap,
 ) {
-  return InkWell(
+  return GestureDetector(
     onTap: onTap,
-    borderRadius: BorderRadius.circular(8),
     child: Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 6),
