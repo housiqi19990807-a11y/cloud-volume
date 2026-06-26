@@ -52,19 +52,25 @@ type rawOp struct {
 	remoteMTime int64
 }
 
-// classifyAll walks the union of local/remote/index and returns one rawOp per key.
+// indexLookup returns the stored IndexEntry for a relative path.
+type indexLookup func(rel string) (IndexEntry, bool)
+
+// classifyAll walks the union of local/remote/index and returns one rawOp per
+// key. The index side is supplied as a lazy lookup plus its key set so bbolt
+// entries are fetched per-key instead of loaded into a map upfront.
 func classifyAll(
 	profile SyncProfile,
 	local map[string]localSide,
 	remote map[string]remoteSide,
-	index *Index,
+	indexKeys []string,
+	lookup indexLookup,
 ) []rawOp {
-	keys := unionKeys(local, remote, index.Entries)
+	keys := unionKeys(local, remote, indexKeys)
 	out := make([]rawOp, 0, len(keys))
 	for _, rel := range keys {
 		l := local[rel]
 		r := remote[rel]
-		idx := index.Entries[rel]
+		idx, _ := lookup(rel)
 		out = append(out, rawOp{
 			op:          classify(profile, rel, l, r, idx),
 			localSize:   l.size,
@@ -172,8 +178,8 @@ func resolveConflict(profile SyncProfile, rel string, l localSide, r remoteSide,
 	}
 }
 
-// unionKeys returns the sorted union of all map key sets.
-func unionKeys(local map[string]localSide, remote map[string]remoteSide, index map[string]IndexEntry) []string {
+// unionKeys returns the sorted union of all key sets.
+func unionKeys(local map[string]localSide, remote map[string]remoteSide, indexKeys []string) []string {
 	set := map[string]struct{}{}
 	for k := range local {
 		set[k] = struct{}{}
@@ -181,7 +187,7 @@ func unionKeys(local map[string]localSide, remote map[string]remoteSide, index m
 	for k := range remote {
 		set[k] = struct{}{}
 	}
-	for k := range index {
+	for _, k := range indexKeys {
 		set[k] = struct{}{}
 	}
 	out := make([]string, 0, len(set))

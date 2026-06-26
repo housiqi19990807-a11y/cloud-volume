@@ -1,6 +1,6 @@
 module remote-storage
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.7
@@ -16,8 +16,8 @@ require (
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/peterh/liner v1.2.2
 	golang.org/x/net v0.48.0
-	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.39.0
+	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.45.0
 	golang.org/x/term v0.38.0
 )
 
@@ -41,7 +41,10 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
+	go.etcd.io/bbolt v1.4.2 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.1.0 // indirect

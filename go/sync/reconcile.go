@@ -47,12 +47,14 @@ func (rc *Reconciler) Run(ctx context.Context) (*ReconcileResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("scan remote: %w", err)
 	}
-	idx, err := loadIndex(rc.runtimeRoot, rc.profile.ID)
+	idx, err := openIndex(rc.runtimeRoot, rc.profile.ID)
 	if err != nil {
-		return nil, fmt.Errorf("load index: %w", err)
+		return nil, fmt.Errorf("open index: %w", err)
 	}
+	defer idx.Close()
 
-	rawOps := classifyAll(rc.profile, local, remote, idx)
+	indexKeys, lookup := rc.indexView(idx)
+	rawOps := classifyAll(rc.profile, local, remote, indexKeys, lookup)
 	ops := rc.aggregateRenames(rawOps, local, remote)
 
 	skipped := 0
@@ -253,4 +255,19 @@ func parseRemoteMTime(value string) int64 {
 		return 0
 	}
 	return t.UnixNano()
+}
+
+// indexView returns the complete set of indexed relative paths plus a lazy
+// lookup. Keys are collected up front so diff can build the union; individual
+// entries are fetched per-key to avoid loading every value into memory.
+func (rc *Reconciler) indexView(idx *Index) ([]string, indexLookup) {
+	var keys []string
+	_ = idx.EachEntry(func(rel string, _ IndexEntry) bool {
+		keys = append(keys, rel)
+		return true
+	})
+	lookup := func(rel string) (IndexEntry, bool) {
+		return idx.GetEntry(rel)
+	}
+	return keys, lookup
 }

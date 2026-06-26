@@ -74,43 +74,42 @@ func (e *opExecutor) executeOp(ctx context.Context, op Op, key, localPath string
 }
 
 // updateIndex records the new settled state for the op's path after success.
+// It opens the bbolt DB, performs a single per-key write, and closes, so the
+// cost is O(1) regardless of total file count.
 func (e *opExecutor) updateIndex(op Op, key, localPath string) {
-	idx, err := loadIndex(e.runtimeRoot, e.profile.ID)
+	idx, err := openIndex(e.runtimeRoot, e.profile.ID)
 	if err != nil {
-		log.Printf("[sync/exec] load index for update: %v", err)
+		log.Printf("[sync/exec] open index for update: %v", err)
 		return
 	}
+	defer idx.Close()
 	now := nowNano()
 	switch op.Kind {
-	case OpUpload, OpRename:
+	case OpUpload, OpRename, OpDownload:
 		if info, statErr := os.Stat(localPath); statErr == nil {
-			entry := idx.Entries[op.RelPath]
-			entry.LocalSize = info.Size()
-			entry.LocalMTime = info.ModTime().UnixNano()
-			entry.RemoteSize = info.Size()
-			entry.RemoteMTime = entry.LocalMTime
-			entry.LastSyncedAt = now
-			idx.Entries[op.RelPath] = entry
+			existing, _ := idx.GetEntry(op.RelPath)
+			entry := IndexEntry{
+				LocalSize:    info.Size(),
+				LocalMTime:   info.ModTime().UnixNano(),
+				RemoteSize:   info.Size(),
+				RemoteMTime:  info.ModTime().UnixNano(),
+				LastSyncedAt: now,
+			}
+			_ = existing // existing fields not needed; settled state replaces it
+			if err := idx.PutEntry(op.RelPath, entry); err != nil {
+				log.Printf("[sync/exec] put index entry: %v", err)
+			}
 		}
 		// For rename, clear the old path from the index.
 		if op.Kind == OpRename && op.OldRelPath != "" {
-			delete(idx.Entries, op.OldRelPath)
-		}
-	case OpDownload:
-		if info, statErr := os.Stat(localPath); statErr == nil {
-			entry := idx.Entries[op.RelPath]
-			entry.LocalSize = info.Size()
-			entry.LocalMTime = info.ModTime().UnixNano()
-			entry.RemoteSize = info.Size()
-			entry.RemoteMTime = entry.LocalMTime
-			entry.LastSyncedAt = now
-			idx.Entries[op.RelPath] = entry
+			if err := idx.DeleteEntry(op.OldRelPath); err != nil {
+				log.Printf("[sync/exec] delete old index entry: %v", err)
+			}
 		}
 	case OpDeleteRemote, OpDeleteLocal:
-		delete(idx.Entries, op.RelPath)
-	}
-	if err := idx.save(e.runtimeRoot, e.profile.ID); err != nil {
-		log.Printf("[sync/exec] save index: %v", err)
+		if err := idx.DeleteEntry(op.RelPath); err != nil {
+			log.Printf("[sync/exec] delete index entry: %v", err)
+		}
 	}
 }
 

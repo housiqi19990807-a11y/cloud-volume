@@ -1,10 +1,11 @@
 // Index tracks the last-known state of each path on both local and remote
-// sides so reconcile can diff against it instead of treating every run as a
-// full mirror. It is the lightweight alternative to embedding a git repo.
+// sides so reconcile can diff against it. Backed by bbolt so reads and writes
+// are per-key O(1) and memory stays flat regardless of file count, instead of
+// loading the entire index into a Go map like the earlier JSON approach.
 //
-// Only size + mtime are tracked because ETag availability differs across
-// backends (S3 multipart ETags are unreliable, Baidu Pan has no ETag at all),
-// so a uniform signature keeps behavior consistent across providers.
+// Each profile owns one bbolt DB file at runtime/sync/<profileID>/index.db.
+// Entry values are JSON-encoded IndexEntry records (tens of bytes each); the
+// path key is the slash-separated relative path.
 package sync
 
 import (
@@ -12,79 +13,158 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 // IndexEntry records the last synchronized attributes for a single relative path.
 type IndexEntry struct {
 	LocalSize    int64 `json:"localSize,omitempty"`
-	LocalMTime   int64 `json:"localMTime,omitempty"`  // unix nano
+	LocalMTime   int64 `json:"localMTime,omitempty"`
 	RemoteSize   int64 `json:"remoteSize,omitempty"`
-	RemoteMTime  int64 `json:"remoteMTime,omitempty"` // unix nano
+	RemoteMTime  int64 `json:"remoteMTime,omitempty"`
 	LastSyncedAt int64 `json:"lastSyncedAt,omitempty"`
 }
 
-// Index is the persisted map keyed by slash-separated relative path.
+// bbolt buckets keep entry data and metadata separated.
+var (
+	entriesBucket = []byte("entries")
+	metaBucket    = []byte("meta")
+	lastSyncKey   = []byte("lastSyncAt")
+)
+
+// Index wraps an open bbolt DB for one sync profile.
 type Index struct {
-	Entries map[string]IndexEntry `json:"entries"`
+	db *bolt.DB
 }
 
-// newIndex returns an empty index ready for population.
-func newIndex() *Index {
-	return &Index{Entries: map[string]IndexEntry{}}
+// indexDBPath returns the per-profile bbolt file path under the runtime root.
+func indexDBPath(runtimeRoot, profileID string) string {
+	return filepath.Join(runtimeRoot, "sync", profileID, "index.db")
 }
 
-// indexDir returns the per-profile index directory under the runtime root.
-func indexDir(runtimeRoot, profileID string) string {
-	return filepath.Join(runtimeRoot, "sync", profileID)
-}
-
-// indexPath returns the JSON index file for a profile.
-func indexPath(runtimeRoot, profileID string) string {
-	return filepath.Join(indexDir(runtimeRoot, profileID), "index.json")
-}
-
-// loadIndex reads the persisted index, returning an empty one when absent.
-func loadIndex(runtimeRoot, profileID string) (*Index, error) {
-	data, err := os.ReadFile(indexPath(runtimeRoot, profileID))
-	if os.IsNotExist(err) {
-		return newIndex(), nil
+// openIndex opens (or creates) the bbolt DB for a profile. The caller must
+// Close it when finished, typically at the end of a reconcile pass.
+func openIndex(runtimeRoot, profileID string) (*Index, error) {
+	path := indexDBPath(runtimeRoot, profileID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, fmt.Errorf("create sync index dir: %w", err)
 	}
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 5 * time.Second})
 	if err != nil {
-		return nil, fmt.Errorf("read sync index: %w", err)
+		return nil, fmt.Errorf("open sync index db: %w", err)
 	}
-	var idx Index
-	if err := json.Unmarshal(data, &idx); err != nil {
-		return nil, fmt.Errorf("parse sync index: %w", err)
-	}
-	if idx.Entries == nil {
-		idx.Entries = map[string]IndexEntry{}
-	}
-	return &idx, nil
-}
-
-// save persists the index to disk under the profile's runtime directory.
-func (idx *Index) save(runtimeRoot, profileID string) error {
-	dir := indexDir(runtimeRoot, profileID)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create sync index dir: %w", err)
-	}
-	body, err := json.MarshalIndent(idx, "", "  ")
+	err = db.Update(func(tx *bolt.Tx) error {
+		if _, err := tx.CreateBucketIfNotExists(entriesBucket); err != nil {
+			return fmt.Errorf("create entries bucket: %w", err)
+		}
+		if _, err := tx.CreateBucketIfNotExists(metaBucket); err != nil {
+			return fmt.Errorf("create meta bucket: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("encode sync index: %w", err)
+		db.Close()
+		return nil, err
 	}
-	return os.WriteFile(indexPath(runtimeRoot, profileID), body, 0o600)
+	return &Index{db: db}, nil
 }
 
-// sortedKeys returns relative paths in stable order for deterministic iteration.
-func (idx *Index) sortedKeys() []string {
-	keys := make([]string, 0, len(idx.Entries))
-	for k := range idx.Entries {
-		keys = append(keys, k)
+// Close releases the underlying bbolt DB handle.
+func (idx *Index) Close() error {
+	if idx == nil || idx.db == nil {
+		return nil
 	}
-	sort.Strings(keys)
-	return keys
+	return idx.db.Close()
+}
+
+// GetEntry reads a single index entry by relative path. Returns a zero value
+// and ok=false when the key is absent.
+func (idx *Index) GetEntry(rel string) (IndexEntry, bool) {
+	var entry IndexEntry
+	var found bool
+	_ = idx.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(entriesBucket)
+		raw := b.Get([]byte(rel))
+		if raw == nil {
+			return nil
+		}
+		found = true
+		return json.Unmarshal(raw, &entry)
+	})
+	return entry, found
+}
+
+// PutEntry writes or replaces a single index entry.
+func (idx *Index) PutEntry(rel string, entry IndexEntry) error {
+	return idx.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(entriesBucket)
+		body, err := json.Marshal(entry)
+		if err != nil {
+			return fmt.Errorf("encode index entry: %w", err)
+		}
+		return b.Put([]byte(rel), body)
+	})
+}
+
+// DeleteEntry removes a single index entry.
+func (idx *Index) DeleteEntry(rel string) error {
+	return idx.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(entriesBucket).Delete([]byte(rel))
+	})
+}
+
+// EachEntry iterates over all stored entries, keyed by relative path. The
+// callback may return false to stop iteration early. Used by diff to build the
+// union key set lazily without loading everything into a map at once.
+func (idx *Index) EachEntry(fn func(rel string, entry IndexEntry) bool) error {
+	return idx.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(entriesBucket)
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var entry IndexEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				continue
+			}
+			if !fn(string(k), entry) {
+				return nil
+			}
+		}
+		return nil
+	})
+}
+
+// CountEntries returns the number of indexed paths.
+func (idx *Index) CountEntries() int {
+	var n int
+	_ = idx.db.View(func(tx *bolt.Tx) error {
+		n = tx.Bucket(entriesBucket).Stats().KeyN
+		return nil
+	})
+	return n
+}
+
+// SetLastSync records the completion timestamp of the latest reconcile pass.
+func (idx *Index) SetLastSync(ts int64) error {
+	return idx.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(metaBucket).Put(lastSyncKey, []byte(fmt.Sprintf("%d", ts)))
+	})
+}
+
+// LastSync returns the most recent reconcile completion timestamp, or zero.
+func (idx *Index) LastSync() int64 {
+	var raw []byte
+	_ = idx.db.View(func(tx *bolt.Tx) error {
+		raw = tx.Bucket(metaBucket).Get(lastSyncKey)
+		return nil
+	})
+	if len(raw) == 0 {
+		return 0
+	}
+	var n int64
+	_, _ = fmt.Sscanf(string(raw), "%d", &n)
+	return n
 }
 
 // nowNano is a testable indirection for the current time.
