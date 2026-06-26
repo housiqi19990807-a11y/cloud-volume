@@ -180,40 +180,32 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     return ShadDialog(
       title: Text(widget.initial == null ? '新建同步配置' : '编辑同步配置'),
       description: const Text('将一个本地目录与远端桶目录保持同步。'),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 480,
-          maxHeight: MediaQuery.of(context).size.height * 0.72,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStepIndicator(theme),
-            const SizedBox(height: 20),
-            // 步骤内容区：可滚动，防止字段过多时溢出。
-            Flexible(
-              child: SingleChildScrollView(
-                child: switch (_step) {
-                  0 => stepPickEndpoints(theme: theme, self: this),
-                  _ => stepSyncStrategy(theme: theme, self: this),
-                },
+      constraints: const BoxConstraints(maxWidth: 520),
+      scrollable: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildStepIndicator(theme),
+          const SizedBox(height: 20),
+          // 步骤内容区。
+          switch (_step) {
+            0 => stepPickEndpoints(theme: theme, self: this),
+            _ => stepSyncStrategy(theme: theme, self: this),
+          },
+          if (_errorText != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorText!,
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.destructive,
               ),
             ),
-            if (_errorText != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _errorText!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.colorScheme.destructive,
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            _buildNavButtons(theme),
           ],
-        ),
+          const SizedBox(height: 20),
+          _buildNavButtons(theme),
+        ],
       ),
     );
   }
