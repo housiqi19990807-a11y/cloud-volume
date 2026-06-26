@@ -7,6 +7,8 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/file_list_tile.dart';
+import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -229,6 +231,14 @@ class _RemoteDirectoryPickerDialogState
     );
   }
 
+  // ".." 返回上一级的占位条目，与文件管理页一致。
+  static const _parentEntry = ObjectInfo(
+    key: '../',
+    size: 0,
+    lastModified: '',
+    isDir: true,
+  );
+
   Widget _buildContent(ShadThemeData theme) {
     if (_activeBucket == null) {
       return _buildBucketList(theme);
@@ -249,17 +259,23 @@ class _RemoteDirectoryPickerDialogState
       );
     }
     final dirs = _objects.where((o) => o.isDir).toList();
-    if (dirs.isEmpty) {
+    // 非根目录时在最前面插入 ".." 返回条目。
+    final items = _prefix.isEmpty ? dirs : [_parentEntry, ...dirs];
+    if (items.isEmpty) {
       return Center(
-        child: Text(
-          '当前目录下没有子目录。',
-          style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.folderOpen, size: 40, color: theme.colorScheme.mutedForeground.withValues(alpha: 0.3)),
+            const SizedBox(height: 10),
+            Text('此目录为空', style: TextStyle(fontSize: 13, color: theme.colorScheme.mutedForeground)),
+          ],
         ),
       );
     }
     return ListView.builder(
-      itemCount: dirs.length,
-      itemBuilder: (context, i) => _dirTile(theme, dirs[i]),
+      itemCount: items.length,
+      itemBuilder: (context, i) => _dirTile(theme, items[i]),
     );
   }
 
@@ -282,71 +298,54 @@ class _RemoteDirectoryPickerDialogState
   }
 
   Widget _bucketTile(ShadThemeData theme, FileManagerBucketEntry entry) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _enterBucket(entry),
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondary,
-            ),
-        child: Row(
-          children: [
-            const WhiteSurFileIcon(
-              assetPath: 'assets/icons/whitesur/places/network-server-balanced.svg',
-              size: 18,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.bucket.name,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: theme.colorScheme.foreground),
-                  ),
-                  Text(
-                    entry.sourceLabel,
-                    style: TextStyle(fontSize: 11, color: theme.colorScheme.mutedForeground),
-                  ),
-                ],
-              ),
-            ),
-            Icon(LucideIcons.chevronRight, size: 16, color: theme.colorScheme.mutedForeground),
-          ],
-        ),
+    return FileListTile(
+      leading: const WhiteSurFileIcon(
+        assetPath: 'assets/icons/whitesur/places/network-server-balanced.svg',
+        size: 20,
       ),
+      title: entry.bucket.name,
+      sizeLabel: entry.sourceLabel,
+      onTap: () => _enterBucket(entry),
+      showDivider: false,
     );
   }
 
+  // ".." 返回上一级导航。
+  void _navigateUp() {
+    if (_prefix.isEmpty) return;
+    final parts = _prefix.split('/').where((s) => s.isNotEmpty).toList();
+    setState(() {
+      _prefix = parts.length <= 1
+          ? ''
+          : '${parts.take(parts.length - 1).join('/')}/';
+    });
+    _loadObjects();
+  }
+
+  
   Widget _dirTile(ShadThemeData theme, ObjectInfo obj) {
-    final name = obj.key.split('/').where((s) => s.isNotEmpty).last;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _openDirectory(obj),
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondary,
-            ),
-        child: Row(
-          children: [
-            Icon(LucideIcons.folder, size: 18, color: theme.colorScheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                name,
-                style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
+    final isParent = obj.key == '../';
+    final name = isParent ? '..' : obj.displayName;
+    return FileListTile(
+      leading: isParent
+          ? SizedBox.square(
+              dimension: 20,
+              child: Center(
+                child: Icon(Icons.arrow_upward_rounded,
+                    size: 12, color: theme.colorScheme.primary),
               ),
-            ),
-            Icon(LucideIcons.chevronRight, size: 16, color: theme.colorScheme.mutedForeground),
-          ],
-        ),
-      ),
+            )
+          : LocalCloudPanFileIcon(name: name, isDirectory: true, size: 20),
+      title: name,
+      sizeLabel: isParent ? '返回上一级' : '',
+      onTap: () {
+        if (isParent) {
+          _navigateUp();
+        } else {
+          _openDirectory(obj);
+        }
+      },
+      showDivider: false,
     );
   }
 
