@@ -6,6 +6,12 @@
 
 桌面端继续保留原有 FFI + 本地挂载链路；Web 端则通过单独的 HTTP/API 服务暴露同一套对象管理能力，并额外提供每个 bucket 的 WebDAV 地址供浏览器外部客户端连接。
 
+## 快速开始
+
+clone 仓库后，直接执行 `make run` 即可启动桌面端（macOS / Linux / Windows 已封装好构建 Go bridge 与启动 Flutter 的完整流程）。
+
+Flutter 版本兼容说明：`pubspec.yaml` 的 Dart SDK 约束为 `>=3.11.0 <4.0.0`，对应 Flutter 3.41（Dart 3.11）及以上均可直接 `make run`。如果你的 Flutter 自带的 Dart SDK 更旧导致 `flutter pub get` 报版本不满足，请用 `flutter upgrade` 升级到 stable 通道再重试。
+
 ## 仓库截图
 
 ![云卷主界面](docs/screenshots/main-page.png)
