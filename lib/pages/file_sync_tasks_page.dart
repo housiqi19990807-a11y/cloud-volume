@@ -1,24 +1,32 @@
-// 文件同步任务页：展示所有同步配置的概览状态以及由同步产生的实时任务。
-// 与通用任务队列互补——这里只显示 sync_ 类型的任务，并提供立即同步入口。
+// 文件同步任务页：同步配置的唯一管理入口，同时展示配置概览状态与由同步产生的实时任务。
+// 与通用任务队列互补——这里只显示 sync_ 类型的任务，并提供配置 CRUD 与立即同步入口。
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+part 'file_sync_tasks_page_actions.dart';
 
 class FileSyncTasksPage extends StatefulWidget {
   const FileSyncTasksPage({
     super.key,
     required this.api,
     required this.config,
+    required this.profiles,
     this.active = false,
   });
 
   final RemoteStorageGateway api;
   final dynamic config;
+
+  /// 已配置的账号列表，供同步配置编辑器选择关联账号。
+  final List<ProfileInfo> profiles;
   final bool active;
 
   @override
@@ -51,18 +59,6 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
   List<TransferTask> get _syncTasks =>
       TransferQueue.instance.tasks.where((t) => t.isSyncTask).toList();
 
-  Future<void> _triggerSync(SyncProfileRuntime runtime) async {
-    try {
-      final ops = await SyncProfileNotifier.instance
-          .triggerProfile(runtime.profile.id);
-      if (!mounted) return;
-      showAppToast(context, message: ops > 0 ? '已触发，共 $ops 个操作' : '已是最新');
-    } catch (e) {
-      if (!mounted) return;
-      showAppErrorToast(context, message: '同步失败：$e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -75,20 +71,41 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '文件同步任务',
-              style: theme.textTheme.h3.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 22,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '查看同步配置状态，以及由同步产生的上传、下载、删除、重命名任务。',
-              style: TextStyle(
-                color: theme.colorScheme.mutedForeground,
-                fontSize: 13,
-              ),
+            // 标题行：页面名称与新建配置按钮并排，让创建入口始终可见。
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '文件同步任务',
+                      style: theme.textTheme.h3.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 22,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '管理同步配置，查看配置状态及由同步产生的上传、下载、删除、重命名任务。',
+                      style: TextStyle(
+                        color: theme.colorScheme.mutedForeground,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                ShadButton(
+                  onPressed: _addProfile,
+                  child: const Row(
+                    children: [
+                      Icon(LucideIcons.plus, size: 16),
+                      SizedBox(width: 4),
+                      Text('新建配置'),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             _summaryCards(theme, profiles, tasks),
@@ -103,7 +120,7 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
             ),
             const SizedBox(height: 12),
             if (profiles.isEmpty)
-              _emptyHint(theme, '还没有同步配置，请到系统设置中新建。')
+              _emptyHint(theme, '还没有同步配置，点击右上角「新建配置」开始。')
             else
               ...profiles.map((p) => _profileRow(theme, p)),
             const SizedBox(height: 28),
@@ -194,62 +211,144 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
     );
   }
 
+  /// 单条配置行：展示名称、状态、方向、待处理数和上次同步时间。
+  /// 操作区提供立即同步、编辑、删除、启停开关，逻辑在 part 文件中。
   Widget _profileRow(ShadThemeData theme, SyncProfileRuntime runtime) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: theme.colorScheme.secondary,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.border.withValues(alpha: 0.5),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      runtime.profile.name,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.foreground,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _statusDot(theme, runtime.status),
-                    const SizedBox(width: 6),
-                    Text(
-                      runtime.status.label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: theme.colorScheme.mutedForeground,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${runtime.profile.direction.label} · '
-                  '${runtime.pendingOps} 待处理 · 上次 ${runtime.lastSyncAt.isEmpty ? '未同步' : runtime.lastSyncAt}',
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  runtime.profile.name,
                   style: TextStyle(
-                    fontSize: 11.5,
-                    color: theme.colorScheme.mutedForeground,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.foreground,
                   ),
                 ),
-              ],
-            ),
+              ),
+              _statusBadge(theme, runtime.status),
+            ],
           ),
-          ShadButton.outline(
-            onPressed: () => _triggerSync(runtime),
-            child: const Text('立即同步'),
+          const SizedBox(height: 8),
+          _metaRow(theme, LucideIcons.folder, runtime.profile.localPath),
+          const SizedBox(height: 4),
+          _metaRow(
+            theme,
+            LucideIcons.cloudUpload,
+            '${runtime.profile.bucket}/${runtime.profile.remotePrefix.isEmpty ? '' : runtime.profile.remotePrefix}',
+          ),
+          const SizedBox(height: 4),
+          _metaRow(theme, LucideIcons.arrowLeftRight, runtime.profile.direction.label),
+          if (runtime.lastSyncAt.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _metaRow(theme, LucideIcons.clock, '上次同步：${runtime.lastSyncAt}'),
+          ],
+          if (runtime.lastError.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              runtime.lastError,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: theme.colorScheme.destructive,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ShadSwitch(
+                value: runtime.profile.enabled,
+                onChanged: (v) => _toggleEnabled(runtime, v),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                runtime.profile.enabled ? '已启用' : '已暂停',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ),
+              const Spacer(),
+              ShadButton.outline(
+                onPressed: () => _triggerSync(runtime),
+                child: const Text('立即同步'),
+              ),
+              const SizedBox(width: 8),
+              ShadButton.outline(
+                onPressed: () => _editProfile(runtime),
+                child: const Text('编辑'),
+              ),
+              const SizedBox(width: 8),
+              ShadButton.destructive(
+                onPressed: () => _deleteProfile(runtime),
+                child: const Text('删除'),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _metaRow(ShadThemeData theme, IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: theme.colorScheme.mutedForeground),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.mutedForeground,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusBadge(ShadThemeData theme, SyncProfileStatus status) {
+    final (color, _) = _statusColor(theme, status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        status.label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+
+  (Color, bool) _statusColor(ShadThemeData theme, SyncProfileStatus status) {
+    switch (status) {
+      case SyncProfileStatus.syncing:
+        return (theme.colorScheme.primary, true);
+      case SyncProfileStatus.error:
+        return (theme.colorScheme.destructive, false);
+      case SyncProfileStatus.paused:
+        return (theme.colorScheme.mutedForeground, false);
+      case SyncProfileStatus.idle:
+        return (theme.colorScheme.primary, false);
+    }
   }
 
   Widget _taskRow(ShadThemeData theme, TransferTask task) {
@@ -325,20 +424,6 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
       'sync_rename' => '同步重命名',
       _ => '同步',
     };
-  }
-
-  Widget _statusDot(ShadThemeData theme, SyncProfileStatus status) {
-    final color = switch (status) {
-      SyncProfileStatus.syncing => theme.colorScheme.primary,
-      SyncProfileStatus.error => theme.colorScheme.destructive,
-      SyncProfileStatus.paused => theme.colorScheme.mutedForeground,
-      SyncProfileStatus.idle => theme.colorScheme.primary,
-    };
-    return Container(
-      width: 7,
-      height: 7,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
   }
 
   Widget _emptyHint(ShadThemeData theme, String text) {

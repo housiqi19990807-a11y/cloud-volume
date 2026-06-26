@@ -310,6 +310,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
         FileSyncTasksPage(
           api: widget.api,
           config: widget.state.config,
+          profiles: widget.state.profiles,
           active: _effectiveSelectedItem == SidebarItem.fileSyncTasks,
         ),
         SettingsPage(

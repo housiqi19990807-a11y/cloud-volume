@@ -18,8 +18,6 @@ import 'package:remote_storage/widgets/settings_sections.dart'
         VisibilitySection,
         WebDavCredentialsSection;
 import 'package:remote_storage/widgets/settings_cache_section.dart';
-import 'package:remote_storage/widgets/settings_file_sync_section.dart';
-import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/widgets/settings_sync_section.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:remote_storage/widgets/settings_update_section.dart';
@@ -28,7 +26,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'settings_page_actions.dart';
 
-enum _SettingsTab { general, fileSync, windows, about }
+enum _SettingsTab { general, windows, about }
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -122,14 +120,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: _buildGeneralSections(theme, config),
                   ),
                   child: const Text('通用设置'),
-                ),
-                ShadTab<_SettingsTab>(
-                  value: _SettingsTab.fileSync,
-                  content: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _buildFileSyncSections(theme),
-                  ),
-                  child: const Text('文件同步'),
                 ),
                 if (_showsWindowsTab)
                   ShadTab<_SettingsTab>(
@@ -319,19 +309,6 @@ class _SettingsPageState extends State<SettingsPage> {
     return sections;
   }
 
-  List<Widget> _buildFileSyncSections(ShadThemeData theme) {
-    return <Widget>[
-      _buildCard(
-        theme,
-        '文件同步',
-        SettingsFileSyncSection(
-          theme: theme,
-          notifier: SyncProfileNotifier.instance,
-          profiles: widget.state.profiles,
-        ),
-      ),
-    ];
-  }
 
   List<Widget> _buildWindowsSections(
     ShadThemeData theme,
