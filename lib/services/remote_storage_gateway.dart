@@ -9,6 +9,7 @@ import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
+import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 
@@ -217,6 +218,12 @@ abstract class RemoteStorageGateway {
   Future<BucketMountStatus> unmountBucket(String bucket);
   Future<BucketMountStatus> getBucketMountStatus(String bucket);
   Future<BucketMountStatus> openBucketMount(String bucket);
+
+  // --- Directory sync ---
+  Future<List<SyncProfileRuntime>> listSyncProfiles();
+  Future<String> saveSyncProfile(SyncProfile profile);
+  Future<void> deleteSyncProfile(String id);
+  Future<int> triggerSyncProfile(String id);
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();

@@ -11,6 +11,7 @@ import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
+import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
@@ -399,5 +400,27 @@ class RemoteStorageApi
       'bucket': bucket,
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
+  }
+
+  // Web 端目录同步依赖本地文件系统，暂不支持。
+
+  @override
+  Future<List<SyncProfileRuntime>> listSyncProfiles() async {
+    throw UnsupportedError('Web 端暂不支持目录同步');
+  }
+
+  @override
+  Future<String> saveSyncProfile(SyncProfile profile) async {
+    throw UnsupportedError('Web 端暂不支持目录同步');
+  }
+
+  @override
+  Future<void> deleteSyncProfile(String id) async {
+    throw UnsupportedError('Web 端暂不支持目录同步');
+  }
+
+  @override
+  Future<int> triggerSyncProfile(String id) async {
+    throw UnsupportedError('Web 端暂不支持目录同步');
   }
 }

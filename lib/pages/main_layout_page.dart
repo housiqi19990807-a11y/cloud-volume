@@ -5,19 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/cloud_storage_page.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
+import 'package:remote_storage/pages/file_sync_tasks_page.dart';
 import 'package:remote_storage/pages/global_trash_page.dart';
 import 'package:remote_storage/pages/share_management_page.dart';
 import 'package:remote_storage/pages/settings_page.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
 import 'package:remote_storage/widgets/app_brand_mark.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 侧边栏菜单项。
-enum SidebarItem { fileManager, storage, trash, shares, transfers, settings }
+enum SidebarItem { fileManager, storage, trash, shares, transfers, fileSyncTasks, settings }
 
 class MainLayoutPage extends StatefulWidget {
   const MainLayoutPage({
@@ -55,6 +57,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   void initState() {
     super.initState();
     TransferQueue.instance.bindApi(widget.api);
+    SyncProfileNotifier.instance.bindApi(widget.api);
   }
 
   @override
@@ -62,6 +65,7 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.api != widget.api) {
       TransferQueue.instance.bindApi(widget.api);
+      SyncProfileNotifier.instance.bindApi(widget.api);
     }
   }
 
@@ -185,6 +189,13 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   muted,
                 ),
                 _navItem(
+                  LucideIcons.refreshCw,
+                  '文件同步',
+                  SidebarItem.fileSyncTasks,
+                  ac,
+                  muted,
+                ),
+                _navItem(
                   LucideIcons.settings2,
                   '系统设置',
                   SidebarItem.settings,
@@ -270,7 +281,8 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
       SidebarItem.trash => 2,
       SidebarItem.shares => 3,
       SidebarItem.transfers => 4,
-      SidebarItem.settings => 5,
+      SidebarItem.fileSyncTasks => 5,
+      SidebarItem.settings => 6,
     };
 
     return IndexedStack(
@@ -294,6 +306,11 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           api: widget.api,
           config: widget.state.config,
           active: _effectiveSelectedItem == SidebarItem.transfers,
+        ),
+        FileSyncTasksPage(
+          api: widget.api,
+          config: widget.state.config,
+          active: _effectiveSelectedItem == SidebarItem.fileSyncTasks,
         ),
         SettingsPage(
           state: widget.state,

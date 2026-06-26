@@ -27,6 +27,7 @@ class TransferTask {
     this.currentFileBytesCompleted = 0,
     this.currentFileTotalBytes = 0,
     this.speedBytes = 0,
+    this.rawType = '',
     this.error,
   });
 
@@ -34,6 +35,7 @@ class TransferTask {
     return TransferTask(
       id: (json['id'] ?? '').toString(),
       kind: _transferKindFromName((json['kind'] ?? '').toString()),
+      rawType: (json['rawType'] ?? '').toString(),
       bucket: (json['bucket'] ?? '').toString(),
       key: (json['key'] ?? '').toString(),
       localPath: (json['localPath'] ?? '').toString(),
@@ -71,6 +73,8 @@ class TransferTask {
   int currentFileBytesCompleted;
   int currentFileTotalBytes;
   double speedBytes;
+  /// 任务的原始 type 字符串（保留 sync_ 前缀用于区分同步任务）。
+  String rawType;
   String? error;
 
   String get displayName {
@@ -107,6 +111,9 @@ class TransferTask {
   bool get isCopy => kind == TransferKind.copy;
   bool get isMove => kind == TransferKind.move;
   bool get isDelete => kind == TransferKind.delete;
+
+  /// 是否为文件同步产生的任务（原始 type 以 sync_ 开头）。
+  bool get isSyncTask => rawType.startsWith('sync_');
   bool get isMountWriteback => id.startsWith('mount-writeback-');
   bool get isDirectoryChild =>
       statusDetail == 'directory_child' || id.contains(':file:');
@@ -150,6 +157,7 @@ class TransferTask {
       'currentFileBytesCompleted': currentFileBytesCompleted,
       'currentFileTotalBytes': currentFileTotalBytes,
       'speedBytes': speedBytes,
+      'rawType': rawType,
       'error': error,
     };
   }

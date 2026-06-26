@@ -471,6 +471,7 @@ class TransferQueue extends ChangeNotifier {
     final task = TransferTask(
       id: snapshot.id,
       kind: _kindFromWire(snapshot.type),
+      rawType: snapshot.type,
       bucket: snapshot.bucket,
       key: snapshot.key,
       localPath: snapshot.localPath,

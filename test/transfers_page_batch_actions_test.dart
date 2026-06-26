@@ -13,6 +13,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
+import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
@@ -379,4 +380,17 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
 
   @override
   Uri? webDavUri(String bucket) => null;
+
+  @override
+  Future<List<SyncProfileRuntime>> listSyncProfiles() async =>
+      <SyncProfileRuntime>[];
+
+  @override
+  Future<String> saveSyncProfile(SyncProfile profile) async => '';
+
+  @override
+  Future<void> deleteSyncProfile(String id) async {}
+
+  @override
+  Future<int> triggerSyncProfile(String id) async => 0;
 }

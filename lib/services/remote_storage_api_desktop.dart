@@ -11,6 +11,7 @@ import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
+import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
@@ -507,5 +508,39 @@ class RemoteStorageApi
       return result.map((e) => fromJson(e as Map<String, dynamic>)).toList();
     }
     return [];
+  }
+
+  // --- Directory sync ---
+
+  @override
+  Future<List<SyncProfileRuntime>> listSyncProfiles() async {
+    final result = await runBridgeCall('list_sync_profiles');
+    final list = result as List<dynamic>;
+    return list
+        .map((e) => SyncProfileRuntime.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<String> saveSyncProfile(SyncProfile profile) async {
+    final result = await runBridgeCall(
+      'save_sync_profile',
+      <String, dynamic>{'profile': profile.toJson()},
+    );
+    return (result as Map<String, dynamic>)['id'].toString();
+  }
+
+  @override
+  Future<void> deleteSyncProfile(String id) async {
+    await runBridgeCall('delete_sync_profile', <String, dynamic>{'id': id});
+  }
+
+  @override
+  Future<int> triggerSyncProfile(String id) async {
+    final result = await runBridgeCall(
+      'trigger_sync_profile',
+      <String, dynamic>{'id': id},
+    );
+    return (result as Map<String, dynamic>)['ops'] as int;
   }
 }

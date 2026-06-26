@@ -120,6 +120,15 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return openCacheDirectory(args)
 	case "clean_cache":
 		return cleanCache(args)
+	// Directory sync profiles.
+	case "list_sync_profiles":
+		return listSyncProfiles(args)
+	case "save_sync_profile":
+		return saveSyncProfile(args)
+	case "delete_sync_profile":
+		return deleteSyncProfile(args)
+	case "trigger_sync_profile":
+		return triggerSyncProfile(args)
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}

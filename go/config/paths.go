@@ -65,3 +65,10 @@ func windowsInstallRoot() (string, error) {
 	}
 	return filepath.Dir(exePath), nil
 }
+
+// AppDataRoot returns the platform application-data directory that hosts the
+// config TOML, profiles, sync settings, and runtime data. Exposed so sibling
+// packages (e.g. the sync store) can place their files alongside config.
+func AppDataRoot() (string, error) {
+	return appDataRoot()
+}

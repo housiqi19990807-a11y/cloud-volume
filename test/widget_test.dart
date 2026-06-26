@@ -16,16 +16,20 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
+import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/state/sync_profile_notifier.dart';
 
 void main() {
   setUp(() {
     TransferQueue.instance.resetForTest();
+    SyncProfileNotifier.instance.stop();
   });
 
   tearDown(() {
     TransferQueue.instance.resetForTest();
+    SyncProfileNotifier.instance.stop();
   });
 
   testWidgets('App shows setup page when config is missing', (tester) async {
@@ -40,6 +44,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     TransferQueue.instance.resetForTest();
+    SyncProfileNotifier.instance.stop();
   });
 
   testWidgets('Setup page advances to WebDAV account form', (tester) async {
@@ -62,6 +67,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     TransferQueue.instance.resetForTest();
+    SyncProfileNotifier.instance.stop();
   });
 
   testWidgets('App shows main layout when config exists', (tester) async {
@@ -74,6 +80,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
     TransferQueue.instance.resetForTest();
+    SyncProfileNotifier.instance.stop();
   });
 }
 
@@ -460,4 +467,19 @@ class _FakeApi implements RemoteStorageGateway {
         serverUrl: '',
         port: 0,
       );
+
+  // --- Directory sync stubs ---
+
+  @override
+  Future<List<SyncProfileRuntime>> listSyncProfiles() async =>
+      <SyncProfileRuntime>[];
+
+  @override
+  Future<String> saveSyncProfile(SyncProfile profile) async => '';
+
+  @override
+  Future<void> deleteSyncProfile(String id) async {}
+
+  @override
+  Future<int> triggerSyncProfile(String id) async => 0;
 }

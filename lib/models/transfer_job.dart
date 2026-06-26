@@ -64,4 +64,23 @@ class TransferSnapshot {
   final int currentFileTotalBytes;
   final double speedBytes;
   final String? error;
+
+  /// 同步任务标识：type 以 sync_ 开头（sync_upload/download/delete/rename）。
+  bool get isSyncTask => type.startsWith('sync_');
+
+  /// 同步任务的可读名称。
+  String get syncLabel {
+    switch (type) {
+      case 'sync_upload':
+        return '同步上传';
+      case 'sync_download':
+        return '同步下载';
+      case 'sync_delete':
+        return '同步删除';
+      case 'sync_rename':
+        return '同步重命名';
+      default:
+        return '同步';
+    }
+  }
 }
