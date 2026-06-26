@@ -61,6 +61,7 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
     await showShadDialog(
       context: context,
       builder: (_) => FileSyncProfileEditor(
+        api: widget.api,
         buckets: _buckets,
         onSave: _saveProfile,
       ),
@@ -71,6 +72,7 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
     await showShadDialog(
       context: context,
       builder: (_) => FileSyncProfileEditor(
+        api: widget.api,
         buckets: _buckets,
         initial: runtime.profile,
         onSave: _saveProfile,

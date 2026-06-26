@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/sync_profile.dart';
+import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'file_sync_profile_editor_steps.dart';
@@ -12,12 +14,15 @@ part 'file_sync_profile_editor_steps.dart';
 class FileSyncProfileEditor extends StatefulWidget {
   const FileSyncProfileEditor({
     super.key,
+    required this.api,
     required this.buckets,
     required this.onSave,
     this.initial,
   });
 
-  /// 文件管理页加载的桶列表，供用户直接选择目标桶。
+  final RemoteStorageGateway api;
+
+  /// 文件管理页加载的桶列表，供目录选择器使用。
   final List<FileManagerBucketEntry> buckets;
   final Future<bool> Function(SyncProfile profile) onSave;
   final SyncProfile? initial;
@@ -28,13 +33,12 @@ class FileSyncProfileEditor extends StatefulWidget {
 
 class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   final _nameController = TextEditingController();
-  final _remotePrefixController = TextEditingController();
   final _localPathController = TextEditingController();
   final _excludeController = TextEditingController();
 
   // 当前步骤索引（0 = 选择桶，1 = 同步设置）。
   int _step = 0;
-  FileManagerBucketEntry? _selectedBucket;
+  RemoteDirectoryResult? _remoteDir;
   SyncDirection _direction = SyncDirection.twoway;
   SyncConflictPolicy _conflictPolicy = SyncConflictPolicy.newest;
   int _intervalSeconds = 300;
@@ -51,7 +55,6 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     final initial = widget.initial;
     if (initial == null) return;
     _nameController.text = initial.name;
-    _remotePrefixController.text = initial.remotePrefix;
     _localPathController.text = initial.localPath;
     _direction = initial.direction;
     _conflictPolicy = initial.conflictPolicy;
@@ -59,18 +62,23 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     _quietSeconds = initial.quietSeconds;
     _excludeController.text = initial.excludePatterns.join('\n');
     _enabled = initial.enabled;
-    // 编辑时回填已选桶。
-    _selectedBucket = widget.buckets
-        .where((b) =>
-            b.bucket.name == initial.bucket &&
-            b.profileName == initial.accountProfile)
-        .firstOrNull;
+    // 编辑时回填远端目录选择结果。
+    _remoteDir = RemoteDirectoryResult(
+      bucket: initial.bucket,
+      prefix: initial.remotePrefix,
+      profileName: initial.accountProfile,
+      config: widget.buckets
+          .where((b) =>
+              b.bucket.name == initial.bucket &&
+              b.profileName == initial.accountProfile)
+          .firstOrNull
+          ?.config ?? widget.buckets.first.config,
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _remotePrefixController.dispose();
     _localPathController.dispose();
     _excludeController.dispose();
     super.dispose();
@@ -88,8 +96,8 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
           setState(() => _errorText = '请选择本地目录');
           return false;
         }
-        if (_selectedBucket == null) {
-          setState(() => _errorText = '请选择一个存储桶');
+        if (_remoteDir == null) {
+          setState(() => _errorText = '请选择远端目录');
           return false;
         }
     }
@@ -121,11 +129,24 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     }
   }
 
+  // 弹出远程目录选择器，选择桶和目录前缀。
+  Future<void> _pickRemoteDirectory() async {
+    final result = await showRemoteDirectoryPicker(
+      context: context,
+      api: widget.api,
+      buckets: widget.buckets,
+      initial: _remoteDir,
+    );
+    if (result != null) {
+      setState(() => _remoteDir = result);
+    }
+  }
+
   Future<void> _submit() async {
-    final bucket = _selectedBucket!;
-    // 名称留空时用「桶名/前缀」或桶名做默认值。
+    final remote = _remoteDir!;
+    // 名称留空时用桶名做默认值。
     final name = _nameController.text.trim().isEmpty
-        ? (bucket.bucket.name)
+        ? remote.bucket
         : _nameController.text.trim();
     setState(() {
       _saving = true;
@@ -146,10 +167,10 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
       enabled: true,
     )).copyWith(
       name: name,
-      // 从选中的桶条目自动绑定关联账号。
-      accountProfile: bucket.profileName,
-      bucket: bucket.bucket.name,
-      remotePrefix: _remotePrefixController.text.trim(),
+      // 从目录选择器结果自动绑定。
+      accountProfile: remote.profileName,
+      bucket: remote.bucket,
+      remotePrefix: remote.prefix,
       localPath: _localPathController.text.trim(),
       direction: _direction,
       intervalSeconds: _intervalSeconds,
