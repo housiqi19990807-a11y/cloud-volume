@@ -110,19 +110,31 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   /// 供 steps 顶层函数触发重建。
   void markDirty(VoidCallback fn) => setState(fn);
 
-  // 步骤校验：第一步必须选桶，第二步必须选本地目录。
+  /// 保存前必须完成「同步两端」：本地目录 + 远端目录（任意步骤点保存都会校验）。
+  bool _validateEndpoints({bool jumpToEndpointsStep = false}) {
+    if (_localPathController.text.trim().isEmpty) {
+      setState(() {
+        _errorText = '请先在「同步两端」中选择本地目录';
+        if (jumpToEndpointsStep) _step = 0;
+      });
+      if (jumpToEndpointsStep) _applySubWindowStepSize();
+      return false;
+    }
+    if (_remoteDir == null) {
+      setState(() {
+        _errorText = '请先在「同步两端」中选择远端目录';
+        if (jumpToEndpointsStep) _step = 0;
+      });
+      if (jumpToEndpointsStep) _applySubWindowStepSize();
+      return false;
+    }
+    return true;
+  }
+
   bool _validateCurrentStep() {
     setState(() => _errorText = null);
-    switch (_step) {
-      case 0:
-        if (_localPathController.text.trim().isEmpty) {
-          setState(() => _errorText = '请选择本地目录');
-          return false;
-        }
-        if (_remoteDir == null) {
-          setState(() => _errorText = '请选择远端目录');
-          return false;
-        }
+    if (_step == 0) {
+      return _validateEndpoints();
     }
     return true;
   }
@@ -140,13 +152,14 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   }
 
   void _next() {
-    if (!_validateCurrentStep()) return;
     if (_step < 1) {
+      if (!_validateCurrentStep()) return;
       setState(() => _step++);
       _applySubWindowStepSize();
-    } else {
-      _submit();
+      return;
     }
+    if (!_validateEndpoints(jumpToEndpointsStep: true)) return;
+    _submit();
   }
 
   void _back() {
@@ -191,7 +204,9 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   }
 
   Future<void> _submit() async {
-    final remote = _remoteDir!;
+    if (!_validateEndpoints(jumpToEndpointsStep: true)) return;
+    final remote = _remoteDir;
+    if (remote == null) return;
     // 名称留空时用桶名做默认值。
     final name = _nameController.text.trim().isEmpty
         ? remote.bucket
