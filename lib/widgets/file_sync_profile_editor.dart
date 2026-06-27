@@ -150,9 +150,15 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   }
 
   void _back() {
+    _goToStep(_step - 1);
+  }
+
+  /// 步骤选项卡：可自由切换查看，不在此处校验（仅「下一步/保存」时校验）。
+  void _goToStep(int index) {
+    if (index < 0 || index >= _stepLabels.length || index == _step) return;
     setState(() {
       _errorText = null;
-      if (_step > 0) _step--;
+      _step = index;
     });
     _applySubWindowStepSize();
   }
@@ -317,7 +323,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     };
   }
 
-  /// 步骤指示器。
+  /// 步骤选项卡：点击 1/2 可自由切换查看各步内容。
   Widget _buildStepIndicator(ShadThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,39 +331,10 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
         Row(
           children: List.generate(_stepLabels.length, (i) {
             final isActive = i == _step;
-            final isDone = i < _step;
             return Expanded(
-              child: Row(
-                children: [
-                  _buildStepDot(theme, i, isActive, isDone),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      _stepLabels[i],
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight:
-                            isActive || isDone ? FontWeight.w700 : FontWeight.normal,
-                        color: isActive
-                            ? theme.colorScheme.primary
-                            : isDone
-                                ? theme.colorScheme.foreground
-                                : theme.colorScheme.mutedForeground,
-                      ),
-                    ),
-                  ),
-                  if (i < _stepLabels.length - 1) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        height: 1,
-                        color: isDone
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.border,
-                      ),
-                    ),
-                  ],
-                ],
+              child: Padding(
+                padding: EdgeInsets.only(right: i < _stepLabels.length - 1 ? 8 : 0),
+                child: _buildStepTab(theme, i, isActive),
               ),
             );
           }),
@@ -376,31 +353,57 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     );
   }
 
-  Widget _buildStepDot(ShadThemeData theme, int index, bool isActive, bool isDone) {
-    final color = isActive || isDone
+  Widget _buildStepTab(ShadThemeData theme, int index, bool isActive) {
+    final borderColor = isActive
         ? theme.colorScheme.primary
-        : theme.colorScheme.border;
-    return Container(
-      width: 22,
-      height: 22,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: isDone ? color : null,
-        border: Border.all(color: color, width: 1.5),
-      ),
-      child: isDone
-          ? Icon(LucideIcons.check, size: 12, color: theme.colorScheme.background)
-          : Text(
-              '${index + 1}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: isActive
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.mutedForeground,
+        : theme.colorScheme.border.withValues(alpha: 0.7);
+    final bg = isActive
+        ? theme.colorScheme.primary.withValues(alpha: 0.08)
+        : theme.colorScheme.secondary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _goToStep(index),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: isActive ? 1.5 : 1),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${index + 1}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isActive
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.mutedForeground,
+                ),
               ),
-            ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  _stepLabels[index],
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    color: isActive
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.foreground,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
