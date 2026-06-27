@@ -322,12 +322,15 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
   Widget build(BuildContext context) {
     final selected = widget.selected;
     final ac = widget.accent;
-    final bg = selected
-        ? ac.withValues(alpha: 0.1)
+    final fg = selected
+        ? ac
         : _hovered
-            ? ac.withValues(alpha: 0.07)
-            : Colors.transparent;
-    final fg = selected ? ac : (_hovered ? ac.withValues(alpha: 0.85) : widget.muted);
+            ? ac.withValues(alpha: 0.9)
+            : widget.muted;
+    final baseBg = selected ? ac.withValues(alpha: 0.1) : Colors.transparent;
+    final hoverOverlay = selected
+        ? Colors.transparent
+        : ac.withValues(alpha: _hovered ? 0.1 : 0);
     final border = selected
         ? Border.all(color: ac.withValues(alpha: 0.2))
         : Border.all(color: Colors.transparent);
@@ -337,33 +340,41 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(8),
-              border: border,
-            ),
-            child: Row(
-              children: [
-                Opacity(
-                  opacity: selected || _hovered ? 1 : 0.9,
-                  child: Icon(widget.icon, size: 17, color: fg),
+        cursor: _hovered ? SystemMouseCursors.click : MouseCursor.defer,
+        child: Material(
+          color: baseBg,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            onTap: widget.onTap,
+            onHover: (v) => setState(() => _hovered = v),
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: hoverOverlay,
+            splashColor: ac.withValues(alpha: 0.12),
+            highlightColor: ac.withValues(alpha: 0.08),
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: border,
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                child: Row(
+                  children: [
+                    Icon(widget.icon, size: 17, color: fg),
+                    const SizedBox(width: 10),
+                    Text(
+                      widget.label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.w400,
+                        color: fg,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    color: fg,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
