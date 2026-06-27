@@ -82,34 +82,38 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
           children: [
             // 标题行：页面名称与新建配置按钮并排，让创建入口始终可见。
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '文件同步任务',
-                      style: theme.textTheme.h3.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 22,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '文件同步任务',
+                        style: theme.textTheme.h3.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 22,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '管理同步配置与状态；进行中的同步操作在配置卡片内显示，完整任务请前往「传输」。',
-                      style: TextStyle(
-                        color: theme.colorScheme.mutedForeground,
-                        fontSize: 13,
+                      const SizedBox(height: 6),
+                      Text(
+                        '管理同步配置与状态；进行中的同步操作在配置卡片内显示，完整任务请前往「传输」。',
+                        style: TextStyle(
+                          color: theme.colorScheme.mutedForeground,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 12),
                 ShadButton(
                   onPressed: _loadingBuckets ? null : _addProfile,
-                  child: Row(
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(LucideIcons.plus, size: 16),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text('新建配置'),
                     ],
                   ),
