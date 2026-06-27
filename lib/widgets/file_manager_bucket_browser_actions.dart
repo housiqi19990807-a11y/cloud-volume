@@ -135,7 +135,6 @@ class _BucketMountActions extends StatelessWidget {
 }
 
 class _BucketOverflowMenuButton extends StatefulWidget {
-class _BucketOverflowMenuButton extends StatefulWidget {
   const _BucketOverflowMenuButton({
     required this.items,
     required this.color,
