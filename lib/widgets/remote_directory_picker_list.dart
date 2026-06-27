@@ -3,6 +3,14 @@ part of 'remote_directory_picker_dialog.dart';
 // 目录浏览列表：目录可进入，文件仅展示（灰色不可点）；可选显示以 . 开头的隐藏文件。
 
 extension _RemoteDirectoryPickerList on _RemoteDirectoryPickerDialogState {
+  /// 多色 SVG（如 zip）用亮度矩阵去色，避免 srcATop 只染透明区、彩色图标不变灰。
+  static const _fileIconGreyscale = ColorFilter.matrix(<double>[
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0, 0, 0, 1, 0,
+  ]);
+
   static const _parentEntry = ObjectInfo(
     key: '../',
     size: 0,
@@ -93,20 +101,23 @@ extension _RemoteDirectoryPickerList on _RemoteDirectoryPickerDialogState {
 
   Widget _fileTile(ShadThemeData theme, ObjectInfo obj) {
     final name = obj.displayName;
-    final muted = theme.colorScheme.mutedForeground;
     return FileListTile(
       leading: IgnorePointer(
-        child: ColorFiltered(
-          // 仅压暗图标像素，透明区域保持透明（不用整层灰底遮罩）。
-          colorFilter: ColorFilter.mode(
-            muted.withValues(alpha: 0.85),
-            BlendMode.srcATop,
+        child: Opacity(
+          opacity: 0.72,
+          child: ColorFiltered(
+            colorFilter: _fileIconGreyscale,
+            child: LocalCloudPanFileIcon(
+              name: name,
+              isDirectory: false,
+              size: 20,
+            ),
           ),
-          child: LocalCloudPanFileIcon(name: name, isDirectory: false, size: 20),
         ),
       ),
       title: name,
       sizeLabel: obj.sizeText,
+      dimmed: true,
       onTap: () {},
       showDivider: false,
     );

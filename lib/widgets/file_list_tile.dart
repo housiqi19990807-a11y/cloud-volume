@@ -23,6 +23,7 @@ class FileListTile extends StatefulWidget {
     this.showSelectionControl = false,
     this.showDivider = true,
     this.deleting = false,
+    this.dimmed = false,
     this.trailing,
     this.sizeColumnWidthOverride = FileListTile.sizeColumnWidth,
   });
@@ -45,6 +46,8 @@ class FileListTile extends StatefulWidget {
   final bool showSelectionControl;
   final bool showDivider;
   final bool deleting;
+  /// 仅展示、不可选中的行（例如远端目录选择器中的文件）。
+  final bool dimmed;
   final Widget? trailing;
   final double sizeColumnWidthOverride;
 
@@ -61,31 +64,43 @@ class _FileListTileState extends State<FileListTile> {
     final theme = ShadTheme.of(context);
     final interactionColors = ListInteractionColors.fromTheme(theme);
     final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
+    final dimmed = widget.dimmed;
+    final titleColor = widget.deleting
+        ? theme.colorScheme.mutedForeground
+        : dimmed
+            ? theme.colorScheme.mutedForeground.withValues(alpha: 0.82)
+            : theme.colorScheme.foreground;
+    final metaColor = widget.deleting
+        ? theme.colorScheme.primary
+        : dimmed
+            ? theme.colorScheme.mutedForeground.withValues(alpha: 0.72)
+            : theme.colorScheme.mutedForeground;
     final backgroundColor = interactionColors.rowBackground(
       selected: widget.isSelected,
-      hovered: _hovered,
-      pressed: _pressed,
+      hovered: dimmed ? false : _hovered,
+      pressed: dimmed ? false : _pressed,
     );
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
+      cursor: dimmed ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onEnter: dimmed ? null : (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {
         _hovered = false;
         _pressed = false;
       }),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.deleting ? null : widget.onTap,
-        onTapDown: widget.deleting
+        onTap: widget.deleting || dimmed ? null : widget.onTap,
+        onTapDown: widget.deleting || dimmed
             ? null
             : (_) => setState(() => _pressed = true),
-        onTapUp: widget.deleting
+        onTapUp: widget.deleting || dimmed
             ? null
             : (_) => setState(() => _pressed = false),
-        onTapCancel: widget.deleting
+        onTapCancel: widget.deleting || dimmed
             ? null
             : () => setState(() => _pressed = false),
-        onDoubleTap: widget.deleting ? null : widget.onDoubleTap,
+        onDoubleTap: widget.deleting || dimmed ? null : widget.onDoubleTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
@@ -122,9 +137,7 @@ class _FileListTileState extends State<FileListTile> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: widget.deleting
-                                ? theme.colorScheme.mutedForeground
-                                : theme.colorScheme.foreground,
+                            color: titleColor,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -154,9 +167,7 @@ class _FileListTileState extends State<FileListTile> {
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: 11.5,
-                    color: widget.deleting
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.mutedForeground,
+                    color: metaColor,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -183,9 +194,7 @@ class _FileListTileState extends State<FileListTile> {
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 11.5,
-                      color: widget.deleting
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.mutedForeground,
+                      color: metaColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
