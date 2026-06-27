@@ -152,10 +152,9 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
 
   Future<void> _triggerSync(SyncProfileRuntime runtime) async {
     try {
-      final ops =
-          await SyncProfileNotifier.instance.triggerProfile(runtime.profile.id);
+      await SyncProfileNotifier.instance.triggerProfile(runtime.profile.id);
       if (!mounted) return;
-      showAppToast(context, message: ops > 0 ? '已触发同步，共 $ops 个操作' : '已是最新，无待同步项');
+      showAppToast(context, message: '已触发同步');
     } catch (e) {
       if (!mounted) return;
       showAppErrorToast(context, message: '同步失败：$e');

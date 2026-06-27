@@ -99,7 +99,7 @@ func classify(
 		}
 	}
 	locChanged := l.present && !l.isDir && (l.size != idx.LocalSize || l.mtime != idx.LocalMTime)
-	remChanged := r.present && !r.isDir && (r.size != idx.RemoteSize || r.mtime != idx.RemoteMTime)
+	remChanged := r.present && !r.isDir && remoteSideChanged(r, idx)
 
 	if r.present && r.isDir && !l.present {
 		if indexTrackedRemoteDir(idx) && profile.Direction == DirectionTwoWay {
@@ -180,6 +180,17 @@ func classify(
 }
 
 // indexTrackedRemoteDir is true when the index remembers a synced directory marker (not a file).
+// remoteSideChanged compares listing metadata to the index; mtime 0 means unknown (parse miss).
+func remoteSideChanged(r remoteSide, idx IndexEntry) bool {
+	if r.size != idx.RemoteSize {
+		return true
+	}
+	if r.mtime == 0 {
+		return false
+	}
+	return r.mtime != idx.RemoteMTime
+}
+
 func indexTrackedRemoteDir(idx IndexEntry) bool {
 	return idx.LocalSize == 0 && idx.RemoteSize == 0 && idx.LocalMTime != 0
 }

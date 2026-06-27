@@ -154,3 +154,16 @@ func TestClassifyRemoteDirDoesNotDeleteWhenLocalDirExists(t *testing.T) {
 		t.Fatalf("expected skip for existing local dir, got %+v", ops)
 	}
 }
+
+func TestClassifySkipsDownloadWhenRemoteMtimeUnknown(t *testing.T) {
+	profile := SyncProfile{Direction: DirectionTwoWay, ConflictPolicy: ConflictNewest}
+	local := map[string]localSide{"a.txt": {size: 100, mtime: 500, present: true}}
+	remote := map[string]remoteSide{"a.txt": {size: 100, mtime: 0, present: true}}
+	keys, lookup := memLookup(map[string]IndexEntry{
+		"a.txt": {LocalSize: 100, LocalMTime: 500, RemoteSize: 100, RemoteMTime: 900},
+	})
+	ops := classifyAll(profile, local, remote, keys, lookup)
+	if len(ops) != 1 || ops[0].op.Kind != OpSkip {
+		t.Fatalf("expected skip when remote mtime unknown, got %+v", ops)
+	}
+}
