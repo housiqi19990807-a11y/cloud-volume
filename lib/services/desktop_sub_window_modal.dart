@@ -70,16 +70,20 @@ Future<Map<String, double>> readLocalWindowBounds() async {
 /// Prefer [creatorFrame*] captured on the parent engine before spawn (reliable).
 Future<void> positionChildCenteredFromFrame({
   required Size size,
+  double? anchorFrameLeft,
+  double? anchorFrameTop,
+  double? anchorFrameWidth,
+  double? anchorFrameHeight,
   double? creatorFrameLeft,
   double? creatorFrameTop,
   double? creatorFrameWidth,
   double? creatorFrameHeight,
   String? creatorWindowId,
 }) async {
-  final left = creatorFrameLeft;
-  final top = creatorFrameTop;
-  final width = creatorFrameWidth;
-  final height = creatorFrameHeight;
+  final left = anchorFrameLeft ?? creatorFrameLeft;
+  final top = anchorFrameTop ?? creatorFrameTop;
+  final width = anchorFrameWidth ?? creatorFrameWidth;
+  final height = anchorFrameHeight ?? creatorFrameHeight;
   if (left != null &&
       top != null &&
       width != null &&

@@ -23,6 +23,10 @@ class FileSyncProfileEditor extends StatefulWidget {
     this.onSaved,
     this.asDialog = true,
     this.creatorWindowId,
+    this.anchorFrameLeft,
+    this.anchorFrameTop,
+    this.anchorFrameWidth,
+    this.anchorFrameHeight,
   });
 
   final RemoteStorageGateway api;
@@ -39,6 +43,10 @@ class FileSyncProfileEditor extends StatefulWidget {
 
   /// 子窗口相对此父引擎窗口居中（desktop_multi_window id）。
   final String? creatorWindowId;
+  final double? anchorFrameLeft;
+  final double? anchorFrameTop;
+  final double? anchorFrameWidth;
+  final double? anchorFrameHeight;
 
   final SyncProfile? initial;
 
@@ -165,6 +173,10 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
       api: widget.api,
       buckets: widget.buckets,
       initial: _remoteDir,
+      anchorFrameLeft: widget.anchorFrameLeft,
+      anchorFrameTop: widget.anchorFrameTop,
+      anchorFrameWidth: widget.anchorFrameWidth,
+      anchorFrameHeight: widget.anchorFrameHeight,
     );
     if (result != null) {
       setState(() => _remoteDir = result);

@@ -14,6 +14,10 @@ class RemoteDirectoryPickerWindowService {
   Future<RemoteDirectoryResult?> openPicker({
     required List<FileManagerBucketEntry> buckets,
     RemoteDirectoryResult? initial,
+    double? anchorFrameLeft,
+    double? anchorFrameTop,
+    double? anchorFrameWidth,
+    double? anchorFrameHeight,
   }) async {
     return null;
   }

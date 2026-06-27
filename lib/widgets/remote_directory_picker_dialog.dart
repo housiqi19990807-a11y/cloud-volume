@@ -37,12 +37,20 @@ Future<RemoteDirectoryResult?> showRemoteDirectoryPicker({
   required RemoteStorageGateway api,
   required List<FileManagerBucketEntry> buckets,
   RemoteDirectoryResult? initial,
+  double? anchorFrameLeft,
+  double? anchorFrameTop,
+  double? anchorFrameWidth,
+  double? anchorFrameHeight,
 }) {
   return showDesktopOverlayOrDialog<RemoteDirectoryResult>(
     context: context,
     openSubWindow: () => RemoteDirectoryPickerWindowService.instance.openPicker(
       buckets: buckets,
       initial: initial,
+      anchorFrameLeft: anchorFrameLeft,
+      anchorFrameTop: anchorFrameTop,
+      anchorFrameWidth: anchorFrameWidth,
+      anchorFrameHeight: anchorFrameHeight,
     ),
     showDialog: () => showShadDialog<RemoteDirectoryResult>(
       context: context,

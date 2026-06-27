@@ -181,6 +181,10 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
         onSaved: () => _closeSyncEditorWindow(widget.args.creatorWindowId),
         asDialog: false,
         creatorWindowId: widget.args.creatorWindowId,
+        anchorFrameLeft: widget.args.creatorFrameLeft,
+        anchorFrameTop: widget.args.creatorFrameTop,
+        anchorFrameWidth: widget.args.creatorFrameWidth,
+        anchorFrameHeight: widget.args.creatorFrameHeight,
       ),
     );
   }

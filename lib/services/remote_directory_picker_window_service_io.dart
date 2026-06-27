@@ -22,10 +22,26 @@ class RemoteDirectoryPickerWindowService {
   Future<RemoteDirectoryResult?> openPicker({
     required List<FileManagerBucketEntry> buckets,
     RemoteDirectoryResult? initial,
+    double? anchorFrameLeft,
+    double? anchorFrameTop,
+    double? anchorFrameWidth,
+    double? anchorFrameHeight,
   }) async {
     await DesktopWindowMethodHost.ensureInstalled();
     final creator = await WindowController.fromCurrentEngine();
-    final creatorFrame = await readLocalWindowBounds();
+    final localFrame = await readLocalWindowBounds();
+    final useAnchor = anchorFrameLeft != null &&
+        anchorFrameTop != null &&
+        anchorFrameWidth != null &&
+        anchorFrameHeight != null;
+    final creatorFrame = useAnchor
+        ? {
+            'left': anchorFrameLeft,
+            'top': anchorFrameTop,
+            'width': anchorFrameWidth,
+            'height': anchorFrameHeight,
+          }
+        : localFrame;
     acquireParentModalOverlay();
     final completer = Completer<RemoteDirectoryResultPayload?>();
     final requestId =
@@ -41,6 +57,10 @@ class RemoteDirectoryPickerWindowService {
       creatorFrameTop: creatorFrame['top'],
       creatorFrameWidth: creatorFrame['width'],
       creatorFrameHeight: creatorFrame['height'],
+      anchorFrameLeft: useAnchor ? anchorFrameLeft : localFrame['left'],
+      anchorFrameTop: useAnchor ? anchorFrameTop : localFrame['top'],
+      anchorFrameWidth: useAnchor ? anchorFrameWidth : localFrame['width'],
+      anchorFrameHeight: useAnchor ? anchorFrameHeight : localFrame['height'],
     );
     try {
       final child = await WindowController.create(

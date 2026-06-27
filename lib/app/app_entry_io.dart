@@ -101,6 +101,10 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
     await windowManager.show();
     await positionChildCenteredFromFrame(
       size: const Size(720, 560),
+      anchorFrameLeft: args.anchorFrameLeft,
+      anchorFrameTop: args.anchorFrameTop,
+      anchorFrameWidth: args.anchorFrameWidth,
+      anchorFrameHeight: args.anchorFrameHeight,
       creatorFrameLeft: args.creatorFrameLeft,
       creatorFrameTop: args.creatorFrameTop,
       creatorFrameWidth: args.creatorFrameWidth,

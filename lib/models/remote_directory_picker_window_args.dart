@@ -18,6 +18,10 @@ class RemoteDirectoryPickerWindowArgs {
     this.creatorFrameTop,
     this.creatorFrameWidth,
     this.creatorFrameHeight,
+    this.anchorFrameLeft,
+    this.anchorFrameTop,
+    this.anchorFrameWidth,
+    this.anchorFrameHeight,
   });
 
   static const String businessId = 'remote_directory_picker';
@@ -32,6 +36,11 @@ class RemoteDirectoryPickerWindowArgs {
   final double? creatorFrameTop;
   final double? creatorFrameWidth;
   final double? creatorFrameHeight;
+  /// Main window bounds at modal stack start; nested children center on this.
+  final double? anchorFrameLeft;
+  final double? anchorFrameTop;
+  final double? anchorFrameWidth;
+  final double? anchorFrameHeight;
 
   factory RemoteDirectoryPickerWindowArgs.fromArguments(String arguments) {
     final json = jsonDecode(arguments) as Map<String, dynamic>;
@@ -49,6 +58,10 @@ class RemoteDirectoryPickerWindowArgs {
       creatorFrameTop: (json['creatorFrameTop'] as num?)?.toDouble(),
       creatorFrameWidth: (json['creatorFrameWidth'] as num?)?.toDouble(),
       creatorFrameHeight: (json['creatorFrameHeight'] as num?)?.toDouble(),
+      anchorFrameLeft: (json['anchorFrameLeft'] as num?)?.toDouble(),
+      anchorFrameTop: (json['anchorFrameTop'] as num?)?.toDouble(),
+      anchorFrameWidth: (json['anchorFrameWidth'] as num?)?.toDouble(),
+      anchorFrameHeight: (json['anchorFrameHeight'] as num?)?.toDouble(),
     );
   }
 
@@ -65,6 +78,10 @@ class RemoteDirectoryPickerWindowArgs {
       if (creatorFrameTop != null) 'creatorFrameTop': creatorFrameTop,
       if (creatorFrameWidth != null) 'creatorFrameWidth': creatorFrameWidth,
       if (creatorFrameHeight != null) 'creatorFrameHeight': creatorFrameHeight,
+      if (anchorFrameLeft != null) 'anchorFrameLeft': anchorFrameLeft,
+      if (anchorFrameTop != null) 'anchorFrameTop': anchorFrameTop,
+      if (anchorFrameWidth != null) 'anchorFrameWidth': anchorFrameWidth,
+      if (anchorFrameHeight != null) 'anchorFrameHeight': anchorFrameHeight,
     });
   }
 
