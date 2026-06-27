@@ -5,6 +5,7 @@ import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:remote_storage/models/sync_profile.dart';
+import 'package:remote_storage/services/desktop_window_method_host.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/theme/app_theme.dart';
@@ -49,6 +50,7 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
   @override
   void initState() {
     super.initState();
+    DesktopWindowMethodHost.ensureInstalled();
     _bootstrapApi();
   }
 

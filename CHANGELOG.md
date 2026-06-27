@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 远程目录选择器改为独立子窗口：同步配置里「选择远端目录」在桌面端打开 `desktop_multi_window` 窗口（720×560），不再嵌套 ShadDialog；新增 `showDesktopOverlayOrDialog` 统一桌面子窗口 / Web 拟态框回退。
 - 同步配置编辑器远端目录改为可视化选择：新增文件管理式远程目录选择器（`RemoteDirectoryPickerDialog`），用户像在文件管理页一样浏览桶列表→进入目录→选当前目录，支持面包屑导航和新建目录。不再需要手动输入桶名和目录前缀，关联账号自动绑定。编辑器保留两步向导结构（同步两端 → 同步策略）。
 
 - 同步配置编辑器改为独立子窗口：创建/编辑同步配置不再使用 ShadDialog 拟态框（空间太小），改为 `desktop_multi_window` 独立 OS 窗口（640x660），自带 bridge 连接和桶列表加载。Web 端降级回退到拟态框。模式与文件预览窗口（`FilePreviewWindowApp`）一致。

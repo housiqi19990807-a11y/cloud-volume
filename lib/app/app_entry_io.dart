@@ -4,7 +4,9 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/app/file_preview_window_app.dart';
 import 'package:remote_storage/app/remote_storage_app.dart';
+import 'package:remote_storage/app/remote_directory_picker_window_app.dart';
 import 'package:remote_storage/app/sync_editor_window_app.dart';
+import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
 import 'package:remote_storage/models/file_preview_window_args.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:window_manager/window_manager.dart';
@@ -25,6 +27,13 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
     final editorArgs = SyncEditorWindowArgs.fromArguments(arguments);
     await _configureSyncEditorWindow(editorArgs);
     runApp(SyncEditorWindowApp(args: editorArgs));
+    return;
+  }
+
+  if (RemoteDirectoryPickerWindowArgs.matches(arguments)) {
+    final pickerArgs = RemoteDirectoryPickerWindowArgs.fromArguments(arguments);
+    await _configureRemoteDirectoryPickerWindow();
+    runApp(RemoteDirectoryPickerWindowApp(args: pickerArgs));
     return;
   }
 
@@ -59,6 +68,22 @@ Future<void> _configurePreviewWindow(String title) async {
   );
   await windowManager.waitUntilReadyToShow(options, () async {
     await windowManager.setTitle(title);
+    await windowManager.show();
+    await windowManager.focus();
+  });
+}
+
+Future<void> _configureRemoteDirectoryPickerWindow() async {
+  const options = WindowOptions(
+    size: Size(720, 560),
+    minimumSize: Size(560, 440),
+    center: true,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.hidden,
+    windowButtonVisibility: false,
+  );
+  await windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.setTitle('选择远端目录');
     await windowManager.show();
     await windowManager.focus();
   });

@@ -10,6 +10,8 @@ import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
 import 'package:remote_storage/widgets/whitesur_file_icon.dart';
+import 'package:remote_storage/services/desktop_overlay.dart';
+import 'package:remote_storage/services/remote_directory_picker_window_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'remote_directory_picker_actions.dart';
@@ -36,12 +38,20 @@ Future<RemoteDirectoryResult?> showRemoteDirectoryPicker({
   required List<FileManagerBucketEntry> buckets,
   RemoteDirectoryResult? initial,
 }) {
-  return showShadDialog<RemoteDirectoryResult>(
+  return showDesktopOverlayOrDialog<RemoteDirectoryResult>(
     context: context,
-    builder: (_) => RemoteDirectoryPickerDialog(
-      api: api,
+    openSubWindow: () => RemoteDirectoryPickerWindowService.instance.openPicker(
       buckets: buckets,
       initial: initial,
+    ),
+    showDialog: () => showShadDialog<RemoteDirectoryResult>(
+      context: context,
+      builder: (_) => RemoteDirectoryPickerDialog(
+        api: api,
+        buckets: buckets,
+        initial: initial,
+        asDialog: true,
+      ),
     ),
   );
 }
@@ -52,11 +62,19 @@ class RemoteDirectoryPickerDialog extends StatefulWidget {
     required this.api,
     required this.buckets,
     this.initial,
+    this.asDialog = true,
+    this.onConfirm,
+    this.onCancel,
   });
 
   final RemoteStorageGateway api;
   final List<FileManagerBucketEntry> buckets;
   final RemoteDirectoryResult? initial;
+
+  /// true = ShadDialog；false = 子窗口裸内容。
+  final bool asDialog;
+  final void Function(RemoteDirectoryResult result)? onConfirm;
+  final VoidCallback? onCancel;
 
   @override
   State<RemoteDirectoryPickerDialog> createState() =>
@@ -158,17 +176,58 @@ class _RemoteDirectoryPickerDialogState
 
   void _confirm() {
     if (_activeBucket == null) return;
-    Navigator.of(context).pop(RemoteDirectoryResult(
+    final result = RemoteDirectoryResult(
       bucket: _activeBucket!.bucket.name,
       prefix: _prefix,
       profileName: _activeBucket!.profileName,
       config: _activeBucket!.config,
-    ));
+    );
+    if (widget.onConfirm != null) {
+      widget.onConfirm!(result);
+      return;
+    }
+    Navigator.of(context).pop(result);
+  }
+
+  void _cancel() {
+    if (widget.onCancel != null) {
+      widget.onCancel!();
+      return;
+    }
+    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final body = SizedBox(
+      width: double.infinity,
+      height: widget.asDialog ? 420 : double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!widget.asDialog) ...[
+            Text(
+              _activeBucket == null
+                  ? '选择一个存储桶进入。'
+                  : '浏览目录后点击「选择当前目录」确认。',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.mutedForeground,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          _buildBreadcrumbBar(theme),
+          const SizedBox(height: 12),
+          Expanded(child: _buildContent(theme)),
+          const SizedBox(height: 12),
+          buildCreateDirInput(theme),
+          _buildActions(theme),
+        ],
+      ),
+    );
+    if (!widget.asDialog) return body;
     return ShadDialog(
       title: const Text('选择远端目录'),
       description: Text(
@@ -177,21 +236,7 @@ class _RemoteDirectoryPickerDialogState
             : '浏览目录后点击「选择当前目录」确认。',
       ),
       constraints: const BoxConstraints(maxWidth: 640),
-      child: SizedBox(
-        width: double.infinity,
-        height: 420,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildBreadcrumbBar(theme),
-            const SizedBox(height: 12),
-            Expanded(child: _buildContent(theme)),
-            const SizedBox(height: 12),
-            buildCreateDirInput(theme),
-            _buildActions(theme),
-          ],
-        ),
-      ),
+      child: body,
     );
   }
 
@@ -386,7 +431,7 @@ class _RemoteDirectoryPickerDialogState
         Row(
           children: [
             ShadButton.outline(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _cancel,
               child: const Text('取消'),
             ),
             const SizedBox(width: 8),
