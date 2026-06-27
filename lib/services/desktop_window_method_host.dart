@@ -54,6 +54,12 @@ class DesktopWindowMethodHost {
       case kModalShowWindowMethod:
         await windowManager.show();
         return null;
+      case kModalRegisterChildMethod:
+        final id = call.arguments?.toString() ?? '';
+        if (id.isNotEmpty) {
+          DesktopModalOverlayController.instance.registerChildWindow(id);
+        }
+        return null;
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
     }

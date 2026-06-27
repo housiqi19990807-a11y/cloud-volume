@@ -17,6 +17,8 @@ class DesktopModalParentFocusRelay extends StatefulWidget {
 
 class _DesktopModalParentFocusRelayState extends State<DesktopModalParentFocusRelay>
     with WindowListener {
+  DateTime? _lastRelay;
+
   @override
   void initState() {
     super.initState();
@@ -31,9 +33,15 @@ class _DesktopModalParentFocusRelayState extends State<DesktopModalParentFocusRe
 
   @override
   void onWindowFocus() {
+    final now = DateTime.now();
+    if (_lastRelay != null &&
+        now.difference(_lastRelay!) < const Duration(milliseconds: 450)) {
+      return;
+    }
+    _lastRelay = now;
     reconcileModalOverlayWithOpenChildren().then((_) {
       if (!DesktopModalOverlayController.instance.visible) return;
-      bringTopModalChildToFront();
+      bringTopModalChildToFrontDebounced();
     });
   }
 

@@ -8,13 +8,9 @@ class DesktopModalWindowFocusGate extends StatefulWidget {
   const DesktopModalWindowFocusGate({
     super.key,
     required this.child,
-    this.ancestorWindowIds = const [],
   });
 
   final Widget child;
-
-  /// Outermost-first window ids (e.g. main, then sync editor) to show when this child focuses.
-  final List<String> ancestorWindowIds;
 
   @override
   State<DesktopModalWindowFocusGate> createState() =>
@@ -27,7 +23,7 @@ class _DesktopModalWindowFocusGateState extends State<DesktopModalWindowFocusGat
   void initState() {
     super.initState();
     windowManager.addListener(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onFocused());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncTop());
   }
 
   @override
@@ -36,26 +32,22 @@ class _DesktopModalWindowFocusGateState extends State<DesktopModalWindowFocusGat
     super.dispose();
   }
 
-  Future<void> _onFocused() async {
+  Future<void> _syncTop() async {
     try {
-      await showAncestorModalWindows(widget.ancestorWindowIds);
-      final focused = await windowManager.isFocused();
-      if (focused) {
+      if (await windowManager.isFocused()) {
         await applyModalChildWindowChrome();
-      } else {
-        await clearModalChildWindowChrome();
       }
     } catch (_) {}
   }
 
   @override
   void onWindowFocus() {
-    _onFocused();
+    _syncTop();
   }
 
   @override
   void onWindowBlur() {
-    clearAlwaysOnTopForAllModalChildren();
+    clearModalChildWindowChrome();
   }
 
   @override

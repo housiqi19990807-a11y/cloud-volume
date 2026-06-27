@@ -69,6 +69,9 @@ class RemoteDirectoryPickerWindowService {
         WindowConfiguration(arguments: args.toArguments()),
       );
       DesktopModalOverlayController.instance.registerChildWindow(child.windowId);
+      if (rootWindowId != null && rootWindowId.trim().isNotEmpty) {
+        await registerModalChildOnRootEngine(rootWindowId, child.windowId);
+      }
       final payload = await completer.future;
       return payload?.toResult();
     } finally {

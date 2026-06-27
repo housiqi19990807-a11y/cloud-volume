@@ -159,6 +159,18 @@ Future<void> clearModalChildWindowChrome() async {
 
 const String kModalBringToFrontMethod = 'modal_bring_to_front';
 
+DateTime? _lastBringToFront;
+
+Future<void> bringTopModalChildToFrontDebounced() async {
+  final now = DateTime.now();
+  if (_lastBringToFront != null &&
+      now.difference(_lastBringToFront!) < const Duration(milliseconds: 450)) {
+    return;
+  }
+  _lastBringToFront = now;
+  await bringTopModalChildToFront();
+}
+
 Future<void> bringTopModalChildToFront() async {
   final childId = DesktopModalOverlayController.instance.topChildWindowId;
   if (childId == null) return;
@@ -219,5 +231,21 @@ Future<void> reconcileModalOverlayWithOpenChildren() async {
   final hasModalChild = controllers.any((c) => _isModalSubWindowArguments(c.arguments));
   if (!hasModalChild) {
     DesktopModalOverlayController.instance.reset();
+  }
+}
+
+
+const String kModalRegisterChildMethod = 'modal_register_child';
+
+Future<void> registerModalChildOnRootEngine(
+  String rootWindowId,
+  String childWindowId,
+) async {
+  final controllers = await WindowController.getAll();
+  for (final c in controllers) {
+    if (c.windowId == rootWindowId) {
+      await c.invokeMethod(kModalRegisterChildMethod, childWindowId);
+      return;
+    }
   }
 }

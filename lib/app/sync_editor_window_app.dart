@@ -28,14 +28,24 @@ class SyncEditorWindowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DesktopModalParentFocusRelay(
-      child: ShadApp(
+    return ShadApp(
       title: '云卷 - 同步配置',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(AccentPreset.blue),
-      home: DesktopModalWindowFocusGate(child: Stack(children: [_SyncEditorBody(args: args), const DesktopModalScrim()])),
-    ),
+      home: SyncEditorWindowLifecycle(
+        creatorWindowId: args.creatorWindowId,
+        child: DesktopModalParentFocusRelay(
+          child: DesktopModalWindowFocusGate(
+            child: Stack(
+              children: [
+                _SyncEditorBody(args: args),
+                const DesktopModalScrim(),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
