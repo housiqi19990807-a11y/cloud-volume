@@ -4,6 +4,7 @@ part of 'file_manager_bucket_browser.dart';
 class _BucketSourceAndActions extends StatelessWidget {
   const _BucketSourceAndActions({
     required this.sourceLabel,
+    required this.showSourceColumn,
     required this.showActionColumn,
     required this.actionColumnWidth,
     required this.sourceColumnWidth,
@@ -11,6 +12,7 @@ class _BucketSourceAndActions extends StatelessWidget {
   });
 
   final String sourceLabel;
+  final bool showSourceColumn;
   final bool showActionColumn;
   final double actionColumnWidth;
   final double sourceColumnWidth;
@@ -22,19 +24,20 @@ class _BucketSourceAndActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: sourceColumnWidth,
-          child: Text(
-            sourceLabel,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: 11.5,
-              color: theme.colorScheme.mutedForeground,
+        if (showSourceColumn)
+          SizedBox(
+            width: sourceColumnWidth,
+            child: Text(
+              sourceLabel,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: theme.colorScheme.mutedForeground,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
         if (showActionColumn) ...[
           const SizedBox(width: 16),
           SizedBox(

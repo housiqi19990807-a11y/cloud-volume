@@ -65,6 +65,8 @@ class _FileListTileState extends State<FileListTile> {
     final interactionColors = ListInteractionColors.fromTheme(theme);
     final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
     final dimmed = widget.dimmed;
+    final showSizeColumn =
+        widget.sizeColumnWidthOverride > 0 || widget.sizeLabel.isNotEmpty;
     final titleColor = widget.deleting
         ? theme.colorScheme.mutedForeground
         : dimmed
@@ -159,20 +161,22 @@ class _FileListTileState extends State<FileListTile> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: widget.sizeColumnWidthOverride,
-                child: Text(
-                  widget.sizeLabel,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: metaColor,
+              if (showSizeColumn) ...[
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: widget.sizeColumnWidthOverride,
+                  child: Text(
+                    widget.sizeLabel,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: metaColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
+              ],
               if (widget.statusWidget != null) ...[
                 const SizedBox(width: 16),
                 SizedBox(
