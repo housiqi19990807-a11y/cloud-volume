@@ -258,12 +258,6 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
           ),
           const SizedBox(height: 4),
           _metaRow(theme, LucideIcons.arrowLeftRight, runtime.profile.direction.label),
-          const SizedBox(height: 10),
-          SyncDirectoryOpenButtons(
-            localPath: runtime.profile.localPath,
-            remoteOpen: runtime.profile.remoteOpenRequest,
-            compact: true,
-          ),
           if (runtime.lastSyncAt.isNotEmpty) ...[
             const SizedBox(height: 4),
             _metaRow(theme, LucideIcons.clock, '上次同步：${runtime.lastSyncAt}'),
@@ -283,6 +277,7 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
           ],
           const SizedBox(height: 12),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ShadSwitch(
                 value: runtime.profile.enabled,
@@ -295,6 +290,12 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
                   fontSize: 12,
                   color: theme.colorScheme.mutedForeground,
                 ),
+              ),
+              const SizedBox(width: 12),
+              SyncDirectoryOpenButtons(
+                localPath: runtime.profile.localPath,
+                remoteOpen: runtime.profile.remoteOpenRequest,
+                compact: true,
               ),
               const Spacer(),
               ShadButton.outline(
