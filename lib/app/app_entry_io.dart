@@ -43,8 +43,8 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
 Future<void> _configureSyncEditorWindow(SyncEditorWindowArgs args) async {
   final title = args.initialProfile != null ? '编辑同步配置' : '新建同步配置';
   const options = WindowOptions(
-    size: Size(640, 660),
-    minimumSize: Size(520, 580),
+    size: Size(560, 420),
+    minimumSize: Size(520, 380),
     center: true,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,

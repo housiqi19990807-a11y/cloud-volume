@@ -8,6 +8,7 @@ import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:window_manager/window_manager.dart';
 
 part 'file_sync_profile_editor_steps.dart';
 
@@ -61,6 +62,9 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   @override
   void initState() {
     super.initState();
+    if (!widget.asDialog) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _applySubWindowStepSize());
+    }
     final initial = widget.initial;
     if (initial == null) return;
     _nameController.text = initial.name;
@@ -113,10 +117,23 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     return true;
   }
 
+  static const _subWindowSizeStep0 = Size(560, 420);
+  static const _subWindowSizeStep1 = Size(640, 660);
+
+  Future<void> _applySubWindowStepSize() async {
+    if (widget.asDialog) return;
+    final size = _step == 0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
+    try {
+      await windowManager.setSize(size);
+      await windowManager.center();
+    } catch (_) {}
+  }
+
   void _next() {
     if (!_validateCurrentStep()) return;
     if (_step < 1) {
       setState(() => _step++);
+      _applySubWindowStepSize();
     } else {
       _submit();
     }
@@ -127,6 +144,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
       _errorText = null;
       if (_step > 0) _step--;
     });
+    _applySubWindowStepSize();
   }
 
   Future<void> _pickLocalDirectory() async {
@@ -221,18 +239,22 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     );
   }
 
-  /// 子窗口：占满可用高度，步骤区可滚动，底部按钮固定。
+  /// 子窗口：第一步字段少，顶部紧凑排列；第二步策略项多，中间可滚动。
   Widget _buildSubWindowLayout(ShadThemeData theme) {
+    final isStepOne = _step == 0;
+    final stepBody = _buildStepBody(theme);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.max,
       children: [
         _buildStepIndicator(theme),
         const SizedBox(height: 20),
-        Expanded(
-          child: SingleChildScrollView(
-            child: _buildStepBody(theme),
+        if (isStepOne)
+          stepBody
+        else
+          Expanded(
+            child: SingleChildScrollView(child: stepBody),
           ),
-        ),
         if (_errorText != null) ...[
           const SizedBox(height: 8),
           Text(
