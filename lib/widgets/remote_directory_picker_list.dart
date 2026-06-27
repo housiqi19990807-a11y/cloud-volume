@@ -93,20 +93,22 @@ extension _RemoteDirectoryPickerList on _RemoteDirectoryPickerDialogState {
 
   Widget _fileTile(ShadThemeData theme, ObjectInfo obj) {
     final name = obj.displayName;
-    final muted = theme.colorScheme.mutedForeground;
-    return Opacity(
-      opacity: 0.55,
-      child: IgnorePointer(
-        child: FileListTile(
-          leading: ColorFiltered(
-            colorFilter: ColorFilter.mode(muted, BlendMode.srcIn),
-            child: LocalCloudPanFileIcon(name: name, isDirectory: false, size: 20),
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          FileListTile(
+            leading: LocalCloudPanFileIcon(name: name, isDirectory: false, size: 20),
+            title: name,
+            sizeLabel: obj.sizeText,
+            onTap: () {},
+            showDivider: false,
           ),
-          title: name,
-          sizeLabel: obj.sizeText,
-          onTap: () {},
-          showDivider: false,
-        ),
+          Positioned.fill(
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.38),
+            ),
+          ),
+        ],
       ),
     );
   }
