@@ -15,6 +15,7 @@ import 'package:remote_storage/services/remote_directory_picker_window_service.d
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'remote_directory_picker_actions.dart';
+part 'remote_directory_picker_list.dart';
 
 /// 远程目录选择结果。
 class RemoteDirectoryResult {
@@ -103,6 +104,9 @@ class _RemoteDirectoryPickerDialogState
   // 创建目录弹窗状态。
   bool _showCreateDir = false;
   final _dirNameController = TextEditingController();
+
+  /// 是否列出以 . 开头的隐藏文件（文件仍不可选，仅展示）。
+  bool _showHiddenFiles = false;
 
   @override
   void initState() {
@@ -229,7 +233,9 @@ class _RemoteDirectoryPickerDialogState
             const SizedBox(height: 12),
           ],
           _buildBreadcrumbBar(theme),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          buildHiddenFilesToggle(theme),
+          const SizedBox(height: 8),
           Expanded(child: _buildContent(theme)),
           const SizedBox(height: 12),
           buildCreateDirInput(theme),
@@ -286,14 +292,6 @@ class _RemoteDirectoryPickerDialogState
     );
   }
 
-  // ".." 返回上一级的占位条目，与文件管理页一致。
-  static const _parentEntry = ObjectInfo(
-    key: '../',
-    size: 0,
-    lastModified: '',
-    isDir: true,
-  );
-
   Widget _buildContent(ShadThemeData theme) {
     if (_activeBucket == null) {
       return _buildBucketList(theme);
@@ -313,25 +311,7 @@ class _RemoteDirectoryPickerDialogState
         ),
       );
     }
-    final dirs = _objects.where((o) => o.isDir).toList();
-    // 非根目录时在最前面插入 ".." 返回条目。
-    final items = _prefix.isEmpty ? dirs : [_parentEntry, ...dirs];
-    if (items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.folderOpen, size: 40, color: theme.colorScheme.mutedForeground.withValues(alpha: 0.3)),
-            const SizedBox(height: 10),
-            Text('此目录为空', style: TextStyle(fontSize: 13, color: theme.colorScheme.mutedForeground)),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
-      itemCount: items.length,
-      itemBuilder: (context, i) => _dirTile(theme, items[i]),
-    );
+    return buildDirectoryList(theme);
   }
 
   Widget _buildBucketList(ShadThemeData theme) {
