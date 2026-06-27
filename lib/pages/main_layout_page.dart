@@ -232,44 +232,13 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     Color ac,
     Color muted,
   ) {
-    final selected = _effectiveSelectedItem == item;
-    final bg = selected ? ac.withValues(alpha: 0.1) : Colors.transparent;
-    final fg = selected ? ac : muted;
-    final border = selected
-        ? Border.all(color: ac.withValues(alpha: 0.2))
-        : Border.all(color: Colors.transparent);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      child: GestureDetector(
-        onTap: () => widget.onSelectedItemChanged(item),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-            border: border,
-          ),
-          child: Row(
-            children: [
-              Opacity(
-                opacity: selected ? 1 : 0.9,
-                child: Icon(icon, size: 17, color: fg),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return _SidebarNavItem(
+      icon: icon,
+      label: label,
+      selected: _effectiveSelectedItem == item,
+      accent: ac,
+      muted: muted,
+      onTap: () => widget.onSelectedItemChanged(item),
     );
   }
 
@@ -320,6 +289,85 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           onRefresh: widget.onRefresh,
         ),
       ],
+    );
+  }
+}
+
+/// 侧边栏单项：未选中时鼠标悬停有浅色背景反馈。
+class _SidebarNavItem extends StatefulWidget {
+  const _SidebarNavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.accent,
+    required this.muted,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final Color accent;
+  final Color muted;
+  final VoidCallback onTap;
+
+  @override
+  State<_SidebarNavItem> createState() => _SidebarNavItemState();
+}
+
+class _SidebarNavItemState extends State<_SidebarNavItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = widget.selected;
+    final ac = widget.accent;
+    final bg = selected
+        ? ac.withValues(alpha: 0.1)
+        : _hovered
+            ? ac.withValues(alpha: 0.07)
+            : Colors.transparent;
+    final fg = selected ? ac : (_hovered ? ac.withValues(alpha: 0.85) : widget.muted);
+    final border = selected
+        ? Border.all(color: ac.withValues(alpha: 0.2))
+        : Border.all(color: Colors.transparent);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+              border: border,
+            ),
+            child: Row(
+              children: [
+                Opacity(
+                  opacity: selected || _hovered ? 1 : 0.9,
+                  child: Icon(widget.icon, size: 17, color: fg),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    color: fg,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
