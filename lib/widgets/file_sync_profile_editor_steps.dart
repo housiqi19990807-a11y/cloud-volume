@@ -52,6 +52,14 @@ Widget stepPickEndpoints({
             onPressed: self._pickLocalDirectory,
             child: const Text('选择'),
           ),
+          const SizedBox(width: 8),
+          ShadButton.outline(
+            size: ShadButtonSize.sm,
+            onPressed: self._localPathController.text.trim().isEmpty
+                ? null
+                : self._openLocalDirectoryInShell,
+            child: const Text('打开本地目录'),
+          ),
         ],
       ),
       const SizedBox(height: 16),
@@ -72,20 +80,7 @@ Widget stepPickEndpoints({
             onPressed: self._pickRemoteDirectory,
             child: const Text('选择'),
           ),
-        ],
-      ),
-      const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ShadButton.outline(
-            size: ShadButtonSize.sm,
-            onPressed: self._localPathController.text.trim().isEmpty
-                ? null
-                : self._openLocalDirectoryInShell,
-            child: const Text('打开本地目录'),
-          ),
+          const SizedBox(width: 8),
           ShadButton.outline(
             size: ShadButtonSize.sm,
             onPressed: self._remoteDir == null

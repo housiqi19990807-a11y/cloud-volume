@@ -8,6 +8,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/file_sync_profile_active_task.dart';
+import 'package:remote_storage/services/sync_directory_navigation.dart';
 import 'package:remote_storage/widgets/sync_directory_open_buttons.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/services/sync_editor_window_service.dart';
@@ -249,12 +250,28 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
             ],
           ),
           const SizedBox(height: 8),
-          _metaRow(theme, LucideIcons.folder, runtime.profile.localPath),
-          const SizedBox(height: 4),
-          _metaRow(
+          _pathRowWithOpenButton(
             theme,
-            LucideIcons.cloudUpload,
-            '${runtime.profile.bucket}/${runtime.profile.remotePrefix.isEmpty ? '' : runtime.profile.remotePrefix}',
+            icon: LucideIcons.folder,
+            text: runtime.profile.localPath,
+            openLabel: '打开本地目录',
+            onOpen: runtime.profile.localPath.trim().isEmpty
+                ? null
+                : () => SyncDirectoryOpenButtons.openLocal(
+                      context,
+                      runtime.profile.localPath.trim(),
+                    ),
+          ),
+          const SizedBox(height: 4),
+          _pathRowWithOpenButton(
+            theme,
+            icon: LucideIcons.cloudUpload,
+            text:
+                '${runtime.profile.bucket}/${runtime.profile.remotePrefix.isEmpty ? '' : runtime.profile.remotePrefix}',
+            openLabel: '打开同步目录',
+            onOpen: () => SyncDirectoryNavigation.instance.openRemote(
+              runtime.profile.remoteOpenRequest,
+            ),
           ),
           const SizedBox(height: 4),
           _metaRow(theme, LucideIcons.arrowLeftRight, runtime.profile.direction.label),
@@ -277,7 +294,6 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
           ],
           const SizedBox(height: 12),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ShadSwitch(
                 value: runtime.profile.enabled,
@@ -290,12 +306,6 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
                   fontSize: 12,
                   color: theme.colorScheme.mutedForeground,
                 ),
-              ),
-              const SizedBox(width: 12),
-              SyncDirectoryOpenButtons(
-                localPath: runtime.profile.localPath,
-                remoteOpen: runtime.profile.remoteOpenRequest,
-                compact: true,
               ),
               const Spacer(),
               ShadButton.outline(
@@ -316,6 +326,39 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 路径行右侧「打开目录」与路径同一行。
+  Widget _pathRowWithOpenButton(
+    ShadThemeData theme, {
+    required IconData icon,
+    required String text,
+    required String openLabel,
+    required VoidCallback? onOpen,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 13, color: theme.colorScheme.mutedForeground),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.mutedForeground,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        ShadButton.outline(
+          size: ShadButtonSize.sm,
+          onPressed: onOpen,
+          child: Text(openLabel),
+        ),
+      ],
     );
   }
 
