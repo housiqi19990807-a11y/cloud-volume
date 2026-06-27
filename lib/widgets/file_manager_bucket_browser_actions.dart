@@ -159,20 +159,36 @@ class _BucketOverflowMenuButtonState extends State<_BucketOverflowMenuButton> {
   void initState() {
     super.initState();
     _controller = ShadContextMenuController();
+    _controller.addListener(_syncActiveController);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_syncActiveController);
+    DesktopContextMenuRegistry.deactivate(_bucketContextMenuGroup, _controller);
     _controller.dispose();
     super.dispose();
   }
 
-  void _showMenu() {
+  void _syncActiveController() {
+    if (_controller.isOpen) {
+      DesktopContextMenuRegistry.activate(_bucketContextMenuGroup, _controller);
+      return;
+    }
+    DesktopContextMenuRegistry.deactivate(_bucketContextMenuGroup, _controller);
+  }
+
+  /// 再次点击「更多」图标时收起菜单（与行点击 dismiss 行为一致）。
+  void _toggleMenu() {
+    if (!widget.enabled || widget.items.isEmpty) {
+      return;
+    }
+    if (_controller.isOpen) {
+      _controller.hide();
+      return;
+    }
     final buttonContext = _buttonKey.currentContext;
-    if (!mounted ||
-        buttonContext == null ||
-        !widget.enabled ||
-        widget.items.isEmpty) {
+    if (!mounted || buttonContext == null) {
       return;
     }
     final box = buttonContext.findRenderObject() as RenderBox?;
@@ -208,7 +224,7 @@ class _BucketOverflowMenuButtonState extends State<_BucketOverflowMenuButton> {
           width: 26,
           height: 26,
           iconSize: 13,
-          onPressed: widget.enabled ? _showMenu : null,
+          onPressed: widget.enabled ? _toggleMenu : null,
         ),
       ),
     );
