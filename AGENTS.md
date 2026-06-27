@@ -75,11 +75,11 @@ The sync feature lets users bind a local directory to a remote bucket prefix and
 
 - `lib/pages/file_sync_tasks_page.dart` — File Sync Tasks page. **The sole management hub for sync config.** Shows summary cards (enabled profiles, syncing, running/failed tasks), a "新建配置" button, profile rows with toggle/edit/delete/立即同步, and a list of `sync_*` transfer tasks. Listens to `TransferQueue` and `SyncProfileNotifier`. Takes `profiles` (List<ProfileInfo>) for the editor's account selector.
 - `lib/pages/file_sync_tasks_page_actions.dart` — Part file containing the CRUD extension (`_FileSyncTasksActions`): `_addProfile`, `_editProfile`, `_saveProfile`, `_deleteProfile`, `_toggleEnabled`, `_triggerSync`. Extracted to keep the page under 500 lines.
-- `lib/widgets/file_sync_profile_editor.dart` — Editor widget for creating or editing a single `SyncProfile`. **2-step wizard:** Step 1 同步两端 (optional name, local dir via `FilePicker`, remote dir via `RemoteDirectoryPickerDialog`), Step 2 同步策略 (direction, conflict policy, interval, quiet period, exclude rules, enabled toggle). Receives `api` + `List<FileManagerBucketEntry> buckets`. Supports `onSaved` callback for sub-window close.
+- `lib/widgets/file_sync_profile_editor.dart` — Editor widget for creating or editing a single `SyncProfile`. **2-step wizard:** Step 1 同步两端 (optional name, local dir via `FilePicker`, remote dir via `RemoteDirectoryPickerDialog`), Step 2 同步策略 (direction, conflict policy, interval, quiet period, exclude rules, enabled toggle). Receives `api` + `List<FileManagerBucketEntry> buckets`. **`asDialog`:** `true` (default) wraps step content in `ShadDialog` for Web / in-app fallback; `false` returns bare `_buildContent` only — **never nest ShadDialog inside the detached sub-window**. On save success: `onSaved` then `Navigator.pop` only when `asDialog` is true.
 
 **Sub-window architecture (2026-06-27):** The sync config editor now opens as a **detached OS sub-window** instead of a cramped ShadDialog. Follows the same `desktop_multi_window` pattern as `FilePreviewWindowApp`:
 - `lib/models/sync_editor_window_args.dart` — Args model with `profileNames` (account names to load buckets from) and optional `initialProfileJson` (for edit mode). Serialized to JSON for crossing the multi-window boundary.
-- `lib/app/sync_editor_window_app.dart` — Sub-window app: bootstraps its own `RemoteStorageApi` bridge, loads buckets from account profiles, shows the editor as a full Scaffold page with title bar. On save, notifies `SyncProfileNotifier` (which is polled by the main window every 3s) and closes.
+- `lib/app/sync_editor_window_app.dart` — Sub-window root is **`ShadApp` + `buildAppTheme`** (required — bare `MaterialApp` causes `ShadTheme.of()` crash). Body: bootstraps its own `RemoteStorageApi` bridge, loads buckets from account profiles, `Scaffold` + custom title bar + `FileSyncProfileEditor(asDialog: false)`. On save, `SyncProfileNotifier.saveProfile` then `windowManager.close()` via `onSaved`.
 - `lib/services/sync_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Conditional service: desktop uses `WindowController.create()`, web falls back to returning `false` so callers use in-app dialog.
 - `lib/app/app_entry_io.dart` — Dispatch: checks `SyncEditorWindowArgs.matches(arguments)` and launches `SyncEditorWindowApp`.
 - `lib/widgets/remote_directory_picker_dialog.dart` — File-manager-style remote directory picker dialog. Shows bucket list at top level, then directory browsing (breadcrumbs, navigate into dirs, create directory). "选择当前目录" returns a `RemoteDirectoryResult(bucket, prefix, profileName, config)`. Uses `listObjects` and `createDirectory` from `RemoteStorageGateway`.
@@ -103,7 +103,7 @@ The sync feature lets users bind a local directory to a remote bucket prefix and
 
 #### Data flow
 
-1. User creates/edits a profile via `FileSyncProfileEditor`, opened from the tasks page (sole entry point).
+1. User creates/edits a profile from **文件同步** page only (`_addProfile` / `_editProfile`): desktop → `SyncEditorWindowService.openEditor` → sub-window; Web or unsupported → `showShadDialog` + `FileSyncProfileEditor(asDialog: true)`.
 2. `_FileSyncTasksActions._saveProfile` → `SyncProfileNotifier.saveProfile` → Go `saveSyncProfile` → `go/sync/store.go`.
 3. `SyncProfileNotifier` polls `listSyncProfiles` every 3s → Go runtime state from `scheduler.go`/`runner.go`.
 4. On interval or manual "立即同步" trigger → Go `runner.go` runs `diff.go` → `reconcile.go` → `executor.go`, enqueueing `sync_*` tasks into the shared `TransferQueue`.

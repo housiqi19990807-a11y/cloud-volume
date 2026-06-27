@@ -7,21 +7,40 @@ import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
+import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:window_manager/window_manager.dart';
 
-class SyncEditorWindowApp extends StatefulWidget {
+/// 子窗口根 widget：提供 ShadApp + 主题，内部放置状态化的编辑器页面。
+class SyncEditorWindowApp extends StatelessWidget {
   const SyncEditorWindowApp({super.key, required this.args});
 
   final SyncEditorWindowArgs args;
 
   @override
-  State<SyncEditorWindowApp> createState() => _SyncEditorWindowAppState();
+  Widget build(BuildContext context) {
+    return ShadApp(
+      title: '云卷 - 同步配置',
+      debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.light,
+      theme: buildAppTheme(AccentPreset.blue),
+      home: _SyncEditorBody(args: args),
+    );
+  }
 }
 
-class _SyncEditorWindowAppState extends State<SyncEditorWindowApp> {
+class _SyncEditorBody extends StatefulWidget {
+  const _SyncEditorBody({required this.args});
+
+  final SyncEditorWindowArgs args;
+
+  @override
+  State<_SyncEditorBody> createState() => _SyncEditorBodyState();
+}
+
+class _SyncEditorBodyState extends State<_SyncEditorBody> {
   RemoteStorageGateway? _api;
   List<FileManagerBucketEntry> _buckets = const [];
   bool _loading = true;
@@ -57,9 +76,20 @@ class _SyncEditorWindowAppState extends State<SyncEditorWindowApp> {
         final sc = a.sourceLabel.compareTo(b.sourceLabel);
         return sc != 0 ? sc : a.bucket.name.compareTo(b.bucket.name);
       });
-      if (mounted) setState(() { _api = api; _buckets = entries; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _api = api;
+          _buckets = entries;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -97,15 +127,13 @@ class _SyncEditorWindowAppState extends State<SyncEditorWindowApp> {
       body: Column(
         children: [
           _SyncEditorTitleBar(title: isEdit ? '编辑同步配置' : '新建同步配置'),
-          Expanded(
-            child: _buildBody(),
-          ),
+          Expanded(child: _buildBody(theme)),
         ],
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(ShadThemeData theme) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -115,7 +143,7 @@ class _SyncEditorWindowAppState extends State<SyncEditorWindowApp> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(LucideIcons.alertCircle, size: 40,
-                color: ShadTheme.of(context).colorScheme.destructive),
+                color: theme.colorScheme.destructive),
             const SizedBox(height: 10),
             Text(_error!, style: const TextStyle(fontSize: 13)),
           ],
@@ -130,9 +158,9 @@ class _SyncEditorWindowAppState extends State<SyncEditorWindowApp> {
         initial: widget.args.initialProfile,
         onSave: _onSave,
         onSaved: () {
-          // 保存成功后关闭子窗口，不关闭主编排器。
           windowManager.close();
         },
+        asDialog: false,
       ),
     );
   }

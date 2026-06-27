@@ -19,6 +19,7 @@ class FileSyncProfileEditor extends StatefulWidget {
     required this.onSave,
     this.initial,
     this.onSaved,
+    this.asDialog = true,
   });
 
   final RemoteStorageGateway api;
@@ -29,6 +30,10 @@ class FileSyncProfileEditor extends StatefulWidget {
 
   /// 保存成功后回调（子窗口用，关闭窗口）。
   final VoidCallback? onSaved;
+
+  /// true = ShadDialog 拟态框模式（Web 端），false = 裸内容（子窗口）。
+  final bool asDialog;
+
   final SyncProfile? initial;
 
   @override
@@ -191,7 +196,8 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     if (!mounted) return;
     if (ok) {
       widget.onSaved?.call();
-      if (mounted) Navigator.of(context).pop();
+      // 拟态框模式才 pop；子窗口由 onSaved 关闭 OS 窗口。
+      if (mounted && widget.asDialog) Navigator.of(context).pop();
     } else {
       setState(() {
         _saving = false;
@@ -203,36 +209,41 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final content = _buildContent(theme);
+    if (!widget.asDialog) return content;
     return ShadDialog(
       title: Text(widget.initial == null ? '新建同步配置' : '编辑同步配置'),
       description: const Text('将一个本地目录与远端桶目录保持同步。'),
       constraints: const BoxConstraints(maxWidth: 520),
       scrollable: true,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStepIndicator(theme),
-          const SizedBox(height: 20),
-          // 步骤内容区。
-          switch (_step) {
-            0 => stepPickEndpoints(theme: theme, self: this),
-            _ => stepSyncStrategy(theme: theme, self: this),
-          },
-          if (_errorText != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _errorText!,
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.colorScheme.destructive,
-              ),
+      child: content,
+    );
+  }
+
+  Widget _buildContent(ShadThemeData theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepIndicator(theme),
+        const SizedBox(height: 20),
+        switch (_step) {
+          0 => stepPickEndpoints(theme: theme, self: this),
+          _ => stepSyncStrategy(theme: theme, self: this),
+        },
+        if (_errorText != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
             ),
-          ],
-          const SizedBox(height: 20),
-          _buildNavButtons(theme),
+          ),
         ],
-      ),
+        const SizedBox(height: 20),
+        _buildNavButtons(theme),
+      ],
     );
   }
 
