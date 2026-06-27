@@ -121,6 +121,10 @@ func (b *directoryUploadTestBackend) ListObjectsPage(context.Context, string, st
 	return ObjectPage{}, nil
 }
 
+func (b *directoryUploadTestBackend) ListObjectsRecursive(context.Context, string, string) ([]ObjectInfo, error) {
+	return nil, nil
+}
+
 func (b *directoryUploadTestBackend) HeadObject(context.Context, string, string) (ObjectInfo, error) {
 	return ObjectInfo{}, os.ErrNotExist
 }

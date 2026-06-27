@@ -28,6 +28,13 @@ func (f *fakeBackend) ListObjectsPage(_ context.Context, _, prefix, _ string, _ 
 	}
 	return storageops.ObjectPage{Items: items}, nil
 }
+func (f *fakeBackend) ListObjectsRecursive(_ context.Context, _, _ string) ([]storageops.ObjectInfo, error) {
+	items := make([]storageops.ObjectInfo, 0, len(f.objects))
+	for _, info := range f.objects {
+		items = append(items, info)
+	}
+	return items, nil
+}
 func (f *fakeBackend) HeadObject(_ context.Context, _, key string) (storageops.ObjectInfo, error) {
 	return f.objects[key], nil
 }

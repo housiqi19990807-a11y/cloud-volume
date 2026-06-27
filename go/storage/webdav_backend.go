@@ -55,6 +55,29 @@ func (b webDAVBackend) ListObjectsPage(
 	return ObjectPage{Items: items}, nil
 }
 
+func (b webDAVBackend) ListObjectsRecursive(
+	ctx context.Context,
+	bucket, prefix string,
+) ([]ObjectInfo, error) {
+	entries, err := b.propfind(ctx, prefix, "infinity")
+	if err != nil {
+		return nil, err
+	}
+	base := cleanRemotePath(prefix)
+	items := make([]ObjectInfo, 0, len(entries))
+	for _, entry := range entries {
+		info, ok := b.objectInfoFromResponse(entry, base)
+		if !ok || webDAVIsTrashRootEntry(b.bucketConfig(bucket), info.Key) {
+			continue
+		}
+		if info.IsDir {
+			continue
+		}
+		items = append(items, info)
+	}
+	return items, nil
+}
+
 func (b webDAVBackend) HeadObject(ctx context.Context, _, key string) (ObjectInfo, error) {
 	entries, err := b.propfind(ctx, key, "0")
 	if err != nil {

@@ -26,6 +26,8 @@ type DirectoryAccess struct {
 type Backend interface {
 	ListBuckets(context.Context) ([]BucketInfo, error)
 	ListObjectsPage(context.Context, string, string, string, int32) (ObjectPage, error)
+	// ListObjectsRecursive returns every file object under prefix (sync reconcile).
+	ListObjectsRecursive(context.Context, string, string) ([]ObjectInfo, error)
 	HeadObject(context.Context, string, string) (ObjectInfo, error)
 	ReadObjectRange(context.Context, string, string, int64, int64) ([]byte, error)
 	DirectoryAccess(context.Context, string, string) (DirectoryAccess, error)

@@ -33,6 +33,13 @@ func (b s3Backend) ListObjectsPage(
 	return s3ops.ListObjectsPageContext(ctx, b.bucketConfig(bucket), bucket, prefix, nextToken, pageSize)
 }
 
+func (b s3Backend) ListObjectsRecursive(
+	ctx context.Context,
+	bucket, prefix string,
+) ([]ObjectInfo, error) {
+	return s3ops.ListObjectsRecursiveContext(ctx, b.bucketConfig(bucket), bucket, prefix)
+}
+
 func (b s3Backend) HeadObject(ctx context.Context, bucket, key string) (ObjectInfo, error) {
 	return s3ops.HeadObjectContext(ctx, b.bucketConfig(bucket), bucket, key)
 }

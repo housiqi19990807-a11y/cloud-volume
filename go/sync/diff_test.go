@@ -111,3 +111,15 @@ func TestRenameDetectionSizeMatch(t *testing.T) {
 		t.Fatalf("expected a rename op, got %+v", ops)
 	}
 }
+func TestClassifyTwoWayNewRemoteDownload(t *testing.T) {
+	profile := SyncProfile{Direction: DirectionTwoWay, ConflictPolicy: ConflictNewest}
+	local := map[string]localSide{}
+	remote := map[string]remoteSide{"nested/a.txt": {size: 20, mtime: 200, present: true}}
+	keys, lookup := memLookup(nil)
+
+	ops := classifyAll(profile, local, remote, keys, lookup)
+	if len(ops) != 1 || ops[0].op.Kind != OpDownload {
+		t.Fatalf("expected single download, got %+v", ops)
+	}
+}
+

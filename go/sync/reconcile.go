@@ -188,37 +188,26 @@ func (rc *Reconciler) localRelative(absPath string) (string, bool) {
 	return filepath.ToSlash(rel), true
 }
 
-// scanRemote lists all objects under the profile prefix via paginated calls.
+// scanRemote lists all objects under the profile prefix, including nested paths.
 func (rc *Reconciler) scanRemote(ctx context.Context) (map[string]remoteSide, error) {
 	out := map[string]remoteSide{}
-	prefix := rc.profile.RemotePrefix
-	var nextToken string
-	for {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+	items, err := rc.backend.ListObjectsRecursive(ctx, rc.profile.Bucket, rc.profile.RemotePrefix)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		if item.IsDir {
+			continue
 		}
-		page, err := rc.backend.ListObjectsPage(ctx, rc.profile.Bucket, prefix, nextToken, 500)
-		if err != nil {
-			return nil, err
+		rel := rc.remoteRelative(item.Key)
+		if rel == "" || matchesExclude(rel, rc.profile.ExcludePatterns) {
+			continue
 		}
-		for _, item := range page.Items {
-			if item.IsDir {
-				continue
-			}
-			rel := rc.remoteRelative(item.Key)
-			if rel == "" || matchesExclude(rel, rc.profile.ExcludePatterns) {
-				continue
-			}
-			out[rel] = remoteSide{
-				size:    item.Size,
-				mtime:   parseRemoteMTime(item.LastModified),
-				present: true,
-			}
+		out[rel] = remoteSide{
+			size:    item.Size,
+			mtime:   parseRemoteMTime(item.LastModified),
+			present: true,
 		}
-		if page.NextToken == "" {
-			break
-		}
-		nextToken = page.NextToken
 	}
 	return out, nil
 }

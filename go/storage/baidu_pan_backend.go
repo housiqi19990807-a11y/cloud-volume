@@ -109,6 +109,50 @@ func (b baiduPanBackend) ListObjectsPage(
 	})
 }
 
+
+func (b baiduPanBackend) ListObjectsRecursive(
+	ctx context.Context,
+	bucket, prefix string,
+) ([]ObjectInfo, error) {
+	out := make([]ObjectInfo, 0, 64)
+	queue := []string{strings.Trim(strings.TrimSpace(prefix), "/")}
+	if len(queue) == 0 || queue[0] == "" {
+		queue = []string{""}
+	}
+	seen := map[string]struct{}{}
+	for len(queue) > 0 {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		dir := queue[0]
+		queue = queue[1:]
+		if _, ok := seen[dir]; ok {
+			continue
+		}
+		seen[dir] = struct{}{}
+		token := ""
+		for {
+			page, err := b.ListObjectsPage(ctx, bucket, dir, token, 200)
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range page.Items {
+				if item.IsDir {
+					child := strings.Trim(strings.TrimSuffix(item.Key, "/"), "/")
+					queue = append(queue, child)
+					continue
+				}
+				out = append(out, item)
+			}
+			if page.NextToken == "" {
+				break
+			}
+			token = page.NextToken
+		}
+	}
+	return out, nil
+}
+
 func listBaiduPanObjectsWithRetry(
 	client *xpanclient.Client,
 	remoteDir string,

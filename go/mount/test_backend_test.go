@@ -20,6 +20,10 @@ func (mountTestBackend) ListObjectsPage(context.Context, string, string, string,
 	return storageops.ObjectPage{Items: []storageops.ObjectInfo{}}, nil
 }
 
+func (mountTestBackend) ListObjectsRecursive(context.Context, string, string) ([]storageops.ObjectInfo, error) {
+	return nil, nil
+}
+
 func (mountTestBackend) HeadObject(context.Context, string, string) (storageops.ObjectInfo, error) {
 	return storageops.ObjectInfo{}, os.ErrNotExist
 }
