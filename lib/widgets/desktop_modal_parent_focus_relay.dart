@@ -31,8 +31,10 @@ class _DesktopModalParentFocusRelayState extends State<DesktopModalParentFocusRe
 
   @override
   void onWindowFocus() {
-    if (!DesktopModalOverlayController.instance.visible) return;
-    bringTopModalChildToFront();
+    reconcileModalOverlayWithOpenChildren().then((_) {
+      if (!DesktopModalOverlayController.instance.visible) return;
+      bringTopModalChildToFront();
+    });
   }
 
   @override

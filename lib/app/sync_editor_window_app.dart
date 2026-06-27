@@ -229,3 +229,53 @@ class _SyncEditorTitleBar extends StatelessWidget {
     );
   }
 }
+
+class SyncEditorWindowLifecycle extends StatefulWidget {
+  const SyncEditorWindowLifecycle({
+    super.key,
+    required this.creatorWindowId,
+    required this.child,
+  });
+
+  final String creatorWindowId;
+  final Widget child;
+
+  @override
+  State<SyncEditorWindowLifecycle> createState() =>
+      _SyncEditorWindowLifecycleState();
+}
+
+class _SyncEditorWindowLifecycleState extends State<SyncEditorWindowLifecycle>
+    with WindowListener {
+  var _released = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    _releaseParentOverlayOnce();
+    super.dispose();
+  }
+
+  @override
+  void onWindowClose() {
+    _releaseParentOverlayOnce();
+  }
+
+  Future<void> _releaseParentOverlayOnce() async {
+    if (_released) return;
+    _released = true;
+    final id = (await WindowController.fromCurrentEngine()).windowId;
+    DesktopModalOverlayController.instance.unregisterChildWindow(id);
+    await notifyCreatorModalOverlayRelease(widget.creatorWindowId);
+    await clearModalChildWindowChrome();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}

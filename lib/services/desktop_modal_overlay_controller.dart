@@ -13,6 +13,8 @@ class DesktopModalOverlayController extends ChangeNotifier {
 
   bool get visible => _depth > 0;
 
+  int get depth => _depth;
+
   String? get topChildWindowId =>
       _childWindowStack.isEmpty ? null : _childWindowStack.last;
 
@@ -24,6 +26,13 @@ class DesktopModalOverlayController extends ChangeNotifier {
   void release() {
     if (_depth <= 0) return;
     _depth--;
+    notifyListeners();
+  }
+
+  void reset() {
+    if (_depth == 0 && _childWindowStack.isEmpty) return;
+    _depth = 0;
+    _childWindowStack.clear();
     notifyListeners();
   }
 

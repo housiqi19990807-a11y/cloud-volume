@@ -211,3 +211,13 @@ Future<void> showAncestorModalWindows(Iterable<String> windowIds) async {
     }
   }
 }
+
+
+/// Drops stale scrim state when no modal sub-windows are running (e.g. child killed).
+Future<void> reconcileModalOverlayWithOpenChildren() async {
+  final controllers = await WindowController.getAll();
+  final hasModalChild = controllers.any((c) => _isModalSubWindowArguments(c.arguments));
+  if (!hasModalChild) {
+    DesktopModalOverlayController.instance.reset();
+  }
+}

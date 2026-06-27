@@ -95,8 +95,9 @@ class _RemoteDirectoryPickerBodyState extends State<_RemoteDirectoryPickerBody> 
 
   Future<void> _finish(RemoteDirectoryResult? result) async {
     await _sendResult(result);
-        final id = (await WindowController.fromCurrentEngine()).windowId;
+    final id = (await WindowController.fromCurrentEngine()).windowId;
     DesktopModalOverlayController.instance.unregisterChildWindow(id);
+    await notifyCreatorModalOverlayRelease(widget.args.creatorWindowId);
     await clearModalChildWindowChrome();
     await windowManager.close();
   }
