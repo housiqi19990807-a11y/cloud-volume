@@ -62,6 +62,20 @@ class RemoteStorageApi
     );
   }
 
+
+  @override
+  Future<void> writeAppLog(
+    String message, {
+    String level = 'info',
+    String tag = 'flutter',
+  }) async {
+    await runBridgeCall('write_flutter_log', <String, dynamic>{
+      'message': message,
+      'level': level,
+      'tag': tag,
+    });
+  }
+
   @override
   Future<AuthSessionState> loadAuthSession() async {
     return const AuthSessionState.desktop();

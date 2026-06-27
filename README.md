@@ -422,3 +422,5 @@ The desktop runners now use adaptive startup sizing on all three platforms:
 - Linux keeps shrinking the first window based on the current monitor size so the setup form stays visible on smaller displays.
 - Windows now applies the same low-resolution startup sizing strategy in the native runner before the Flutter surface is shown.
 - macOS now resolves the initial centered frame from the visible screen area as well, and also lowers the minimum resizable size when the display is smaller than the normal default window.
+
+- 桌面端 Flutter 日志可通过 `AppLog` 写入 Go bridge 日志文件。

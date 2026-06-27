@@ -224,6 +224,13 @@ abstract class RemoteStorageGateway {
   Future<String> saveSyncProfile(SyncProfile profile);
   Future<void> deleteSyncProfile(String id);
   Future<int> triggerSyncProfile(String id);
+
+  /// Desktop: append a line to the Go bridge log file; Web: no-op.
+  Future<void> writeAppLog(
+    String message, {
+    String level = 'info',
+    String tag = 'flutter',
+  });
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();

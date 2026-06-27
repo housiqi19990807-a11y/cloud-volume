@@ -177,3 +177,9 @@ The window centers on `self.screen ?? NSScreen.main`. `NSScreen.main` is whateve
 
 - `lib/pages/main_layout_page.dart` — Root layout with sidebar navigation. Routes include 文件同步 (`FileSyncTasksPage`), 文件管理 (`FileManagerPage`), 传输 (`TransfersPage`), 回收站 (`GlobalTrashPage`), 分享管理 (`ShareManagementPage`), and 设置 (`SettingsPage`).
 - `lib/pages/settings_page.dart` — Settings page with sub-tabs (通用设置, Windows 设置, 关于). Sync management was **removed** from Settings (2026-06-26) and now lives entirely in the File Sync Tasks page.
+
+### Feature: Flutter → Go app logging
+
+- `bridge/dispatch_log.go` — `write_flutter_log` bridge method; lines go to stderr + `BridgeLogPath()` via `log.Printf` with `[app/<tag>]` prefix.
+- `lib/utils/app_log.dart` — `AppLog.info/warning/error`; bound in `AppBootstrapPage` after API bootstrap.
+- `RemoteStorageGateway.writeAppLog` — desktop FFI; web no-op.

@@ -117,6 +117,13 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> writeAppLog(
+    String message, {
+    String level = 'info',
+    String tag = 'flutter',
+  }) async {}
+
+  @override
   Future<AuthSessionState> loadAuthSession() async {
     final response = await _client.get(_apiUri('/api/auth/session'));
     if (response.statusCode == 401) {
