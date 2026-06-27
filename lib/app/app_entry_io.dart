@@ -9,6 +9,7 @@ import 'package:remote_storage/app/sync_editor_window_app.dart';
 import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
 import 'package:remote_storage/models/file_preview_window_args.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
+import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:window_manager/window_manager.dart';
 
 Future<void> runRemoteStorageEntry(List<String> args) async {
@@ -32,7 +33,7 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
 
   if (RemoteDirectoryPickerWindowArgs.matches(arguments)) {
     final pickerArgs = RemoteDirectoryPickerWindowArgs.fromArguments(arguments);
-    await _configureRemoteDirectoryPickerWindow();
+    await _configureRemoteDirectoryPickerWindow(pickerArgs);
     runApp(RemoteDirectoryPickerWindowApp(args: pickerArgs));
     return;
   }
@@ -51,9 +52,13 @@ Future<void> _configureSyncEditorWindow(SyncEditorWindowArgs args) async {
     windowButtonVisibility: false,
   );
   await windowManager.waitUntilReadyToShow(options, () async {
-    await windowManager.setMovable(false);
+    await applyModalChildWindowChrome();
     await windowManager.setTitle(title);
     await windowManager.show();
+    await positionChildCenteredOnCreator(
+      args.creatorWindowId,
+      const Size(560, 480),
+    );
     await windowManager.focus();
   });
 }
@@ -74,7 +79,7 @@ Future<void> _configurePreviewWindow(String title) async {
   });
 }
 
-Future<void> _configureRemoteDirectoryPickerWindow() async {
+Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowArgs args) async {
   const options = WindowOptions(
     size: Size(720, 560),
     minimumSize: Size(560, 440),
@@ -84,7 +89,7 @@ Future<void> _configureRemoteDirectoryPickerWindow() async {
     windowButtonVisibility: false,
   );
   await windowManager.waitUntilReadyToShow(options, () async {
-    await windowManager.setMovable(false);
+    await applyModalChildWindowChrome();
     await windowManager.setTitle('选择远端目录');
     await windowManager.show();
     await windowManager.focus();

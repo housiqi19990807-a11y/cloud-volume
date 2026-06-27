@@ -8,6 +8,7 @@ import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:window_manager/window_manager.dart';
 
 part 'file_sync_profile_editor_steps.dart';
@@ -21,6 +22,7 @@ class FileSyncProfileEditor extends StatefulWidget {
     this.initial,
     this.onSaved,
     this.asDialog = true,
+    this.creatorWindowId,
   });
 
   final RemoteStorageGateway api;
@@ -34,6 +36,9 @@ class FileSyncProfileEditor extends StatefulWidget {
 
   /// true = ShadDialog 拟态框模式（Web 端），false = 裸内容（子窗口）。
   final bool asDialog;
+
+  /// 子窗口相对此父引擎窗口居中（desktop_multi_window id）。
+  final String? creatorWindowId;
 
   final SyncProfile? initial;
 
@@ -121,8 +126,11 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     if (widget.asDialog) return;
     final size = _step == 0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
     try {
-      await windowManager.setSize(size);
-      await windowManager.setAlignment(Alignment.center);
+      await positionChildCenteredOnCreator(
+        widget.creatorWindowId ?? '',
+        size,
+      );
+      await windowManager.focus();
     } catch (_) {}
   }
 

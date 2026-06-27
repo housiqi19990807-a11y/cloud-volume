@@ -4,7 +4,9 @@
 import 'dart:async';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:remote_storage/models/remote_directory_picker_result_payload.dart';
 import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
@@ -32,6 +34,14 @@ class DesktopWindowMethodHost {
       case kModalOverlayReleaseMethod:
         DesktopModalOverlayController.instance.release();
         return null;
+      case 'get_window_bounds':
+        final bounds = await windowManager.getBounds();
+        return <String, dynamic>{
+          'x': bounds.left,
+          'y': bounds.top,
+          'width': bounds.width,
+          'height': bounds.height,
+        };
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
     }
