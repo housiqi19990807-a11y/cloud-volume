@@ -5,12 +5,14 @@ import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:remote_storage/models/sync_profile.dart';
+import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/services/desktop_window_method_host.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
+import 'package:remote_storage/widgets/desktop_modal_scrim.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -27,7 +29,7 @@ class SyncEditorWindowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(AccentPreset.blue),
-      home: _SyncEditorBody(args: args),
+      home: Stack(children: [_SyncEditorBody(args: args), const DesktopModalScrim()]),
     );
   }
 }
@@ -128,7 +130,10 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
       backgroundColor: theme.colorScheme.background,
       body: Column(
         children: [
-          _SyncEditorTitleBar(title: isEdit ? '编辑同步配置' : '新建同步配置'),
+          _SyncEditorTitleBar(
+            title: isEdit ? '编辑同步配置' : '新建同步配置',
+            creatorWindowId: widget.args.creatorWindowId,
+          ),
           Expanded(child: _buildBody(theme)),
         ],
       ),
@@ -159,8 +164,9 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
         buckets: _buckets,
         initial: widget.args.initialProfile,
         onSave: _onSave,
-        onSaved: () {
-          windowManager.close();
+        onSaved: () async {
+          await notifyCreatorModalOverlayRelease(widget.args.creatorWindowId);
+          await windowManager.close();
         },
         asDialog: false,
       ),
@@ -169,38 +175,43 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
 }
 
 class _SyncEditorTitleBar extends StatelessWidget {
-  const _SyncEditorTitleBar({required this.title});
+  const _SyncEditorTitleBar({
+    required this.title,
+    required this.creatorWindowId,
+  });
 
   final String title;
+  final String creatorWindowId;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return DragToMoveArea(
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.only(left: 16, right: 8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.background,
-          border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.only(left: 16, right: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.background,
+        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
-            IconButton(
-              tooltip: '关闭',
-              onPressed: () => windowManager.close(),
-              icon: const Icon(Icons.close, size: 18),
-            ),
-          ],
-        ),
+          ),
+          IconButton(
+            tooltip: '关闭',
+            onPressed: () async {
+              await notifyCreatorModalOverlayRelease(creatorWindowId);
+              await windowManager.close();
+            },
+            icon: const Icon(Icons.close, size: 18),
+          ),
+        ],
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
+import 'package:remote_storage/widgets/desktop_modal_scrim.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -22,7 +23,7 @@ class RemoteDirectoryPickerWindowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(AccentPreset.blue),
-      home: _RemoteDirectoryPickerBody(args: args),
+      home: Stack(children: [_RemoteDirectoryPickerBody(args: args), const DesktopModalScrim()]),
     );
   }
 }
@@ -148,29 +149,27 @@ class _PickerTitleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return DragToMoveArea(
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.only(left: 16, right: 8),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.background,
-          border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-        ),
-        child: Row(
-          children: [
-            const Expanded(
-              child: Text(
-                '选择远端目录',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.only(left: 16, right: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.background,
+        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              '选择远端目录',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
-            IconButton(
-              tooltip: '关闭',
-              onPressed: onClose,
-              icon: const Icon(Icons.close, size: 18),
-            ),
-          ],
-        ),
+          ),
+          IconButton(
+            tooltip: '关闭',
+            onPressed: onClose,
+            icon: const Icon(Icons.close, size: 18),
+          ),
+        ],
       ),
     );
   }

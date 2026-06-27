@@ -51,6 +51,7 @@ Future<void> _configureSyncEditorWindow(SyncEditorWindowArgs args) async {
     windowButtonVisibility: false,
   );
   await windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.setMovable(false);
     await windowManager.setTitle(title);
     await windowManager.show();
     await windowManager.focus();
@@ -83,6 +84,7 @@ Future<void> _configureRemoteDirectoryPickerWindow() async {
     windowButtonVisibility: false,
   );
   await windowManager.waitUntilReadyToShow(options, () async {
+    await windowManager.setMovable(false);
     await windowManager.setTitle('选择远端目录');
     await windowManager.show();
     await windowManager.focus();

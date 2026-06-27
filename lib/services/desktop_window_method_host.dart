@@ -6,6 +6,8 @@ import 'dart:async';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/services.dart';
 import 'package:remote_storage/models/remote_directory_picker_result_payload.dart';
+import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
+import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 
 class DesktopWindowMethodHost {
   DesktopWindowMethodHost._();
@@ -26,6 +28,9 @@ class DesktopWindowMethodHost {
     switch (call.method) {
       case 'remote_directory_picker_result':
         _completeRemoteDirectory(call.arguments);
+        return null;
+      case kModalOverlayReleaseMethod:
+        DesktopModalOverlayController.instance.release();
         return null;
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
