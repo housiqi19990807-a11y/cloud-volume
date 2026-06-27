@@ -158,7 +158,7 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
       );
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(48, 32, 48, 32),
+      padding: const EdgeInsets.fromLTRB(32, 20, 32, 20),
       child: FileSyncProfileEditor(
         api: _api!,
         buckets: _buckets,

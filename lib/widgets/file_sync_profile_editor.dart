@@ -117,15 +117,20 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     return true;
   }
 
-  static const _subWindowSizeStep0 = Size(560, 420);
+  static const _subWindowSizeStep0 = Size(560, 480);
   static const _subWindowSizeStep1 = Size(640, 660);
 
   Future<void> _applySubWindowStepSize() async {
     if (widget.asDialog) return;
-    final size = _step == 0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
+    final isStep0 = _step == 0;
+    final size = isStep0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
+    final minSize = isStep0 ? const Size(520, 400) : const Size(520, 580);
     try {
+      await windowManager.setMinimumSize(minSize);
       await windowManager.setSize(size);
-      await windowManager.center();
+      // 等一帧让系统应用新尺寸后再居中，避免缩窗后偏到角落。
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await windowManager.center(animate: false);
     } catch (_) {}
   }
 
@@ -239,22 +244,22 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     );
   }
 
-  /// 子窗口：第一步字段少，顶部紧凑排列；第二步策略项多，中间可滚动。
+  /// 子窗口：中间区始终可滚动以防溢出；内容顶对齐，第一步不会底下大块留白。
   Widget _buildSubWindowLayout(ShadThemeData theme) {
-    final isStepOne = _step == 0;
     final stepBody = _buildStepBody(theme);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.max,
       children: [
         _buildStepIndicator(theme),
-        const SizedBox(height: 20),
-        if (isStepOne)
-          stepBody
-        else
-          Expanded(
-            child: SingleChildScrollView(child: stepBody),
+        const SizedBox(height: 16),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: stepBody,
+            ),
           ),
+        ),
         if (_errorText != null) ...[
           const SizedBox(height: 8),
           Text(
