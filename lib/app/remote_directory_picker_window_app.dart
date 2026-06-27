@@ -8,6 +8,7 @@ import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
+import 'package:remote_storage/widgets/desktop_modal_window_focus_gate.dart';
 import 'package:remote_storage/widgets/desktop_modal_scrim.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:window_manager/window_manager.dart';
@@ -24,7 +25,7 @@ class RemoteDirectoryPickerWindowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(AccentPreset.blue),
-      home: Stack(children: [_RemoteDirectoryPickerBody(args: args), const DesktopModalScrim()]),
+      home: DesktopModalWindowFocusGate(child: Stack(children: [_RemoteDirectoryPickerBody(args: args), const DesktopModalScrim()])),
     );
   }
 }

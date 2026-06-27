@@ -98,7 +98,9 @@ Future<void> resizeKeepingWindowCenter(Size size) async {
 
 Future<void> applyModalChildWindowChrome() async {
   await windowManager.setMovable(false);
-  await windowManager.setAlwaysOnTop(true);
+  if (await windowManager.isFocused()) {
+    await windowManager.setAlwaysOnTop(true);
+  }
 }
 
 Future<void> clearModalChildWindowChrome() async {

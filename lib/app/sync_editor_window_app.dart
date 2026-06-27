@@ -12,6 +12,7 @@ import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
+import 'package:remote_storage/widgets/desktop_modal_window_focus_gate.dart';
 import 'package:remote_storage/widgets/desktop_modal_scrim.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:window_manager/window_manager.dart';
@@ -29,7 +30,7 @@ class SyncEditorWindowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(AccentPreset.blue),
-      home: Stack(children: [_SyncEditorBody(args: args), const DesktopModalScrim()]),
+      home: DesktopModalWindowFocusGate(child: Stack(children: [_SyncEditorBody(args: args), const DesktopModalScrim()])),
     );
   }
 }
