@@ -10,6 +10,7 @@ class RemoteDirectoryPickerWindowArgs {
   const RemoteDirectoryPickerWindowArgs({
     required this.requestId,
     required this.creatorWindowId,
+    this.rootWindowId,
     required this.buckets,
     this.initialBucket,
     this.initialPrefix,
@@ -28,6 +29,8 @@ class RemoteDirectoryPickerWindowArgs {
 
   final String requestId;
   final String creatorWindowId;
+  /// Main (or outermost) window to keep visible when this child is focused.
+  final String? rootWindowId;
   final List<FileManagerBucketEntry> buckets;
   final String? initialBucket;
   final String? initialPrefix;
@@ -48,6 +51,7 @@ class RemoteDirectoryPickerWindowArgs {
     return RemoteDirectoryPickerWindowArgs(
       requestId: json['requestId'] as String? ?? '',
       creatorWindowId: json['creatorWindowId'] as String? ?? '',
+      rootWindowId: json['rootWindowId'] as String?,
       buckets: bucketMaps
           .map((e) => _bucketEntryFromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
@@ -70,6 +74,7 @@ class RemoteDirectoryPickerWindowArgs {
       'businessId': businessId,
       'requestId': requestId,
       'creatorWindowId': creatorWindowId,
+      if (rootWindowId != null) 'rootWindowId': rootWindowId,
       'buckets': buckets.map(_bucketEntryToJson).toList(),
       if (initialBucket != null) 'initialBucket': initialBucket,
       if (initialPrefix != null) 'initialPrefix': initialPrefix,

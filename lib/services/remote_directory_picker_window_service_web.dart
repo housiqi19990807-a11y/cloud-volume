@@ -18,6 +18,7 @@ class RemoteDirectoryPickerWindowService {
     double? anchorFrameTop,
     double? anchorFrameWidth,
     double? anchorFrameHeight,
+    String? rootWindowId,
   }) async {
     return null;
   }

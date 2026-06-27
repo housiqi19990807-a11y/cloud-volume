@@ -190,3 +190,24 @@ Future<void> clearAlwaysOnTopForAllModalChildren() async {
     } catch (_) {}
   }
 }
+
+
+const String kModalShowWindowMethod = 'modal_show_window';
+
+/// Shows ancestor modal windows (main + middle) without stealing focus.
+Future<void> showAncestorModalWindows(Iterable<String> windowIds) async {
+  final seen = <String>{};
+  final controllers = await WindowController.getAll();
+  for (final rawId in windowIds) {
+    final id = rawId.trim();
+    if (id.isEmpty || !seen.add(id)) continue;
+    for (final c in controllers) {
+      if (c.windowId == id) {
+        try {
+          await c.invokeMethod(kModalShowWindowMethod, null);
+        } catch (_) {}
+        break;
+      }
+    }
+  }
+}

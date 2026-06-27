@@ -177,6 +177,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
       anchorFrameTop: widget.anchorFrameTop,
       anchorFrameWidth: widget.anchorFrameWidth,
       anchorFrameHeight: widget.anchorFrameHeight,
+      rootWindowId: widget.creatorWindowId,
     );
     if (result != null) {
       setState(() => _remoteDir = result);

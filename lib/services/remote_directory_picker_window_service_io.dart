@@ -26,6 +26,7 @@ class RemoteDirectoryPickerWindowService {
     double? anchorFrameTop,
     double? anchorFrameWidth,
     double? anchorFrameHeight,
+    String? rootWindowId,
   }) async {
     await DesktopWindowMethodHost.ensureInstalled();
     final creator = await WindowController.fromCurrentEngine();
@@ -49,6 +50,7 @@ class RemoteDirectoryPickerWindowService {
     final args = RemoteDirectoryPickerWindowArgs(
       requestId: requestId,
       creatorWindowId: creator.windowId,
+      rootWindowId: rootWindowId,
       buckets: buckets,
       initialBucket: initial?.bucket,
       initialPrefix: initial?.prefix,

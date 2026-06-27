@@ -5,9 +5,16 @@ import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:window_manager/window_manager.dart';
 
 class DesktopModalWindowFocusGate extends StatefulWidget {
-  const DesktopModalWindowFocusGate({super.key, required this.child});
+  const DesktopModalWindowFocusGate({
+    super.key,
+    required this.child,
+    this.ancestorWindowIds = const [],
+  });
 
   final Widget child;
+
+  /// Outermost-first window ids (e.g. main, then sync editor) to show when this child focuses.
+  final List<String> ancestorWindowIds;
 
   @override
   State<DesktopModalWindowFocusGate> createState() =>
@@ -20,7 +27,7 @@ class _DesktopModalWindowFocusGateState extends State<DesktopModalWindowFocusGat
   void initState() {
     super.initState();
     windowManager.addListener(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncAlwaysOnTop());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onFocused());
   }
 
   @override
@@ -29,8 +36,9 @@ class _DesktopModalWindowFocusGateState extends State<DesktopModalWindowFocusGat
     super.dispose();
   }
 
-  Future<void> _syncAlwaysOnTop() async {
+  Future<void> _onFocused() async {
     try {
+      await showAncestorModalWindows(widget.ancestorWindowIds);
       final focused = await windowManager.isFocused();
       if (focused) {
         await applyModalChildWindowChrome();
@@ -42,7 +50,7 @@ class _DesktopModalWindowFocusGateState extends State<DesktopModalWindowFocusGat
 
   @override
   void onWindowFocus() {
-    _syncAlwaysOnTop();
+    _onFocused();
   }
 
   @override

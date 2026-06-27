@@ -26,7 +26,13 @@ class RemoteDirectoryPickerWindowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(AccentPreset.blue),
-      home: DesktopModalWindowFocusGate(child: Stack(children: [_RemoteDirectoryPickerBody(args: args), const DesktopModalScrim()])),
+      home: DesktopModalWindowFocusGate(
+        ancestorWindowIds: [
+          if (args.rootWindowId != null) args.rootWindowId!,
+          args.creatorWindowId,
+        ],
+        child: Stack(children: [_RemoteDirectoryPickerBody(args: args), const DesktopModalScrim()]),
+      ),
     );
   }
 }

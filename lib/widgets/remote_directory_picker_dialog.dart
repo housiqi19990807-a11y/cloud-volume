@@ -41,6 +41,7 @@ Future<RemoteDirectoryResult?> showRemoteDirectoryPicker({
   double? anchorFrameTop,
   double? anchorFrameWidth,
   double? anchorFrameHeight,
+  String? rootWindowId,
 }) {
   return showDesktopOverlayOrDialog<RemoteDirectoryResult>(
     context: context,
@@ -51,6 +52,7 @@ Future<RemoteDirectoryResult?> showRemoteDirectoryPicker({
       anchorFrameTop: anchorFrameTop,
       anchorFrameWidth: anchorFrameWidth,
       anchorFrameHeight: anchorFrameHeight,
+      rootWindowId: rootWindowId,
     ),
     showDialog: () => showShadDialog<RemoteDirectoryResult>(
       context: context,
