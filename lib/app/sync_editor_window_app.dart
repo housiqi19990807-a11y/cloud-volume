@@ -124,9 +124,12 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
   String _sourceLabel(RemoteStorageConfig config) {
     final name = config.displayName.trim().isNotEmpty
         ? config.displayName.trim()
+        : config.storageType == StorageType.baiduPan
+        ? '百度网盘'
+        : config.storageType == StorageType.webdav
+        ? config.webdavUsername.trim()
         : config.accessKeyId.trim();
-    final label = name.isEmpty ? '账号' : name;
-    return '$label · ${config.storageType.label}';
+    return name.isEmpty ? '账号' : name;
   }
 
   Future<bool> _onSave(SyncProfile profile) async {

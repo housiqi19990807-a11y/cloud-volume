@@ -51,6 +51,7 @@ extension _FileManagerPageSources on _FileManagerPageState {
     );
   }
 
+  /// 来源列仅展示账号/显示名称，不拼接存储类型（避免窄列被省略号截断）。
   String _sourceLabelForConfig(RemoteStorageConfig config) {
     final name = config.displayName.trim().isNotEmpty
         ? config.displayName.trim()
@@ -59,8 +60,7 @@ extension _FileManagerPageSources on _FileManagerPageState {
         : config.storageType == StorageType.webdav
         ? config.webdavUsername.trim()
         : config.accessKeyId.trim();
-    final label = name.isEmpty ? '账号' : name;
-    return '$label · ${config.storageType.label}';
+    return name.isEmpty ? '账号' : name;
   }
 }
 

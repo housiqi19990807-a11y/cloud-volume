@@ -50,11 +50,15 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
 
   String _sourceLabel(dynamic config) {
       if (config is! RemoteStorageConfig) return '账号';
-      final name = config.displayName.trim().isNotEmpty
-          ? config.displayName.trim()
-          : config.accessKeyId.trim();
-      final label = name.isEmpty ? '账号' : name;
-      return '$label · ${config.storageType.label}';
+      final c = config;
+      final name = c.displayName.trim().isNotEmpty
+          ? c.displayName.trim()
+          : c.storageType == StorageType.baiduPan
+          ? '百度网盘'
+          : c.storageType == StorageType.webdav
+          ? c.webdavUsername.trim()
+          : c.accessKeyId.trim();
+      return name.isEmpty ? '账号' : name;
     }
 
   Future<void> _addProfile() async {
