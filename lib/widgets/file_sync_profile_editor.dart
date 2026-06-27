@@ -209,28 +209,54 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final content = _buildContent(theme);
-    if (!widget.asDialog) return content;
+    if (!widget.asDialog) {
+      return _buildSubWindowLayout(theme);
+    }
     return ShadDialog(
       title: Text(widget.initial == null ? '新建同步配置' : '编辑同步配置'),
       description: const Text('将一个本地目录与远端桶目录保持同步。'),
       constraints: const BoxConstraints(maxWidth: 520),
       scrollable: true,
-      child: content,
+      child: _buildDialogContent(theme),
     );
   }
 
-  Widget _buildContent(ShadThemeData theme) {
+  /// 子窗口：占满可用高度，步骤区可滚动，底部按钮固定。
+  Widget _buildSubWindowLayout(ShadThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepIndicator(theme),
+        const SizedBox(height: 20),
+        Expanded(
+          child: SingleChildScrollView(
+            child: _buildStepBody(theme),
+          ),
+        ),
+        if (_errorText != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _buildNavButtons(theme),
+      ],
+    );
+  }
+
+  Widget _buildDialogContent(ShadThemeData theme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildStepIndicator(theme),
         const SizedBox(height: 20),
-        switch (_step) {
-          0 => stepPickEndpoints(theme: theme, self: this),
-          _ => stepSyncStrategy(theme: theme, self: this),
-        },
+        _buildStepBody(theme),
         if (_errorText != null) ...[
           const SizedBox(height: 12),
           Text(
@@ -245,6 +271,13 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
         _buildNavButtons(theme),
       ],
     );
+  }
+
+  Widget _buildStepBody(ShadThemeData theme) {
+    return switch (_step) {
+      0 => stepPickEndpoints(theme: theme, self: this),
+      _ => stepSyncStrategy(theme: theme, self: this),
+    };
   }
 
   /// 步骤指示器。
