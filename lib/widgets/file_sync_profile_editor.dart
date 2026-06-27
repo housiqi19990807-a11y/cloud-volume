@@ -62,9 +62,6 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   @override
   void initState() {
     super.initState();
-    if (!widget.asDialog) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _applySubWindowStepSize());
-    }
     final initial = widget.initial;
     if (initial == null) return;
     _nameController.text = initial.name;
@@ -122,15 +119,10 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
 
   Future<void> _applySubWindowStepSize() async {
     if (widget.asDialog) return;
-    final isStep0 = _step == 0;
-    final size = isStep0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
-    final minSize = isStep0 ? const Size(520, 400) : const Size(520, 580);
+    final size = _step == 0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
     try {
-      await windowManager.setMinimumSize(minSize);
       await windowManager.setSize(size);
-      // 等一帧让系统应用新尺寸后再居中，避免缩窗后偏到角落。
-      await Future<void>.delayed(const Duration(milliseconds: 40));
-      await windowManager.center(animate: false);
+      await windowManager.setAlignment(Alignment.center);
     } catch (_) {}
   }
 
