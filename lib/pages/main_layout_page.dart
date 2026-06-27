@@ -341,40 +341,34 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         cursor: _hovered ? SystemMouseCursors.click : MouseCursor.defer,
-        child: Material(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(8),
-          child: InkWell(
-            onTap: widget.onTap,
-            onHover: (v) => setState(() => _hovered = v),
-            borderRadius: BorderRadius.circular(8),
-            hoverColor: hoverOverlay,
-            splashColor: ac.withValues(alpha: 0.12),
-            highlightColor: ac.withValues(alpha: 0.08),
-            child: Ink(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: border,
-              ),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                child: Row(
-                  children: [
-                    Icon(widget.icon, size: 17, color: fg),
-                    const SizedBox(width: 10),
-                    Text(
-                      widget.label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w400,
-                        color: fg,
-                      ),
-                    ),
-                  ],
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: selected
+                  ? baseBg
+                  : Color.alphaBlend(hoverOverlay, baseBg),
+              borderRadius: BorderRadius.circular(8),
+              border: border,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              children: [
+                Icon(widget.icon, size: 17, color: fg),
+                const SizedBox(width: 10),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight:
+                        selected ? FontWeight.w600 : FontWeight.w400,
+                    color: fg,
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
