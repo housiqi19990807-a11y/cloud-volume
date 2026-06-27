@@ -32,30 +32,41 @@ Future<void> notifyCreatorModalOverlayRelease(String? creatorWindowId) async {
   await releaseModalOverlayOnCreator(id);
 }
 
+Future<Map<String, dynamic>?> _fetchCreatorBounds(String creatorWindowId) async {
+  final id = creatorWindowId.trim();
+  if (id.isEmpty) return null;
+  final controllers = await WindowController.getAll();
+  WindowController? target;
+  for (final c in controllers) {
+    if (c.windowId == id) {
+      target = c;
+      break;
+    }
+  }
+  if (target == null) return null;
+  for (var attempt = 0; attempt < 8; attempt++) {
+    try {
+      final raw = await target.invokeMethod('get_window_bounds');
+      if (raw is Map) {
+        return Map<String, dynamic>.from(raw);
+      }
+    } catch (_) {}
+    await Future<void>.delayed(Duration(milliseconds: 40 + attempt * 30));
+  }
+  return null;
+}
+
 /// Centers this window over the creator engine's NSWindow bounds (not cursor screen).
 Future<void> positionChildCenteredOnCreator(
   String creatorWindowId,
   Size size,
 ) async {
-  final id = creatorWindowId.trim();
-  if (id.isEmpty) {
-    await windowManager.setBounds(
-      null,
-      size: size,
-      position: null,
-    );
-    await windowManager.setAlignment(Alignment.center);
-    return;
-  }
-  final controllers = await WindowController.getAll();
-  for (final c in controllers) {
-    if (c.windowId != id) continue;
-    final raw = await c.invokeMethod('get_window_bounds');
-    if (raw is! Map) break;
-    final px = (raw['x'] as num).toDouble();
-    final py = (raw['y'] as num).toDouble();
-    final pw = (raw['width'] as num).toDouble();
-    final ph = (raw['height'] as num).toDouble();
+  final bounds = await _fetchCreatorBounds(creatorWindowId);
+  if (bounds != null) {
+    final px = (bounds['x'] as num).toDouble();
+    final py = (bounds['y'] as num).toDouble();
+    final pw = (bounds['width'] as num).toDouble();
+    final ph = (bounds['height'] as num).toDouble();
     await windowManager.setBounds(
       Rect.fromLTWH(
         px + (pw - size.width) / 2,
@@ -68,6 +79,21 @@ Future<void> positionChildCenteredOnCreator(
   }
   await windowManager.setSize(size);
   await windowManager.setAlignment(Alignment.center);
+}
+
+/// Resizes while keeping the current window center fixed (step 1 -> step 2).
+Future<void> resizeKeepingWindowCenter(Size size) async {
+  final bounds = await windowManager.getBounds();
+  final cx = bounds.left + bounds.width / 2;
+  final cy = bounds.top + bounds.height / 2;
+  await windowManager.setBounds(
+    Rect.fromLTWH(
+      cx - size.width / 2,
+      cy - size.height / 2,
+      size.width,
+      size.height,
+    ),
+  );
 }
 
 Future<void> applyModalChildWindowChrome() async {

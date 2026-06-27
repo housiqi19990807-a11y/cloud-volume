@@ -9,6 +9,7 @@ import 'package:remote_storage/app/sync_editor_window_app.dart';
 import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
 import 'package:remote_storage/models/file_preview_window_args.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
+import 'package:remote_storage/services/desktop_window_method_host.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -26,6 +27,7 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
 
   if (SyncEditorWindowArgs.matches(arguments)) {
     final editorArgs = SyncEditorWindowArgs.fromArguments(arguments);
+    await DesktopWindowMethodHost.ensureInstalled();
     await _configureSyncEditorWindow(editorArgs);
     runApp(SyncEditorWindowApp(args: editorArgs));
     return;
@@ -33,6 +35,7 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
 
   if (RemoteDirectoryPickerWindowArgs.matches(arguments)) {
     final pickerArgs = RemoteDirectoryPickerWindowArgs.fromArguments(arguments);
+    await DesktopWindowMethodHost.ensureInstalled();
     await _configureRemoteDirectoryPickerWindow(pickerArgs);
     runApp(RemoteDirectoryPickerWindowApp(args: pickerArgs));
     return;

@@ -126,10 +126,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     if (widget.asDialog) return;
     final size = _step == 0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
     try {
-      await positionChildCenteredOnCreator(
-        widget.creatorWindowId ?? '',
-        size,
-      );
+      await resizeKeepingWindowCenter(size);
       await windowManager.focus();
     } catch (_) {}
   }
