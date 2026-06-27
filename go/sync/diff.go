@@ -101,6 +101,11 @@ func classify(
 	locChanged := l.present && !l.isDir && localSideChanged(l, idx)
 	remChanged := r.present && !r.isDir && remoteSideChanged(r, idx)
 
+	// 双方均为 0 字节且路径一致：无需上传/下载（避免每次启动刷新本地时间）。
+	if l.present && r.present && !l.isDir && !r.isDir && l.size == 0 && r.size == 0 {
+		return Op{Kind: OpSkip, RelPath: rel, Reason: "zero_byte_matched"}
+	}
+
 	if r.present && r.isDir && !l.present {
 		if indexTrackedRemoteDir(idx) && profile.Direction == DirectionTwoWay {
 			return Op{Kind: OpDeleteLocal, RelPath: rel, Reason: "remote_dir_removed"}
@@ -153,9 +158,6 @@ func classify(
 		if profile.Direction == DirectionDownload {
 			return Op{Kind: OpSkip, RelPath: rel}
 		}
-		if l.size == 0 {
-			return Op{Kind: OpSkip, RelPath: rel, Reason: "zero_byte_local"}
-		}
 		return Op{Kind: OpUpload, RelPath: rel, Reason: "new_local"}
 
 	case !l.present && r.present:
@@ -174,9 +176,6 @@ func classify(
 		}
 		if profile.Direction == DirectionUpload {
 			return Op{Kind: OpSkip, RelPath: rel}
-		}
-		if r.size == 0 {
-			return Op{Kind: OpSkip, RelPath: rel, Reason: "zero_byte_remote"}
 		}
 		return Op{Kind: OpDownload, RelPath: rel, Reason: "new_remote"}
 

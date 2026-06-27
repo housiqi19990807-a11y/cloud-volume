@@ -180,3 +180,27 @@ func TestClassifySkipsZeroByteChurn(t *testing.T) {
 		t.Fatalf("expected skip for zero-byte churn, got %+v", ops)
 	}
 }
+
+func TestClassifyNewRemoteZeroByteDownload(t *testing.T) {
+	profile := SyncProfile{Direction: DirectionTwoWay}
+	local := map[string]localSide{}
+	remote := map[string]remoteSide{"empty.txt": {size: 0, mtime: 1, present: true}}
+	keys, lookup := memLookup(nil)
+	ops := classifyAll(profile, local, remote, keys, lookup)
+	if len(ops) != 1 || ops[0].op.Kind != OpDownload {
+		t.Fatalf("expected download for new zero-byte remote, got %+v", ops)
+	}
+}
+
+func TestClassifyMatchedZeroByteNeverSyncs(t *testing.T) {
+	profile := SyncProfile{Direction: DirectionTwoWay, ConflictPolicy: ConflictNewest}
+	local := map[string]localSide{"a.txt": {size: 0, mtime: 111, present: true}}
+	remote := map[string]remoteSide{"a.txt": {size: 0, mtime: 999, present: true}}
+	keys, lookup := memLookup(map[string]IndexEntry{
+		"a.txt": {LocalSize: 0, LocalMTime: 1, RemoteSize: 0, RemoteMTime: 2},
+	})
+	ops := classifyAll(profile, local, remote, keys, lookup)
+	if len(ops) != 1 || ops[0].op.Kind != OpSkip || ops[0].op.Reason != "zero_byte_matched" {
+		t.Fatalf("expected zero_byte_matched skip, got %+v", ops)
+	}
+}
