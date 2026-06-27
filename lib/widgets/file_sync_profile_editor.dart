@@ -18,6 +18,7 @@ class FileSyncProfileEditor extends StatefulWidget {
     required this.buckets,
     required this.onSave,
     this.initial,
+    this.onSaved,
   });
 
   final RemoteStorageGateway api;
@@ -25,6 +26,9 @@ class FileSyncProfileEditor extends StatefulWidget {
   /// 文件管理页加载的桶列表，供目录选择器使用。
   final List<FileManagerBucketEntry> buckets;
   final Future<bool> Function(SyncProfile profile) onSave;
+
+  /// 保存成功后回调（子窗口用，关闭窗口）。
+  final VoidCallback? onSaved;
   final SyncProfile? initial;
 
   @override
@@ -186,7 +190,8 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     final ok = await widget.onSave(profile);
     if (!mounted) return;
     if (ok) {
-      Navigator.of(context).pop();
+      widget.onSaved?.call();
+      if (mounted) Navigator.of(context).pop();
     } else {
       setState(() {
         _saving = false;

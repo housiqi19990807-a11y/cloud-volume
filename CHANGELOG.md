@@ -4,6 +4,8 @@
 
 - 同步配置编辑器远端目录改为可视化选择：新增文件管理式远程目录选择器（`RemoteDirectoryPickerDialog`），用户像在文件管理页一样浏览桶列表→进入目录→选当前目录，支持面包屑导航和新建目录。不再需要手动输入桶名和目录前缀，关联账号自动绑定。编辑器保留两步向导结构（同步两端 → 同步策略）。
 
+- 同步配置编辑器改为独立子窗口：创建/编辑同步配置不再使用 ShadDialog 拟态框（空间太小），改为 `desktop_multi_window` 独立 OS 窗口（640x660），自带 bridge 连接和桶列表加载。Web 端降级回退到拟态框。模式与文件预览窗口（`FilePreviewWindowApp`）一致。
+
 - 文件同步配置入口迁移：将同步配置的新增、编辑、删除、启停操作从「系统设置 → 文件同步」子 Tab 移至「文件同步任务」页面，使其成为同步配置的唯一管理入口。设置页不再包含文件同步 Tab，删除了 `settings_file_sync_section.dart`；文件同步页新增「新建配置」按钮和完整的配置卡片操作，CRUD 逻辑拆分到 `file_sync_tasks_page_actions.dart`。
 
 - 修复 `pubspec.yaml` 把 Dart SDK 约束钉死在 `^3.12.0` 导致 `make run` 在 Flutter 3.41（Dart 3.11.4）等较旧但可用的 stable 通道直接失败的问题：约束改为 `>=3.11.0 <4.0.0`，clone 后无需升级 Flutter 即可直接 `make run`。

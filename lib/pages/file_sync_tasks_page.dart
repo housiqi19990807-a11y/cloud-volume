@@ -10,6 +10,7 @@ import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/services/sync_editor_window_service.dart';
 import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 

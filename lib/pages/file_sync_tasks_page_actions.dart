@@ -58,26 +58,41 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
     }
 
   Future<void> _addProfile() async {
-    await showShadDialog(
-      context: context,
-      builder: (_) => FileSyncProfileEditor(
-        api: widget.api,
-        buckets: _buckets,
-        onSave: _saveProfile,
-      ),
+    final ok = await SyncEditorWindowService.instance.openEditor(
+      profileNames: widget.profiles.map((p) => p.name).toList(),
     );
+    if (!ok) {
+      if (!mounted) return;
+      // Web fallback: use in-app dialog.
+      await showShadDialog(
+        context: context,
+        builder: (_) => FileSyncProfileEditor(
+          api: widget.api,
+          buckets: _buckets,
+          onSave: _saveProfile,
+        ),
+      );
+    }
   }
 
   Future<void> _editProfile(SyncProfileRuntime runtime) async {
-    await showShadDialog(
-      context: context,
-      builder: (_) => FileSyncProfileEditor(
-        api: widget.api,
-        buckets: _buckets,
-        initial: runtime.profile,
-        onSave: _saveProfile,
-      ),
+    final ok = await SyncEditorWindowService.instance.openEditor(
+      profileNames: widget.profiles.map((p) => p.name).toList(),
+      initialProfile: runtime.profile.toJson(),
     );
+    if (!ok) {
+      if (!mounted) return;
+      // Web fallback: use in-app dialog.
+      await showShadDialog(
+        context: context,
+        builder: (_) => FileSyncProfileEditor(
+          api: widget.api,
+          buckets: _buckets,
+          initial: runtime.profile,
+          onSave: _saveProfile,
+        ),
+      );
+    }
   }
 
   Future<bool> _saveProfile(SyncProfile profile) async {
