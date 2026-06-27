@@ -10,6 +10,10 @@ class SyncEditorWindowArgs {
     required this.profileNames,
     required this.creatorWindowId,
     this.initialProfileJson,
+    this.creatorFrameLeft,
+    this.creatorFrameTop,
+    this.creatorFrameWidth,
+    this.creatorFrameHeight,
   });
 
   static const String businessId = 'sync_editor';
@@ -17,6 +21,10 @@ class SyncEditorWindowArgs {
   final String creatorWindowId;
   final List<String> profileNames;
   final Map<String, dynamic>? initialProfileJson;
+  final double? creatorFrameLeft;
+  final double? creatorFrameTop;
+  final double? creatorFrameWidth;
+  final double? creatorFrameHeight;
 
   SyncProfile? get initialProfile {
     final json = initialProfileJson;
@@ -32,6 +40,10 @@ class SyncEditorWindowArgs {
           .map((e) => e.toString())
           .toList(),
       initialProfileJson: json['initialProfile'] as Map<String, dynamic>?,
+      creatorFrameLeft: (json['creatorFrameLeft'] as num?)?.toDouble(),
+      creatorFrameTop: (json['creatorFrameTop'] as num?)?.toDouble(),
+      creatorFrameWidth: (json['creatorFrameWidth'] as num?)?.toDouble(),
+      creatorFrameHeight: (json['creatorFrameHeight'] as num?)?.toDouble(),
     );
   }
 
@@ -41,6 +53,10 @@ class SyncEditorWindowArgs {
       'creatorWindowId': creatorWindowId,
       'profileNames': profileNames,
       if (initialProfileJson != null) 'initialProfile': initialProfileJson,
+      if (creatorFrameLeft != null) 'creatorFrameLeft': creatorFrameLeft,
+      if (creatorFrameTop != null) 'creatorFrameTop': creatorFrameTop,
+      if (creatorFrameWidth != null) 'creatorFrameWidth': creatorFrameWidth,
+      if (creatorFrameHeight != null) 'creatorFrameHeight': creatorFrameHeight,
     });
   }
 

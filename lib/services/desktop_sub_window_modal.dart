@@ -56,6 +56,49 @@ Future<Map<String, dynamic>?> _fetchCreatorBounds(String creatorWindowId) async 
   return null;
 }
 
+
+Future<Map<String, double>> readLocalWindowBounds() async {
+  final bounds = await windowManager.getBounds();
+  return {
+    'left': bounds.left,
+    'top': bounds.top,
+    'width': bounds.width,
+    'height': bounds.height,
+  };
+}
+
+/// Prefer [creatorFrame*] captured on the parent engine before spawn (reliable).
+Future<void> positionChildCenteredFromFrame({
+  required Size size,
+  double? creatorFrameLeft,
+  double? creatorFrameTop,
+  double? creatorFrameWidth,
+  double? creatorFrameHeight,
+  String? creatorWindowId,
+}) async {
+  final left = creatorFrameLeft;
+  final top = creatorFrameTop;
+  final width = creatorFrameWidth;
+  final height = creatorFrameHeight;
+  if (left != null &&
+      top != null &&
+      width != null &&
+      height != null &&
+      width > 0 &&
+      height > 0) {
+    await windowManager.setBounds(
+      Rect.fromLTWH(
+        left + (width - size.width) / 2,
+        top + (height - size.height) / 2,
+        size.width,
+        size.height,
+      ),
+    );
+    return;
+  }
+  await positionChildCenteredOnCreator(creatorWindowId ?? '', size);
+}
+
 /// Centers this window over the creator engine's NSWindow bounds (not cursor screen).
 Future<void> positionChildCenteredOnCreator(
   String creatorWindowId,
@@ -107,4 +150,19 @@ Future<void> clearModalChildWindowChrome() async {
   try {
     await windowManager.setAlwaysOnTop(false);
   } catch (_) {}
+}
+
+
+const String kModalBringToFrontMethod = 'modal_bring_to_front';
+
+Future<void> bringTopModalChildToFront() async {
+  final childId = DesktopModalOverlayController.instance.topChildWindowId;
+  if (childId == null) return;
+  final controllers = await WindowController.getAll();
+  for (final c in controllers) {
+    if (c.windowId == childId) {
+      await c.invokeMethod(kModalBringToFrontMethod, null);
+      return;
+    }
+  }
 }

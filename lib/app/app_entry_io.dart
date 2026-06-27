@@ -58,9 +58,13 @@ Future<void> _configureSyncEditorWindow(SyncEditorWindowArgs args) async {
     await applyModalChildWindowChrome();
     await windowManager.setTitle(title);
     await windowManager.show();
-    await positionChildCenteredOnCreator(
-      args.creatorWindowId,
-      const Size(560, 480),
+    await positionChildCenteredFromFrame(
+      size: const Size(560, 480),
+      creatorFrameLeft: args.creatorFrameLeft,
+      creatorFrameTop: args.creatorFrameTop,
+      creatorFrameWidth: args.creatorFrameWidth,
+      creatorFrameHeight: args.creatorFrameHeight,
+      creatorWindowId: args.creatorWindowId,
     );
     await windowManager.focus();
   });

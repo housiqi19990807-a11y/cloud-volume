@@ -43,6 +43,11 @@ class DesktopWindowMethodHost {
         };
       case 'is_window_focused':
         return await windowManager.isFocused();
+      case kModalBringToFrontMethod:
+        await windowManager.show();
+        await windowManager.focus();
+        await applyModalChildWindowChrome();
+        return null;
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
     }

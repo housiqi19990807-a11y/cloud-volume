@@ -1,10 +1,12 @@
 // Detached sync-editor window gives the configuration wizard a roomy sub-window
 // instead of a cramped modal dialog. Loads its own bridge and bucket list.
+import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:remote_storage/models/sync_profile.dart';
+import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/services/desktop_window_method_host.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -12,6 +14,7 @@ import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
+import 'package:remote_storage/widgets/desktop_modal_parent_focus_relay.dart';
 import 'package:remote_storage/widgets/desktop_modal_window_focus_gate.dart';
 import 'package:remote_storage/widgets/desktop_modal_scrim.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -25,12 +28,14 @@ class SyncEditorWindowApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShadApp(
+    return DesktopModalParentFocusRelay(
+      child: ShadApp(
       title: '云卷 - 同步配置',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: buildAppTheme(AccentPreset.blue),
       home: DesktopModalWindowFocusGate(child: Stack(children: [_SyncEditorBody(args: args), const DesktopModalScrim()])),
+    ),
     );
   }
 }
@@ -42,6 +47,14 @@ class _SyncEditorBody extends StatefulWidget {
 
   @override
   State<_SyncEditorBody> createState() => _SyncEditorBodyState();
+}
+
+Future<void> _closeSyncEditorWindow(String creatorWindowId) async {
+  final id = (await WindowController.fromCurrentEngine()).windowId;
+  DesktopModalOverlayController.instance.unregisterChildWindow(id);
+  await notifyCreatorModalOverlayRelease(creatorWindowId);
+  await clearModalChildWindowChrome();
+  await windowManager.close();
 }
 
 class _SyncEditorBodyState extends State<_SyncEditorBody> {
@@ -165,11 +178,9 @@ class _SyncEditorBodyState extends State<_SyncEditorBody> {
         buckets: _buckets,
         initial: widget.args.initialProfile,
         onSave: _onSave,
-        onSaved: () async {
-          await notifyCreatorModalOverlayRelease(widget.args.creatorWindowId);
-          await windowManager.close();
-        },
+        onSaved: () => _closeSyncEditorWindow(widget.args.creatorWindowId),
         asDialog: false,
+        creatorWindowId: widget.args.creatorWindowId,
       ),
     );
   }
@@ -206,10 +217,7 @@ class _SyncEditorTitleBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: '关闭',
-            onPressed: () async {
-              await notifyCreatorModalOverlayRelease(creatorWindowId);
-              await windowManager.close();
-            },
+            onPressed: () => _closeSyncEditorWindow(creatorWindowId),
             icon: const Icon(Icons.close, size: 18),
           ),
         ],

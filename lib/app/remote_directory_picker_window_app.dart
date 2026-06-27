@@ -4,6 +4,7 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_directory_picker_result_payload.dart';
 import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
+import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/app_theme.dart';
@@ -88,6 +89,8 @@ class _RemoteDirectoryPickerBodyState extends State<_RemoteDirectoryPickerBody> 
 
   Future<void> _finish(RemoteDirectoryResult? result) async {
     await _sendResult(result);
+        final id = (await WindowController.fromCurrentEngine()).windowId;
+    DesktopModalOverlayController.instance.unregisterChildWindow(id);
     await clearModalChildWindowChrome();
     await windowManager.close();
   }

@@ -6,6 +6,7 @@ import 'package:remote_storage/pages/app_bootstrap_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/app_theme.dart';
 import 'package:remote_storage/theme/theme_controller.dart';
+import 'package:remote_storage/widgets/desktop_modal_parent_focus_relay.dart';
 import 'package:remote_storage/widgets/desktop_modal_scrim.dart';
 import 'package:remote_storage/widgets/desktop_window_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -33,7 +34,8 @@ class _ThemeAwareShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = ThemeController.of(context).accent;
-    return ShadApp(
+    return DesktopModalParentFocusRelay(
+      child: ShadApp(
       title: appBrandName,
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
@@ -45,6 +47,7 @@ class _ThemeAwareShell extends StatelessWidget {
           const DesktopWindowControls(),
         ],
       ),
+    ),
     );
   }
 }
