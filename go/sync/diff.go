@@ -11,6 +11,7 @@ type localSide struct {
 	size    int64
 	mtime   int64 // unix nano
 	present bool
+	isDir   bool
 }
 
 // remoteSide is the listed view of a remote object under the sync prefix.
@@ -18,18 +19,20 @@ type remoteSide struct {
 	size    int64
 	mtime   int64 // unix nano
 	present bool
+	isDir   bool
 }
 
 // OpKind enumerates the primitive operations reconcile can emit.
 type OpKind string
 
 const (
-	OpUpload       OpKind = "upload"
-	OpDownload     OpKind = "download"
-	OpDeleteLocal  OpKind = "delete_local"
-	OpDeleteRemote OpKind = "delete_remote"
-	OpRename       OpKind = "rename"
-	OpSkip         OpKind = "skip"
+	OpUpload          OpKind = "upload"
+	OpDownload        OpKind = "download"
+	OpEnsureLocalDir   OpKind = "ensure_local_dir"
+	OpDeleteLocal      OpKind = "delete_local"
+	OpDeleteRemote     OpKind = "delete_remote"
+	OpRename           OpKind = "rename"
+	OpSkip             OpKind = "skip"
 )
 
 // Op is a single planned file operation feeding into the transfer queue.
@@ -93,8 +96,24 @@ func classify(
 	locChanged := l.present && (l.size != idx.LocalSize || l.mtime != idx.LocalMTime)
 	remChanged := r.present && (r.size != idx.RemoteSize || r.mtime != idx.RemoteMTime)
 
+	if r.present && r.isDir && !l.present {
+		if idx.LocalSize != 0 || idx.LocalMTime != 0 {
+			if profile.Direction == DirectionTwoWay {
+				return Op{Kind: OpDeleteLocal, RelPath: rel, Reason: "remote_dir_removed"}
+			}
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "stale_dir_index"}
+		}
+		if profile.Direction == DirectionUpload {
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "upload_only"}
+		}
+		return Op{Kind: OpEnsureLocalDir, RelPath: rel, Reason: "new_remote_dir"}
+	}
+
 	switch {
 	case l.present && r.present:
+		if r.isDir || l.isDir {
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "directory_marker"}
+		}
 		if !locChanged && !remChanged {
 			return Op{Kind: OpSkip, RelPath: rel}
 		}
@@ -129,6 +148,9 @@ func classify(
 		return Op{Kind: OpUpload, RelPath: rel, Reason: "new_local"}
 
 	case !l.present && r.present:
+		if r.isDir {
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "remote_dir_unhandled"}
+		}
 		if idx.LocalSize != 0 || idx.LocalMTime != 0 {
 			switch profile.Direction {
 			case DirectionDownload:

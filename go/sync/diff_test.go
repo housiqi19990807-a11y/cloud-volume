@@ -123,3 +123,15 @@ func TestClassifyTwoWayNewRemoteDownload(t *testing.T) {
 	}
 }
 
+
+func TestClassifyNewRemoteEmptyDir(t *testing.T) {
+	profile := SyncProfile{Direction: DirectionTwoWay, ConflictPolicy: ConflictNewest}
+	local := map[string]localSide{}
+	remote := map[string]remoteSide{"photos": {mtime: 200, present: true, isDir: true}}
+	keys, lookup := memLookup(nil)
+
+	ops := classifyAll(profile, local, remote, keys, lookup)
+	if len(ops) != 1 || ops[0].op.Kind != OpEnsureLocalDir {
+		t.Fatalf("expected ensure_local_dir, got %+v", ops)
+	}
+}

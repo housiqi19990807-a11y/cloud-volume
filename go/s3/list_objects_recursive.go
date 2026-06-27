@@ -14,7 +14,7 @@ import (
 	storageconfig "remote-storage/go/config"
 )
 
-// ListObjectsRecursiveContext returns all object keys (files only) under prefix.
+// ListObjectsRecursiveContext returns files and empty directory placeholders under prefix.
 func ListObjectsRecursiveContext(
 	ctx context.Context,
 	cfg storageconfig.RemoteStorageConfig,
@@ -60,6 +60,9 @@ func ListObjectsRecursiveContext(
 				continue
 			}
 			if strings.HasSuffix(key, "/") {
+				info := ObjectInfo{Key: key, Size: 0, IsDir: true}
+				info.LastModified = formatObjectLastModified(obj.LastModified)
+				items = append(items, info)
 				continue
 			}
 			info := ObjectInfo{Key: key, Size: aws.ToInt64(obj.Size)}

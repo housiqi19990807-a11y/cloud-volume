@@ -31,6 +31,9 @@ func (e *opExecutor) run(ctx context.Context, taskID string, op Op) {
 	bucket := e.profile.Bucket
 	key := e.profile.relativeKey(op.RelPath)
 	localPath := localAbsPath(e.profile, op.RelPath)
+	if op.Kind == OpEnsureLocalDir {
+		localPath = filepath.Join(e.profile.LocalPath, filepath.FromSlash(op.RelPath))
+	}
 
 	s3ops.QueueTransfer(taskID, kind, bucket, key, localPath, op.Size)
 	ctx, cancel := context.WithCancel(ctx)
@@ -53,6 +56,11 @@ func (e *opExecutor) executeOp(ctx context.Context, op Op, key, localPath string
 			return fmt.Errorf("ensure local dir: %w", err)
 		}
 		return e.backend.UploadFile(ctx, e.profile.Bucket, key, localPath, "")
+	case OpEnsureLocalDir:
+		if err := os.MkdirAll(localPath, 0o755); err != nil {
+			return fmt.Errorf("ensure local dir: %w", err)
+		}
+		return nil
 	case OpDownload:
 		if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 			return fmt.Errorf("ensure local dir: %w", err)
@@ -85,6 +93,16 @@ func (e *opExecutor) updateIndex(op Op, key, localPath string) {
 	defer idx.Close()
 	now := nowNano()
 	switch op.Kind {
+	case OpEnsureLocalDir:
+		now := nowNano()
+		entry := IndexEntry{LastSyncedAt: now}
+		if info, statErr := os.Stat(localPath); statErr == nil && info.IsDir() {
+			entry.LocalMTime = info.ModTime().UnixNano()
+			entry.RemoteMTime = entry.LocalMTime
+		}
+		if err := idx.PutEntry(op.RelPath, entry); err != nil {
+			log.Printf("[sync/exec] put dir index entry: %v", err)
+		}
 	case OpUpload, OpRename, OpDownload:
 		if info, statErr := os.Stat(localPath); statErr == nil {
 			existing, _ := idx.GetEntry(op.RelPath)
@@ -118,6 +136,8 @@ func transferKindFor(op Op) string {
 	switch op.Kind {
 	case OpUpload:
 		return "sync_upload"
+	case OpEnsureLocalDir:
+		return "sync_mkdir"
 	case OpDownload:
 		return "sync_download"
 	case OpDeleteRemote, OpDeleteLocal:

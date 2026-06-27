@@ -94,7 +94,7 @@ func (rc *Reconciler) aggregateRenames(rawOps []rawOp, local map[string]localSid
 	out := make([]Op, 0, len(rawOps))
 	for _, ro := range rawOps {
 		switch ro.op.Kind {
-		case OpUpload, OpDownload:
+		case OpUpload, OpDownload, OpEnsureLocalDir:
 			addSize := ro.localSize
 			if addSize == 0 {
 				addSize = ro.remoteSize
@@ -196,11 +196,16 @@ func (rc *Reconciler) scanRemote(ctx context.Context) (map[string]remoteSide, er
 		return nil, err
 	}
 	for _, item := range items {
-		if item.IsDir {
+		rel, isDir := rc.remoteEntryRelative(item)
+		if rel == "" || matchesExclude(rel, rc.profile.ExcludePatterns) {
 			continue
 		}
-		rel := rc.remoteRelative(item.Key)
-		if rel == "" || matchesExclude(rel, rc.profile.ExcludePatterns) {
+		if isDir {
+			out[rel] = remoteSide{
+				mtime:   parseRemoteMTime(item.LastModified),
+				present: true,
+				isDir:   true,
+			}
 			continue
 		}
 		out[rel] = remoteSide{
@@ -210,6 +215,22 @@ func (rc *Reconciler) scanRemote(ctx context.Context) (map[string]remoteSide, er
 		}
 	}
 	return out, nil
+}
+
+// remoteEntryRelative maps a listed object to a sync-relative path and whether it is a directory marker.
+func (rc *Reconciler) remoteEntryRelative(item storageops.ObjectInfo) (string, bool) {
+	key := strings.TrimSpace(item.Key)
+	if key == "" {
+		return "", false
+	}
+	if item.IsDir || strings.HasSuffix(key, "/") {
+		rel := rc.remoteRelative(strings.TrimSuffix(key, "/") + "/")
+		if rel == "" {
+			rel = rc.remoteRelative(key)
+		}
+		return strings.TrimSuffix(rel, "/"), true
+	}
+	return rc.remoteRelative(key), false
 }
 
 // remoteRelative strips the configured prefix from a remote key.
