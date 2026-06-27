@@ -1,6 +1,8 @@
 package sync
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -133,5 +135,22 @@ func TestClassifyNewRemoteEmptyDir(t *testing.T) {
 	ops := classifyAll(profile, local, remote, keys, lookup)
 	if len(ops) != 1 || ops[0].op.Kind != OpEnsureLocalDir {
 		t.Fatalf("expected ensure_local_dir, got %+v", ops)
+	}
+}
+
+func TestClassifyRemoteDirDoesNotDeleteWhenLocalDirExists(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	profile := SyncProfile{Direction: DirectionTwoWay, LocalPath: root}
+	local := map[string]localSide{}
+	remote := map[string]remoteSide{"nested": {mtime: 100, present: true, isDir: true}}
+	keys, lookup := memLookup(map[string]IndexEntry{
+		"nested": {LocalMTime: 50, RemoteMTime: 50},
+	})
+	ops := classifyAll(profile, local, remote, keys, lookup)
+	if len(ops) != 1 || ops[0].op.Kind != OpSkip {
+		t.Fatalf("expected skip for existing local dir, got %+v", ops)
 	}
 }

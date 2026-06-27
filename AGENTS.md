@@ -99,6 +99,7 @@ The sync feature lets users bind a local directory to a remote bucket prefix and
 #### Delete detection and sync (exploration)
 
 **Remote scan depth (2026-06-27):** `go/sync/reconcile.go` `scanRemote` must list **all nested files** under `RemotePrefix`, not only the immediate listing page. File-manager `ListObjectsPage` uses delimiter/depth-1 for UI browsing; sync uses `storage.Backend.ListObjectsRecursive` (S3: paginator without delimiter; WebDAV: PROPFIND depth infinity; Baidu: BFS over directories). If sync only saw top-level files, empty local + remote tree with subfolders would produce **zero downloads** even under two-way sync.
+**Local directory keys:** `scanLocal` only walks files, so `classify` calls `localDirSide` to detect existing folders. Without this, `ensure_local_dir` index entries made the next pass think the remote dir vanished and emitted `delete_local` on the folder path.
 **Empty remote folders:** Sync also emits `OpEnsureLocalDir` (`sync_mkdir`) when the remote side has a directory marker (S3 `key/` placeholder, WebDAV/Baidu `IsDir`) and local is missing it. File-only reconcile never created folders when a remote dir had no files inside.
 
 Each reconcile pass compares **three views** per relative path: local scan (`localSide`), remote list under prefix (`remoteSide`), and **persisted index** (`IndexEntry` in bbolt — last synced local/remote size+mtime). Keys are the union of all three sets (`go/sync/diff.go` `classify`).

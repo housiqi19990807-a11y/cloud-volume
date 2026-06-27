@@ -5,6 +5,7 @@ package sync
 import (
 	"context"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -90,6 +91,7 @@ func (r *profileRunner) runCycle(ctx context.Context) {
 	}
 
 	r.setPending(len(result.Ops))
+	dispatched := 0
 	for _, op := range result.Ops {
 		if ctx.Err() != nil {
 			break
@@ -101,9 +103,10 @@ func (r *profileRunner) runCycle(ctx context.Context) {
 			continue
 		}
 		r.dispatch(ctx, r.profile, backend, op)
+		dispatched++
 		r.decPending()
 	}
-	r.setDone(len(result.Ops))
+	r.setDone(dispatched)
 }
 
 // isHot returns true when a local file involved in the op was modified within
@@ -117,6 +120,9 @@ func (r *profileRunner) isHot(ctx context.Context, op Op) bool {
 	switch op.Kind {
 	case OpUpload, OpRename, OpDeleteLocal:
 		abs = localAbsPath(r.profile, op.RelPath)
+		if info, err := os.Stat(abs); err == nil && info.IsDir() {
+			return false
+		}
 	default:
 		return false
 	}

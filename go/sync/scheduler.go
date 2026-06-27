@@ -190,10 +190,12 @@ func (s *Scheduler) runOnce(ctx context.Context, profile SyncProfile) (int, erro
 	if err != nil {
 		return 0, err
 	}
+	dispatched := 0
 	for _, op := range result.Ops {
 		s.dispatchOp(ctx, profile, backend, op)
+		dispatched++
 	}
-	return len(result.Ops), nil
+	return dispatched, nil
 }
 
 // dispatchOp enqueues a single op into the transfer monitor and executes it.

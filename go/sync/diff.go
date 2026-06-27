@@ -93,14 +93,19 @@ func classify(
 	r remoteSide,
 	idx IndexEntry,
 ) Op {
-	locChanged := l.present && (l.size != idx.LocalSize || l.mtime != idx.LocalMTime)
-	remChanged := r.present && (r.size != idx.RemoteSize || r.mtime != idx.RemoteMTime)
+	if !l.present {
+		if dir, ok := localDirSide(profile, rel); ok {
+			l = dir
+		}
+	}
+	locChanged := l.present && !l.isDir && (l.size != idx.LocalSize || l.mtime != idx.LocalMTime)
+	remChanged := r.present && !r.isDir && (r.size != idx.RemoteSize || r.mtime != idx.RemoteMTime)
 
 	if r.present && r.isDir && !l.present {
-		if idx.LocalSize != 0 || idx.LocalMTime != 0 {
-			if profile.Direction == DirectionTwoWay {
-				return Op{Kind: OpDeleteLocal, RelPath: rel, Reason: "remote_dir_removed"}
-			}
+		if indexTrackedRemoteDir(idx) && profile.Direction == DirectionTwoWay {
+			return Op{Kind: OpDeleteLocal, RelPath: rel, Reason: "remote_dir_removed"}
+		}
+		if indexTrackedRemoteDir(idx) {
 			return Op{Kind: OpSkip, RelPath: rel, Reason: "stale_dir_index"}
 		}
 		if profile.Direction == DirectionUpload {
@@ -167,8 +172,16 @@ func classify(
 		return Op{Kind: OpDownload, RelPath: rel, Reason: "new_remote"}
 
 	default:
+		if indexTrackedRemoteDir(idx) && !r.present {
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "stale_dir_index"}
+		}
 		return Op{Kind: OpSkip, RelPath: rel, Reason: "stale_index"}
 	}
+}
+
+// indexTrackedRemoteDir is true when the index remembers a synced directory marker (not a file).
+func indexTrackedRemoteDir(idx IndexEntry) bool {
+	return idx.LocalSize == 0 && idx.RemoteSize == 0 && idx.LocalMTime != 0
 }
 
 // resolveConflict applies the profile's conflict policy when both sides changed.

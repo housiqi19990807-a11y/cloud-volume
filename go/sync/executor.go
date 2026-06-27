@@ -69,6 +69,9 @@ func (e *opExecutor) executeOp(ctx context.Context, op Op, key, localPath string
 	case OpDeleteRemote:
 		return e.backend.DeleteObject(ctx, e.profile.Bucket, key, false, "")
 	case OpDeleteLocal:
+		if info, err := os.Stat(localPath); err == nil && info.IsDir() {
+			return nil
+		}
 		if err := os.Remove(localPath); err != nil && !os.IsNotExist(err) {
 			return err
 		}
