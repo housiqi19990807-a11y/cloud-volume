@@ -98,7 +98,7 @@ func classify(
 			l = dir
 		}
 	}
-	locChanged := l.present && !l.isDir && (l.size != idx.LocalSize || l.mtime != idx.LocalMTime)
+	locChanged := l.present && !l.isDir && localSideChanged(l, idx)
 	remChanged := r.present && !r.isDir && remoteSideChanged(r, idx)
 
 	if r.present && r.isDir && !l.present {
@@ -118,6 +118,9 @@ func classify(
 	case l.present && r.present:
 		if r.isDir || l.isDir {
 			return Op{Kind: OpSkip, RelPath: rel, Reason: "directory_marker"}
+		}
+		if l.size == 0 && r.size == 0 && !locChanged && !remChanged {
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "zero_byte_unchanged"}
 		}
 		if !locChanged && !remChanged {
 			return Op{Kind: OpSkip, RelPath: rel}
@@ -150,6 +153,9 @@ func classify(
 		if profile.Direction == DirectionDownload {
 			return Op{Kind: OpSkip, RelPath: rel}
 		}
+		if l.size == 0 {
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "zero_byte_local"}
+		}
 		return Op{Kind: OpUpload, RelPath: rel, Reason: "new_local"}
 
 	case !l.present && r.present:
@@ -169,6 +175,9 @@ func classify(
 		if profile.Direction == DirectionUpload {
 			return Op{Kind: OpSkip, RelPath: rel}
 		}
+		if r.size == 0 {
+			return Op{Kind: OpSkip, RelPath: rel, Reason: "zero_byte_remote"}
+		}
 		return Op{Kind: OpDownload, RelPath: rel, Reason: "new_remote"}
 
 	default:
@@ -181,9 +190,24 @@ func classify(
 
 // indexTrackedRemoteDir is true when the index remembers a synced directory marker (not a file).
 // remoteSideChanged compares listing metadata to the index; mtime 0 means unknown (parse miss).
+// localSideChanged mirrors remoteSideChanged for upload churn avoidance.
+func localSideChanged(l localSide, idx IndexEntry) bool {
+	if l.size != idx.LocalSize {
+		return true
+	}
+	if l.size == 0 && idx.LocalSize == 0 {
+		return false
+	}
+	return l.mtime != idx.LocalMTime
+}
+
 func remoteSideChanged(r remoteSide, idx IndexEntry) bool {
 	if r.size != idx.RemoteSize {
 		return true
+	}
+	// 已同步的 0 字节文件不因列表时间抖动反复下载。
+	if r.size == 0 && idx.RemoteSize == 0 {
+		return false
 	}
 	if r.mtime == 0 {
 		return false

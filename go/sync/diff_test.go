@@ -167,3 +167,16 @@ func TestClassifySkipsDownloadWhenRemoteMtimeUnknown(t *testing.T) {
 		t.Fatalf("expected skip when remote mtime unknown, got %+v", ops)
 	}
 }
+
+func TestClassifySkipsZeroByteChurn(t *testing.T) {
+	profile := SyncProfile{Direction: DirectionTwoWay, ConflictPolicy: ConflictNewest}
+	local := map[string]localSide{"empty.txt": {size: 0, mtime: 100, present: true}}
+	remote := map[string]remoteSide{"empty.txt": {size: 0, mtime: 0, present: true}}
+	keys, lookup := memLookup(map[string]IndexEntry{
+		"empty.txt": {LocalSize: 0, LocalMTime: 100, RemoteSize: 0, RemoteMTime: 200},
+	})
+	ops := classifyAll(profile, local, remote, keys, lookup)
+	if len(ops) != 1 || ops[0].op.Kind != OpSkip {
+		t.Fatalf("expected skip for zero-byte churn, got %+v", ops)
+	}
+}
