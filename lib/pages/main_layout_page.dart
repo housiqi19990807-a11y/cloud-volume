@@ -49,8 +49,9 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   SyncRemoteOpenRequest? _pendingSyncRemoteOpen;
 
   void _onOpenSyncRemoteFromSyncPage(SyncRemoteOpenRequest request) {
-    setState(() {
-      _pendingSyncRemoteOpen = request;
+    setState(() => _pendingSyncRemoteOpen = request);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       widget.onSelectedItemChanged(SidebarItem.fileManager);
     });
   }

@@ -250,28 +250,12 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
             ],
           ),
           const SizedBox(height: 8),
-          _pathRowWithOpenButton(
-            theme,
-            icon: LucideIcons.folder,
-            text: runtime.profile.localPath,
-            openLabel: '打开本地目录',
-            onOpen: runtime.profile.localPath.trim().isEmpty
-                ? null
-                : () => SyncDirectoryOpenButtons.openLocal(
-                      context,
-                      runtime.profile.localPath.trim(),
-                    ),
-          ),
+          _metaRow(theme, LucideIcons.folder, runtime.profile.localPath),
           const SizedBox(height: 4),
-          _pathRowWithOpenButton(
+          _metaRow(
             theme,
-            icon: LucideIcons.cloudUpload,
-            text:
-                '${runtime.profile.bucket}/${runtime.profile.remotePrefix.isEmpty ? '' : runtime.profile.remotePrefix}',
-            openLabel: '打开同步目录',
-            onOpen: () => SyncDirectoryNavigation.instance.openRemote(
-              runtime.profile.remoteOpenRequest,
-            ),
+            LucideIcons.cloudUpload,
+            '${runtime.profile.bucket}/${runtime.profile.remotePrefix.isEmpty ? '' : runtime.profile.remotePrefix}',
           ),
           const SizedBox(height: 4),
           _metaRow(theme, LucideIcons.arrowLeftRight, runtime.profile.direction.label),
@@ -307,6 +291,25 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
                   color: theme.colorScheme.mutedForeground,
                 ),
               ),
+              const SizedBox(width: 8),
+              ShadButton.outline(
+                size: ShadButtonSize.sm,
+                onPressed: runtime.profile.localPath.trim().isEmpty
+                    ? null
+                    : () => SyncDirectoryOpenButtons.openLocal(
+                          context,
+                          runtime.profile.localPath.trim(),
+                        ),
+                child: const Text('打开本地目录'),
+              ),
+              const SizedBox(width: 6),
+              ShadButton.outline(
+                size: ShadButtonSize.sm,
+                onPressed: () => SyncDirectoryNavigation.instance.openRemote(
+                  runtime.profile.remoteOpenRequest,
+                ),
+                child: const Text('打开同步目录'),
+              ),
               const Spacer(),
               ShadButton.outline(
                 onPressed: () => _triggerSync(runtime),
@@ -329,38 +332,6 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
     );
   }
 
-  /// 路径行右侧「打开目录」与路径同一行。
-  Widget _pathRowWithOpenButton(
-    ShadThemeData theme, {
-    required IconData icon,
-    required String text,
-    required String openLabel,
-    required VoidCallback? onOpen,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Icon(icon, size: 13, color: theme.colorScheme.mutedForeground),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.mutedForeground,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        ShadButton.outline(
-          size: ShadButtonSize.sm,
-          onPressed: onOpen,
-          child: Text(openLabel),
-        ),
-      ],
-    );
-  }
 
   Widget _metaRow(ShadThemeData theme, IconData icon, String text) {
     return Row(

@@ -152,6 +152,10 @@ class _FileManagerPageState extends State<FileManagerPage> {
     TransferQueue.instance.addListener(_handleUploadTaskRefresh);
     _startMountStatusRefreshTimer();
     _loadBuckets();
+    final pending = widget.pendingSyncRemoteOpen;
+    if (pending != null) {
+      schedulePendingSyncRemoteOpen(pending);
+    }
   }
 
   @override
@@ -175,7 +179,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
     final pending = widget.pendingSyncRemoteOpen;
     if (pending != null &&
         pending != oldWidget.pendingSyncRemoteOpen) {
-      unawaited(_applyPendingSyncRemoteOpen(pending));
+      schedulePendingSyncRemoteOpen(pending);
     }
   }
 
