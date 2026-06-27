@@ -1,5 +1,4 @@
-// 文件同步任务页：同步配置的唯一管理入口，同时展示配置概览状态与由同步产生的实时任务。
-// 与通用任务队列互补——这里只显示 sync_ 类型的任务，并提供配置 CRUD 与立即同步入口。
+// 文件同步任务页：同步配置的唯一管理入口；进行中的同步项在每条配置卡片内摘要展示，完整列表见「传输」。
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
@@ -8,7 +7,7 @@ import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
-import 'package:remote_storage/utils/transfer_format.dart';
+import 'package:remote_storage/widgets/file_sync_profile_active_task.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/services/sync_editor_window_service.dart';
 import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
@@ -97,7 +96,7 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '管理同步配置，查看配置状态及由同步产生的上传、下载、删除、重命名任务。',
+                      '管理同步配置与状态；进行中的同步操作在配置卡片内显示，完整任务请前往「传输」。',
                       style: TextStyle(
                         color: theme.colorScheme.mutedForeground,
                         fontSize: 13,
@@ -132,21 +131,8 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
             if (profiles.isEmpty)
               _emptyHint(theme, '还没有同步配置，点击右上角「新建配置」开始。')
             else
-              ...profiles.map((p) => _profileRow(theme, p)),
-            const SizedBox(height: 28),
-            Text(
-              '同步任务（${tasks.length}）',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.foreground,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (tasks.isEmpty)
-              _emptyHint(theme, '暂无同步任务。同步触发后会在此显示。')
-            else
-              ...tasks.map((t) => _taskRow(theme, t)),
+              ...profiles.map((p) => _profileRow(theme, p, tasks)),
+
           ],
         ),
       ),
@@ -223,7 +209,11 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
 
   /// 单条配置行：展示名称、状态、方向、待处理数和上次同步时间。
   /// 操作区提供立即同步、编辑、删除、启停开关，逻辑在 part 文件中。
-  Widget _profileRow(ShadThemeData theme, SyncProfileRuntime runtime) {
+  Widget _profileRow(
+    ShadThemeData theme,
+    SyncProfileRuntime runtime,
+    List<TransferTask> tasks,
+  ) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
@@ -276,6 +266,9 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
                 color: theme.colorScheme.destructive,
               ),
             ),
+          ],
+          if (latestActiveSyncTaskForProfile(tasks, runtime.profile.id) case final active?) ...[
+            FileSyncProfileActiveTaskLine(task: active),
           ],
           const SizedBox(height: 12),
           Row(
@@ -361,80 +354,6 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
     }
   }
 
-  Widget _taskRow(ShadThemeData theme, TransferTask task) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          _taskKindIcon(theme, task),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.key,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: theme.colorScheme.foreground,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_syncTypeLabel(task)} · ${task.status.name}'
-                  '${task.totalBytes > 0 ? ' · ${formatBytes(task.bytesCompleted)}/${formatBytes(task.totalBytes)}' : ''}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
-                ),
-                if (task.error != null && task.error!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    task.error!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.colorScheme.destructive,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _taskKindIcon(ShadThemeData theme, TransferTask task) {
-    final icon = switch (task.rawType) {
-      'sync_upload' => LucideIcons.upload,
-      'sync_download' => LucideIcons.download,
-      'sync_delete' => LucideIcons.trash2,
-      'sync_rename' => LucideIcons.pencilLine,
-      _ => LucideIcons.refreshCw,
-    };
-    return Icon(icon, size: 16, color: theme.colorScheme.primary);
-  }
-
-  String _syncTypeLabel(TransferTask task) {
-    return switch (task.rawType) {
-      'sync_upload' => '同步上传',
-      'sync_download' => '同步下载',
-      'sync_delete' => '同步删除',
-      'sync_rename' => '同步重命名',
-      _ => '同步',
-    };
-  }
 
   Widget _emptyHint(ShadThemeData theme, String text) {
     return Container(
