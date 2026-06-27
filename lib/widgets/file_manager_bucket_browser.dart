@@ -10,6 +10,7 @@ import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
+import 'package:remote_storage/widgets/app_tooltip.dart';
 
 part 'file_manager_bucket_source_actions.dart';
 part 'file_manager_bucket_browser_actions.dart';
@@ -112,7 +113,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
         ? (maxWidth >= 920 ? _bucketSourceColumnWidth : 108.0)
         : 0.0;
     final actionW = showActions
-        ? (maxWidth >= 1000 ? _bucketActionColumnWidth : 168.0)
+        ? (maxWidth >= 1000 ? _bucketActionColumnWidth : 104.0)
         : 0.0;
     return (sourceW, actionW, showSource, showActions);
   }

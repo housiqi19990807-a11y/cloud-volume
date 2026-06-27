@@ -3,8 +3,6 @@ part of 'file_manager_bucket_browser.dart';
 // Bucket browser action cells keep mount/unmount controls separate from list layout code.
 
 class _BucketMountActions extends StatelessWidget {
-  static const double _actionSlotWidth = 96;
-
   const _BucketMountActions({
     required this.bucket,
     required this.status,
@@ -41,41 +39,28 @@ class _BucketMountActions extends StatelessWidget {
       return SizedBox(
         height: 32,
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _actionSlot(
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: AppLoadingIndicator(
-                      strokeWidth: 1.5,
-                      color: foreground,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '处理中',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: foreground,
-                    ),
-                  ),
-                ],
+            _iconOnlySlot(
+              SizedBox(
+                width: 12,
+                height: 12,
+                child: AppLoadingIndicator(
+                  strokeWidth: 1.5,
+                  color: foreground,
+                ),
               ),
             ),
-            const SizedBox(width: 6),
-            _actionSlot(
-              _miniButton(
-                label: secondaryLabel,
+            const SizedBox(width: 4),
+            _iconOnlySlot(
+              _iconButton(
+                tooltip: secondaryLabel,
                 icon: secondaryIcon,
                 color: foreground,
                 onPressed: null,
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             _BucketOverflowMenuButton(
               items: moreMenuItems,
               color: foreground,
@@ -89,29 +74,30 @@ class _BucketMountActions extends StatelessWidget {
     return SizedBox(
       height: 32,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _actionSlot(
-            _miniButton(
-              label: primaryLabel,
+          _iconOnlySlot(
+            _iconButton(
+              tooltip: primaryLabel,
               icon: primaryIcon,
               color: foreground,
               onPressed: primaryAction == null
                   ? null
-                  : () => primaryAction(bucket),
+                  : () => primaryAction!(bucket),
             ),
           ),
-          const SizedBox(width: 6),
-          _actionSlot(
-            _miniButton(
-              label: secondaryLabel,
+          const SizedBox(width: 4),
+          _iconOnlySlot(
+            _iconButton(
+              tooltip: secondaryLabel,
               icon: secondaryIcon,
               color: foreground,
               onPressed: secondaryAction == null
                   ? null
-                  : () => secondaryAction(bucket),
+                  : () => secondaryAction!(bucket),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           _BucketOverflowMenuButton(
             items: moreMenuItems,
             color: foreground,
@@ -122,42 +108,33 @@ class _BucketMountActions extends StatelessWidget {
     );
   }
 
-  Widget _actionSlot(Widget child) {
+  Widget _iconOnlySlot(Widget child) {
     return SizedBox(
-      width: _actionSlotWidth,
-      child: Align(alignment: Alignment.centerLeft, child: child),
+      width: 32,
+      child: Align(alignment: Alignment.center, child: child),
     );
   }
 
-  Widget _miniButton({
-    required String label,
+  Widget _iconButton({
+    required String tooltip,
     required IconData icon,
     required Color color,
     required VoidCallback? onPressed,
   }) {
-    return ShadButton.ghost(
-      size: ShadButtonSize.sm,
-      onPressed: onPressed,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 11.5),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-            ),
-          ),
-        ],
+    return AppTooltip(
+      message: tooltip,
+      child: ShadIconButton.ghost(
+        icon: Icon(icon, size: 14, color: color),
+        width: 26,
+        height: 26,
+        iconSize: 14,
+        onPressed: onPressed,
       ),
     );
   }
 }
 
+class _BucketOverflowMenuButton extends StatefulWidget {
 class _BucketOverflowMenuButton extends StatefulWidget {
   const _BucketOverflowMenuButton({
     required this.items,
