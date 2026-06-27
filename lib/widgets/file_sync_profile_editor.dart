@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/models/sync_remote_open_request.dart';
 import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
+import 'package:remote_storage/widgets/sync_directory_open_buttons.dart';
+import 'package:remote_storage/services/sync_directory_navigation.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:window_manager/window_manager.dart';
@@ -186,6 +189,31 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   }
 
   // 弹出远程目录选择器，选择桶和目录前缀。
+  Future<void> _openLocalDirectoryInShell() async {
+    final path = _localPathController.text.trim();
+    if (path.isEmpty) return;
+    await SyncDirectoryOpenButtons.openLocal(context, path);
+  }
+
+  Future<void> _openRemoteSyncDirectory() async {
+    final remote = _remoteDir;
+    if (remote == null) return;
+    final request = SyncRemoteOpenRequest(
+      profileName: remote.profileName,
+      bucket: remote.bucket,
+      remotePrefix: remote.prefix,
+    );
+    if (widget.asDialog) {
+      SyncDirectoryNavigation.instance.openRemote(request);
+      return;
+    }
+    await SyncDirectoryOpenButtons.openRemoteViaParentWindow(
+      context,
+      creatorWindowId: widget.creatorWindowId,
+      request: request,
+    );
+  }
+
   Future<void> _pickRemoteDirectory() async {
     final result = await showRemoteDirectoryPicker(
       context: context,

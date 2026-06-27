@@ -8,6 +8,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/file_sync_profile_active_task.dart';
+import 'package:remote_storage/widgets/sync_directory_open_buttons.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/services/sync_editor_window_service.dart';
 import 'package:remote_storage/widgets/file_sync_profile_editor.dart';
@@ -257,6 +258,12 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
           ),
           const SizedBox(height: 4),
           _metaRow(theme, LucideIcons.arrowLeftRight, runtime.profile.direction.label),
+          const SizedBox(height: 10),
+          SyncDirectoryOpenButtons(
+            localPath: runtime.profile.localPath,
+            remoteOpen: runtime.profile.remoteOpenRequest,
+            compact: true,
+          ),
           if (runtime.lastSyncAt.isNotEmpty) ...[
             const SizedBox(height: 4),
             _metaRow(theme, LucideIcons.clock, '上次同步：${runtime.lastSyncAt}'),

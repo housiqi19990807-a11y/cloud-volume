@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
+import 'package:remote_storage/models/sync_remote_open_request.dart';
 import 'package:remote_storage/models/file_preview_source.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
@@ -62,6 +63,7 @@ part 'file_manager_page_sources.dart';
 part 'file_manager_page_transfer_inputs.dart';
 part 'file_manager_page_trash.dart';
 part 'file_manager_page_upload_feedback.dart';
+part 'file_manager_page_sync_nav.dart';
 part 'file_manager_page_webdav.dart';
 
 // 文件管理页首页模式：既支持普通文件浏览，也支持侧边栏独立回收站入口。
@@ -76,6 +78,8 @@ class FileManagerPage extends StatefulWidget {
     required this.onEditConfig,
     required this.onRefresh,
     this.homeView = FileManagerHomeView.files,
+    this.pendingSyncRemoteOpen,
+    this.onPendingSyncRemoteOpenConsumed,
   });
 
   final RemoteStorageGateway api;
@@ -84,6 +88,8 @@ class FileManagerPage extends StatefulWidget {
   final VoidCallback onEditConfig;
   final VoidCallback onRefresh;
   final FileManagerHomeView homeView;
+  final SyncRemoteOpenRequest? pendingSyncRemoteOpen;
+  final VoidCallback? onPendingSyncRemoteOpenConsumed;
 
   @override
   State<FileManagerPage> createState() => _FileManagerPageState();
@@ -165,6 +171,11 @@ class _FileManagerPageState extends State<FileManagerPage> {
     if (oldWidget.config != widget.config ||
         oldWidget.profiles != widget.profiles) {
       unawaited(_loadBuckets());
+    }
+    final pending = widget.pendingSyncRemoteOpen;
+    if (pending != null &&
+        pending != oldWidget.pendingSyncRemoteOpen) {
+      unawaited(_applyPendingSyncRemoteOpen(pending));
     }
   }
 

@@ -74,6 +74,27 @@ Widget stepPickEndpoints({
           ),
         ],
       ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ShadButton.outline(
+            size: ShadButtonSize.sm,
+            onPressed: self._localPathController.text.trim().isEmpty
+                ? null
+                : self._openLocalDirectoryInShell,
+            child: const Text('打开本地目录'),
+          ),
+          ShadButton.outline(
+            size: ShadButtonSize.sm,
+            onPressed: self._remoteDir == null
+                ? null
+                : () => self._openRemoteSyncDirectory(),
+            child: const Text('打开同步目录'),
+          ),
+        ],
+      ),
     ],
   );
 }

@@ -1,3 +1,4 @@
+import 'package:remote_storage/models/sync_remote_open_request.dart';
 // Sync profile model mirroring go/sync/profile.go for the Flutter settings UI.
 // Keeps field names in sync with the JSON bridge payload.
 
@@ -184,4 +185,13 @@ class SyncProfileRuntime {
   final String lastError;
   final int pendingOps;
   final int lastOpsCount;
+}
+
+
+extension SyncProfileRemoteOpen on SyncProfile {
+  SyncRemoteOpenRequest get remoteOpenRequest => SyncRemoteOpenRequest(
+        profileName: accountProfile,
+        bucket: bucket,
+        remotePrefix: remotePrefix,
+      );
 }

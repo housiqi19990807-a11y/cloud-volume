@@ -8,7 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:remote_storage/models/remote_directory_picker_result_payload.dart';
 import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
+import 'package:remote_storage/models/sync_remote_open_request.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
+import 'package:remote_storage/services/sync_directory_navigation.dart';
 
 class DesktopWindowMethodHost {
   DesktopWindowMethodHost._();
@@ -60,6 +62,9 @@ class DesktopWindowMethodHost {
           DesktopModalOverlayController.instance.registerChildWindow(id);
         }
         return null;
+      case 'open_sync_remote_directory':
+        _handleOpenSyncRemoteDirectory(call.arguments);
+        return null;
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
     }
@@ -75,6 +80,17 @@ class DesktopWindowMethodHost {
 
   static void cancelRemoteDirectoryRequest(String requestId) {
     _remoteDirectoryRequests.remove(requestId)?.complete(null);
+  }
+
+  static void _handleOpenSyncRemoteDirectory(dynamic raw) {
+    if (raw is! Map) return;
+    final requestJson = raw['request'];
+    if (requestJson is! Map) return;
+    SyncDirectoryNavigation.instance.openRemote(
+      SyncRemoteOpenRequest.fromJson(
+        Map<String, dynamic>.from(requestJson),
+      ),
+    );
   }
 
   static void _completeRemoteDirectory(dynamic raw) {

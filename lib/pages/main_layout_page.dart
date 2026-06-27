@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/pages/cloud_storage_page.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
+import 'package:remote_storage/models/sync_remote_open_request.dart';
 import 'package:remote_storage/pages/file_sync_tasks_page.dart';
+import 'package:remote_storage/services/sync_directory_navigation.dart';
 import 'package:remote_storage/pages/global_trash_page.dart';
 import 'package:remote_storage/pages/share_management_page.dart';
 import 'package:remote_storage/pages/settings_page.dart';
@@ -44,6 +46,20 @@ class MainLayoutPage extends StatefulWidget {
 }
 
 class _MainLayoutPageState extends State<MainLayoutPage> {
+  SyncRemoteOpenRequest? _pendingSyncRemoteOpen;
+
+  void _onOpenSyncRemoteFromSyncPage(SyncRemoteOpenRequest request) {
+    setState(() {
+      _pendingSyncRemoteOpen = request;
+      widget.onSelectedItemChanged(SidebarItem.fileManager);
+    });
+  }
+
+  void _clearPendingSyncRemoteOpen() {
+    if (_pendingSyncRemoteOpen == null) return;
+    setState(() => _pendingSyncRemoteOpen = null);
+  }
+
   bool get _sharesAvailable => widget.state.config.supportsShareLinks;
 
   SidebarItem get _effectiveSelectedItem {
@@ -56,8 +72,15 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
   @override
   void initState() {
     super.initState();
+    SyncDirectoryNavigation.instance.setHandler(_onOpenSyncRemoteFromSyncPage);
     TransferQueue.instance.bindApi(widget.api);
     SyncProfileNotifier.instance.bindApi(widget.api);
+  }
+
+  @override
+  void dispose() {
+    SyncDirectoryNavigation.instance.setHandler(null);
+    super.dispose();
   }
 
   @override
@@ -263,6 +286,8 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           profiles: widget.state.profiles,
           onEditConfig: widget.onEditConfig,
           onRefresh: widget.onRefresh,
+          pendingSyncRemoteOpen: _pendingSyncRemoteOpen,
+          onPendingSyncRemoteOpenConsumed: _clearPendingSyncRemoteOpen,
         ),
         CloudStoragePage(
           state: widget.state,
