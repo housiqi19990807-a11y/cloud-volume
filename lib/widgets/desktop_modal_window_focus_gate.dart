@@ -47,7 +47,7 @@ class _DesktopModalWindowFocusGateState extends State<DesktopModalWindowFocusGat
 
   @override
   void onWindowBlur() {
-    clearModalChildWindowChrome();
+    clearAlwaysOnTopForAllModalChildren();
   }
 
   @override

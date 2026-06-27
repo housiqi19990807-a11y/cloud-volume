@@ -49,7 +49,7 @@ Future<void> _configureSyncEditorWindow(SyncEditorWindowArgs args) async {
   const options = WindowOptions(
     size: Size(560, 480),
     minimumSize: Size(520, 400),
-    center: true,
+    center: false,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: false,
@@ -90,7 +90,7 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
   const options = WindowOptions(
     size: Size(720, 560),
     minimumSize: Size(560, 440),
-    center: true,
+    center: false,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: false,
@@ -99,6 +99,14 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
     await applyModalChildWindowChrome();
     await windowManager.setTitle('选择远端目录');
     await windowManager.show();
+    await positionChildCenteredFromFrame(
+      size: const Size(720, 560),
+      creatorFrameLeft: args.creatorFrameLeft,
+      creatorFrameTop: args.creatorFrameTop,
+      creatorFrameWidth: args.creatorFrameWidth,
+      creatorFrameHeight: args.creatorFrameHeight,
+      creatorWindowId: args.creatorWindowId,
+    );
     await windowManager.focus();
   });
 }

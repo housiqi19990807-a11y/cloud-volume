@@ -48,6 +48,9 @@ class DesktopWindowMethodHost {
         await windowManager.focus();
         await applyModalChildWindowChrome();
         return null;
+      case kModalClearAlwaysOnTopMethod:
+        await clearModalChildWindowChrome();
+        return null;
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
     }

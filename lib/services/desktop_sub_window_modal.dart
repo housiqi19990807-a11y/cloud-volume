@@ -166,3 +166,23 @@ Future<void> bringTopModalChildToFront() async {
     }
   }
 }
+
+
+const String kModalClearAlwaysOnTopMethod = 'modal_clear_always_on_top';
+
+bool _isModalSubWindowArguments(String arguments) {
+  if (arguments.trim().isEmpty) return false;
+  return arguments.contains('sync_editor') ||
+      arguments.contains('remote_directory_picker');
+}
+
+/// Clears always-on-top on every modal sub-window (nested stack included).
+Future<void> clearAlwaysOnTopForAllModalChildren() async {
+  final controllers = await WindowController.getAll();
+  for (final c in controllers) {
+    if (!_isModalSubWindowArguments(c.arguments)) continue;
+    try {
+      await c.invokeMethod(kModalClearAlwaysOnTopMethod, null);
+    } catch (_) {}
+  }
+}
