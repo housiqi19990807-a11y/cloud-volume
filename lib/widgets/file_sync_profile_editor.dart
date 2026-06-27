@@ -339,16 +339,6 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
             );
           }),
         ),
-        const SizedBox(height: 14),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: (_step + 1) / _stepLabels.length,
-            minHeight: 3,
-            backgroundColor: theme.colorScheme.border,
-            valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
-          ),
-        ),
       ],
     );
   }
