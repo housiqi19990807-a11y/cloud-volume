@@ -481,5 +481,8 @@ class _FakeApi implements RemoteStorageGateway {
   Future<void> deleteSyncProfile(String id) async {}
 
   @override
+  Future<void> writeAppLog(String message, {String level = 'info', String tag = 'flutter'}) async {}
+
+  @override
   Future<int> triggerSyncProfile(String id) async => 0;
 }

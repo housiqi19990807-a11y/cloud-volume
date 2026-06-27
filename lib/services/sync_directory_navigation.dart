@@ -1,7 +1,5 @@
 // 主窗口接收子窗口或同步页的「打开远端目录」请求并驱动文件管理导航。
 
-import 'dart:async';
-
 import 'package:remote_storage/models/sync_remote_open_request.dart';
 
 typedef SyncRemoteOpenHandler = void Function(SyncRemoteOpenRequest request);
