@@ -142,6 +142,17 @@ extension _FileManagerPageActions on _FileManagerPageState {
         task.id,
       );
       TransferQueue.instance.markTaskDone(task.id);
+      // 上传成功后把本地副本 seed 进预览缓存，避免"刚传完就双击还要重下"。
+      // 用原始本地路径作为源；seed 内部异常被吞掉，不影响上传成功语义。
+      unawaited(
+        FileAccessService.instance.seedCacheFromUpload(
+          api: widget.api,
+          config: bucket.config,
+          bucket: task.bucket,
+          key: task.key,
+          localSourcePath: task.localPath,
+        ),
+      );
       if (!mounted || _activeBucketId != bucket.id) return;
       await _reloadObjectsAfterBucketMutation(bucket, _prefix);
     } catch (error) {
@@ -169,6 +180,16 @@ extension _FileManagerPageActions on _FileManagerPageState {
         fileName: fileName,
       );
       TransferQueue.instance.markTaskDone(task.id);
+      // 浏览器上传同样 seed 缓存（web 端实现为空操作，桌面端用上传时的 bytes）。
+      unawaited(
+        FileAccessService.instance.seedCacheFromUpload(
+          api: widget.api,
+          config: bucket.config,
+          bucket: task.bucket,
+          key: task.key,
+          bytes: bytes,
+        ),
+      );
       if (!mounted || _activeBucketId != bucket.id) return;
       await _reloadObjectsAfterBucketMutation(bucket, _prefix);
     } catch (error) {

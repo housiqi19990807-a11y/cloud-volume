@@ -85,6 +85,52 @@ class FileAccessService {
     return LocalFileOpener.openPath(localPath);
   }
 
+  /// 上传成功后把本地副本登记进预览缓存，让"双击打开"命中缓存而无需重下。
+  ///
+  /// 以远端 headObject 返回的 size/mtime 为准写入缓存记录，否则
+  /// [FileCacheStore.findUsableCachePath] 的 `_matchesRemoteObject` 比对会
+  /// 失败。本地源文件被 copy 进缓存目录，既是预览缓存，也可作为上传重试
+  /// 或后续同步的本地副本。任何异常都被吞掉——这只是缓存优化，绝不应让
+  /// 缓存写入失败影响上传成功的语义。
+  Future<void> seedCacheFromUpload({
+    required RemoteStorageGateway api,
+    required RemoteStorageConfig config,
+    required String bucket,
+    required String key,
+    String? localSourcePath,
+    List<int>? bytes,
+  }) async {
+    assert(
+      localSourcePath != null || bytes != null,
+      'seedCacheFromUpload 需要本地源路径或字节内容之一',
+    );
+    try {
+      final remoteObject = await api.headObject(config, bucket, key);
+      final cachePath = await _cacheStore.cachePathFor(
+        config.resolvedCacheDirectory,
+        bucket,
+        key,
+      );
+      final cacheFile = File(cachePath);
+      // 缓存目录可能已有残留（同名对象被删后又重建），先清掉再写入。
+      if (await cacheFile.exists()) {
+        await cacheFile.delete();
+      }
+      if (localSourcePath != null) {
+        await File(localSourcePath).copy(cachePath);
+      } else {
+        await cacheFile.writeAsBytes(bytes!, flush: true);
+      }
+      await _cacheStore.upsertCacheRecord(
+        bucket: bucket,
+        object: remoteObject,
+        localPath: cachePath,
+      );
+    } catch (_) {
+      // 缓存 seeding 失败不阻断上传流程；下次双击会退回正常下载。
+    }
+  }
+
   Future<String> _ensureCachedObject({
     required RemoteStorageGateway api,
     required RemoteStorageConfig config,

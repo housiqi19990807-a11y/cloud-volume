@@ -154,6 +154,21 @@ Shared upload/download queue backing both manual file operations and sync-genera
 - `lib/state/transfer_queue_*.dart` — Split concerns: metrics, sync, local progress, foreground, storage, directory children.
 - `lib/pages/transfers_page.dart` — Transfers page showing the full queue.
 
+### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)
+
+点击/双击文件打开走的是 `FileAccessService._ensureCachedObjectRequest`：`headObject` 拿远端 size/mtime → `FileCacheStore.findUsableCachePath` 查 SQLite 缓存表 → 命中则直接用缓存文件，未命中则建 `download` 任务拉到 `<cacheDir>/files/<bucket>/<key>` 并写缓存记录。缓存命中的硬约束：记录的 `localPath` 必须 `_isInsideRoot` 缓存目录内，且 size/mtime 与远端匹配（`_matchesRemoteObject`）。
+
+**问题（2026-06-30 修复）：** 上传走传输队列，成功后只 `markTaskDone` + 刷新列表，从不动缓存表。所以"刚上传完的文件双击还要重下"——上传与预览是两套独立记账。
+
+**修复：** 上传成功后调 `FileAccessService.seedCacheFromUpload`（io 实现 / web 空操作）：`headObject` 拿远端元数据 → 把本地源（`localSourcePath` 或 `bytes`）copy/写入缓存目录 → `upsertCacheRecord`。以远端 size/mtime 为准（不能用本地 stat，否则比对失败）。整个 seed 包 try/catch 吞异常：只是缓存优化，绝不阻断"上传已成功"。`unawaited` 后台执行，不阻塞列表回显。
+
+#### Key files
+- `lib/services/file_access_service_io.dart` — `seedCacheFromUpload`（桌面实现）、`_ensureCachedObjectRequest`（预览/打开缓存命中逻辑）。
+- `lib/services/file_access_service_web.dart` — `seedCacheFromUpload` 空操作（浏览器无本地缓存目录）。
+- `lib/pages/file_manager_page_actions.dart` — `_runUploadTask`（本地路径上传，传 `localSourcePath`）、`_runBrowserUploadTask`（bytes 上传，传 `bytes`）成功分支调 seed。
+- `lib/services/file_cache_store.dart` — SQLite 缓存表：`findUsableCachePath` / `cachePathFor` / `upsertCacheRecord`；`_matchesRemoteObject` 要求 size+mtime 都匹配。
+- `lib/pages/file_manager_page_preview.dart` — 双击预览入口 `_showObjectPreview`。
+
 ### Feature: macOS Window Lifecycle & Positioning
 
 Controls how the main window is sized, centered, shown/hidden, and terminated on macOS.
