@@ -3,7 +3,6 @@ package s3
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsCreds "github.com/aws/aws-sdk-go-v2/credentials"
@@ -32,8 +31,16 @@ func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
 		opts.UsePathStyle = true
 	}
 
-	// Inject global proxy settings into the S3 HTTP transport.
-	opts.HTTPClient = &http.Client{Transport: storageconfig.ProxyTransport(cfg)}
+	// Only override the HTTP client when the user explicitly chooses direct or
+	// custom proxy. In system mode (default) we let the AWS SDK use its own
+	// default client, which already respects HTTP_PROXY / HTTPS_PROXY / NO_PROXY
+	// via Go's net/http defaults. Forcing a fresh http.Transport in system mode
+	// can inadvertently route requests through a proxy the user didn't intend
+	// (e.g. a system-wide proxy that the S3 endpoint should bypass).
+	if cfg.ProxyMode == storageconfig.ProxyModeDirect ||
+		cfg.ProxyMode == storageconfig.ProxyModeCustom {
+		opts.HTTPClient = storageconfig.ProxyHTTPClient(cfg, 0)
+	}
 
 	return s3.New(opts)
 }

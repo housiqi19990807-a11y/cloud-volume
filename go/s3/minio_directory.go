@@ -66,9 +66,12 @@ func NewMinioClient(cfg storageconfig.RemoteStorageConfig) (*minio.Client, error
 		options.BucketLookup = minio.BucketLookupPath
 	}
 
-	// Apply global proxy settings to MinIO's HTTP transport.
-	if transport := storageconfig.ProxyTransport(cfg); transport != nil {
-		if ht, ok := transport.(*http.Transport); ok {
+	// Only override the HTTP transport when the user explicitly chooses direct
+	// or custom proxy. In system mode (default) leave MinIO's built-in transport
+	// intact so it uses the same net/http defaults as before the proxy feature.
+	if cfg.ProxyMode == storageconfig.ProxyModeDirect ||
+		cfg.ProxyMode == storageconfig.ProxyModeCustom {
+		if ht, ok := storageconfig.ProxyTransport(cfg).(*http.Transport); ok {
 			options.Transport = ht
 		}
 	}
