@@ -169,6 +169,26 @@ Shared upload/download queue backing both manual file operations and sync-genera
 - `lib/services/file_cache_store.dart` — SQLite 缓存表：`findUsableCachePath` / `cachePathFor` / `upsertCacheRecord`；`_matchesRemoteObject` 要求 size+mtime 都匹配。
 - `lib/pages/file_manager_page_preview.dart` — 双击预览入口 `_showObjectPreview`。
 
+### Feature: Local File Paste / Drag Upload (本地粘贴/拖拽上传)
+
+桌面端文件管理页接收本地文件输入（访达复制后 Cmd+V 粘贴、拖拽到列表）。粘贴快捷键走 Flutter `Shortcuts`/`Actions`；拖拽走 `super_drag_and_drop` 的 `DropRegion`。二者共用 `DesktopFileTransferService` 把 file:// URI 解析成本地路径，再交给 `_uploadLocalPaths` 入队上传。
+
+**Gotcha（2026-07-01 修复）：** 粘贴 Intent 的门控**必须**只用 `widget.enabled`（= 非 loading、非回收站、已选 bucket），不能用 `_acceptsLocalFiles`（= enabled && `_currentDirectoryWritable`）。`_currentDirectoryWritable` 对 WebDAV 目录是异步权限检查，在 `_directoryAccess == null` 或 `_checkingDirectoryAccess` 期间返回 false，会把 Cmd+V 静默吞掉。写入权限的最终校验交给 `_uploadLocalPaths` 里的 `_ensureCurrentDirectoryWritable()`（只读目录会弹「上传失败 / 该目录无操作权限」）。拖拽的视觉反馈（drop 高亮）仍可用 `_currentDirectoryWritable` 门控。
+
+#### Key files
+
+- `lib/widgets/file_transfer_clipboard_region.dart` — `Shortcuts`+`Actions`+`DropRegion` 包装层。`_PasteFilesIntent` / `_CopyFilesIntent` 定义在此；`onPasteLocalFiles` 回调上传，`onCopySelection` 复制选中远端文件到系统剪贴板。
+- `lib/services/desktop_file_transfer_service_io.dart` — `localFilePathsFromClipboard`（读 `SystemClipboard` 的 `Formats.fileUri`）、`localFilePathsFromDrop`、`writeLocalFilesToClipboard`、`localUploadEntries`（区分文件/目录）。
+- `lib/services/desktop_file_transfer_service_web.dart` — Web 端空实现。
+- `lib/pages/file_manager_page_transfer_inputs.dart` — `_uploadLocalPaths`（入口，含 `_ensureCurrentDirectoryWritable` 兜底校验）、`_copySelectedObjectsToClipboard`。
+- `lib/pages/file_manager_page_access.dart` — `_currentDirectoryWritable` / `_ensureCurrentDirectoryWritable` / `_refreshDirectoryAccess`（WebDAV 目录 PROPFIND 可写性检查）。
+
+#### Data flow
+
+1. 访达复制文件 → 系统 pasteboard 含 `public.file-url`。
+2. 文件管理页 Cmd+V → `_PasteFilesIntent`（gate `widget.enabled`）→ `_pasteLocalFiles` → `DesktopFileTransferService.localFilePathsFromClipboard` 解析路径。
+3. `onPasteLocalFiles(paths)` → `_uploadLocalPaths` → `_ensureCurrentDirectoryWritable` 校验 → `localUploadEntries` → `TransferQueue.startTask` 入队上传。
+
 ### Feature: macOS Window Lifecycle & Positioning
 
 Controls how the main window is sized, centered, shown/hidden, and terminated on macOS.

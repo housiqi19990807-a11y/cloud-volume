@@ -60,8 +60,11 @@ class _FileTransferClipboardRegionState
         child: Actions(
           actions: <Type, Action<Intent>>{
             _PasteFilesIntent: CallbackAction<_PasteFilesIntent>(
+              // Paste only needs the region active (bucket loaded, not trash/loading).
+              // Directory write-ability is enforced later in onPasteLocalFiles, so a
+              // WebDAV permission check still in flight won't silently swallow Cmd+V.
               onInvoke: (_) {
-                if (_acceptsLocalFiles) {
+                if (widget.enabled) {
                   unawaited(_pasteLocalFiles());
                 }
                 return null;
