@@ -138,12 +138,13 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     // here means something went wrong.
     if (!mounted) return;
     // The installer exits on success; reaching here means it failed.
-    _resetInstallState();
-    if (error.isNotEmpty) {
-      _showError(error);
-    } else {
-      _showError('更新未完成，请重试或前往 GitHub 手动下载。');
-    }
+   _resetInstallState();
+    // ignore: invalid_null_aware_operator
+    final hasError = error?.isNotEmpty == true;
+    _showError(
+      // ignore: unnecessary_non_null_assertion
+      hasError ? error! : '更新未完成，请重试或前往 GitHub 手动下载。',
+    );
 }
 
   void _resetInstallState() {
