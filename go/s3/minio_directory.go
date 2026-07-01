@@ -67,7 +67,7 @@ func NewMinioClient(cfg storageconfig.RemoteStorageConfig) (*minio.Client, error
 	}
 
 	// Apply global proxy settings to MinIO's HTTP transport.
-	if transport := storageconfig.ProxyTransport(cfg.ProxyMode, cfg.ProxyURL); transport != nil {
+	if transport := storageconfig.ProxyTransport(cfg); transport != nil {
 		if ht, ok := transport.(*http.Transport); ok {
 			options.Transport = ht
 		}

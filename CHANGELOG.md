@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 网络代理：设置页新增「网络代理」配置区，支持三种代理模式：跟随系统（读取 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，默认）、直连（忽略所有代理）、自定义代理（指定代理地址）。代理设置影响应用所有网络请求，包括 S3、WebDAV、百度网盘的上传下载和 GitHub 更新检查。Go 端 S3 SDK（AWS SDK）、WebDAV HTTP 客户端、百度网盘 SDK 和 MinIO 客户端均已接入代理传输；Dart 端 GitHub API 和下载请求也使用代理感知的 HTTP 客户端。
+- 网络代理：设置页新增「网络代理」配置区，支持三种代理模式：跟随系统（读取 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，默认）、直连（忽略所有代理）、自定义代理。自定义代理支持 HTTP 和 SOCKS5 两种代理类型，可配置代理地址、端口、账号和密码（账号密码可选）。代理设置影响应用所有网络请求（S3、WebDAV、百度网盘、GitHub 更新检查）。Go 端 S3 SDK（AWS SDK）、WebDAV HTTP 客户端、百度网盘 SDK 和 MinIO 客户端均已接入代理传输；Dart 端 GitHub API 和下载请求也使用代理感知的 HTTP 客户端。
 - 应用更新：GitHub 更新检查和一键更新下载支持配置加速镜像（如 `gh-proxy.com`、`ghfast.top`），避免因网络问题导致更新失败。镜像地址可在设置页「网络代理」区域填写或快速选择。
 
 - 应用更新：设置页“检测更新”发现新版本后，桌面端可直接点击“一键更新”在应用内自动下载安装包、替换旧版本并自动重启，不再需要手动卸载重装或执行命令行命令。macOS 自动从 DMG 提取并替换 `/Applications/云卷.app`，同时移除隔离属性（不再提示“已损坏”）；Windows 静默运行 Inno Setup 安装程序；Linux 替换 AppImage 或解压 tar.gz。Web 端仍跳转 GitHub 下载页。

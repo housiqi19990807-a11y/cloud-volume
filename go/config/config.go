@@ -40,8 +40,12 @@ type RemoteStorageConfig struct {
 	CacheMaxAgeDays             int                       `json:"cacheMaxAgeDays" toml:"cache_max_age_days"`
 
 	// Global proxy settings apply to all outbound HTTP/S3/WebDAV traffic.
-	ProxyMode string `json:"proxyMode" toml:"proxy_mode"` // "system" (default), "direct", "custom"
-	ProxyURL  string `json:"proxyUrl" toml:"proxy_url"`   // used when ProxyMode == "custom"
+	ProxyMode     string `json:"proxyMode" toml:"proxy_mode"`         // "system" (default), "direct", "custom"
+	ProxyType     string `json:"proxyType" toml:"proxy_type"`           // "http" or "socks5"
+	ProxyHost     string `json:"proxyHost" toml:"proxy_host"`           // e.g. "127.0.0.1"
+	ProxyPort     string `json:"proxyPort" toml:"proxy_port"`           // e.g. "7890"
+	ProxyUsername string `json:"proxyUsername" toml:"proxy_username"`   // optional auth
+	ProxyPassword string `json:"proxyPassword" toml:"proxy_password"`   // optional auth
 }
 
 type BucketSettings struct {
@@ -69,7 +73,10 @@ const (
 
 	ProxyModeSystem = "system" // follow system environment variables (HTTP_PROXY etc.)
 	ProxyModeDirect = "direct" // no proxy, ignore all environment variables
-	ProxyModeCustom = "custom" // use the user-supplied ProxyURL
+	ProxyModeCustom = "custom" // use the user-supplied proxy settings
+
+	ProxyTypeHTTP   = "http"
+	ProxyTypeSocks5 = "socks5"
 )
 
 // BootstrapState is the typed payload returned to Flutter during startup.
@@ -98,6 +105,7 @@ func DefaultConfig() RemoteStorageConfig {
 		CacheMaxSizeMB:              0,
 		CacheMaxAgeDays:             0,
 		ProxyMode:                   ProxyModeSystem,
+		ProxyType:                   ProxyTypeHTTP,
 	}
 }
 func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
@@ -134,7 +142,11 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		CacheMaxSizeMB:              normalizeCacheMaxSizeMB(c.CacheMaxSizeMB),
 		CacheMaxAgeDays:             normalizeCacheMaxAgeDays(c.CacheMaxAgeDays),
 		ProxyMode:                    normalizeProxyMode(c.ProxyMode),
-		ProxyURL:                     strings.TrimSpace(c.ProxyURL),
+		ProxyType:                    normalizeProxyType(c.ProxyType),
+		ProxyHost:                    strings.TrimSpace(c.ProxyHost),
+		ProxyPort:                    strings.TrimSpace(c.ProxyPort),
+		ProxyUsername:                strings.TrimSpace(c.ProxyUsername),
+		ProxyPassword:                c.ProxyPassword,
 	}
 }
 
@@ -458,6 +470,15 @@ func normalizeProxyMode(mode string) string {
 		return strings.TrimSpace(mode)
 	default:
 		return ProxyModeSystem
+	}
+}
+
+func normalizeProxyType(t string) string {
+	switch strings.TrimSpace(t) {
+	case ProxyTypeHTTP, ProxyTypeSocks5:
+		return strings.TrimSpace(t)
+	default:
+		return ProxyTypeHTTP
 	}
 }
 

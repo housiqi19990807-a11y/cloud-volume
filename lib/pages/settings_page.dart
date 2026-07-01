@@ -168,11 +168,9 @@ class _SettingsPageState extends State<SettingsPage> {
         '网络代理',
         SettingsProxySection(
           theme: theme,
-          config: config,
-          onSaveProxy: (mode, proxyUrl) async {
-            await widget.api.saveConfig(
-              config.copyWith(proxyMode: mode, proxyUrl: proxyUrl),
-            );
+         config: config,
+          onSaveProxy: (newConfig) async {
+            await widget.api.saveConfig(newConfig);
             widget.onRefresh();
           },
         ),

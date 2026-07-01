@@ -97,7 +97,11 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
 
   ProxyConfig get _proxyConfig => ProxyConfig(
     mode: widget.config?.proxyMode ?? kProxyModeSystem,
-    customUrl: widget.config?.proxyUrl ?? '',
+    type: widget.config?.proxyType ?? kProxyTypeHttp,
+    host: widget.config?.proxyHost ?? '',
+    port: widget.config?.proxyPort ?? '',
+    username: widget.config?.proxyUsername ?? '',
+    password: widget.config?.proxyPassword ?? '',
   );
 
   /// Full download + install + relaunch flow.

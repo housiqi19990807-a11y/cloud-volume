@@ -129,7 +129,11 @@ class RemoteStorageConfig {
     required this.cacheMaxSizeMb,
     required this.cacheMaxAgeDays,
     required this.proxyMode,
-    required this.proxyUrl,
+    required this.proxyType,
+    required this.proxyHost,
+    required this.proxyPort,
+    required this.proxyUsername,
+    required this.proxyPassword,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -166,7 +170,11 @@ class RemoteStorageConfig {
         cacheMaxSizeMb: 0,
         cacheMaxAgeDays: 0,
         proxyMode: 'system',
-        proxyUrl: '',
+        proxyType: 'http',
+        proxyHost: '',
+        proxyPort: '',
+        proxyUsername: '',
+        proxyPassword: '',
       );
   }
 
@@ -290,7 +298,11 @@ class RemoteStorageConfig {
           ) ??
           0,
       proxyMode: (json['proxyMode'] ?? json['proxy_mode'] ?? 'system').toString(),
-      proxyUrl: (json['proxyUrl'] ?? json['proxy_url'] ?? '').toString(),
+      proxyType: (json['proxyType'] ?? json['proxy_type'] ?? 'http').toString(),
+      proxyHost: (json['proxyHost'] ?? json['proxy_host'] ?? '').toString(),
+      proxyPort: (json['proxyPort'] ?? json['proxy_port'] ?? '').toString(),
+      proxyUsername: (json['proxyUsername'] ?? json['proxy_username'] ?? '').toString(),
+      proxyPassword: (json['proxyPassword'] ?? json['proxy_password'] ?? '').toString(),
     );
   }
 
@@ -326,7 +338,11 @@ class RemoteStorageConfig {
   final int cacheMaxSizeMb;
   final int cacheMaxAgeDays;
   final String proxyMode;
-  final String proxyUrl;
+  final String proxyType;
+  final String proxyHost;
+  final String proxyPort;
+  final String proxyUsername;
+  final String proxyPassword;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
@@ -415,7 +431,11 @@ class RemoteStorageConfig {
       'cacheMaxSizeMb': cacheMaxSizeMb,
       'cacheMaxAgeDays': cacheMaxAgeDays,
       'proxyMode': proxyMode,
-      'proxyUrl': proxyUrl,
+      'proxyType': proxyType,
+      'proxyHost': proxyHost,
+      'proxyPort': proxyPort,
+      'proxyUsername': proxyUsername,
+      'proxyPassword': proxyPassword,
     };
   }
 
@@ -452,7 +472,11 @@ class RemoteStorageConfig {
     int? cacheMaxSizeMb,
     int? cacheMaxAgeDays,
     String? proxyMode,
-    String? proxyUrl,
+    String? proxyType,
+    String? proxyHost,
+    String? proxyPort,
+    String? proxyUsername,
+    String? proxyPassword,
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
@@ -494,7 +518,11 @@ class RemoteStorageConfig {
       cacheMaxSizeMb: cacheMaxSizeMb ?? this.cacheMaxSizeMb,
       cacheMaxAgeDays: cacheMaxAgeDays ?? this.cacheMaxAgeDays,
       proxyMode: proxyMode ?? this.proxyMode,
-      proxyUrl: proxyUrl ?? this.proxyUrl,
+      proxyType: proxyType ?? this.proxyType,
+      proxyHost: proxyHost ?? this.proxyHost,
+      proxyPort: proxyPort ?? this.proxyPort,
+      proxyUsername: proxyUsername ?? this.proxyUsername,
+      proxyPassword: proxyPassword ?? this.proxyPassword,
     );
   }
 

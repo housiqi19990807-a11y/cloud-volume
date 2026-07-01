@@ -33,7 +33,7 @@ func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
 	}
 
 	// Inject global proxy settings into the S3 HTTP transport.
-	opts.HTTPClient = &http.Client{Transport: storageconfig.ProxyTransport(cfg.ProxyMode, cfg.ProxyURL)}
+	opts.HTTPClient = &http.Client{Transport: storageconfig.ProxyTransport(cfg)}
 
 	return s3.New(opts)
 }

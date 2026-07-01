@@ -40,9 +40,9 @@ func init() {
 
 // ApplyBaiduPanProxy replaces the SDK's HTTP client with one that uses the
 // configured proxy transport. Call after loading user config at runtime.
-func ApplyBaiduPanProxy(mode, customURL string) {
+func ApplyBaiduPanProxy(cfg storageconfig.RemoteStorageConfig) {
 	xpanhttp.SetClient(newBaiduPanRetryHTTPClientWithClient(
-		storageconfig.ProxyHTTPClient(mode, customURL, 0),
+		storageconfig.ProxyHTTPClient(cfg, 0),
 	))
 }
 

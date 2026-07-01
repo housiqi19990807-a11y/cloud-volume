@@ -26,7 +26,7 @@ func NewWebDAVBackend(cfg storageconfig.RemoteStorageConfig) Backend {
 	norm := cfg.Normalized()
 	return webDAVBackend{
 		cfg:    norm,
-		client: storageconfig.ProxyHTTPClient(norm.ProxyMode, norm.ProxyURL, 60),
+		client: storageconfig.ProxyHTTPClient(norm, 60),
 	}
 }
 

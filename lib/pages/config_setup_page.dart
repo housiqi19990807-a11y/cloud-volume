@@ -227,7 +227,11 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       cacheMaxSizeMb: widget.initialState.config.cacheMaxSizeMb,
       cacheMaxAgeDays: widget.initialState.config.cacheMaxAgeDays,
       proxyMode: widget.initialState.config.proxyMode,
-      proxyUrl: widget.initialState.config.proxyUrl,
+      proxyType: widget.initialState.config.proxyType,
+      proxyHost: widget.initialState.config.proxyHost,
+      proxyPort: widget.initialState.config.proxyPort,
+      proxyUsername: widget.initialState.config.proxyUsername,
+      proxyPassword: widget.initialState.config.proxyPassword,
     );
 
     if (!config.isConfigured) {

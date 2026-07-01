@@ -9,17 +9,30 @@ const String kProxyModeSystem = 'system';
 const String kProxyModeDirect = 'direct';
 const String kProxyModeCustom = 'custom';
 
+/// Proxy type constants.
+const String kProxyTypeHttp = 'http';
+const String kProxyTypeSocks5 = 'socks5';
+
 class ProxyConfig {
   const ProxyConfig({
     this.mode = kProxyModeSystem,
-    this.customUrl = '',
+    this.type = kProxyTypeHttp,
+    this.host = '',
+    this.port = '',
+    this.username = '',
+    this.password = '',
   });
 
   final String mode;
-  final String customUrl;
+  final String type;
+  final String host;
+  final String port;
+  final String username;
+  final String password;
 
-  bool get isCustom => mode == kProxyModeCustom && customUrl.isNotEmpty;
+  bool get isCustom => mode == kProxyModeCustom && host.isNotEmpty;
   bool get isDirect => mode == kProxyModeDirect;
+  bool get hasAuth => username.isNotEmpty;
 }
 
 /// Creates an HTTP client.

@@ -185,7 +185,7 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 		return storageconfig.BootstrapState{}, err
 	}
 	// Apply proxy settings to the Baidu Pan SDK before any network calls.
-	storageops.ApplyBaiduPanProxy(input.Config.ProxyMode, input.Config.ProxyURL)
+	storageops.ApplyBaiduPanProxy(input.Config)
 	// Save to "default" profile.
 	if err := storageconfig.SaveProfile("default", input.Config); err != nil {
 		return storageconfig.BootstrapState{}, err

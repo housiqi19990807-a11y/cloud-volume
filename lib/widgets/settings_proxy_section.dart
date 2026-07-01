@@ -1,6 +1,5 @@
 // 代理设置区：全局代理模式选择（跟随环境变量 / 直连 / 自定义代理）+ GitHub 镜像。
-// 代理配置写入 Go config（影响 S3/WebDAV/百度网盘所有网络请求），
-// 镜像配置写入 SharedPreferences（仅影响 GitHub 更新检查与下载）。
+// 自定义代理支持 HTTP / SOCKS5 类型、主机端口、可选账号密码。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
@@ -17,7 +16,7 @@ class SettingsProxySection extends StatefulWidget {
 
   final ShadThemeData theme;
   final RemoteStorageConfig config;
-  final void Function(String mode, String proxyUrl) onSaveProxy;
+  final Future<void> Function(RemoteStorageConfig config) onSaveProxy;
 
   @override
   State<SettingsProxySection> createState() => _SettingsProxySectionState();
@@ -25,15 +24,25 @@ class SettingsProxySection extends StatefulWidget {
 
 class _SettingsProxySectionState extends State<SettingsProxySection> {
   late String _proxyMode;
-  late TextEditingController _proxyUrlController;
+  late String _proxyType;
+  late TextEditingController _hostController;
+  late TextEditingController _portController;
+  late TextEditingController _usernameController;
+  late TextEditingController _passwordController;
   late TextEditingController _mirrorController;
   bool _saving = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
     super.initState();
-    _proxyMode = widget.config.proxyMode;
-    _proxyUrlController = TextEditingController(text: widget.config.proxyUrl);
+    final c = widget.config;
+    _proxyMode = c.proxyMode;
+    _proxyType = c.proxyType.isEmpty ? 'http' : c.proxyType;
+    _hostController = TextEditingController(text: c.proxyHost);
+    _portController = TextEditingController(text: c.proxyPort);
+    _usernameController = TextEditingController(text: c.proxyUsername);
+    _passwordController = TextEditingController(text: c.proxyPassword);
     _mirrorController = TextEditingController();
     _loadMirror();
   }
@@ -47,7 +56,10 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
 
   @override
   void dispose() {
-    _proxyUrlController.dispose();
+    _hostController.dispose();
+    _portController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
     _mirrorController.dispose();
     super.dispose();
   }
@@ -69,12 +81,12 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
         const SizedBox(height: 14),
         _buildProxyModeSelector(theme),
         if (_proxyMode == 'custom') ...[
-          const SizedBox(height: 10),
-          _buildProxyUrlInput(theme),
+          const SizedBox(height: 12),
+          _buildCustomProxyFields(theme),
         ],
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         _buildMirrorInput(theme),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         _buildSaveButton(theme),
       ],
     );
@@ -98,7 +110,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
       backgroundColor: selected
           ? theme.colorScheme.primary.withValues(alpha: 0.12)
           : null,
-
       child: Text(
         label,
         style: TextStyle(
@@ -112,11 +123,141 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
     );
   }
 
-  Widget _buildProxyUrlInput(ShadThemeData theme) {
-    return ShadInput(
-      controller: _proxyUrlController,
-      placeholder: const Text('http://127.0.0.1:7890'),
-      style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
+  Widget _buildCustomProxyFields(ShadThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Proxy type selector
+        Wrap(
+          spacing: 8,
+          children: [
+            _typeChip(theme, 'HTTP', 'http'),
+            _typeChip(theme, 'SOCKS5', 'socks5'),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Host + Port row
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: _labeledInput(
+                theme,
+                controller: _hostController,
+                label: '代理地址',
+                placeholder: '127.0.0.1',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 1,
+              child: _labeledInput(
+                theme,
+                controller: _portController,
+                label: '端口',
+                placeholder: '7890',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Username + Password row
+        Row(
+          children: [
+            Expanded(
+              child: _labeledInput(
+                theme,
+                controller: _usernameController,
+                label: '账号（可选）',
+                placeholder: 'username',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _labeledPasswordInput(theme),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _typeChip(ShadThemeData theme, String label, String value) {
+    final selected = _proxyType == value;
+    return ShadButton.outline(
+      onPressed: () => setState(() => _proxyType = value),
+      backgroundColor: selected
+          ? theme.colorScheme.primary.withValues(alpha: 0.12)
+          : null,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.mutedForeground,
+        ),
+      ),
+    );
+  }
+
+  Widget _labeledInput(
+    ShadThemeData theme, {
+    required TextEditingController controller,
+    required String label,
+    required String placeholder,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 11.5, color: theme.colorScheme.mutedForeground),
+        ),
+        const SizedBox(height: 4),
+        ShadInput(
+          controller: controller,
+          placeholder: Text(placeholder),
+          style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
+        ),
+      ],
+    );
+  }
+
+  Widget _labeledPasswordInput(ShadThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '密码（可选）',
+          style: TextStyle(fontSize: 11.5, color: theme.colorScheme.mutedForeground),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: ShadInput(
+                controller: _passwordController,
+                placeholder: const Text('password'),
+                style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
+                obscureText: _obscurePassword,
+              ),
+            ),
+            const SizedBox(width: 4),
+            ShadButton.outline(
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              width: 36,
+              height: 36,
+              padding: EdgeInsets.zero,
+              child: Icon(
+                _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                size: 15,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -167,8 +308,15 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      widget.onSaveProxy(_proxyMode, _proxyUrlController.text.trim());
-      // Save the mirror setting.
+      final newConfig = widget.config.copyWith(
+        proxyMode: _proxyMode,
+        proxyType: _proxyType,
+        proxyHost: _hostController.text.trim(),
+        proxyPort: _portController.text.trim(),
+        proxyUsername: _usernameController.text.trim(),
+        proxyPassword: _passwordController.text,
+      );
+      await widget.onSaveProxy(newConfig);
       await saveUpdateNetworkConfig(
         UpdateNetworkConfig(mirrorPrefix: _mirrorController.text.trim()),
       );

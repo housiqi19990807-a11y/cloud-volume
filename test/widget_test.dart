@@ -127,7 +127,11 @@ class _FakeApi implements RemoteStorageGateway {
             cacheMaxSizeMb: 0,
             cacheMaxAgeDays: 0,
             proxyMode: 'system',
-            proxyUrl: '',
+            proxyType: 'http',
+            proxyHost: '',
+            proxyPort: '',
+            proxyUsername: '',
+            proxyPassword: '',
           )
         : RemoteStorageConfig.empty(),
   );
