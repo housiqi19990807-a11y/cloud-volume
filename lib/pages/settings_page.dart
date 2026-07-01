@@ -382,20 +382,23 @@ class _SettingsPageState extends State<SettingsPage> {
     ];
   }
 
-  Widget _buildCard(ShadThemeData theme, String title, Widget child) {
-    return ShadCard(
-      padding: const EdgeInsets.all(20),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-          color: theme.colorScheme.foreground,
-        ),
+ Widget _buildCard(ShadThemeData theme, String title, Widget child) {
+    return SizedBox(
+      width: double.infinity,
+      child: ShadCard(
+     padding: const EdgeInsets.all(20),
+     title: Text(
+       title,
+       style: TextStyle(
+         fontWeight: FontWeight.w600,
+         fontSize: 14,
+         color: theme.colorScheme.foreground,
+       ),
+     ),
+     child: child,
       ),
-      child: child,
-    );
-  }
+   );
+ }
 
   Future<void> _pickDownloadDirectory(RemoteStorageConfig config) async {
     final initialDirectory = await resolveDefaultDownloadDirectory(
