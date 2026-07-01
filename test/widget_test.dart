@@ -137,6 +137,17 @@ class _FakeApi implements RemoteStorageGateway {
   );
 
   @override
+  Future<bool> updateProxySettings({
+    required String proxyMode,
+    required String proxyType,
+    required String proxyHost,
+    required String proxyPort,
+    required String proxyUsername,
+    required String proxyPassword,
+  }) async =>
+      true;
+
+  @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async =>
       BootstrapState(
         configPath: '/tmp/.remote-storage/config.toml',

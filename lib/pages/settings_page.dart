@@ -169,9 +169,15 @@ class _SettingsPageState extends State<SettingsPage> {
         SettingsProxySection(
           theme: theme,
          config: config,
-          onSaveProxy: (newConfig) async {
-            await widget.api.saveConfig(newConfig);
-            widget.onRefresh();
+          onSaveProxy: (proxyMode, proxyType, proxyHost, proxyPort, proxyUsername, proxyPassword) async {
+            await widget.api.updateProxySettings(
+              proxyMode: proxyMode,
+              proxyType: proxyType,
+              proxyHost: proxyHost,
+              proxyPort: proxyPort,
+              proxyUsername: proxyUsername,
+              proxyPassword: proxyPassword,
+            );
           },
         ),
       ),

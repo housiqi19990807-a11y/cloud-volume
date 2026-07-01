@@ -16,7 +16,14 @@ class SettingsProxySection extends StatefulWidget {
 
   final ShadThemeData theme;
   final RemoteStorageConfig config;
-  final Future<void> Function(RemoteStorageConfig config) onSaveProxy;
+  final Future<void> Function(
+    String proxyMode,
+    String proxyType,
+    String proxyHost,
+    String proxyPort,
+    String proxyUsername,
+    String proxyPassword,
+  ) onSaveProxy;
 
   @override
   State<SettingsProxySection> createState() => _SettingsProxySectionState();
@@ -250,20 +257,19 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
     );
   }
 
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final newConfig = widget.config.copyWith(
-        proxyMode: _proxyMode,
-        proxyType: _proxyType,
-        proxyHost: _hostController.text.trim(),
-        proxyPort: _portController.text.trim(),
-        proxyUsername: _usernameController.text.trim(),
-        proxyPassword: _passwordController.text,
-      );
-      await widget.onSaveProxy(newConfig);
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
+ Future<void> _save() async {
+   setState(() => _saving = true);
+   try {
+     await widget.onSaveProxy(
+       _proxyMode,
+       _proxyType,
+       _hostController.text.trim(),
+       _portController.text.trim(),
+       _usernameController.text.trim(),
+       _passwordController.text,
+     );
+   } finally {
+     if (mounted) setState(() => _saving = false);
+   }
+ }
 }

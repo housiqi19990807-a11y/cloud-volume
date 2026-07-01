@@ -65,6 +65,14 @@ abstract class RemoteStorageGateway {
 
   Future<BootstrapState> loadBootstrapState();
   Future<BootstrapState> saveConfig(RemoteStorageConfig config);
+  Future<bool> updateProxySettings({
+    required String proxyMode,
+    required String proxyType,
+    required String proxyHost,
+    required String proxyPort,
+    required String proxyUsername,
+    required String proxyPassword,
+  });
   Future<String> startBaiduPanAuthorization();
   Future<RemoteStorageConfig> authorizeBaiduPan(
     String displayName,

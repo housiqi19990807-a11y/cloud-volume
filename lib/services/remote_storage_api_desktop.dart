@@ -107,6 +107,26 @@ class RemoteStorageApi
   }
 
   @override
+  Future<bool> updateProxySettings({
+    required String proxyMode,
+    required String proxyType,
+    required String proxyHost,
+    required String proxyPort,
+    required String proxyUsername,
+    required String proxyPassword,
+  }) async {
+    final result = await runBridgeCall('update_proxy_settings', <String, dynamic>{
+      'proxyMode': proxyMode,
+      'proxyType': proxyType,
+      'proxyHost': proxyHost,
+      'proxyPort': proxyPort,
+      'proxyUsername': proxyUsername,
+      'proxyPassword': proxyPassword,
+    });
+    return result == true;
+  }
+
+  @override
   Future<String> startBaiduPanAuthorization() async {
     final result =
         await runBridgeCall('start_baidu_pan_authorization')

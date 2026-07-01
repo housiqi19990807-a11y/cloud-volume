@@ -174,6 +174,19 @@ class RemoteStorageApi
   }
 
   @override
+  Future<bool> updateProxySettings({
+    required String proxyMode,
+    required String proxyType,
+    required String proxyHost,
+    required String proxyPort,
+    required String proxyUsername,
+    required String proxyPassword,
+  }) async {
+    // Web builds run server-side; proxy is handled by the browser.
+    return true;
+  }
+
+  @override
   Future<String> startBaiduPanAuthorization() {
     throw UnsupportedError('Web 端暂不支持桌面百度网盘 OAuth 授权');
   }

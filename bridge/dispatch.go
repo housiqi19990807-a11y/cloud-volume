@@ -31,6 +31,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return loadBootstrapState()
 	case "save_config":
 		return saveConfig(args)
+	case "update_proxy_settings":
+		return updateProxySettings(args)
 	case "migrate_default":
 		return migrateAndBootstrap()
 	// Profile management.
@@ -192,6 +194,49 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 	}
 	_ = storageconfig.SetActiveProfile("default")
 	return loadBootstrapState()
+}
+
+type updateProxySettingsArgs struct {
+	ProxyMode     string `json:"proxyMode"`
+	ProxyType     string `json:"proxyType"`
+	ProxyHost     string `json:"proxyHost"`
+	ProxyPort     string `json:"proxyPort"`
+	ProxyUsername string `json:"proxyUsername"`
+	ProxyPassword string `json:"proxyPassword"`
+}
+
+// updateProxySettings patches ONLY the proxy fields on every existing profile
+// without touching any other config (endpoint, credentials, etc.). This avoids
+// the risk of overwriting account credentials when the user changes proxy
+// settings from the UI.
+func updateProxySettings(args json.RawMessage) (bool, error) {
+	var input updateProxySettingsArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return false, err
+	}
+	profiles, err := storageconfig.ListProfiles()
+	if err != nil {
+		return false, err
+	}
+	for _, p := range profiles {
+		cfg, err := storageconfig.LoadProfile(p.Name)
+		if err != nil {
+			continue
+		}
+		cfg.ProxyMode = input.ProxyMode
+		cfg.ProxyType = input.ProxyType
+		cfg.ProxyHost = input.ProxyHost
+		cfg.ProxyPort = input.ProxyPort
+		cfg.ProxyUsername = input.ProxyUsername
+		cfg.ProxyPassword = input.ProxyPassword
+		if err := storageconfig.SaveProfile(p.Name, cfg); err != nil {
+			return false, err
+		}
+	}
+	// Apply proxy settings to the Baidu Pan SDK.
+	normCfg, _ := storageconfig.LoadProfile("default")
+	storageops.ApplyBaiduPanProxy(normCfg)
+	return true, nil
 }
 
 // --- Profile management ---

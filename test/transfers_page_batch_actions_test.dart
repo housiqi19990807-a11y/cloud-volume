@@ -137,6 +137,16 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async =>
       throw UnimplementedError();
+  @override
+  Future<bool> updateProxySettings({
+    required String proxyMode,
+    required String proxyType,
+    required String proxyHost,
+    required String proxyPort,
+    required String proxyUsername,
+    required String proxyPassword,
+  }) async =>
+      true;
 
   @override
   Future<RemoteStorageConfig> loadProfile(String name) async =>
