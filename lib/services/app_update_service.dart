@@ -11,12 +11,38 @@ const String kAppLatestReleaseApiUrl =
 const String kAppLatestReleasePageUrl =
     'https://github.com/lfhy/cloud-volume/releases/latest';
 
+/// Metadata for a single downloadable asset attached to a GitHub release.
+class ReleaseAsset {
+  const ReleaseAsset({
+    required this.name,
+    required this.downloadUrl,
+    required this.size,
+    this.contentType = '',
+  });
+
+  /// Asset file name, e.g. `yunjuan-macos-universal.dmg`.
+  final String name;
+
+  /// Browser/HTTPS download URL provided by GitHub.
+  final String downloadUrl;
+
+  /// File size in bytes.
+  final int size;
+
+  /// MIME type reported by GitHub (may be `application/octet-stream`).
+  final String contentType;
+
+  @override
+  String toString() => 'ReleaseAsset($name, ${size}B)';
+}
+
 class AppUpdateCheckResult {
   const AppUpdateCheckResult({
     required this.currentVersion,
     required this.latestVersion,
     required this.releaseName,
     required this.releaseUrl,
+    required this.assets,
     required this.updateAvailable,
     required this.comparable,
   });
@@ -27,6 +53,9 @@ class AppUpdateCheckResult {
   final String releaseUrl;
   final bool updateAvailable;
   final bool comparable;
+
+  /// All downloadable assets attached to this release.
+  final List<ReleaseAsset> assets;
 }
 
 class AppUpdateService {
@@ -67,11 +96,31 @@ class AppUpdateService {
     final releaseName = payload['name']?.toString().trim() ?? latestVersion;
     final comparison = compareVersionLabels(currentVersion, latestVersion);
 
+    // Parse the `assets` array so the updater can locate the correct
+    // platform-specific package for in-app download + install.
+    final rawAssets = payload['assets'];
+    final assets = <ReleaseAsset>[];
+    if (rawAssets is List) {
+      for (final asset in rawAssets) {
+        if (asset is! Map<String, dynamic>) continue;
+        final name = asset['name']?.toString() ?? '';
+        final url = asset['browser_download_url']?.toString() ?? '';
+        if (name.isEmpty || url.isEmpty) continue;
+        assets.add(ReleaseAsset(
+          name: name,
+          downloadUrl: url,
+          size: (asset['size'] as num?)?.toInt() ?? 0,
+          contentType: asset['content_type']?.toString() ?? '',
+        ));
+      }
+    }
+
     return AppUpdateCheckResult(
       currentVersion: currentVersion,
       latestVersion: latestVersion,
       releaseName: releaseName.isEmpty ? latestVersion : releaseName,
       releaseUrl: releaseUrl.isEmpty ? kAppLatestReleasePageUrl : releaseUrl,
+      assets: assets,
       updateAvailable: comparison != null && comparison < 0,
       comparable: comparison != null,
     );

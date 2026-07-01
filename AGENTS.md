@@ -222,3 +222,24 @@ The window centers on `self.screen ?? NSScreen.main`. `NSScreen.main` is whateve
 - `bridge/dispatch_log.go` — `write_flutter_log` bridge method; lines go to stderr + `BridgeLogPath()` via `log.Printf` with `[app/<tag>]` prefix.
 - `lib/utils/app_log.dart` — `AppLog.info/warning/error`; bound in `AppBootstrapPage` after API bootstrap.
 - `RemoteStorageGateway.writeAppLog` — desktop FFI; web no-op.
+
+### Feature: In-App Auto Update (应用内自动更新)
+
+Detects new GitHub releases and, on desktop, downloads + installs the correct platform package in-app — no manual uninstall or command-line steps needed.
+
+#### Key files
+
+- `lib/services/app_update_service.dart` — `AppUpdateService.checkLatestRelease`: fetches GitHub Releases API, parses `tag_name` + `assets` array into `AppUpdateCheckResult` with `List<ReleaseAsset>`. Also has `compareVersionLabels` for semver comparison.
+- `lib/services/platform_asset_matcher.dart` — `matchPlatformAsset`: picks the correct asset for the current OS/arch from the release's asset list. macOS prefers `macos-universal.dmg` → `.zip` → arm64/amd64; Windows prefers `installer.exe` → `.zip`; Linux prefers `.AppImage` → `.tar.gz`.
+- `lib/services/app_installer.dart` — Conditional export: IO → `app_installer_io.dart`, Web → `app_installer_stub.dart`. Exports `kSupportsInAppInstall` and `downloadAndInstallAsset`.
+- `lib/services/app_installer_io.dart` — Desktop installer: streams download to temp dir with progress callback, then installs per platform. macOS: `hdiutil attach` DMG → copy `.app` to `/Applications` → `xattr -cr` strip quarantine → relaunch. Windows: run Inno Setup `.exe` with `/SILENT /CLOSEAPPLICATIONS` → `exit(0)`. Linux: replace AppImage in-place or extract tarball → relaunch.
+- `lib/services/app_installer_stub.dart` / `app_installer_web.dart` — Web stub: returns error string (no local filesystem access).
+- `lib/widgets/settings_update_section.dart` — Update UI in 设置 → 通用设置 → 应用更新. Shows version status, “检测更新” button, “一键更新” button (visible when in-app install is available), progress bar during download/install, and “GitHub 下载” as fallback.
+
+#### Data flow
+
+1. User clicks “检测更新” → `AppUpdateService.checkLatestRelease` → GitHub API.
+2. If `updateAvailable` and `matchPlatformAsset` finds a matching asset → “一键更新” button appears.
+3. User clicks “一键更新” → `downloadAndInstallAsset(asset, installerType, onProgress)` streams download to temp dir, shows progress bar.
+4. On download complete, platform installer runs: macOS mounts DMG and replaces app, Windows runs installer silently, Linux replaces AppImage.
+5. New version launches, old process calls `exit(0)`.

@@ -3,7 +3,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/services/app_installer.dart';
 import 'package:remote_storage/services/app_update_service.dart';
+import 'package:remote_storage/services/platform_asset_matcher.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -30,6 +32,9 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
   String? _errorText;
   bool _checking = false;
   bool _openingDownloadPage = false;
+  bool _installing = false;
+  double _installProgress = 0; // 0..1
+  String _installStatusText = '';
 
   @override
   void initState() {
@@ -56,21 +61,87 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
           theme: theme,
           title: _statusTitle,
           subtitle: _statusSubtitle,
-          highlighted: _result?.updateAvailable == true,
-          errorText: _errorText,
-          checking: _checking,
-          openingDownloadPage: _openingDownloadPage,
-          onCheckForUpdates: _checking ? null : _checkForUpdates,
-          onOpenDownloadPage: _openingDownloadPage ? null : _openDownloadPage,
-        ),
-      ],
+         highlighted: _result?.updateAvailable == true,
+         errorText: _errorText,
+         checking: _checking,
+         openingDownloadPage: _openingDownloadPage,
+          installing: _installing,
+          installProgress: _installProgress,
+          canInstallInApp: _canInstallInApp,
+         onCheckForUpdates: _checking ? null : _checkForUpdates,
+         onOpenDownloadPage: _openingDownloadPage ? null : _openDownloadPage,
+         onInstall: (_installing || !_canInstallInApp) ? null : _startInstall,
+       ),
+     ],
+   );
+ }
+
+  /// Whether the current release has a platform-matched asset we can auto-install.
+  bool get _canInstallInApp {
+    final result = _result;
+    if (result == null || !result.updateAvailable) return false;
+    if (!kSupportsInAppInstall) return false;
+    return matchPlatformAsset(result.assets) != null;
+  }
+
+  /// Full download + install + relaunch flow.
+  Future<void> _startInstall() async {
+    final result = _result;
+    if (result == null) return;
+    final matched = matchPlatformAsset(result.assets);
+    if (matched == null) {
+      _showError('未找到适合当前平台的安装包，请前往 GitHub 手动下载。');
+      return;
+    }
+
+    setState(() {
+      _installing = true;
+      _installProgress = 0;
+      _installStatusText = '正在下载 ${matched.asset.name}...';
+      _errorText = null;
+    });
+
+    final error = await downloadAndInstallAsset(
+      matched.asset,
+      matched.installerType,
+      onProgress: (received, total) {
+        if (!mounted) return;
+        final progress = total > 0 ? received / total : 0.0;
+        setState(() {
+          _installProgress = progress;
+          if (progress >= 1) {
+            _installStatusText = '下载完成，正在安装...';
+          }
+        });
+      },
     );
+
+    // On success the installer calls exit(0) after relaunching, so reaching
+    // here means something went wrong.
+    if (!mounted) return;
+    // The installer exits on success; reaching here means it failed.
+    _resetInstallState();
+    if (error.isNotEmpty) {
+      _showError(error);
+    } else {
+      _showError('更新未完成，请重试或前往 GitHub 手动下载。');
+    }
+}
+
+  void _resetInstallState() {
+    _installing = false;
+    _installProgress = 0;
+    _installStatusText = '';
   }
 
   String get _statusTitle {
     final result = _result;
     if (_checking) {
       return '正在连接 GitHub';
+    }
+    if (_installing) {
+      final pct = (_installProgress * 100).clamp(0, 100).toInt();
+      return _installProgress >= 1 ? '正在安装新版本...' : '正在下载 $pct%';
     }
     if (result == null) {
       return '当前版本 ${widget.currentVersion}';
@@ -88,6 +159,11 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     final result = _result;
     if (_checking) {
       return '正在读取 GitHub 最新 Release 信息。';
+    }
+    if (_installing) {
+      return _installStatusText.isEmpty
+          ? '请稍候，更新过程中应用将自动重启。'
+          : _installStatusText;
     }
     if (result == null) {
       return '检测 GitHub Release 是否有可用的新版本，也可以直接打开下载页。';
@@ -166,8 +242,12 @@ class _UpdateStatusRow extends StatelessWidget {
     required this.errorText,
     required this.checking,
     required this.openingDownloadPage,
+    required this.installing,
+    required this.installProgress,
+    required this.canInstallInApp,
     required this.onCheckForUpdates,
     required this.onOpenDownloadPage,
+    required this.onInstall,
   });
 
   final ShadThemeData theme;
@@ -177,8 +257,12 @@ class _UpdateStatusRow extends StatelessWidget {
   final String? errorText;
   final bool checking;
   final bool openingDownloadPage;
+  final bool installing;
+  final double installProgress;
+  final bool canInstallInApp;
   final VoidCallback? onCheckForUpdates;
   final VoidCallback? onOpenDownloadPage;
+  final VoidCallback? onInstall;
 
   @override
   Widget build(BuildContext context) {
@@ -273,14 +357,28 @@ class _UpdateStatusRow extends StatelessWidget {
             color: theme.colorScheme.mutedForeground,
           ),
         ),
-        if (errorText != null) ...[
-          const SizedBox(height: 6),
-          Text(
-            errorText!,
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.45,
-              color: theme.colorScheme.destructive,
+       if (errorText != null) ...[
+         const SizedBox(height: 6),
+         Text(
+           errorText!,
+           style: TextStyle(
+             fontSize: 12,
+             height: 1.45,
+             color: theme.colorScheme.destructive,
+           ),
+         ),
+       ],
+        if (installing) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: installProgress.clamp(0.0, 1.0),
+              backgroundColor: theme.colorScheme.background,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                theme.colorScheme.primary,
+              ),
+              minHeight: 5,
             ),
           ),
         ],
@@ -288,14 +386,26 @@ class _UpdateStatusRow extends StatelessWidget {
     );
   }
 
-  Widget _buildActions(WrapAlignment alignment) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: alignment,
-      children: [
-        ShadButton.outline(
-          onPressed: onCheckForUpdates,
+ Widget _buildActions(WrapAlignment alignment) {
+   return Wrap(
+     spacing: 8,
+     runSpacing: 8,
+     alignment: alignment,
+     children: [
+        if (canInstallInApp || installing)
+          ShadButton(
+            onPressed: installing ? null : onInstall,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.download, size: 15),
+                const SizedBox(width: 8),
+                Text(installing ? '更新中...' : '一键更新'),
+              ],
+            ),
+          ),
+       ShadButton.outline(
+         onPressed: onCheckForUpdates,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -305,17 +415,17 @@ class _UpdateStatusRow extends StatelessWidget {
             ],
           ),
         ),
-        ShadButton(
-          onPressed: onOpenDownloadPage,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.externalLink, size: 15),
-              const SizedBox(width: 8),
-              Text(openingDownloadPage ? '打开中...' : 'GitHub 下载'),
-            ],
-          ),
-        ),
+        ShadButton.outline(
+         onPressed: onOpenDownloadPage,
+         child: Row(
+           mainAxisSize: MainAxisSize.min,
+           children: [
+             Icon(LucideIcons.externalLink, size: 15),
+             const SizedBox(width: 8),
+             Text(openingDownloadPage ? '打开中...' : 'GitHub 下载'),
+           ],
+         ),
+       ),
       ],
     );
   }
