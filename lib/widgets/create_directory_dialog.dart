@@ -51,10 +51,11 @@ class CreateDirectoryDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            ShadInput(
-              controller: controller,
-              placeholder: const Text('例如：images / backup'),
-            ),
+           ShadInput(
+             controller: controller,
+             placeholder: const Text('例如：images / backup'),
+             onSubmitted: creating ? null : (_) => onCreate(),
+           ),
             if (errorText != null) ...[
               const SizedBox(height: 10),
               Text(

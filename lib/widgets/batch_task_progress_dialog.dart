@@ -1,6 +1,7 @@
 // Batch task progress dialog keeps multi-item operations visible while they run.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
@@ -65,9 +66,17 @@ class BatchTaskProgressDialog extends StatelessWidget {
             : allFinished
             ? 1.0
             : null;
-        final resolvedMode = mode ?? _modeForTasks(tasks);
+       final resolvedMode = mode ?? _modeForTasks(tasks);
 
-        return ShadDialog(
+        // Enter confirms: close when finished, run-in-background while active.
+        return Focus(
+          autofocus: true,
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.enter):
+                  allFinished ? onClose : onRunInBackground,
+            },
+            child: ShadDialog(
           title: Text(
             allFinished ? resolvedMode.doneTitle : resolvedMode.runningTitle,
           ),
@@ -124,8 +133,10 @@ class BatchTaskProgressDialog extends StatelessWidget {
                     ],
                   ],
                 ),
-              ],
-            ),
+             ],
+           ),
+         ),
+          ),
           ),
         );
       },
