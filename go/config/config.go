@@ -38,6 +38,10 @@ type RemoteStorageConfig struct {
 	CacheAutoCleanupEnabled     bool                      `json:"cacheAutoCleanupEnabled" toml:"cache_auto_cleanup_enabled"`
 	CacheMaxSizeMB              int                       `json:"cacheMaxSizeMb" toml:"cache_max_size_mb"`
 	CacheMaxAgeDays             int                       `json:"cacheMaxAgeDays" toml:"cache_max_age_days"`
+
+	// Global proxy settings apply to all outbound HTTP/S3/WebDAV traffic.
+	ProxyMode string `json:"proxyMode" toml:"proxy_mode"` // "system" (default), "direct", "custom"
+	ProxyURL  string `json:"proxyUrl" toml:"proxy_url"`   // used when ProxyMode == "custom"
 }
 
 type BucketSettings struct {
@@ -62,6 +66,10 @@ const (
 	maxWindowsWritebackConcurrency     = 32
 	maxCacheMaxSizeMB                  = 8 * 1024 * 1024 // 8 TiB upper bound keeps the field sane while still allowing large tiers
 	maxCacheMaxAgeDays                 = 3650
+
+	ProxyModeSystem = "system" // follow system environment variables (HTTP_PROXY etc.)
+	ProxyModeDirect = "direct" // no proxy, ignore all environment variables
+	ProxyModeCustom = "custom" // use the user-supplied ProxyURL
 )
 
 // BootstrapState is the typed payload returned to Flutter during startup.
@@ -89,6 +97,7 @@ func DefaultConfig() RemoteStorageConfig {
 		CacheAutoCleanupEnabled:     false,
 		CacheMaxSizeMB:              0,
 		CacheMaxAgeDays:             0,
+		ProxyMode:                   ProxyModeSystem,
 	}
 }
 func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
@@ -124,6 +133,8 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		CacheAutoCleanupEnabled:     c.CacheAutoCleanupEnabled,
 		CacheMaxSizeMB:              normalizeCacheMaxSizeMB(c.CacheMaxSizeMB),
 		CacheMaxAgeDays:             normalizeCacheMaxAgeDays(c.CacheMaxAgeDays),
+		ProxyMode:                    normalizeProxyMode(c.ProxyMode),
+		ProxyURL:                     strings.TrimSpace(c.ProxyURL),
 	}
 }
 
@@ -437,6 +448,16 @@ func normalizeCacheMaxAgeDays(value int) int {
 		return maxCacheMaxAgeDays
 	default:
 		return value
+	}
+}
+
+// normalizeProxyMode validates the proxy mode field, defaulting to system.
+func normalizeProxyMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case ProxyModeSystem, ProxyModeDirect, ProxyModeCustom:
+		return strings.TrimSpace(mode)
+	default:
+		return ProxyModeSystem
 	}
 }
 

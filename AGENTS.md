@@ -243,3 +243,28 @@ Detects new GitHub releases and, on desktop, downloads + installs the correct pl
 3. User clicks “一键更新” → `downloadAndInstallAsset(asset, installerType, onProgress)` streams download to temp dir, shows progress bar.
 4. On download complete, platform installer runs: macOS mounts DMG and replaces app, Windows runs installer silently, Linux replaces AppImage.
 5. New version launches, old process calls `exit(0)`.
+
+### Feature: Global Proxy & Network Configuration (全局代理设置)
+
+Three proxy modes: system (read `HTTP_PROXY`/`HTTPS_PROXY` env vars, default), direct (no proxy), custom (user-specified URL). Affects all outbound traffic.
+
+#### Key files
+
+- `go/config/config.go` — `ProxyMode` / `ProxyURL` fields on `RemoteStorageConfig`; `normalizeProxyMode` validates to system/direct/custom.
+- `go/config/proxy.go` — `ProxyTransport(mode, customURL)` returns an `http.RoundTripper` respecting the mode. `ProxyHTTPClient` wraps it with a timeout.
+- `go/s3/client.go` — AWS S3 client uses `ProxyTransport` as its `http.Client.Transport`.
+- `go/s3/minio_directory.go` — MinIO client gets `options.Transport` from `ProxyTransport`.
+- `go/storage/webdav_backend.go` — WebDAV `http.Client` created via `ProxyHTTPClient`.
+- `go/storage/baidu_pan_sdk.go` / `baidu_pan_retry_http.go` — Baidu Pan SDK client replaced via `ApplyBaiduPanProxy` on config save.
+- `lib/services/proxy_http_client.dart` — Conditional export: IO → `proxy_http_client_io.dart` (dart:io `HttpClient` with proxy), Web → stub (browser handles proxy).
+- `lib/services/update_settings.dart` — GitHub mirror config (separate from proxy): persisted in SharedPreferences, wraps github.com URLs with a mirror prefix.
+- `lib/widgets/settings_proxy_section.dart` — Settings UI: proxy mode chips + custom URL input + GitHub mirror input with quick-pick buttons.
+- `bridge/dispatch.go` — `saveConfig` applies `ApplyBaiduPanProxy` before saving.
+
+#### Data flow
+
+1. User configures proxy in 设置 → 通用设置 → 网络代理.
+2. `SettingsProxySection._save` → `_saveProxySettings` → `widget.api.saveConfig(config.copyWith(proxyMode, proxyUrl))` → Go `saveConfig` → `ApplyBaiduPanProxy` + `SaveProfile`.
+3. On next S3/WebDAV/MinIO client creation, `ProxyTransport(cfg.ProxyMode, cfg.ProxyURL)` is applied.
+4. Dart http calls (GitHub API, download) use `createProxyHttpClient(ProxyConfig(mode, customUrl))`.
+5. GitHub mirror wraps API and download URLs via `UpdateNetworkConfig.wrapUrl`.

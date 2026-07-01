@@ -11,7 +11,9 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:remote_storage/platform/platform_info.dart';
+import 'package:remote_storage/services/proxy_http_client.dart';
 import 'package:remote_storage/services/app_update_service.dart';
+import 'package:remote_storage/services/update_settings.dart';
 
 const bool kSupportsInAppInstall = true;
 
@@ -23,15 +25,19 @@ Future<String?> downloadAndInstallAsset(
   ReleaseAsset asset,
   String installerType, {
   void Function(int received, int total)? onProgress,
+  UpdateNetworkConfig networkConfig = const UpdateNetworkConfig(),
+  ProxyConfig proxyConfig = const ProxyConfig(),
 }) async {
   try {
     final tempDir = await getTemporaryDirectory();
     final downloadPath = p.join(tempDir.path, asset.name);
     final file = File(downloadPath);
 
+    final downloadUrl = networkConfig.wrapUrl(asset.downloadUrl);
     // Download with streaming to report progress.
-    final request = http.Request('GET', Uri.parse(asset.downloadUrl));
-    final response = await http.Client().send(request);
+    final client = createProxyHttpClient(proxyConfig);
+    final request = http.Request('GET', Uri.parse(downloadUrl));
+    final response = await client.send(request);
     if (response.statusCode != 200) {
       return '下载失败：HTTP ${response.statusCode}';
     }

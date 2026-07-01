@@ -4,6 +4,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:remote_storage/services/update_settings.dart';
+import 'package:remote_storage/services/proxy_http_client.dart';
 import 'package:remote_storage/utils/app_runtime_version.dart';
 
 const String kAppLatestReleaseApiUrl =
@@ -60,18 +62,33 @@ class AppUpdateCheckResult {
 
 class AppUpdateService {
   AppUpdateService({http.Client? client})
-    : _client = client ?? http.Client(),
+    : _client = client ?? createProxyHttpClient(const ProxyConfig()),
       _ownsClient = client == null;
 
   final http.Client _client;
   final bool _ownsClient;
 
+  /// Returns a client configured for the given proxy settings.
+  /// Falls back to the injected/default client when the proxy is system mode.
+  http.Client _clientForProxy(ProxyConfig config) {
+    if (config.mode == kProxyModeSystem || config.mode.isEmpty) {
+      return _client;
+    }
+    return createProxyHttpClient(config);
+  }
+
   Future<AppUpdateCheckResult> checkLatestRelease({
     String currentVersion = kAppRuntimeVersion,
+    UpdateNetworkConfig networkConfig = const UpdateNetworkConfig(),
+    ProxyConfig proxyConfig = const ProxyConfig(),
   }) async {
-    final response = await _client
+    // Rebuild the HTTP client if a non-default proxy config is given so runtime
+    // changes to the proxy settings take effect immediately.
+    final client = _clientForProxy(proxyConfig);
+    final apiUrl = networkConfig.wrapUrl(kAppLatestReleaseApiUrl);
+    final response = await client
         .get(
-          Uri.parse(kAppLatestReleaseApiUrl),
+          Uri.parse(apiUrl),
           headers: const <String, String>{
             'accept': 'application/vnd.github+json',
           },

@@ -5,7 +5,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/services/app_installer.dart';
 import 'package:remote_storage/services/app_update_service.dart';
+import 'package:remote_storage/services/proxy_http_client.dart';
 import 'package:remote_storage/services/platform_asset_matcher.dart';
+import 'package:remote_storage/services/update_settings.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,11 +17,13 @@ class SettingsUpdateSection extends StatefulWidget {
     super.key,
     required this.theme,
     required this.currentVersion,
+    this.config,
     this.updateService,
   });
 
   final ShadThemeData theme;
   final String currentVersion;
+  final RemoteStorageConfig? config;
   final AppUpdateService? updateService;
 
   @override
@@ -35,12 +40,18 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
   bool _installing = false;
   double _installProgress = 0; // 0..1
   String _installStatusText = '';
+  UpdateNetworkConfig _mirrorConfig = const UpdateNetworkConfig();
 
   @override
   void initState() {
     super.initState();
     _updateService = widget.updateService ?? AppUpdateService();
     _ownsUpdateService = widget.updateService == null;
+    _loadMirrorConfig();
+  }
+
+  Future<void> _loadMirrorConfig() async {
+    _mirrorConfig = await loadUpdateNetworkConfig();
   }
 
   @override
@@ -84,6 +95,11 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     return matchPlatformAsset(result.assets) != null;
   }
 
+  ProxyConfig get _proxyConfig => ProxyConfig(
+    mode: widget.config?.proxyMode ?? kProxyModeSystem,
+    customUrl: widget.config?.proxyUrl ?? '',
+  );
+
   /// Full download + install + relaunch flow.
   Future<void> _startInstall() async {
     final result = _result;
@@ -104,6 +120,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     final error = await downloadAndInstallAsset(
       matched.asset,
       matched.installerType,
+      networkConfig: _mirrorConfig,
+      proxyConfig: _proxyConfig,
       onProgress: (received, total) {
         if (!mounted) return;
         final progress = total > 0 ? received / total : 0.0;
@@ -183,8 +201,10 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       _errorText = null;
     });
     try {
-      final result = await _updateService.checkLatestRelease(
+     final result = await _updateService.checkLatestRelease(
         currentVersion: widget.currentVersion,
+        networkConfig: _mirrorConfig,
+        proxyConfig: _proxyConfig,
       );
       if (!mounted) {
         return;

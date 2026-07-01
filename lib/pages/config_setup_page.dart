@@ -226,6 +226,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           widget.initialState.config.cacheAutoCleanupEnabled,
       cacheMaxSizeMb: widget.initialState.config.cacheMaxSizeMb,
       cacheMaxAgeDays: widget.initialState.config.cacheMaxAgeDays,
+      proxyMode: widget.initialState.config.proxyMode,
+      proxyUrl: widget.initialState.config.proxyUrl,
     );
 
     if (!config.isConfigured) {

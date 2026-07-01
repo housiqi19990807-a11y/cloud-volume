@@ -38,6 +38,14 @@ func init() {
 	xpanhttp.SetRateLimitEnabled(false)
 }
 
+// ApplyBaiduPanProxy replaces the SDK's HTTP client with one that uses the
+// configured proxy transport. Call after loading user config at runtime.
+func ApplyBaiduPanProxy(mode, customURL string) {
+	xpanhttp.SetClient(newBaiduPanRetryHTTPClientWithClient(
+		storageconfig.ProxyHTTPClient(mode, customURL, 0),
+	))
+}
+
 func baiduPanConfigFromAuth(
 	displayName string,
 	accessToken string,

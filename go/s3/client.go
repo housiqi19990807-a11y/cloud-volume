@@ -3,6 +3,7 @@ package s3
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsCreds "github.com/aws/aws-sdk-go-v2/credentials"
@@ -30,6 +31,9 @@ func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
 	if cfg.UsePathStyle {
 		opts.UsePathStyle = true
 	}
+
+	// Inject global proxy settings into the S3 HTTP transport.
+	opts.HTTPClient = &http.Client{Transport: storageconfig.ProxyTransport(cfg.ProxyMode, cfg.ProxyURL)}
 
 	return s3.New(opts)
 }

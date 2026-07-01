@@ -30,6 +30,16 @@ func newBaiduPanRetryHTTPClient() *baiduPanRetryHTTPClient {
 	return &baiduPanRetryHTTPClient{client: &http.Client{}}
 }
 
+// newBaiduPanRetryHTTPClientWithClient wraps a custom HTTP client (for proxy support).
+func newBaiduPanRetryHTTPClientWithClient(client *http.Client) *baiduPanRetryHTTPClient {
+	return &baiduPanRetryHTTPClient{client: client}
+}
+
+// SetHTTPClient replaces the underlying client (used to inject a proxy-aware transport).
+func (c *baiduPanRetryHTTPClient) SetHTTPClient(client *http.Client) {
+	c.client = client
+}
+
 func (c *baiduPanRetryHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	var lastResp *http.Response
 	for attempt := 0; attempt <= baiduPanThrottleRetryCount; attempt++ {

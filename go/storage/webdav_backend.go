@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	storageconfig "remote-storage/go/config"
 )
@@ -24,9 +23,10 @@ type webDAVBackend struct {
 }
 
 func NewWebDAVBackend(cfg storageconfig.RemoteStorageConfig) Backend {
+	norm := cfg.Normalized()
 	return webDAVBackend{
-		cfg:    cfg.Normalized(),
-		client: &http.Client{Timeout: 60 * time.Second},
+		cfg:    norm,
+		client: storageconfig.ProxyHTTPClient(norm.ProxyMode, norm.ProxyURL, 60),
 	}
 }
 

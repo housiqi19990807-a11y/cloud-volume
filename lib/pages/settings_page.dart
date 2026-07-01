@@ -18,6 +18,7 @@ import 'package:remote_storage/widgets/settings_sections.dart'
         VisibilitySection,
         WebDavCredentialsSection;
 import 'package:remote_storage/widgets/settings_cache_section.dart';
+import 'package:remote_storage/widgets/settings_proxy_section.dart';
 import 'package:remote_storage/widgets/settings_sync_section.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
 import 'package:remote_storage/widgets/settings_update_section.dart';
@@ -155,7 +156,26 @@ class _SettingsPageState extends State<SettingsPage> {
       _buildCard(
         theme,
         '应用更新',
-        SettingsUpdateSection(theme: theme, currentVersion: kAppRuntimeVersion),
+        SettingsUpdateSection(
+          theme: theme,
+          currentVersion: kAppRuntimeVersion,
+          config: config,
+        ),
+      ),
+      const SizedBox(height: 20),
+      _buildCard(
+        theme,
+        '网络代理',
+        SettingsProxySection(
+          theme: theme,
+          config: config,
+          onSaveProxy: (mode, proxyUrl) async {
+            await widget.api.saveConfig(
+              config.copyWith(proxyMode: mode, proxyUrl: proxyUrl),
+            );
+            widget.onRefresh();
+          },
+        ),
       ),
       const SizedBox(height: 20),
       _buildCard(theme, '外观', const ThemePicker()),

@@ -128,6 +128,8 @@ class RemoteStorageConfig {
     required this.cacheAutoCleanupEnabled,
     required this.cacheMaxSizeMb,
     required this.cacheMaxAgeDays,
+    required this.proxyMode,
+    required this.proxyUrl,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -163,6 +165,8 @@ class RemoteStorageConfig {
         cacheAutoCleanupEnabled: false,
         cacheMaxSizeMb: 0,
         cacheMaxAgeDays: 0,
+        proxyMode: 'system',
+        proxyUrl: '',
       );
   }
 
@@ -285,6 +289,8 @@ class RemoteStorageConfig {
             json['cacheMaxAgeDays'] ?? json['cache_max_age_days'],
           ) ??
           0,
+      proxyMode: (json['proxyMode'] ?? json['proxy_mode'] ?? 'system').toString(),
+      proxyUrl: (json['proxyUrl'] ?? json['proxy_url'] ?? '').toString(),
     );
   }
 
@@ -319,6 +325,8 @@ class RemoteStorageConfig {
   final bool cacheAutoCleanupEnabled;
   final int cacheMaxSizeMb;
   final int cacheMaxAgeDays;
+  final String proxyMode;
+  final String proxyUrl;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
@@ -406,6 +414,8 @@ class RemoteStorageConfig {
       'cacheAutoCleanupEnabled': cacheAutoCleanupEnabled,
       'cacheMaxSizeMb': cacheMaxSizeMb,
       'cacheMaxAgeDays': cacheMaxAgeDays,
+      'proxyMode': proxyMode,
+      'proxyUrl': proxyUrl,
     };
   }
 
@@ -441,6 +451,8 @@ class RemoteStorageConfig {
     bool? cacheAutoCleanupEnabled,
     int? cacheMaxSizeMb,
     int? cacheMaxAgeDays,
+    String? proxyMode,
+    String? proxyUrl,
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
@@ -481,6 +493,8 @@ class RemoteStorageConfig {
           cacheAutoCleanupEnabled ?? this.cacheAutoCleanupEnabled,
       cacheMaxSizeMb: cacheMaxSizeMb ?? this.cacheMaxSizeMb,
       cacheMaxAgeDays: cacheMaxAgeDays ?? this.cacheMaxAgeDays,
+      proxyMode: proxyMode ?? this.proxyMode,
+      proxyUrl: proxyUrl ?? this.proxyUrl,
     );
   }
 

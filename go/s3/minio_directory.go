@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -63,6 +64,13 @@ func NewMinioClient(cfg storageconfig.RemoteStorageConfig) (*minio.Client, error
 	}
 	if cfg.UsePathStyle {
 		options.BucketLookup = minio.BucketLookupPath
+	}
+
+	// Apply global proxy settings to MinIO's HTTP transport.
+	if transport := storageconfig.ProxyTransport(cfg.ProxyMode, cfg.ProxyURL); transport != nil {
+		if ht, ok := transport.(*http.Transport); ok {
+			options.Transport = ht
+		}
 	}
 
 	return minio.New(endpoint, options)
