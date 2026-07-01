@@ -17,6 +17,7 @@ import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/services/file_access_service.dart';
 import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/desktop_file_transfer_service.dart';
+import 'package:remote_storage/services/clipboard_shortcut_channel.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
@@ -152,6 +153,12 @@ class _FileManagerPageState extends State<FileManagerPage> {
     TransferQueue.instance.addListener(_handleUploadTaskRefresh);
     _startMountStatusRefreshTimer();
     _loadBuckets();
+    if (ClipboardShortcutChannel.instance.isSupported) {
+      ClipboardShortcutChannel.instance.start(
+        onPaste: _handleNativePaste,
+        onCopy: _handleNativeCopy,
+      );
+    }
     final pending = widget.pendingSyncRemoteOpen;
     if (pending != null) {
       schedulePendingSyncRemoteOpen(pending);

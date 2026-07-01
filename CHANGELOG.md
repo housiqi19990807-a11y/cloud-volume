@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 文件管理：修复从访达复制文件后 Cmd+V 粘贴上传失效。WebDAV 目录写入权限的异步检查未完成时不再静默吞掉粘贴快捷键；写入权限最终仍由上传流程校验，只读目录会给出提示。
+- 文件管理：修复 macOS 上从访达复制文件后 Cmd+V 粘贴上传失效。Flutter macOS 引擎将 Cmd+V 等 key equivalent 发给 FlutterView.keyDown:（普通 NSView），其 interpretKeyEvents: 把事件交给 TSM 输入上下文后静默吞掉，永远到不了引擎键盘管理器和 Flutter Shortcuts。改为在 NSWindow.performKeyEquivalent 拦截 Cmd+V/C，通过 method channel 直接通知 Dart 侧读剪贴板上传。同时修复 Cmd+C 从远端复制选中文件到系统剪贴板。
 - 文件预览：本地拖拽上传成功后，立即把本地副本登记进预览缓存，双击打开刚上传的文件直接命中缓存，不再重复下载；缓存写入失败不阻断上传成功。
 - 文件同步：「打开同步目录」修复 build 阶段 setState 报错；进入文件管理后正确打开桶与前缀。
 - 同步配置：新增「打开本地目录」「打开同步目录」；远端跳转文件管理对应桶与前缀。

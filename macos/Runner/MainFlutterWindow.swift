@@ -117,6 +117,27 @@ class MainFlutterWindow: NSWindow {
   private var menuBarController: MenuBarController?
   private var allowsDirectClose = false
 
+  // The Flutter engine sends Cmd+V/C through FlutterView.keyDown: (a plain
+  // NSView), whose interpretKeyEvents: routes them into the TSM input context
+  // and swallows them before they reach the engine keyboard manager or
+  // Flutter Shortcuts. Intercept at the window level and relay via method
+  // channel instead.
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    guard mods == .command, let chars = event.charactersIgnoringModifiers else {
+      return super.performKeyEquivalent(with: event)
+    }
+    if chars == "v" {
+      ClipboardShortcutCoordinator.shared.handlePaste()
+      return true
+    }
+    if chars == "c" {
+      ClipboardShortcutCoordinator.shared.handleCopy()
+      return true
+    }
+    return super.performKeyEquivalent(with: event)
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -132,6 +153,11 @@ class MainFlutterWindow: NSWindow {
     self.delegate = self
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    // Register the clipboard-shortcut plugin on the main engine so native
+    // Cmd+V / Cmd+C can reach Dart via a method channel.
+    ClipboardShortcutPlugin.register(
+      with: flutterViewController.registrar(forPlugin: "ClipboardShortcutPlugin")
+    )
     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
       // Secondary preview windows run in their own engine, so plugins must be
       // registered for each created controller as well as the main one.

@@ -171,23 +171,27 @@ Shared upload/download queue backing both manual file operations and sync-genera
 
 ### Feature: Local File Paste / Drag Upload (本地粘贴/拖拽上传)
 
-桌面端文件管理页接收本地文件输入（访达复制后 Cmd+V 粘贴、拖拽到列表）。粘贴快捷键走 Flutter `Shortcuts`/`Actions`；拖拽走 `super_drag_and_drop` 的 `DropRegion`。二者共用 `DesktopFileTransferService` 把 file:// URI 解析成本地路径，再交给 `_uploadLocalPaths` 入队上传。
+桌面端文件管理页接收本地文件输入（访达复制后 Cmd+V 粘贴、拖拽到列表）。**粘贴走 method channel（见下）**；拖拽走 `super_drag_and_drop` 的 `DropRegion`。二者共用 `DesktopFileTransferService` 把 file:// URI 解析成本地路径，再交给 `_uploadLocalPaths` 入队上传。
 
-**Gotcha（2026-07-01 修复）：** 粘贴 Intent 的门控**必须**只用 `widget.enabled`（= 非 loading、非回收站、已选 bucket），不能用 `_acceptsLocalFiles`（= enabled && `_currentDirectoryWritable`）。`_currentDirectoryWritable` 对 WebDAV 目录是异步权限检查，在 `_directoryAccess == null` 或 `_checkingDirectoryAccess` 期间返回 false，会把 Cmd+V 静默吞掉。写入权限的最终校验交给 `_uploadLocalPaths` 里的 `_ensureCurrentDirectoryWritable()`（只读目录会弹「上传失败 / 该目录无操作权限」）。拖拽的视觉反馈（drop 高亮）仍可用 `_currentDirectoryWritable` 门控。
+**根因与修复（2026-07-01）：** Flutter macOS 引擎的 `FlutterViewController.performKeyEquivalent` 在 `firstResponder == _flutterView` 时调 `[_flutterView keyDown:event]`。但 `FlutterView` 是普通 `NSView`，没有 override `keyDown:`——默认实现走 `interpretKeyEvents:`，把 Cmd+V 交给 TSM 输入上下文（日志表现为 `NSSoftLinking - _TSMMenuKeyTransWithModifiersBeginWithEvent`），TSM 静默吞掉 `paste:`/`copy:` selector，事件**永远到不了**引擎 keyboardManager 或 Flutter `Shortcuts`。
+
+**解决方案：** 不再依赖 Flutter `Shortcuts` 处理 Cmd+V/C。改为在 `MainFlutterWindow.performKeyEquivalent`（NSWindow 层）截获 Cmd+V/C，`return true` 阻止 AppKit 菜单和 TSM 处理，通过 `cloud_volume/clipboard_shortcut` method channel 直接通知 Dart 侧。`FileTransferClipboardRegion` 里的 `Shortcuts`/`_PasteFilesIntent` 仍保留（理论上对非 macOS 或未来 engine 修复有用），但 macOS 上实际由 channel 驱动。
 
 #### Key files
 
-- `lib/widgets/file_transfer_clipboard_region.dart` — `Shortcuts`+`Actions`+`DropRegion` 包装层。`_PasteFilesIntent` / `_CopyFilesIntent` 定义在此；`onPasteLocalFiles` 回调上传，`onCopySelection` 复制选中远端文件到系统剪贴板。
-- `lib/services/desktop_file_transfer_service_io.dart` — `localFilePathsFromClipboard`（读 `SystemClipboard` 的 `Formats.fileUri`）、`localFilePathsFromDrop`、`writeLocalFilesToClipboard`、`localUploadEntries`（区分文件/目录）。
-- `lib/services/desktop_file_transfer_service_web.dart` — Web 端空实现。
-- `lib/pages/file_manager_page_transfer_inputs.dart` — `_uploadLocalPaths`（入口，含 `_ensureCurrentDirectoryWritable` 兜底校验）、`_copySelectedObjectsToClipboard`。
+- `macos/Runner/ClipboardShortcutPlugin.swift` — `ClipboardShortcutPlugin`（FlutterPlugin，注册 method channel `cloud_volume/clipboard_shortcut`）+ `ClipboardShortcutCoordinator`（单例，持有 plugin 实例供 window 调用）。
+- `macos/Runner/MainFlutterWindow.swift` — `performKeyEquivalent` override：截获 Cmd+V → `ClipboardShortcutCoordinator.shared.handlePaste()`、Cmd+C → `handleCopy()`，其余交 `super`。在 `awakeFromNib` 注册 plugin。
+- `lib/services/clipboard_shortcut_channel.dart` — `ClipboardShortcutChannel` 单例：`start(onPaste, onCopy)` 设置 `MethodChannel` handler；`isSupported` 仅 macOS 非 Web。
+- `lib/widgets/file_transfer_clipboard_region.dart` — `Shortcuts`+`Actions`+`DropRegion` 包装层（拖拽实际生效；粘贴的 `Shortcuts` 在 macOS 上被 channel 旁路）。
+- `lib/services/desktop_file_transfer_service_io.dart` — `localFilePathsFromClipboard`（读 `SystemClipboard` 的 `Formats.fileUri`）、`localFilePathsFromDrop`、`writeLocalFilesToClipboard`、`localUploadEntries`。
+- `lib/pages/file_manager_page_transfer_inputs.dart` — `_uploadLocalPaths`（入口，含 `_ensureCurrentDirectoryWritable` 兜底校验）、`_copySelectedObjectsToClipboard`、`_handleNativePaste` / `_handleNativeCopy`（channel 回调入口）。
 - `lib/pages/file_manager_page_access.dart` — `_currentDirectoryWritable` / `_ensureCurrentDirectoryWritable` / `_refreshDirectoryAccess`（WebDAV 目录 PROPFIND 可写性检查）。
 
 #### Data flow
 
 1. 访达复制文件 → 系统 pasteboard 含 `public.file-url`。
-2. 文件管理页 Cmd+V → `_PasteFilesIntent`（gate `widget.enabled`）→ `_pasteLocalFiles` → `DesktopFileTransferService.localFilePathsFromClipboard` 解析路径。
-3. `onPasteLocalFiles(paths)` → `_uploadLocalPaths` → `_ensureCurrentDirectoryWritable` 校验 → `localUploadEntries` → `TransferQueue.startTask` 入队上传。
+2. macOS Cmd+V → `MainFlutterWindow.performKeyEquivalent` 截获 → `ClipboardShortcutCoordinator.handlePaste()` → method channel `paste`。
+3. Dart `ClipboardShortcutChannel` → `_handleNativePaste` → `DesktopFileTransferService.localFilePathsFromClipboard` 解析路径 → `_uploadLocalPaths` → `_ensureCurrentDirectoryWritable` → `TransferQueue.startTask` 入队上传。
 
 ### Feature: macOS Window Lifecycle & Positioning
 

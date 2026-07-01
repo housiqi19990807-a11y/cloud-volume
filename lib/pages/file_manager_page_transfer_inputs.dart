@@ -3,6 +3,29 @@
 part of 'file_manager_page.dart';
 
 extension _FileManagerPageTransferInputs on _FileManagerPageState {
+  // Called by the native method channel when Cmd+V is intercepted at the
+  // window level. Reads the system clipboard for file URIs and uploads them.
+  void _handleNativePaste() {
+    if (!_acceptsFileTransferInput) {
+      return;
+    }
+    unawaited(() async {
+      final paths =
+          await DesktopFileTransferService.instance.localFilePathsFromClipboard();
+      if (paths.isNotEmpty) {
+        await _uploadLocalPaths(paths);
+      }
+    }());
+  }
+
+  // Called by the native method channel when Cmd+C is intercepted.
+  void _handleNativeCopy() {
+    if (!_acceptsFileTransferInput) {
+      return;
+    }
+    unawaited(_copySelectedObjectsToClipboard());
+  }
+
   Future<void> _uploadLocalPaths(List<String> localPaths) async {
     if (!_acceptsFileTransferInput || localPaths.isEmpty) {
       return;
