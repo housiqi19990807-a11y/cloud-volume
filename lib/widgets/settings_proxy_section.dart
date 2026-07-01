@@ -1,9 +1,9 @@
-// 代理设置区：全局代理模式选择（跟随环境变量 / 直连 / 自定义代理）+ GitHub 镜像。
+// 代理设置区：全局代理模式选择（跟随系统 / 直连 / 自定义）。
 // 自定义代理支持 HTTP / SOCKS5 类型、主机端口、可选账号密码。
+// GitHub 加速镜像不在这里，在「应用更新」区域单独配置。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
-import 'package:remote_storage/services/update_settings.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class SettingsProxySection extends StatefulWidget {
@@ -29,7 +29,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
   late TextEditingController _portController;
   late TextEditingController _usernameController;
   late TextEditingController _passwordController;
-  late TextEditingController _mirrorController;
   bool _saving = false;
   bool _obscurePassword = true;
 
@@ -43,15 +42,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
     _portController = TextEditingController(text: c.proxyPort);
     _usernameController = TextEditingController(text: c.proxyUsername);
     _passwordController = TextEditingController(text: c.proxyPassword);
-    _mirrorController = TextEditingController();
-    _loadMirror();
-  }
-
-  Future<void> _loadMirror() async {
-    final config = await loadUpdateNetworkConfig();
-    if (mounted) {
-      _mirrorController.text = config.mirrorPrefix;
-    }
   }
 
   @override
@@ -60,7 +50,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
     _portController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
-    _mirrorController.dispose();
     super.dispose();
   }
 
@@ -84,8 +73,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
           const SizedBox(height: 12),
           _buildCustomProxyFields(theme),
         ],
-        const SizedBox(height: 14),
-        _buildMirrorInput(theme),
         const SizedBox(height: 14),
         _buildSaveButton(theme),
       ],
@@ -127,7 +114,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Proxy type selector
         Wrap(
           spacing: 8,
           children: [
@@ -136,7 +122,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
           ],
         ),
         const SizedBox(height: 10),
-        // Host + Port row
         Row(
           children: [
             Expanded(
@@ -161,7 +146,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
           ],
         ),
         const SizedBox(height: 10),
-        // Username + Password row
         Row(
           children: [
             Expanded(
@@ -173,9 +157,7 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
               ),
             ),
             const SizedBox(width: 10),
-            Expanded(
-              child: _labeledPasswordInput(theme),
-            ),
+            Expanded(child: _labeledPasswordInput(theme)),
           ],
         ),
       ],
@@ -249,7 +231,7 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               width: 36,
               height: 36,
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.symmetric(horizontal: 0),
               child: Icon(
                 _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
                 size: 15,
@@ -258,43 +240,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildMirrorInput(ShadThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'GitHub 加速镜像（用于更新检查和下载，留空则直连）',
-          style: TextStyle(
-            fontSize: 11.5,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 6),
-        ShadInput(
-          controller: _mirrorController,
-          placeholder: const Text('https://gh-proxy.com'),
-          style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          children: [
-            _mirrorChip('直连', ''),
-            _mirrorChip('gh-proxy', 'https://gh-proxy.com'),
-            _mirrorChip('ghfast', 'https://ghfast.top'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _mirrorChip(String label, String value) {
-    return ShadButton.outline(
-      onPressed: () => _mirrorController.text = value,
-      child: Text(label, style: const TextStyle(fontSize: 11)),
     );
   }
 
@@ -317,9 +262,6 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
         proxyPassword: _passwordController.text,
       );
       await widget.onSaveProxy(newConfig);
-      await saveUpdateNetworkConfig(
-        UpdateNetworkConfig(mirrorPrefix: _mirrorController.text.trim()),
-      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }

@@ -81,8 +81,16 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
           canInstallInApp: _canInstallInApp,
          onCheckForUpdates: _checking ? null : _checkForUpdates,
          onOpenDownloadPage: _openingDownloadPage ? null : _openDownloadPage,
-         onInstall: (_installing || !_canInstallInApp) ? null : _startInstall,
-       ),
+        onInstall: (_installing || !_canInstallInApp) ? null : _startInstall,
+      ),
+        const SizedBox(height: 14),
+        _GitHubMirrorField(
+          theme: theme,
+          initialConfig: _mirrorConfig,
+          onSaved: (config) {
+            setState(() => _mirrorConfig = config);
+          },
+        ),
      ],
    );
  }
@@ -450,8 +458,117 @@ class _UpdateStatusRow extends StatelessWidget {
              Text(openingDownloadPage ? '打开中...' : 'GitHub 下载'),
            ],
          ),
-       ),
-      ],
+      ),
+     ],
+   );
+ }
+}
+
+/// GitHub 加速镜像配置：独立于代理设置，仅影响 GitHub 更新检查与下载。
+class _GitHubMirrorField extends StatefulWidget {
+  const _GitHubMirrorField({
+    required this.theme,
+    required this.initialConfig,
+    required this.onSaved,
+  });
+
+  final ShadThemeData theme;
+  final UpdateNetworkConfig initialConfig;
+  final void Function(UpdateNetworkConfig config) onSaved;
+
+  @override
+  State<_GitHubMirrorField> createState() => _GitHubMirrorFieldState();
+}
+
+class _GitHubMirrorFieldState extends State<_GitHubMirrorField> {
+  late TextEditingController _controller;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialConfig.mirrorPrefix);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondary,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'GitHub 加速镜像',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.foreground,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '仅影响更新检查和下载，留空则直连 GitHub。',
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.45,
+              color: theme.colorScheme.mutedForeground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ShadInput(
+            controller: _controller,
+            placeholder: const Text('https://gh-proxy.com'),
+            style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _mirrorChip('直连', ''),
+              _mirrorChip('gh-proxy', 'https://gh-proxy.com'),
+              _mirrorChip('ghfast', 'https://ghfast.top'),
+              const SizedBox(width: 8),
+              ShadButton(
+                onPressed: _saving ? null : _save,
+                height: 30,
+                child: Text(_saving ? '保存中...' : '保存镜像', style: const TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
+  }
+
+  Widget _mirrorChip(String label, String value) {
+    return ShadButton.outline(
+      onPressed: () => _controller.text = value,
+      height: 30,
+      child: Text(label, style: const TextStyle(fontSize: 11)),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final config = UpdateNetworkConfig(mirrorPrefix: _controller.text.trim());
+      await saveUpdateNetworkConfig(config);
+      widget.onSaved(config);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
