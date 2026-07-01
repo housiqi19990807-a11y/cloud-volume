@@ -14,7 +14,6 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	configured := len(profiles) > 0
 
 	var config storageconfig.RemoteStorageConfig
-	var configPath string
 	if configured {
 		activeName := profiles[0].Name
 		for _, profile := range profiles {
@@ -28,18 +27,8 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 			return storageconfig.BootstrapState{}, err
 		}
 		config = loadedConfig
-		path, err := storageconfig.ProfileConfigPath(activeName)
-		if err != nil {
-			return storageconfig.BootstrapState{}, err
-		}
-		configPath = path
 	} else {
 		config = storageconfig.DefaultConfig()
-		path, err := storageconfig.DefaultConfigPath()
-		if err != nil {
-			return storageconfig.BootstrapState{}, err
-		}
-		configPath = path
 	}
 	publicConfig, err := config.PublicSanitized().WithResolvedCacheDirectory()
 	if err != nil {
@@ -47,7 +36,7 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	}
 
 	return storageconfig.BootstrapState{
-		ConfigPath: configPath,
+		ConfigPath: "bbolt",
 		Configured: isWebConfigured(config),
 		Config:     publicConfig,
 		Profiles:   profiles,

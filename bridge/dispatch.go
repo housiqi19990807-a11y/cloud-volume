@@ -146,7 +146,6 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	configured := len(profiles) > 0
 
 	var config storageconfig.RemoteStorageConfig
-	var configPath string
 	if configured {
 		activeName := profiles[0].Name
 		for _, profile := range profiles {
@@ -156,12 +155,8 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 			}
 		}
 		config, _ = storageconfig.LoadProfile(activeName)
-		p, _ := storageconfig.ProfileConfigPath(activeName)
-		configPath = p
 	} else {
 		config = storageconfig.DefaultConfig()
-		p, _ := storageconfig.DefaultConfigPath()
-		configPath = p
 	}
 	publicConfig, err := config.WithResolvedCacheDirectory()
 	if err != nil {
@@ -169,7 +164,7 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	}
 
 	return storageconfig.BootstrapState{
-		ConfigPath: configPath,
+		ConfigPath: "bbolt",
 		Configured: config.IsConfigured(),
 		Config:     publicConfig,
 		Profiles:   profiles,
@@ -189,7 +184,7 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 	// Apply proxy settings to the Baidu Pan SDK before any network calls.
 	storageops.ApplyBaiduPanProxy(input.Config)
 	// Save to "default" profile.
-	if err := storageconfig.SaveProfile("default", input.Config); err != nil {
+	if err := storageconfig.SaveProfileWithValidation("default", input.Config); err != nil {
 		return storageconfig.BootstrapState{}, err
 	}
 	_ = storageconfig.SetActiveProfile("default")

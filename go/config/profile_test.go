@@ -7,163 +7,12 @@ import (
 	"testing"
 )
 
-// setTestHome redirects os.UserHomeDir to an isolated temp directory on every
-// platform: $HOME on Unix and $USERPROFILE on Windows.
 func setTestHome(t *testing.T, home string) {
 	t.Helper()
 	t.Setenv("HOME", home)
 	if runtime.GOOS == "windows" {
 		t.Setenv("USERPROFILE", home)
 	}
-}
-
-// Profile migration tests protect upgrades from the old Remote Storage data root.
-func TestMigrateDefaultCopiesLegacyConfigToCloudVolumeProfile(t *testing.T) {
-	home := t.TempDir()
-	setTestHome(t, home)
-
-	legacyConfigPath := filepath.Join(home, legacyConfigDirName, configFileName)
-	if err := os.MkdirAll(filepath.Dir(legacyConfigPath), 0o700); err != nil {
-		t.Fatalf("create legacy config dir: %v", err)
-	}
-	payload := []byte("endpoint = \"https://legacy.example\"\naccess_key_id = \"ak\"\nsecret_access_key = \"sk\"\n")
-	if err := os.WriteFile(legacyConfigPath, payload, 0o600); err != nil {
-		t.Fatalf("write legacy config: %v", err)
-	}
-
-	if err := MigrateDefault(); err != nil {
-		t.Fatalf("MigrateDefault returned error: %v", err)
-	}
-
-	defaultPath, err := DefaultConfigPath()
-	if err != nil {
-		t.Fatalf("DefaultConfigPath returned error: %v", err)
-	}
-	assertFileBytes(t, defaultPath, payload)
-
-	profilePath, err := ProfileConfigPath("default")
-	if err != nil {
-		t.Fatalf("ProfileConfigPath returned error: %v", err)
-	}
-	assertFileBytes(t, profilePath, payload)
-	assertPathMissing(t, legacyConfigPath)
-}
-
-func TestMigrateDefaultCopiesLegacyProfiles(t *testing.T) {
-	home := t.TempDir()
-	setTestHome(t, home)
-
-	legacyProfilePath := filepath.Join(home, legacyConfigDirName, profilesDir, "default.toml")
-	if err := os.MkdirAll(filepath.Dir(legacyProfilePath), 0o700); err != nil {
-		t.Fatalf("create legacy profiles dir: %v", err)
-	}
-	payload := []byte("endpoint = \"https://profile.example\"\naccess_key_id = \"ak\"\nsecret_access_key = \"sk\"\n")
-	if err := os.WriteFile(legacyProfilePath, payload, 0o600); err != nil {
-		t.Fatalf("write legacy profile: %v", err)
-	}
-
-	if err := MigrateDefault(); err != nil {
-		t.Fatalf("MigrateDefault returned error: %v", err)
-	}
-
-	defaultPath, err := DefaultConfigPath()
-	if err != nil {
-		t.Fatalf("DefaultConfigPath returned error: %v", err)
-	}
-	assertFileBytes(t, defaultPath, payload)
-
-	profilePath, err := ProfileConfigPath("default")
-	if err != nil {
-		t.Fatalf("ProfileConfigPath returned error: %v", err)
-	}
-	assertFileBytes(t, profilePath, payload)
-	assertPathMissing(t, legacyProfilePath)
-}
-
-func TestDeleteDefaultProfileRemovesMigratableSources(t *testing.T) {
-	home := t.TempDir()
-	setTestHome(t, home)
-
-	config := validTestConfig()
-	if err := SaveProfile("default", config); err != nil {
-		t.Fatalf("SaveProfile returned error: %v", err)
-	}
-	defaultPath, err := DefaultConfigPath()
-	if err != nil {
-		t.Fatalf("DefaultConfigPath returned error: %v", err)
-	}
-	legacyConfigPath := filepath.Join(home, legacyConfigDirName, configFileName)
-	legacyProfilePath := filepath.Join(home, legacyConfigDirName, profilesDir, "default.toml")
-	for _, path := range []string{defaultPath, legacyConfigPath, legacyProfilePath} {
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatalf("create dir for %s: %v", path, err)
-		}
-		if err := os.WriteFile(path, []byte("endpoint = \"https://old.example\"\n"), 0o600); err != nil {
-			t.Fatalf("write %s: %v", path, err)
-		}
-	}
-
-	if err := DeleteProfile("default"); err != nil {
-		t.Fatalf("DeleteProfile returned error: %v", err)
-	}
-	if err := MigrateDefault(); err != nil {
-		t.Fatalf("MigrateDefault returned error: %v", err)
-	}
-
-	profiles, err := ListProfiles()
-	if err != nil {
-		t.Fatalf("ListProfiles returned error: %v", err)
-	}
-	if len(profiles) != 0 {
-		t.Fatalf("profiles = %v, want empty", profiles)
-	}
-	for _, path := range []string{defaultPath, legacyConfigPath, legacyProfilePath} {
-		assertPathMissing(t, path)
-	}
-}
-
-func TestResetAllProfilesClearsEveryAccount(t *testing.T) {
-	home := t.TempDir()
-	setTestHome(t, home)
-
-	if err := SaveProfile("alpha", validTestConfig()); err != nil {
-		t.Fatalf("SaveProfile alpha returned error: %v", err)
-	}
-	if err := SetActiveProfile("alpha"); err != nil {
-		t.Fatalf("SetActiveProfile returned error: %v", err)
-	}
-	// Seed a legacy default config too so we confirm it gets removed as well.
-	legacyConfigPath := filepath.Join(home, legacyConfigDirName, configFileName)
-	if err := os.MkdirAll(filepath.Dir(legacyConfigPath), 0o700); err != nil {
-		t.Fatalf("create legacy config dir: %v", err)
-	}
-	if err := os.WriteFile(legacyConfigPath, []byte("endpoint = \"https://legacy.example\"\n"), 0o600); err != nil {
-		t.Fatalf("write legacy config: %v", err)
-	}
-
-	if err := ResetAllProfiles(); err != nil {
-		t.Fatalf("ResetAllProfiles returned error: %v", err)
-	}
-
-	profiles, err := ListProfiles()
-	if err != nil {
-		t.Fatalf("ListProfiles returned error: %v", err)
-	}
-	if len(profiles) != 0 {
-		t.Fatalf("profiles = %v, want empty after reset", profiles)
-	}
-	defaultPath, err := DefaultConfigPath()
-	if err != nil {
-		t.Fatalf("DefaultConfigPath returned error: %v", err)
-	}
-	for _, path := range []string{defaultPath, legacyConfigPath} {
-		assertPathMissing(t, path)
-	}
-	activePath, err := ActiveProfilePath()
-	if err != nil {
-		t.Fatalf("ActiveProfilePath returned error: %v", err)
-	}
-	assertPathMissing(t, activePath)
 }
 
 func validTestConfig() RemoteStorageConfig {
@@ -175,22 +24,147 @@ func validTestConfig() RemoteStorageConfig {
 	}
 }
 
-func assertFileBytes(t *testing.T, path string, want []byte) {
+func assertPathMissing(t *testing.T, path string) {
 	t.Helper()
-
-	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-	if string(got) != string(want) {
-		t.Fatalf("%s = %q, want %q", path, string(got), string(want))
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("%s still exists or stat failed with %v", path, err)
 	}
 }
 
-func assertPathMissing(t *testing.T, path string) {
-	t.Helper()
+// MigrateDefault now imports legacy TOML into bbolt and deletes the old files.
+func TestMigrateDefaultImportsLegacyConfig(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
 
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("%s still exists or stat failed with %v", path, err)
+	legacyConfigPath := filepath.Join(home, legacyConfigDirName, configFileName)
+	os.MkdirAll(filepath.Dir(legacyConfigPath), 0o700)
+	os.WriteFile(legacyConfigPath,
+		[]byte("endpoint = \"https://legacy.example\"\naccess_key_id = \"ak\"\nsecret_access_key = \"sk\"\n"), 0o600)
+
+	if err := MigrateDefault(); err != nil {
+		t.Fatalf("MigrateDefault returned error: %v", err)
+	}
+
+	// Profile should be in bbolt now.
+	profiles, err := ListProfiles()
+	if err != nil {
+		t.Fatalf("ListProfiles returned error: %v", err)
+	}
+	if len(profiles) != 1 {
+		t.Fatalf("expected 1 profile after migration, got %d", len(profiles))
+	}
+	if profiles[0].Endpoint != "https://legacy.example" {
+		t.Fatalf("unexpected endpoint %q", profiles[0].Endpoint)
+	}
+	// Old config files should be cleaned up.
+	assertPathMissing(t, legacyConfigPath)
+}
+
+func TestMigrateDefaultImportsLegacyProfilesDir(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+
+	profileDir := filepath.Join(home, configDirName, profilesDir)
+	profilePath := filepath.Join(profileDir, "myaccount.toml")
+	os.MkdirAll(profileDir, 0o700)
+	os.WriteFile(profilePath,
+		[]byte("endpoint = \"https://profile.example\"\naccess_key_id = \"ak\"\nsecret_access_key = \"sk\"\n"), 0o600)
+
+	if err := MigrateDefault(); err != nil {
+		t.Fatalf("MigrateDefault returned error: %v", err)
+	}
+
+	profiles, err := ListProfiles()
+	if err != nil {
+		t.Fatalf("ListProfiles returned error: %v", err)
+	}
+	if len(profiles) != 1 {
+		t.Fatalf("expected 1 profile, got %d", len(profiles))
+	}
+	if profiles[0].Name != "myaccount" {
+		t.Fatalf("unexpected profile name %q", profiles[0].Name)
+	}
+	assertPathMissing(t, profilePath)
+}
+
+func TestSaveLoadDeleteProfile(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+
+	cfg := validTestConfig()
+	if err := SaveProfile("alpha", cfg); err != nil {
+		t.Fatalf("SaveProfile returned error: %v", err)
+	}
+
+	loaded, err := LoadProfile("alpha")
+	if err != nil {
+		t.Fatalf("LoadProfile returned error: %v", err)
+	}
+	if loaded.Endpoint != "https://current.example" {
+		t.Fatalf("unexpected endpoint %q", loaded.Endpoint)
+	}
+
+	profiles, err := ListProfiles()
+	if err != nil {
+		t.Fatalf("ListProfiles returned error: %v", err)
+	}
+	if len(profiles) != 1 || profiles[0].Name != "alpha" {
+		t.Fatalf("unexpected profiles: %v", profiles)
+	}
+
+	if err := DeleteProfile("alpha"); err != nil {
+		t.Fatalf("DeleteProfile returned error: %v", err)
+	}
+
+	profiles, _ = ListProfiles()
+	if len(profiles) != 0 {
+		t.Fatalf("expected 0 profiles after delete, got %d", len(profiles))
+	}
+}
+
+func TestSetActiveProfile(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+
+	if err := SaveProfile("alpha", validTestConfig()); err != nil {
+		t.Fatalf("SaveProfile alpha: %v", err)
+	}
+	if err := SaveProfile("beta", validTestConfig()); err != nil {
+		t.Fatalf("SaveProfile beta: %v", err)
+	}
+	if err := SetActiveProfile("beta"); err != nil {
+		t.Fatalf("SetActiveProfile: %v", err)
+	}
+
+	active, err := ActiveProfileName()
+	if err != nil {
+		t.Fatalf("ActiveProfileName: %v", err)
+	}
+	if active != "beta" {
+		t.Fatalf("expected active profile beta, got %q", active)
+	}
+
+	profiles, _ := ListProfiles()
+	for _, p := range profiles {
+		if p.Name == "beta" && !p.Active {
+			t.Fatalf("beta should be active")
+		}
+	}
+}
+
+func TestResetAllProfiles(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+
+	SaveProfile("alpha", validTestConfig())
+	SetActiveProfile("alpha")
+
+	if err := ResetAllProfiles(); err != nil {
+		t.Fatalf("ResetAllProfiles: %v", err)
+	}
+
+	profiles, _ := ListProfiles()
+	if len(profiles) != 0 {
+		t.Fatalf("expected 0 profiles after reset, got %d", len(profiles))
 	}
 }

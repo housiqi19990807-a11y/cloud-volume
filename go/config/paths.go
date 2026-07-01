@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,4 +72,24 @@ func windowsInstallRoot() (string, error) {
 // packages (e.g. the sync store) can place their files alongside config.
 func AppDataRoot() (string, error) {
 	return appDataRoot()
+}
+
+// pathExists reports whether a file or directory exists.
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func removeFileIfExists(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+func removeDirIfExists(path string) error {
+	if err := os.RemoveAll(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
