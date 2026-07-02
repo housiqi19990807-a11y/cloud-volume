@@ -10,6 +10,7 @@ import 'package:remote_storage/app/sync_editor_window_app.dart';
 import 'package:remote_storage/models/account_editor_window_args.dart';
 import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
 import 'package:remote_storage/models/file_preview_window_args.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:remote_storage/services/desktop_window_method_host.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
@@ -127,9 +128,10 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
 
   Future<void> _configureAccountEditorWindow(AccountEditorWindowArgs args) async {
     final title = args.editing ? '编辑账号' : '新增账号';
-    const options = WindowOptions(
-      size: Size(520, 640),
-      minimumSize: Size(480, 560),
+    final size = _accountEditorWindowSize(args);
+    final options = WindowOptions(
+      size: size,
+      minimumSize: const Size(480, 400),
       center: false,
       skipTaskbar: false,
       titleBarStyle: TitleBarStyle.hidden,
@@ -140,7 +142,7 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
       await windowManager.setTitle(title);
       await windowManager.show();
       await positionChildCenteredFromFrame(
-        size: const Size(520, 640),
+        size: size,
         creatorFrameLeft: args.creatorFrameLeft,
         creatorFrameTop: args.creatorFrameTop,
         creatorFrameWidth: args.creatorFrameWidth,
@@ -149,4 +151,14 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
       );
       await windowManager.focus();
     });
+  }
+
+  Size _accountEditorWindowSize(AccountEditorWindowArgs args) {
+    if (!args.editing) return const Size(520, 640);
+    final storageType = args.initialConfig?.storageType;
+    return switch (storageType) {
+      StorageType.baiduPan => const Size(520, 420),
+      StorageType.webdav => const Size(520, 520),
+      _ => const Size(520, 580),
+    };
   }

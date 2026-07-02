@@ -123,12 +123,14 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _StorageTypeSegmentedControl(
-          value: _storageType,
-          enabled: !widget.editing,
-          onChanged: (value) => setState(() => _storageType = value),
-        ),
-        const SizedBox(height: 18),
+        if (!widget.editing) ...[
+          _StorageTypeSegmentedControl(
+            value: _storageType,
+            enabled: true,
+            onChanged: (value) => setState(() => _storageType = value),
+          ),
+          const SizedBox(height: 18),
+        ],
         CloudStorageLabeledField(
           label: '名称',
           child: ShadInput(
