@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/pages/cloud_storage_page.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/models/sync_remote_open_request.dart';
@@ -61,7 +62,9 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
     setState(() => _pendingSyncRemoteOpen = null);
   }
 
-  bool get _sharesAvailable => widget.state.config.supportsShareLinks;
+ bool get _sharesAvailable => widget.state.config.supportsShareLinks;
+  // Sync requires local filesystem access and desktop-only FFI services.
+  bool get _syncAvailable => !isWebPlatform;
 
   SidebarItem get _effectiveSelectedItem {
     if (!_sharesAvailable && widget.selectedItem == SidebarItem.shares) {
@@ -212,13 +215,14 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
                   ac,
                   muted,
                 ),
-                _navItem(
-                  LucideIcons.refreshCw,
-                  '文件同步',
-                  SidebarItem.fileSyncTasks,
-                  ac,
-                  muted,
-                ),
+                if (_syncAvailable)
+                  _navItem(
+                    LucideIcons.refreshCw,
+                    '文件同步',
+                    SidebarItem.fileSyncTasks,
+                    ac,
+                    muted,
+                  ),
                 _navItem(
                   LucideIcons.settings2,
                   '系统设置',
@@ -366,7 +370,11 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        cursor: _hovered ? SystemMouseCursors.click : MouseCursor.defer,
+        // Use basic arrow when idle so the cursor doesn't get stuck on a
+        // pointing hand inherited from an ancestor.
+        cursor: _hovered
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,

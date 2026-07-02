@@ -286,19 +286,22 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       const SizedBox(height: 20),
-      _buildCard(
-        theme,
-        'WebDAV 凭据',
-        WebDavCredentialsSection(
-          theme: theme,
-          username: config.webdavUsername,
-          hasPassword: config.hasWebdavPassword,
-          saving: _savingWebdavCredentials,
-          errorText: _webdavCredentialsError,
-          onSave: (username, password) =>
-              _saveWebdavCredentials(config, username, password),
+      if (!isWebPlatform) ...[
+        _buildCard(
+          theme,
+          'WebDAV 凭据',
+          WebDavCredentialsSection(
+            theme: theme,
+            username: config.webdavUsername,
+            hasPassword: config.hasWebdavPassword,
+            saving: _savingWebdavCredentials,
+            errorText: _webdavCredentialsError,
+            onSave: (username, password) =>
+                _saveWebdavCredentials(config, username, password),
+          ),
         ),
-      ),
+        const SizedBox(height: 20),
+      ],
       const SizedBox(height: 20),
       _buildCard(
         theme,
