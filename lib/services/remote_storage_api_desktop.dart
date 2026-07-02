@@ -96,6 +96,14 @@ class RemoteStorageApi
   }
 
   @override
+  Future<BridgeBuildInfo> getBuildInfo() async {
+    final payload =
+        await runBridgeCall('get_build_info') as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    return BridgeBuildInfo.fromJson(payload);
+  }
+
+  @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async {
     final payload =
         await runBridgeCall('save_config', <String, dynamic>{

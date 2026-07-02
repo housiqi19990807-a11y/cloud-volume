@@ -168,7 +168,7 @@ build_macos_bridge() {
     CGO_CFLAGS="$(macos_bridge_flags "$arch")" \
     CGO_CXXFLAGS="$(macos_bridge_flags "$arch")" \
     CGO_LDFLAGS="$(macos_bridge_flags "$arch")" \
-    go build -buildmode=c-shared -o "$output_path" ./bridge
+    go build -buildmode=c-shared -ldflags "-X main.buildArch=$go_arch" -o "$output_path" ./bridge
 }
 
 build_macos_flutter() {
@@ -338,7 +338,7 @@ build_windows() {
     if [[ -n "${BRIDGE_CC:-}" ]]; then
       export CC="$BRIDGE_CC"
     fi
-    go build -buildmode=c-shared -o bin/bridge/remote_storage_bridge.dll ./bridge
+    go build -buildmode=c-shared -ldflags "-X main.buildArch=$ARCH" -o bin/bridge/remote_storage_bridge.dll ./bridge
     flutter build windows --release \
       --dart-define APP_VERSION_LABEL=$VERSION \
       --build-name "$VERSION" \
@@ -416,7 +416,7 @@ build_linux() {
       export CC="$BRIDGE_CC"
     fi
     env CGO_ENABLED=1 GOOS=linux GOARCH="$(linux_go_arch "$ARCH")" \
-      go build -buildmode=c-shared -o "$bridge_so" ./bridge
+      go build -buildmode=c-shared -ldflags "-X main.buildArch=$ARCH" -o "$bridge_so" ./bridge
     flutter build linux --release \
       --target-platform "$flutter_target" \
       --dart-define APP_VERSION_LABEL=$VERSION \

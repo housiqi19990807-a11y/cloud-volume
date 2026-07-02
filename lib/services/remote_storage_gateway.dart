@@ -64,6 +64,7 @@ abstract class RemoteStorageGateway {
   Future<void> logout();
 
   Future<BootstrapState> loadBootstrapState();
+  Future<BridgeBuildInfo> getBuildInfo();
   Future<BootstrapState> saveConfig(RemoteStorageConfig config);
   Future<bool> updateProxySettings({
     required String proxyMode,
@@ -242,6 +243,27 @@ abstract class RemoteStorageGateway {
 }
 
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
+
+/// Bridge build metadata used for update package selection.
+class BridgeBuildInfo {
+  const BridgeBuildInfo({
+    this.buildArch = '',
+    this.runtimeOS = '',
+    this.runtimeArch = '',
+  });
+
+  factory BridgeBuildInfo.fromJson(Map<String, dynamic> json) {
+    return BridgeBuildInfo(
+      buildArch: (json['buildArch'] ?? '').toString(),
+      runtimeOS: (json['runtimeOS'] ?? '').toString(),
+      runtimeArch: (json['runtimeArch'] ?? '').toString(),
+    );
+  }
+
+  final String buildArch;
+  final String runtimeOS;
+  final String runtimeArch;
+}
 
 /// [CacheStats] mirrors the Go-side cache directory summary used by Settings.
 class CacheStats {

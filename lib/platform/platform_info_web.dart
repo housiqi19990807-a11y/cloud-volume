@@ -4,3 +4,6 @@ bool get isWebPlatform => true;
 bool get isWindowsPlatform => false;
 bool get isLinuxPlatform => false;
 bool get isMacOSPlatform => false;
+
+/// Browsers do not expose a reliable install target architecture here.
+String get runtimeCpuArchitecture => '';

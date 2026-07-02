@@ -85,7 +85,9 @@ class AppUpdateService {
     // Rebuild the HTTP client if a non-default proxy config is given so runtime
     // changes to the proxy settings take effect immediately.
     final client = _clientForProxy(proxyConfig);
-    final apiUrl = networkConfig.wrapUrl(kAppLatestReleaseApiUrl);
+    // Release metadata must be read directly from the GitHub API. Public
+    // download mirrors such as gh-proxy commonly reject api.github.com URLs.
+    final apiUrl = kAppLatestReleaseApiUrl;
     final response = await client
         .get(
           Uri.parse(apiUrl),

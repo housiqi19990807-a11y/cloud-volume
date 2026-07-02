@@ -5,10 +5,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/services/app_installer.dart';
 import 'package:remote_storage/services/app_update_service.dart';
+import 'package:remote_storage/services/remote_storage_gateway.dart';
 import 'package:remote_storage/services/proxy_http_client.dart';
 import 'package:remote_storage/services/platform_asset_matcher.dart';
 import 'package:remote_storage/services/update_settings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/widgets/settings_update_mirror_field.dart'
+   show SettingsUpdateMirrorField;
+import 'package:remote_storage/widgets/update_status_row.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -19,12 +23,14 @@ class SettingsUpdateSection extends StatefulWidget {
     required this.currentVersion,
     this.config,
     this.updateService,
+    this.api,
   });
 
   final ShadThemeData theme;
   final String currentVersion;
   final RemoteStorageConfig? config;
   final AppUpdateService? updateService;
+  final RemoteStorageGateway? api;
 
   @override
   State<SettingsUpdateSection> createState() => _SettingsUpdateSectionState();
@@ -41,6 +47,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
   double _installProgress = 0; // 0..1
   String _installStatusText = '';
   UpdateNetworkConfig _mirrorConfig = const UpdateNetworkConfig();
+  // Compile-time architecture reported by the Go bridge; empty until loaded.
+  String _buildArch = '';
 
   @override
   void initState() {
@@ -48,10 +56,28 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     _updateService = widget.updateService ?? AppUpdateService();
     _ownsUpdateService = widget.updateService == null;
     _loadMirrorConfig();
+    _loadBuildArch();
+  }
+
+  /// Prefer the architecture injected into the Go bridge at build time. Falls
+  /// back to a runtime heuristic when the bridge is unavailable (web, dev).
+  Future<void> _loadBuildArch() async {
+    final api = widget.api;
+    if (api == null) return;
+    try {
+      final info = await api.getBuildInfo();
+      final arch = info.buildArch.isNotEmpty ? info.buildArch : info.runtimeArch;
+      if (!mounted) return;
+      if (arch.isNotEmpty) setState(() => _buildArch = arch);
+    } catch (_) {
+      // Non-fatal: matchPlatformAsset falls back to runtime detection.
+    }
   }
 
   Future<void> _loadMirrorConfig() async {
-    _mirrorConfig = await loadUpdateNetworkConfig();
+    final config = await loadUpdateNetworkConfig();
+    if (!mounted) return;
+    setState(() => _mirrorConfig = config);
   }
 
   @override
@@ -68,23 +94,23 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _UpdateStatusRow(
-          theme: theme,
-          title: _statusTitle,
-          subtitle: _statusSubtitle,
-         highlighted: _result?.updateAvailable == true,
-         errorText: _errorText,
-         checking: _checking,
-         openingDownloadPage: _openingDownloadPage,
-          installing: _installing,
-          installProgress: _installProgress,
-          canInstallInApp: _canInstallInApp,
-         onCheckForUpdates: _checking ? null : _checkForUpdates,
-         onOpenDownloadPage: _openingDownloadPage ? null : _openDownloadPage,
-        onInstall: (_installing || !_canInstallInApp) ? null : _startInstall,
-      ),
+        UpdateStatusRow(
+         theme: theme,
+         title: _statusTitle,
+         subtitle: _statusSubtitle,
+        highlighted: _result?.updateAvailable == true,
+        errorText: _errorText,
+        checking: _checking,
+        openingDownloadPage: _openingDownloadPage,
+         installing: _installing,
+     installProgress: _installProgress,
+         canInstallInApp: _canInstallInApp,
+        onCheckForUpdates: _checking ? null : _checkForUpdates,
+        onOpenDownloadPage: _openingDownloadPage ? null : _openDownloadPage,
+       onInstall: (_installing || !_canInstallInApp) ? null : _startInstall,
+     ),
         const SizedBox(height: 14),
-        _GitHubMirrorField(
+        SettingsUpdateMirrorField(
           theme: theme,
           initialConfig: _mirrorConfig,
           onSaved: (config) {
@@ -92,15 +118,19 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
           },
         ),
      ],
-   );
- }
+    );
+  }
 
-  /// Whether the current release has a platform-matched asset we can auto-install.
+  /// Whether the current release has a platform-matched asset for auto-install.
   bool get _canInstallInApp {
     final result = _result;
     if (result == null || !result.updateAvailable) return false;
     if (!kSupportsInAppInstall) return false;
-    return matchPlatformAsset(result.assets) != null;
+    return matchPlatformAsset(
+          result.assets,
+          runtimeArchitecture: _buildArch,
+        ) !=
+        null;
   }
 
   ProxyConfig get _proxyConfig => ProxyConfig(
@@ -116,7 +146,10 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
   Future<void> _startInstall() async {
     final result = _result;
     if (result == null) return;
-    final matched = matchPlatformAsset(result.assets);
+    final matched = matchPlatformAsset(
+      result.assets,
+      runtimeArchitecture: _buildArch,
+    );
     if (matched == null) {
       _showError('未找到适合当前平台的安装包，请前往 GitHub 手动下载。');
       return;
@@ -124,7 +157,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
 
     setState(() {
       _installing = true;
-      _installProgress = 0;
+      _installProgress = -1;
       _installStatusText = '正在下载 ${matched.asset.name}...';
       _errorText = null;
     });
@@ -136,11 +169,13 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       proxyConfig: _proxyConfig,
       onProgress: (received, total) {
         if (!mounted) return;
-        final progress = total > 0 ? received / total : 0.0;
+        final progress = total > 0 ? received / total : -1.0;
         setState(() {
           _installProgress = progress;
           if (progress >= 1) {
             _installStatusText = '下载完成，正在安装...';
+          } else if (progress < 0) {
+            _installStatusText = '正在下载 ${_formatBytes(received)}...';
           }
         });
       },
@@ -171,6 +206,9 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       return '正在连接 GitHub';
     }
     if (_installing) {
+      if (_installProgress < 0) {
+        return '正在下载安装包';
+      }
       final pct = (_installProgress * 100).clamp(0, 100).toInt();
       return _installProgress >= 1 ? '正在安装新版本...' : '正在下载 $pct%';
     }
@@ -264,311 +302,14 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     }
     setState(() => _errorText = message);
   }
-}
 
-class _UpdateStatusRow extends StatelessWidget {
-  const _UpdateStatusRow({
-    required this.theme,
-    required this.title,
-    required this.subtitle,
-    required this.highlighted,
-    required this.errorText,
-    required this.checking,
-    required this.openingDownloadPage,
-    required this.installing,
-    required this.installProgress,
-    required this.canInstallInApp,
-    required this.onCheckForUpdates,
-    required this.onOpenDownloadPage,
-    required this.onInstall,
-  });
-
-  final ShadThemeData theme;
-  final String title;
-  final String subtitle;
-  final bool highlighted;
-  final String? errorText;
-  final bool checking;
-  final bool openingDownloadPage;
-  final bool installing;
-  final double installProgress;
-  final bool canInstallInApp;
-  final VoidCallback? onCheckForUpdates;
-  final VoidCallback? onOpenDownloadPage;
-  final VoidCallback? onInstall;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 680;
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondary,
-            border: highlighted
-                ? Border.all(color: theme.colorScheme.primary)
-                : Border.all(color: Colors.transparent),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: compact ? _buildCompactContent() : _buildWideContent(),
-        );
-      },
-    );
-  }
-
-  Widget _buildWideContent() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        _buildIcon(),
-        const SizedBox(width: 12),
-        Expanded(child: _buildCopy()),
-        const SizedBox(width: 12),
-        _buildActions(WrapAlignment.end),
-      ],
-    );
-  }
-
-  Widget _buildCompactContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildIcon(),
-            const SizedBox(width: 12),
-            Expanded(child: _buildCopy()),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _buildActions(WrapAlignment.start),
-      ],
-    );
-  }
-
-  Widget _buildIcon() {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: highlighted
-            ? theme.colorScheme.primary.withValues(alpha: 0.12)
-            : theme.colorScheme.background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(
-        highlighted ? LucideIcons.circleArrowUp : LucideIcons.badgeCheck,
-        size: 18,
-        color: highlighted
-            ? theme.colorScheme.primary
-            : theme.colorScheme.mutedForeground,
-      ),
-    );
-  }
-
-  Widget _buildCopy() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.foreground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.45,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-       if (errorText != null) ...[
-         const SizedBox(height: 6),
-         Text(
-           errorText!,
-           style: TextStyle(
-             fontSize: 12,
-             height: 1.45,
-             color: theme.colorScheme.destructive,
-           ),
-         ),
-       ],
-        if (installing) ...[
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: installProgress.clamp(0.0, 1.0),
-              backgroundColor: theme.colorScheme.background,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                theme.colorScheme.primary,
-              ),
-              minHeight: 5,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
- Widget _buildActions(WrapAlignment alignment) {
-   return Wrap(
-     spacing: 8,
-     runSpacing: 8,
-     alignment: alignment,
-     children: [
-        if (canInstallInApp || installing)
-          ShadButton(
-            onPressed: installing ? null : onInstall,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.download, size: 15),
-                const SizedBox(width: 8),
-                Text(installing ? '更新中...' : '一键更新'),
-              ],
-            ),
-          ),
-       ShadButton.outline(
-         onPressed: onCheckForUpdates,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.refreshCw, size: 15),
-              const SizedBox(width: 8),
-              Text(checking ? '检测中...' : '检测更新'),
-            ],
-          ),
-        ),
-        ShadButton.outline(
-         onPressed: onOpenDownloadPage,
-         child: Row(
-           mainAxisSize: MainAxisSize.min,
-           children: [
-             Icon(LucideIcons.externalLink, size: 15),
-             const SizedBox(width: 8),
-             Text(openingDownloadPage ? '打开中...' : 'GitHub 下载'),
-           ],
-         ),
-      ),
-     ],
-   );
- }
-}
-
-/// GitHub 加速镜像配置：独立于代理设置，仅影响 GitHub 更新检查与下载。
-class _GitHubMirrorField extends StatefulWidget {
-  const _GitHubMirrorField({
-    required this.theme,
-    required this.initialConfig,
-    required this.onSaved,
-  });
-
-  final ShadThemeData theme;
-  final UpdateNetworkConfig initialConfig;
-  final void Function(UpdateNetworkConfig config) onSaved;
-
-  @override
-  State<_GitHubMirrorField> createState() => _GitHubMirrorFieldState();
-}
-
-class _GitHubMirrorFieldState extends State<_GitHubMirrorField> {
-  late TextEditingController _controller;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialConfig.mirrorPrefix);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'GitHub 加速镜像',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.foreground,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '仅影响更新检查和下载，留空则直连 GitHub。',
-            style: TextStyle(
-              fontSize: 11.5,
-              height: 1.45,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ShadInput(
-            controller: _controller,
-            placeholder: const Text('https://gh-proxy.com'),
-            style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _mirrorChip('直连', ''),
-              _mirrorChip('gh-proxy', 'https://gh-proxy.com'),
-              _mirrorChip('ghfast', 'https://ghfast.top'),
-              const SizedBox(width: 8),
-              ShadButton(
-                onPressed: _saving ? null : _save,
-                height: 30,
-                child: Text(_saving ? '保存中...' : '保存镜像', style: const TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _mirrorChip(String label, String value) {
-    return ShadButton.outline(
-      onPressed: () => _controller.text = value,
-      height: 30,
-      child: Text(label, style: const TextStyle(fontSize: 11)),
-    );
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final config = UpdateNetworkConfig(mirrorPrefix: _controller.text.trim());
-      await saveUpdateNetworkConfig(config);
-      widget.onSaved(config);
-    } finally {
-      if (mounted) setState(() => _saving = false);
+  String _formatBytes(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
+    if (bytes >= 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '$bytes B';
   }
 }

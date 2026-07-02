@@ -6,3 +6,17 @@ bool get isWebPlatform => false;
 bool get isWindowsPlatform => Platform.isWindows;
 bool get isLinuxPlatform => Platform.isLinux;
 bool get isMacOSPlatform => Platform.isMacOS;
+
+/// Best-effort CPU architecture of the running Dart/Flutter process.
+String get runtimeCpuArchitecture {
+  final version = Platform.version.toLowerCase();
+  if (version.contains('arm64') || version.contains('aarch64')) {
+    return 'arm64';
+  }
+  if (version.contains('x64') ||
+      version.contains('x86_64') ||
+      version.contains('amd64')) {
+    return 'amd64';
+  }
+  return '';
+}

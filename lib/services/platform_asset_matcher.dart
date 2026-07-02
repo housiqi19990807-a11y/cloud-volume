@@ -26,11 +26,17 @@ class PlatformUpdateAsset {
 
 /// Returns the best-matching asset for the current runtime platform, or `null`
 /// if no suitable package is found in the release.
-PlatformUpdateAsset? matchPlatformAsset(List<ReleaseAsset> assets) {
+PlatformUpdateAsset? matchPlatformAsset(
+  List<ReleaseAsset> assets, {
+  String? runtimeArchitecture,
+}) {
   if (assets.isEmpty) return null;
 
   if (isMacOSPlatform) {
-    return _matchMacOS(assets);
+    return _matchMacOS(
+      assets,
+      runtimeArchitecture ?? runtimeCpuArchitecture,
+    );
   }
   if (isWindowsPlatform) {
     return _matchWindows(assets);
@@ -41,16 +47,25 @@ PlatformUpdateAsset? matchPlatformAsset(List<ReleaseAsset> assets) {
   return null;
 }
 
-PlatformUpdateAsset? _matchMacOS(List<ReleaseAsset> assets) {
-  // Preference order: universal DMG > universal zip > arm64 DMG > arm64 zip.
-  // On Apple Silicon we prefer universal; on Intel we fall back to arm64-less.
-  const priorities = [
+PlatformUpdateAsset? _matchMacOS(List<ReleaseAsset> assets, String arch) {
+  final preferredArch = arch == 'arm64' || arch == 'amd64' ? arch : '';
+  final fallbackArch = preferredArch == 'arm64' ? 'amd64' : 'arm64';
+  final priorities = <List<String>>[
+    if (preferredArch.isNotEmpty) ...[
+      ['macos-$preferredArch', '.dmg'],
+      ['macos-$preferredArch', '.zip'],
+    ],
     ['macos-universal', '.dmg'],
     ['macos-universal', '.zip'],
-    ['macos-arm64', '.dmg'],
-    ['macos-arm64', '.zip'],
-    ['macos-amd64', '.dmg'],
-    ['macos-amd64', '.zip'],
+    if (preferredArch.isNotEmpty) ...[
+      ['macos-$fallbackArch', '.dmg'],
+      ['macos-$fallbackArch', '.zip'],
+    ] else ...[
+      ['macos-arm64', '.dmg'],
+      ['macos-arm64', '.zip'],
+      ['macos-amd64', '.dmg'],
+      ['macos-amd64', '.zip'],
+    ],
   ];
   for (final spec in priorities) {
     final match = _findAsset(assets, spec[0], spec[1]);

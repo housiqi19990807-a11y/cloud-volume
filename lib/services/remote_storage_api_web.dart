@@ -163,6 +163,11 @@ class RemoteStorageApi
   }
 
   @override
+  Future<BridgeBuildInfo> getBuildInfo() async {
+    return const BridgeBuildInfo();
+  }
+
+  @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async {
     final payload =
         await _invoke('save_config', <String, dynamic>{

@@ -259,20 +259,28 @@ The settings page uses a **two-column anchor layout**: a left vertical anchor ra
 
 Detects new GitHub releases and, on desktop, downloads + installs the correct platform package in-app — no manual uninstall or command-line steps needed.
 
+**Mirror rule (2026-07-02 fix):** The GitHub Releases **API** call (`checkLatestRelease`) is **always direct** to `api.github.com` — public download mirrors like `gh-proxy.com` reject api.github.com URLs with HTTP 403. The configured mirror prefix (`UpdateNetworkConfig.wrapUrl`) is now applied **only** to the asset **download** URL in `downloadAndInstallAsset`.
+**Architecture matching (2026-07-02 fix):** `matchPlatformAsset` previously hardcoded universal-first on macOS, so an arm64 app would download the larger universal DMG. It now prefers the **running build architecture**: the Go bridge exposes `get_build_info` returning `buildArch` (injected at compile time via `-ldflags -X main.buildArch=...` in Makefile / `build_desktop_packages.sh`); Flutter reads it via `widget.api.getBuildInfo()` and passes it to `matchPlatformAsset`. If the bridge is unavailable (web, old dev build), it falls back to `runtimeCpuArchitecture` (parsed from `Platform.version`). Universal is tried only after the arch-specific package, and as a fallback when the specific arch asset is absent.
+**Download progress (2026-07-02 fix):** When the server does not report `Content-Length` and the asset metadata has no size, the progress bar previously stayed stuck at 0%. `_installProgress` is now initialized to `-1` (indeterminate); the `LinearProgressIndicator` uses `null` value (continuous animation) and the status text shows downloaded bytes via `_formatBytes`.
+
 #### Key files
 
-- `lib/services/app_update_service.dart` — `AppUpdateService.checkLatestRelease`: fetches GitHub Releases API, parses `tag_name` + `assets` array into `AppUpdateCheckResult` with `List<ReleaseAsset>`. Also has `compareVersionLabels` for semver comparison.
-- `lib/services/platform_asset_matcher.dart` — `matchPlatformAsset`: picks the correct asset for the current OS/arch from the release's asset list. macOS prefers `macos-universal.dmg` → `.zip` → arm64/amd64; Windows prefers `installer.exe` → `.zip`; Linux prefers `.AppImage` → `.tar.gz`.
+- `lib/services/app_update_service.dart` — `AppUpdateService.checkLatestRelease`: fetches GitHub Releases API **directly** (never wrapped by mirror), parses `tag_name` + `assets` array into `AppUpdateCheckResult` with `List<ReleaseAsset>`. Also has `compareVersionLabels` for semver comparison.
+- `lib/services/platform_asset_matcher.dart` — `matchPlatformAsset(assets, {runtimeArchitecture})`: picks the correct asset. macOS order: arch-specific DMG/zip → universal DMG/zip → other-arch DMG/zip; Windows prefers `installer.exe` → `.zip`; Linux prefers `.AppImage` → `.tar.gz`.
 - `lib/services/app_installer.dart` — Conditional export: IO → `app_installer_io.dart`, Web → `app_installer_stub.dart`. Exports `kSupportsInAppInstall` and `downloadAndInstallAsset`.
 - `lib/services/app_installer_io.dart` — Desktop installer: streams download to temp dir with progress callback, then installs per platform. macOS: `hdiutil attach` DMG → copy `.app` to `/Applications` → `xattr -cr` strip quarantine → relaunch. Windows: run Inno Setup `.exe` with `/SILENT /CLOSEAPPLICATIONS` → `exit(0)`. Linux: replace AppImage in-place or extract tarball → relaunch.
 - `lib/services/app_installer_stub.dart` / `app_installer_web.dart` — Web stub: returns error string (no local filesystem access).
-- `lib/widgets/settings_update_section.dart` — Update UI in 设置 → 通用设置 → 应用更新. Shows version status, “检测更新” button, “一键更新” button (visible when in-app install is available), progress bar during download/install, and “GitHub 下载” as fallback.
+- `lib/widgets/settings_update_section.dart` — Update UI in 设置 → 通用设置 → 应用更新. Calls `widget.api.getBuildInfo()` at init to load `_buildArch`, passes it to `matchPlatformAsset`. Shows version status, “检测更新”, “一键更新” (when matched asset exists), indeterminate-or-percentage progress bar, and “GitHub 下载” fallback.
+- `lib/widgets/settings_update_mirror_field.dart` — GitHub download mirror input (extracted from `settings_update_section.dart` to keep it under 500 lines). Persisted via `UpdateNetworkConfig`; affects only `downloadAndInstallAsset` download URLs.
+- `bridge/build_info.go` — `buildArch` package var (set by ldflags) + `getBuildInfo()` returns `{buildArch, runtimeOS, runtimeArch}`. Falls back to `runtime.GOARCH` when `buildArch` is empty (local dev builds).
+- `bridge/dispatch.go` — Routes `get_build_info` → `getBuildInfo()`.
+- `lib/platform/platform_info_io.dart` / `_stub.dart` / `_web.dart` — `runtimeCpuArchitecture` heuristic (parses `Platform.version`), used as Dart-side fallback.
 
 #### Data flow
 
-1. User clicks “检测更新” → `AppUpdateService.checkLatestRelease` → GitHub API.
-2. If `updateAvailable` and `matchPlatformAsset` finds a matching asset → “一键更新” button appears.
-3. User clicks “一键更新” → `downloadAndInstallAsset(asset, installerType, onProgress)` streams download to temp dir, shows progress bar.
+1. User clicks “检测更新” → `AppUpdateService.checkLatestRelease` → GitHub API **direct** (no mirror).
+2. If `updateAvailable` and `matchPlatformAsset(assets, runtimeArchitecture: _buildArch)` finds a matching asset → “一键更新” button appears.
+3. User clicks “一键更新” → `downloadAndInstallAsset(asset, installerType, networkConfig, onProgress)` streams download (URL wrapped by mirror if configured) to temp dir, shows progress bar.
 4. On download complete, platform installer runs: macOS mounts DMG and replaces app, Windows runs installer silently, Linux replaces AppImage.
 5. New version launches, old process calls `exit(0)`.
 
@@ -291,7 +299,7 @@ Three proxy modes: system (read `HTTP_PROXY`/`HTTPS_PROXY` env vars, default), d
 - `lib/services/proxy_http_client.dart` — Conditional export: IO → `proxy_http_client_io.dart` (dart:io `HttpClient` with proxy), Web → stub (browser handles proxy).
 - `lib/services/update_settings.dart` — GitHub mirror config (separate from proxy): persisted in SharedPreferences, wraps github.com URLs with a mirror prefix.
 - `lib/widgets/settings_proxy_section.dart` — Settings UI: proxy mode chips + custom URL input + GitHub mirror input with quick-pick buttons.
-- `bridge/dispatch.go` — `saveConfig` applies `ApplyBaiduPanProxy` before saving.
+- `bridge/dispatch_config.go` — `saveConfig` applies `ApplyBaiduPanProxy` before saving. Also holds `updateProxySettings`, profile CRUD, and cache maintenance handlers (split from `dispatch.go`).
 
 #### Data flow
 
@@ -299,4 +307,4 @@ Three proxy modes: system (read `HTTP_PROXY`/`HTTPS_PROXY` env vars, default), d
 2. `SettingsProxySection._save` → `_saveProxySettings` → `widget.api.saveConfig(config.copyWith(proxyMode, proxyUrl))` → Go `saveConfig` → `ApplyBaiduPanProxy` + `SaveProfile`.
 3. On next S3/WebDAV/MinIO client creation, `ProxyTransport(cfg.ProxyMode, cfg.ProxyURL)` is applied.
 4. Dart http calls (GitHub API, download) use `createProxyHttpClient(ProxyConfig(mode, customUrl))`.
-5. GitHub mirror wraps API and download URLs via `UpdateNetworkConfig.wrapUrl`.
+5. GitHub mirror wraps **download** URLs only (via `UpdateNetworkConfig.wrapUrl` in `app_installer_io.dart`); the Release API call bypasses the mirror entirely.

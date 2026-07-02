@@ -164,6 +164,9 @@ class _FakeApi implements RemoteStorageGateway {
       const AuthSessionState.desktop();
 
   @override
+  Future<BridgeBuildInfo> getBuildInfo() async => const BridgeBuildInfo();
+
+  @override
   Future<void> login(String username, String password) async {}
 
   @override

@@ -170,6 +170,8 @@ class RemoteStorageBridge {
     final result = await Process.run('go', <String>[
       'build',
       '-buildmode=c-shared',
+      '-ldflags',
+      '-X main.buildArch=${_hostGoArch()}',
       '-o',
       outputPath,
       './bridge',
@@ -181,5 +183,13 @@ class RemoteStorageBridge {
         'Go bridge build failed.\n${stderr.isNotEmpty ? stderr : stdout}',
       );
     }
+  }
+
+  static String _hostGoArch() {
+    if (Platform.version.contains('arm64') ||
+        Platform.version.contains('aarch64')) {
+      return 'arm64';
+    }
+    return 'amd64';
   }
 }

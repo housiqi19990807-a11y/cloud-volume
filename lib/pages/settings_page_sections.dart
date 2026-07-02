@@ -14,11 +14,12 @@ extension _SettingsSections on _SettingsPageState {
       _buildCard(
         theme,
         '应用更新',
-        SettingsUpdateSection(
-          theme: theme,
-          currentVersion: kAppRuntimeVersion,
-          config: config,
-        ),
+       SettingsUpdateSection(
+         theme: theme,
+         currentVersion: kAppRuntimeVersion,
+         config: config,
+         api: widget.api,
+       ),
       ),
     ];
   }
