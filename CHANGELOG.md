@@ -9,7 +9,8 @@
 - 配置存储：从 TOML 配置文件迁移到 bbolt 单文件数据库（`~/.cloud-volume/config.db`）。所有账号配置、代理设置统一存储在 bbolt 的 JSON bucket 中，不再使用分散的 TOML 文件。首次启动时自动从旧的 `profiles/*.toml` 和 `config.toml` 迁移到 bbolt，迁移完成后删除旧文件。从根本上避免了 `saveConfig` 整体覆盖导致丢账号的问题。
 
 - 网络代理：设置页新增「网络代理」配置区，支持三种代理模式：跟随系统（读取 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，默认）、直连（忽略所有代理）、自定义代理。自定义代理支持 HTTP 和 SOCKS5 两种代理类型，可配置代理地址、端口、账号和密码（账号密码可选）。代理设置影响应用所有网络请求（S3、WebDAV、百度网盘、GitHub 更新检查）。Go 端 S3 SDK（AWS SDK）、WebDAV HTTP 客户端、百度网盘 SDK 和 MinIO 客户端均已接入代理传输；Dart 端 GitHub API 和下载请求也使用代理感知的 HTTP 客户端。
-- 应用更新：GitHub 更新检查和一键更新下载支持配置加速镜像（如 `gh-proxy.com`、`ghfast.top`），避免因网络问题导致更新失败。镜像地址可在设置页「网络代理」区域填写或快速选择。
+- 应用更新：GitHub 下载加速镜像改为选择模式（直连 / gh-proxy / ghfast / 自定义），选择「自定义」时才显示地址输入框，减少误操作。
+- 应用更新：GitHub 更新检查和一键更新下载支持配置加速镜像（如 `gh-proxy.com`、`ghfast.top`），避免因网络问题导致更新失败。镜像地址可在设置页「应用更新」区域选择或自定义。
 
 - 应用更新：设置页“检测更新”发现新版本后，桌面端可直接点击“一键更新”在应用内自动下载安装包、替换旧版本并自动重启，不再需要手动卸载重装或执行命令行命令。macOS 自动从 DMG 提取并替换 `/Applications/云卷.app`，同时移除隔离属性（不再提示“已损坏”）；Windows 静默运行 Inno Setup 安装程序；Linux 替换 AppImage 或解压 tar.gz。Web 端仍跳转 GitHub 下载页。
 - 文件管理：修复 macOS 上从访达复制文件后 Cmd+V 粘贴上传失效。Flutter macOS 引擎将 Cmd+V 等 key equivalent 发给 FlutterView.keyDown:（普通 NSView），其 interpretKeyEvents: 把事件交给 TSM 输入上下文后静默吞掉，永远到不了引擎键盘管理器和 Flutter Shortcuts。改为在 NSWindow.performKeyEquivalent 拦截 Cmd+V/C，通过 method channel 直接通知 Dart 侧读剪贴板上传。同时修复 Cmd+C 从远端复制选中文件到系统剪贴板。
