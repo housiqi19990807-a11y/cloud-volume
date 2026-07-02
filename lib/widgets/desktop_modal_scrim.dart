@@ -36,6 +36,12 @@ class _DesktopModalScrimState extends State<DesktopModalScrim> {
       child: AbsorbPointer(
         child: ColoredBox(
           color: Colors.black.withValues(alpha: 0.45),
+          child: const Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
         ),
       ),
     );
