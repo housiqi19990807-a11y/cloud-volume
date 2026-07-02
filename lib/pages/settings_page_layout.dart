@@ -4,17 +4,87 @@ part of 'settings_page.dart';
 // content area. Extracted from settings_page.dart to keep the main file under
 // the 500-line limit.
 
-/// Vertical navigation rail mirroring the former top ShadTabs entries.
+/// A labelled group of tabs shown as a section header + tile list in the rail.
+class _SettingsRailGroup {
+  const _SettingsRailGroup({required this.header, required this.tabs});
+
+  final String header;
+  final List<_SettingsTab> tabs;
+}
+
+/// Vertical navigation rail with section headers. Each group (通用 / Windows /
+/// 关于) gets a muted header label followed by its tab tiles.
 extension _SettingsLayout on _SettingsPageState {
-  Widget _buildGroupRail(ShadThemeData theme, List<_SettingsTab> tabs) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final tab in tabs) ...[
-          _buildGroupTile(theme, tab),
-          const SizedBox(height: 4),
+  /// Builds the ordered group list, conditionally including the Windows group.
+  List<_SettingsRailGroup> _railGroups() {
+    return [
+      _SettingsRailGroup(
+        header: '通用',
+        tabs: [
+          _SettingsTab.update,
+          _SettingsTab.proxy,
+          _SettingsTab.appearance,
+          if (widget.api.capabilities.supportsDownloadDirectory)
+            _SettingsTab.download,
+          _SettingsTab.cache,
+          _SettingsTab.visibility,
+          _SettingsTab.sync,
+          _SettingsTab.trash,
+          if (!isWebPlatform) _SettingsTab.webdav,
+          _SettingsTab.resetAccount,
+          _SettingsTab.configManage,
         ],
-      ],
+      ),
+      if (_showsWindowsTab)
+        _SettingsRailGroup(
+          header: 'Windows',
+          tabs: [
+            _SettingsTab.windowsEntry,
+            _SettingsTab.windowsWriteback,
+            _SettingsTab.windowsMount,
+          ],
+        ),
+      _SettingsRailGroup(
+        header: '关于',
+        tabs: [_SettingsTab.about],
+      ),
+    ];
+  }
+
+  Widget _buildGroupRail(ShadThemeData theme) {
+    final groups = _railGroups();
+    final children = <Widget>[];
+    for (final group in groups) {
+      children.add(_railHeader(theme, group.header));
+      for (final tab in group.tabs) {
+        children.add(_buildGroupTile(theme, tab));
+        children.add(const SizedBox(height: 2));
+      }
+      children.add(const SizedBox(height: 16));
+    }
+    // Remove trailing spacer
+    if (children.isNotEmpty) children.removeLast();
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _railHeader(ShadThemeData theme, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6, left: 14),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.5,
+          color: theme.colorScheme.mutedForeground,
+        ),
+      ),
     );
   }
 
@@ -25,21 +95,37 @@ extension _SettingsLayout on _SettingsPageState {
   /// cannot own hover state).
   Widget _buildGroupTile(ShadThemeData theme, _SettingsTab tab) {
     final active = tab == _activeTab;
-    final label = switch (tab) {
-      _SettingsTab.general => '通用设置',
-      _SettingsTab.windows => 'Windows 设置',
-      _SettingsTab.about => '关于',
-    };
     return _SettingsGroupTile(
       accent: theme.colorScheme.accent,
       foreground: theme.colorScheme.foreground,
       mutedForeground: theme.colorScheme.mutedForeground,
-      label: label,
+      label: _tabLabel(tab),
       active: active,
       // _updateState routes through the State subclass so this extension
       // does not touch the protected setState directly.
       onTap: () => _updateState(() => _activeTab = tab),
     );
+  }
+
+  /// Human-readable label for each tab.
+  String _tabLabel(_SettingsTab tab) {
+    return switch (tab) {
+      _SettingsTab.update => '应用更新',
+      _SettingsTab.proxy => '网络代理',
+      _SettingsTab.appearance => '外观',
+      _SettingsTab.download => '下载设置',
+      _SettingsTab.cache => '缓存设置',
+      _SettingsTab.visibility => '显示设置',
+      _SettingsTab.sync => '同步设置',
+      _SettingsTab.trash => '回收站',
+      _SettingsTab.webdav => 'WebDAV 凭据',
+      _SettingsTab.resetAccount => '账号重置',
+      _SettingsTab.configManage => '配置管理',
+      _SettingsTab.windowsEntry => 'Windows 入口',
+      _SettingsTab.windowsWriteback => '写回并发',
+      _SettingsTab.windowsMount => '挂载恢复',
+      _SettingsTab.about => '关于云卷',
+    };
   }
 
   /// Returns the section list for whichever tab is currently active.
@@ -48,12 +134,36 @@ extension _SettingsLayout on _SettingsPageState {
     RemoteStorageConfig config,
   ) {
     switch (_activeTab) {
-      case _SettingsTab.general:
-        return _buildGeneralSections(theme, config);
-      case _SettingsTab.windows:
-        return _buildWindowsSections(theme, config);
+      case _SettingsTab.update:
+        return _buildUpdateSection(theme, config);
+      case _SettingsTab.proxy:
+        return _buildProxySection(theme, config);
+      case _SettingsTab.appearance:
+        return _buildAppearanceSection(theme);
+      case _SettingsTab.download:
+        return _buildDownloadSection(theme, config);
+      case _SettingsTab.cache:
+        return _buildCacheSection(theme, config);
+      case _SettingsTab.visibility:
+        return _buildVisibilitySection(theme, config);
+      case _SettingsTab.sync:
+        return _buildSyncSection(theme, config);
+      case _SettingsTab.trash:
+        return _buildTrashSection(theme, config);
+      case _SettingsTab.webdav:
+        return _buildWebdavSection(theme, config);
+      case _SettingsTab.resetAccount:
+        return _buildResetAccountSection(theme);
+      case _SettingsTab.configManage:
+        return _buildConfigManageSection(theme);
+      case _SettingsTab.windowsEntry:
+        return _buildWindowsEntrySection(theme, config);
+      case _SettingsTab.windowsWriteback:
+        return _buildWindowsWritebackSection(theme, config);
+      case _SettingsTab.windowsMount:
+        return _buildWindowsMountSection(theme);
       case _SettingsTab.about:
-        return _buildAboutSections(theme);
+        return _buildAboutSection(theme);
     }
   }
 }
@@ -129,11 +239,11 @@ class _SettingsGroupTileState extends State<_SettingsGroupTile> {
             color: Color.alphaBlend(hoverOverlay, baseBg),
             borderRadius: BorderRadius.circular(8),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           child: Text(
             widget.label,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: active ? FontWeight.w600 : FontWeight.w400,
               color: fg,
             ),

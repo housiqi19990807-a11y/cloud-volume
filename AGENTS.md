@@ -233,18 +233,20 @@ The window centers on `self.screen ?? NSScreen.main`. `NSScreen.main` is whateve
 
 ### Feature: Settings Page Layout (设置页布局)
 
-The settings page uses a **two-column layout**: a left vertical sidebar rail listing the setting groups (通用设置, Windows 设置, 关于), and a right scrolling content area showing the selected group's cards. This replaced the former top horizontal `ShadTabs` bar.
+The settings page uses a **two-column layout**: a left vertical sidebar rail with section headers (通用 / Windows / 关于) and per-section tab tiles, and a right content area showing the selected tab's card. Each individual config block (应用更新, 网络代理, 外观, 下载设置, 缓存设置, 显示设置, 同步设置, 回收站, WebDAV 凭据, 账号重置, 配置管理, Windows 入口, 写回并发, 挂载恢复, 关于云卷) is its own navigable tab.
 
 #### Key files
-- `lib/pages/settings_page.dart` — `SettingsPage` + `_SettingsPageState`. `build()` renders a `Row`: left `SizedBox(width: 180)` with title/subtitle + `_buildGroupRail`; right `Expanded` + `SingleChildScrollView` with `_buildActiveContent`. Tab state is `_activeTab` (`_SettingsTab` enum); switching calls `_updateState`.
-- `lib/pages/settings_page_layout.dart` — part file with `_SettingsLayout` extension (build methods `_buildGroupRail`, `_buildGroupTile`, `_buildActiveContent`) and the `_SettingsGroupTile` StatefulWidget. **The tile must be a StatefulWidget for hover to work** (see Hover-aware clickable rows rule above).
-- `lib/pages/settings_page_actions.dart` — part file with `_SettingsPageActions` extension: all config save/refresh/cleanup actions. Unchanged by the layout refactor.
+- `lib/pages/settings_page.dart` — `SettingsPage` + `_SettingsPageState`. `_SettingsTab` enum has one value per config block. `build()` renders `Row`: left `SizedBox(width: 180)` with title + `_buildGroupRail(theme)`; right `Expanded` + `SingleChildScrollView` with `_buildActiveContent`. Default tab is `_SettingsTab.update`.
+- `lib/pages/settings_page_layout.dart` — part file. `_SettingsLayout` extension: `_railGroups()` builds `_SettingsRailGroup` list with section headers + tab lists; `_buildGroupRail` renders headers + `_SettingsGroupTile` rows; `_tabLabel` maps enum to Chinese label; `_buildActiveContent` switch dispatches to per-tab section builders. `_SettingsGroupTile` is the hover-aware StatefulWidget tile (must be StatefulWidget — see Hover rule above).
+- `lib/pages/settings_page_sections.dart` — part file. `_SettingsSections` extension with per-tab content builders (`_buildUpdateSection`, `_buildProxySection`, `_buildAppearanceSection`, `_buildDownloadSection`, `_buildCacheSection`, `_buildVisibilitySection`, `_buildSyncSection`, `_buildTrashSection`, `_buildWebdavSection`, `_buildResetAccountSection`, `_buildConfigManageSection`, `_buildWindowsEntrySection`, `_buildWindowsWritebackSection`, `_buildWindowsMountSection`, `_buildAboutSection`). Each returns `[_buildCard(...)]`.
+- `lib/pages/settings_page_actions.dart` — part file with `_SettingsPageActions` extension: all config save/refresh/cleanup actions.
 
 #### Data flow
-1. `_SettingsPageState.build()` computes the ordered tab list (general, windows if applicable, about).
-2. Left rail renders one `_SettingsGroupTile` per tab; tap sets `_activeTab` via `_updateState`.
-3. `_buildActiveContent` switch returns the section list (`_buildGeneralSections` / `_buildWindowsSections` / `_buildAboutSections`), each building `_buildCard` rows.
-4. Only the right column scrolls; the left rail stays fixed.
+1. `_SettingsPageState.build()` calls `_buildGroupRail(theme)`.
+2. `_railGroups()` returns 通用 (conditional download/webdav tabs), Windows (if `isWindowsPlatform`), 关于 groups.
+3. Each `_SettingsGroupTile` tap sets `_activeTab` via `_updateState`.
+4. `_buildActiveContent` switch returns the single section's `[_buildCard(...)]`.
+5. Only the right column scrolls; the left rail is independently scrollable (groups can be long).
 
 ### Feature: Flutter → Go app logging
 
