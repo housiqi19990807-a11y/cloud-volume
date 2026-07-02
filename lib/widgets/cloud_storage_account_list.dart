@@ -8,7 +8,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CloudStorageAccountList extends StatelessWidget {
   static const double _typeColumnWidth = 104;
-  static const double _statusColumnWidth = 92;
   static const double _actionColumnWidth = 212;
 
   const CloudStorageAccountList({
@@ -85,7 +84,6 @@ class CloudStorageAccountList extends StatelessWidget {
                   subtitleLabel: profile.endpoint,
                   sizeLabel: _storageLabel(profile),
                   sizeColumnWidthOverride: _typeColumnWidth,
-                  statusWidget: const _AccountStatus(),
                   trailing: _AccountActions(
                     profile: profile,
                     busy: busy,
@@ -149,7 +147,6 @@ class _AccountCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const _AccountStatus(),
             ],
           ),
           const SizedBox(height: 10),
@@ -225,11 +222,6 @@ class _AccountTableHeader extends StatelessWidget {
           SizedBox(
             width: CloudStorageAccountList._typeColumnWidth,
             child: Text('类型', textAlign: TextAlign.right, style: labelStyle),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: CloudStorageAccountList._statusColumnWidth,
-            child: Text('状态', textAlign: TextAlign.right, style: labelStyle),
           ),
           const SizedBox(width: 16),
           SizedBox(
@@ -309,26 +301,6 @@ class _AccountActionButton extends StatelessWidget {
           const SizedBox(width: 4),
           Text(label, style: TextStyle(fontSize: 11.5, color: color)),
         ],
-      ),
-    );
-  }
-}
-
-class _AccountStatus extends StatelessWidget {
-  const _AccountStatus();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Text(
-      '已保存',
-      textAlign: TextAlign.right,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 11.5,
-        fontWeight: FontWeight.w600,
-        color: theme.colorScheme.primary,
       ),
     );
   }
