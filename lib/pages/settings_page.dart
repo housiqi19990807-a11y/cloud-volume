@@ -26,6 +26,7 @@ import 'package:remote_storage/widgets/windows_settings_sections.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'settings_page_actions.dart';
+part 'settings_page_layout.dart';
 
 enum _SettingsTab { general, windows, about }
 
@@ -83,70 +84,70 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _updateState(VoidCallback action) => setState(action);
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final config = widget.state.config;
+ @override
+ Widget build(BuildContext context) {
+   final theme = ShadTheme.of(context);
+   final config = widget.state.config;
+
+    // Build the ordered list of available tabs so the sidebar reflects the
+    // same grouping that used to live in the top ShadTabs bar.
+    final tabs = <_SettingsTab>[
+      _SettingsTab.general,
+      if (_showsWindowsTab) _SettingsTab.windows,
+      _SettingsTab.about,
+    ];
 
     return Padding(
       padding: const EdgeInsets.only(top: 56, left: 36, right: 36, bottom: 20),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '设置',
-              style: theme.textTheme.h3.copyWith(
-                fontWeight: FontWeight.w700,
-                fontSize: 22,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '管理远程存储的连接配置、下载目录、界面偏好和挂载行为。',
-              style: TextStyle(
-                color: theme.colorScheme.mutedForeground,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ShadTabs<_SettingsTab>(
-              value: _activeTab,
-              onChanged: (value) => setState(() => _activeTab = value),
-              tabs: [
-                ShadTab<_SettingsTab>(
-                  value: _SettingsTab.general,
-                  content: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _buildGeneralSections(theme, config),
+      // Two-column layout: vertical group rail on the left, scrolling content
+      // on the right. The group rail replaces the former top ShadTabs bar so
+      // all settings categories are reachable without horizontal scrolling.
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // --- Left sidebar: title + vertical group navigation ---
+          SizedBox(
+            width: 180,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '设置',
+                  style: theme.textTheme.h3.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 22,
                   ),
-                  child: const Text('通用设置'),
                 ),
-                if (_showsWindowsTab)
-                  ShadTab<_SettingsTab>(
-                    value: _SettingsTab.windows,
-                    content: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: _buildWindowsSections(theme, config),
-                    ),
-                    child: const Text('Windows 设置'),
+                const SizedBox(height: 6),
+                Text(
+                  '管理远程存储的连接配置、下载目录、界面偏好和挂载行为。',
+                  style: TextStyle(
+                    color: theme.colorScheme.mutedForeground,
+                    fontSize: 13,
                   ),
-                ShadTab<_SettingsTab>(
-                  value: _SettingsTab.about,
-                  content: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _buildAboutSections(theme),
-                  ),
-                  child: const Text('关于'),
                 ),
+                const SizedBox(height: 24),
+                Expanded(child: _buildGroupRail(theme, tabs)),
               ],
             ),
-            const SizedBox(height: 40),
-          ],
-        ),
+          ),
+          const SizedBox(width: 24),
+          // --- Right content area ---
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ..._buildActiveContent(theme, config),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
-  }
+ }
 
   List<Widget> _buildGeneralSections(
     ShadThemeData theme,

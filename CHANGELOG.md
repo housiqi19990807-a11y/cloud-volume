@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 设置页：将顶部「通用设置 / Windows 设置 / 关于」标签页改为页面左侧竖向分组导航栏，右侧显示对应分组内容，分类切换不再需要横向标签栏。
+
 - 配置存储：从 TOML 配置文件迁移到 bbolt 单文件数据库（`~/.cloud-volume/config.db`）。所有账号配置、代理设置统一存储在 bbolt 的 JSON bucket 中，不再使用分散的 TOML 文件。首次启动时自动从旧的 `profiles/*.toml` 和 `config.toml` 迁移到 bbolt，迁移完成后删除旧文件。从根本上避免了 `saveConfig` 整体覆盖导致丢账号的问题。
 
 - 网络代理：设置页新增「网络代理」配置区，支持三种代理模式：跟随系统（读取 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，默认）、直连（忽略所有代理）、自定义代理。自定义代理支持 HTTP 和 SOCKS5 两种代理类型，可配置代理地址、端口、账号和密码（账号密码可选）。代理设置影响应用所有网络请求（S3、WebDAV、百度网盘、GitHub 更新检查）。Go 端 S3 SDK（AWS SDK）、WebDAV HTTP 客户端、百度网盘 SDK 和 MinIO 客户端均已接入代理传输；Dart 端 GitHub API 和下载请求也使用代理感知的 HTTP 客户端。
