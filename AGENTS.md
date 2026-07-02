@@ -243,7 +243,7 @@ The settings page uses a **two-column anchor layout**: a left vertical anchor ra
 
 #### Data flow
 1. `_SettingsPageState.build()` wires the right-side `SingleChildScrollView` to `_contentScrollController` and calls `_buildAllContent(theme, config)`.
-2. `_railGroups()` returns 通用 (conditional download/webdav anchors), Windows (if `isWindowsPlatform`), 关于 groups.
+2. `_railGroups()` returns 通用 (download anchor only when supported; WebDAV 凭据 anchor only on Web), Windows (if `isWindowsPlatform`), 关于 groups.
 3. `_buildAllContent` loops through those same visible anchors, wrapping each section card with the matching `_sectionKeys[tab]`.
 4. Tapping `_SettingsGroupTile` calls `_scrollToAnchor(tab)`, sets `_activeTab`, then `Scrollable.ensureVisible` scrolls the right page to the keyed card.
 5. Manual right-side scrolling triggers `_syncActiveAnchorFromScroll`, which updates the left rail highlight to the section nearest the top of the viewport.

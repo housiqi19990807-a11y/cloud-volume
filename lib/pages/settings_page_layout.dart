@@ -30,7 +30,7 @@ extension _SettingsLayout on _SettingsPageState {
           _SettingsTab.visibility,
           _SettingsTab.sync,
           _SettingsTab.trash,
-          if (!isWebPlatform) _SettingsTab.webdav,
+          if (isWebPlatform) _SettingsTab.webdav,
           _SettingsTab.resetAccount,
           _SettingsTab.configManage,
         ],

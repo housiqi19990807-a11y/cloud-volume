@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 设置页：改为左侧锚点目录 + 右侧完整滚动页布局。左侧按「通用 / Windows / 关于」分组列出应用更新、网络代理、外观、下载设置、缓存设置、显示设置、同步设置、回收站、WebDAV 凭据、账号重置、配置管理等锚点，点击会滚动定位到对应卡片；滚动右侧内容时左侧高亮会跟随当前区块。左侧分组项支持 hover 高亮反馈（`_SettingsGroupTile` StatefulWidget）。
+- 设置页：改为左侧锚点目录 + 右侧完整滚动页布局。左侧按「通用 / Windows / 关于」分组列出应用更新、网络代理、外观、下载设置、缓存设置、显示设置、同步设置、回收站、Web 端 WebDAV 凭据、账号重置、配置管理等锚点，点击会滚动定位到对应卡片；滚动右侧内容时左侧高亮会跟随当前区块。左侧分组项支持 hover 高亮反馈（`_SettingsGroupTile` StatefulWidget）。
 
 - 配置存储：从 TOML 配置文件迁移到 bbolt 单文件数据库（`~/.cloud-volume/config.db`）。所有账号配置、代理设置统一存储在 bbolt 的 JSON bucket 中，不再使用分散的 TOML 文件。首次启动时自动从旧的 `profiles/*.toml` 和 `config.toml` 迁移到 bbolt，迁移完成后删除旧文件。从根本上避免了 `saveConfig` 整体覆盖导致丢账号的问题。
 
