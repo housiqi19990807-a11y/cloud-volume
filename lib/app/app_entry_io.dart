@@ -2,10 +2,12 @@
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
+import 'package:remote_storage/app/account_editor_window_app.dart';
 import 'package:remote_storage/app/file_preview_window_app.dart';
 import 'package:remote_storage/app/remote_storage_app.dart';
 import 'package:remote_storage/app/remote_directory_picker_window_app.dart';
 import 'package:remote_storage/app/sync_editor_window_app.dart';
+import 'package:remote_storage/models/account_editor_window_args.dart';
 import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
 import 'package:remote_storage/models/file_preview_window_args.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
@@ -22,6 +24,14 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
     final previewArgs = FilePreviewWindowArgs.fromArguments(arguments);
     await _configurePreviewWindow(previewArgs.title);
     runApp(FilePreviewWindowApp(args: previewArgs));
+    return;
+  }
+
+  if (AccountEditorWindowArgs.matches(arguments)) {
+    final editorArgs = AccountEditorWindowArgs.fromArguments(arguments);
+    await DesktopWindowMethodHost.ensureInstalled();
+    await _configureAccountEditorWindow(editorArgs);
+    runApp(AccountEditorWindowApp(args: editorArgs));
     return;
   }
 
@@ -95,22 +105,48 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: false,
   );
-  await windowManager.waitUntilReadyToShow(options, () async {
-    await applyModalChildWindowChrome();
-    await windowManager.setTitle('选择远端目录');
-    await windowManager.show();
-    await positionChildCenteredFromFrame(
-      size: const Size(720, 560),
-      anchorFrameLeft: args.anchorFrameLeft,
-      anchorFrameTop: args.anchorFrameTop,
-      anchorFrameWidth: args.anchorFrameWidth,
-      anchorFrameHeight: args.anchorFrameHeight,
-      creatorFrameLeft: args.creatorFrameLeft,
-      creatorFrameTop: args.creatorFrameTop,
-      creatorFrameWidth: args.creatorFrameWidth,
-      creatorFrameHeight: args.creatorFrameHeight,
-      creatorWindowId: args.creatorWindowId,
+    await windowManager.waitUntilReadyToShow(options, () async {
+      await applyModalChildWindowChrome();
+      await windowManager.setTitle('选择远端目录');
+      await windowManager.show();
+      await positionChildCenteredFromFrame(
+        size: const Size(720, 560),
+        anchorFrameLeft: args.anchorFrameLeft,
+        anchorFrameTop: args.anchorFrameTop,
+        anchorFrameWidth: args.anchorFrameWidth,
+        anchorFrameHeight: args.anchorFrameHeight,
+        creatorFrameLeft: args.creatorFrameLeft,
+        creatorFrameTop: args.creatorFrameTop,
+        creatorFrameWidth: args.creatorFrameWidth,
+        creatorFrameHeight: args.creatorFrameHeight,
+        creatorWindowId: args.creatorWindowId,
+      );
+      await windowManager.focus();
+    });
+  }
+
+  Future<void> _configureAccountEditorWindow(AccountEditorWindowArgs args) async {
+    final title = args.editing ? '编辑账号' : '新增账号';
+    const options = WindowOptions(
+      size: Size(520, 640),
+      minimumSize: Size(480, 560),
+      center: false,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.hidden,
+      windowButtonVisibility: false,
     );
-    await windowManager.focus();
-  });
-}
+    await windowManager.waitUntilReadyToShow(options, () async {
+      await applyModalChildWindowChrome();
+      await windowManager.setTitle(title);
+      await windowManager.show();
+      await positionChildCenteredFromFrame(
+        size: const Size(520, 640),
+        creatorFrameLeft: args.creatorFrameLeft,
+        creatorFrameTop: args.creatorFrameTop,
+        creatorFrameWidth: args.creatorFrameWidth,
+        creatorFrameHeight: args.creatorFrameHeight,
+        creatorWindowId: args.creatorWindowId,
+      );
+      await windowManager.focus();
+    });
+  }

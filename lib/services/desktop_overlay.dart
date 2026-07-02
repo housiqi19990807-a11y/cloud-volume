@@ -1,6 +1,7 @@
 // Desktop-first overlay helper: prefer detached sub-windows, fall back to ShadDialog on Web.
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/services/account_editor_window_service.dart';
 import 'package:remote_storage/services/remote_directory_picker_window_service.dart';
 import 'package:remote_storage/services/sync_editor_window_service.dart';
 
@@ -11,7 +12,8 @@ Future<T?> showDesktopOverlayOrDialog<T>({
   required Future<T?> Function() showDialog,
 }) async {
   final useSubWindow = RemoteDirectoryPickerWindowService.instance.isSupported ||
-      SyncEditorWindowService.instance.isSupported;
+      SyncEditorWindowService.instance.isSupported ||
+      AccountEditorWindowService.instance.isSupported;
   if (useSubWindow) {
     return openSubWindow();
   }

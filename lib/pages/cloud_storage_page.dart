@@ -3,7 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/services/account_editor_window_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/utils/account_profile_name.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_list.dart';
@@ -77,14 +79,20 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   }
 
   Future<void> _showAddAccountDialog() async {
-    await showShadDialog<void>(
-      context: context,
-      builder: (_) => CloudStorageAccountDialog(
-        onSave: _saveNewAccount,
-        onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-        onAuthorizeBaiduPan: _authorizeBaiduPan,
-      ),
+    final ok = await AccountEditorWindowService.instance.openEditor(
+      onSaved: widget.onRefresh,
     );
+    if (!ok) {
+      if (!mounted) return;
+      await showShadDialog<void>(
+        context: context,
+        builder: (_) => CloudStorageAccountDialog(
+          onSave: _saveNewAccount,
+          onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+          onAuthorizeBaiduPan: _authorizeBaiduPan,
+        ),
+      );
+    }
   }
 
   Future<void> _showEditAccountDialog(ProfileInfo profile) async {
@@ -93,82 +101,52 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       final config = await widget.api.loadProfile(profile.name);
       if (!mounted) return;
       setState(() => _busy = false);
-      await showShadDialog<void>(
-        context: context,
-        builder: (_) => CloudStorageAccountDialog(
-          initialConfig: config,
-          editing: true,
-          onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-          onAuthorizeBaiduPan: _authorizeBaiduPan,
-          onSave: (draft) => _saveEditedAccount(profile, config, draft),
-        ),
+      final ok = await AccountEditorWindowService.instance.openEditor(
+        initialConfigJson: config.toJson(),
+        profileName: profile.name,
+        editing: true,
+        onSaved: widget.onRefresh,
       );
-    } catch (error) {
-      if (mounted) {
-        showAppErrorToast(context, message: error.toString());
+      if (!ok) {
+        if (!mounted) return;
+        await showShadDialog<void>(
+          context: context,
+          builder: (_) => CloudStorageAccountDialog(
+            initialConfig: config,
+            editing: true,
+            onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+            onAuthorizeBaiduPan: _authorizeBaiduPan,
+            onSave: (cfg) => _saveEditedAccount(profile, cfg),
+          ),
+        );
       }
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
     } finally {
       if (mounted && _busy) setState(() => _busy = false);
     }
   }
 
-  Future<bool> _saveNewAccount(CloudStorageAccountDraft draft) async {
-    final fallback = draft.storageType == StorageType.webdav
-        ? draft.webdavUsername.trim()
-        : draft.storageType == StorageType.baiduPan
-        ? draft.name.trim()
-        : draft.accessKey.trim();
-    final label = draft.name.trim().isEmpty ? fallback : draft.name.trim();
-    final config = RemoteStorageConfig.empty().copyWith(
-      storageType: draft.storageType,
-      providerType: draft.storageType == StorageType.baiduPan
-          ? StorageProviderType.baiduPan
-          : StorageProviderType.s3,
-      displayName: label,
-      mappedBucketName: draft.mappedBucketName.trim().isEmpty
-          ? label
-          : draft.mappedBucketName,
-      endpoint: draft.endpoint,
-      region: draft.region.trim().isEmpty ? 'auto' : draft.region,
-      accessKeyId: draft.accessKey,
-      secretAccessKey: draft.secretKey,
-      hasSecretAccessKey: draft.secretKey.trim().isNotEmpty,
-      usePathStyle: draft.usePathStyle,
-      webdavUsername: draft.storageType == StorageType.webdav
-          ? draft.webdavUsername
-          : draft.storageType == StorageType.baiduPan
-          ? ''
-          : draft.accessKey,
-      webdavPassword: draft.storageType == StorageType.webdav
-          ? draft.webdavPassword
-          : draft.storageType == StorageType.baiduPan
-          ? ''
-          : draft.secretKey,
-      hasWebdavPassword: draft.storageType == StorageType.webdav
-          ? draft.webdavPassword.trim().isNotEmpty
-          : draft.storageType == StorageType.baiduPan
-          ? false
-          : draft.secretKey.trim().isNotEmpty,
-    );
+  Future<bool> _saveNewAccount(RemoteStorageConfig config) async {
     if (!config.isConfigured) {
       showAppErrorToast(
         context,
-        message: draft.storageType == StorageType.baiduPan
+        message: config.storageType == StorageType.baiduPan
             ? '请先完成百度网盘 OAuth 授权。'
-            : draft.storageType == StorageType.webdav
-            ? '请填写 WebDAV 地址、用户名和密码。'
-            : '请填写 Endpoint、Access Key 和 Secret Key。',
+            : config.storageType == StorageType.webdav
+                ? '请填写 WebDAV 地址、用户名和密码。'
+                : '请填写 Endpoint、Access Key 和 Secret Key。',
       );
       return false;
     }
     setState(() => _busy = true);
     try {
       await widget.api.saveProfile(
-        _profileNameFor(label, draft.storageType),
+        generateAccountProfileName(config.displayName, config.storageType),
         config,
       );
       if (!mounted) return false;
-      showAppToast(context, title: '账号已保存', message: label);
+      showAppToast(context, title: '账号已保存', message: config.displayName);
       widget.onRefresh();
       return true;
     } catch (error) {
@@ -181,44 +159,8 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
 
   Future<bool> _saveEditedAccount(
     ProfileInfo profile,
-    RemoteStorageConfig existing,
-    CloudStorageAccountDraft draft,
+    RemoteStorageConfig config,
   ) async {
-    final label = draft.name.trim().isEmpty
-        ? _profileTitle(profile)
-        : draft.name.trim();
-    final config = existing.copyWith(
-      storageType: draft.storageType,
-      providerType: draft.storageType == StorageType.baiduPan
-          ? StorageProviderType.baiduPan
-          : StorageProviderType.s3,
-      displayName: label,
-      mappedBucketName: draft.mappedBucketName.trim().isEmpty
-          ? label
-          : draft.mappedBucketName,
-      endpoint: draft.endpoint,
-      region: draft.region.trim().isEmpty ? 'auto' : draft.region,
-      accessKeyId: draft.accessKey,
-      secretAccessKey: draft.secretKey,
-      hasSecretAccessKey:
-          draft.secretKey.trim().isNotEmpty || existing.hasSecretAccessKey,
-      usePathStyle: draft.usePathStyle,
-      webdavUsername: draft.storageType == StorageType.webdav
-          ? draft.webdavUsername
-          : draft.storageType == StorageType.baiduPan
-          ? ''
-          : draft.accessKey,
-      webdavPassword: draft.storageType == StorageType.webdav
-          ? draft.webdavPassword
-          : draft.storageType == StorageType.baiduPan
-          ? ''
-          : draft.secretKey,
-      hasWebdavPassword: draft.storageType == StorageType.webdav
-          ? draft.webdavPassword.trim().isNotEmpty || existing.hasWebdavPassword
-          : draft.storageType == StorageType.baiduPan
-          ? false
-          : draft.secretKey.trim().isNotEmpty || existing.hasSecretAccessKey,
-    );
     if (!config.isConfigured) {
       showAppErrorToast(context, message: '请补全账号连接信息。');
       return false;
@@ -227,7 +169,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     try {
       await widget.api.saveProfile(profile.name, config);
       if (!mounted) return false;
-      showAppToast(context, title: '账号已更新', message: label);
+      showAppToast(context, title: '账号已更新', message: config.displayName);
       widget.onRefresh();
       return true;
     } catch (error) {
@@ -263,16 +205,6 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  String _profileNameFor(String label, StorageType storageType) {
-    final normalized = label
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9_-]+'), '-')
-        .replaceAll(RegExp(r'-+'), '-')
-        .replaceAll(RegExp(r'^-|-$'), '');
-    final base = normalized.isEmpty ? storageType.storageValue : normalized;
-    return '${storageType.storageValue}-$base-${DateTime.now().millisecondsSinceEpoch}';
   }
 
   static String _profileTitle(ProfileInfo profile) {

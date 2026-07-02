@@ -157,6 +157,34 @@ If a path is absent on both sides but still in index → `skip` (`stale_index`).
 4. On interval or manual "立即同步" trigger → Go `runner.go` runs `diff.go` → `reconcile.go` → `executor.go`, enqueueing `sync_*` tasks into the shared `TransferQueue`.
 5. `FileSyncTasksPage` displays both profile statuses (from `SyncProfileNotifier`) and live `sync_*` tasks (from `TransferQueue`).
 
+### Feature: Account Management (账号管理)
+
+Lists configured storage accounts and lets users add, edit, or remove them. On desktop, the add/edit form now opens as a **detached OS sub-window** instead of an in-page `ShadDialog`, matching the file-sync editor pattern. On Web, or when the sub-window cannot be created, it falls back to the original `ShadDialog`.
+
+**Sub-window architecture (2026-07-02):** The add/edit form uses the same `desktop_multi_window` plumbing as the sync editor and remote directory picker:
+- `lib/models/account_editor_window_args.dart` — Args model with `initialConfigJson` (edit mode), `profileName`, `editing`, and `creatorFrame*`. JSON is the only data that crosses the multi-window boundary.
+- `lib/app/account_editor_window_app.dart` — Sub-window root is `ShadApp` + `buildAppTheme`. Body: bootstraps its own `RemoteStorageGateway`, custom title bar, and `CloudStorageAccountDialog(asDialog: false)`. On save it calls `api.saveProfile`, shows a toast, sends `account_editor_saved` to the creator window, and closes itself.
+- `lib/services/account_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Conditional service: desktop uses `WindowController.create()` and registers a `VoidCallback` with `DesktopWindowMethodHost`; Web returns `false` so callers fall back to `showShadDialog`.
+- `lib/app/app_entry_io.dart` — Dispatch: checks `AccountEditorWindowArgs.matches(arguments)` and launches `AccountEditorWindowApp`. Window size is configured as `520×640` (minimum `480×560`).
+- `lib/services/desktop_window_method_host.dart` — Main engine multiplexes `account_editor_saved` to the registered callback so the parent window can refresh its account list after the sub-window saves.
+- `lib/services/desktop_sub_window_modal.dart` — `account_editor` is included in `_isModalSubWindowArguments` so the modal overlay and always-on-top behavior apply consistently.
+- `lib/services/desktop_overlay.dart` — `AccountEditorWindowService.isSupported` is included in the `showDesktopOverlayOrDialog` helper check.
+- `lib/widgets/cloud_storage_account_dialog.dart` — The dialog widget is now dual-mode: `asDialog: true` wraps the form in a `ShadDialog` (Web / fallback); `asDialog: false` returns bare content for the detached sub-window. Its `onSave` callback now receives a `RemoteStorageConfig` built from the form, and it accepts optional `onSaved` / `onCancel` callbacks for the sub-window path.
+- `lib/models/cloud_storage_account_draft.dart` — Plain form draft model, moved out of the dialog to avoid import cycles with the config builder.
+- `lib/utils/account_config_builder.dart` — Builds a `RemoteStorageConfig` from the draft, preserving existing secrets when the user leaves password fields blank in edit mode.
+- `lib/utils/account_profile_name.dart` — Shared profile-key generator used by both the in-page dialog path and the detached sub-window path.
+- `lib/pages/cloud_storage_page.dart` — Entry point. `_showAddAccountDialog` / `_showEditAccountDialog` first try `AccountEditorWindowService.openEditor`; on `false` they fall back to `showShadDialog`. Edit mode loads the existing config with `api.loadProfile` before passing it to the sub-window or dialog.
+
+#### Data flow
+1. User clicks "新增账号" or row "编辑" in `CloudStoragePage`.
+2. `AccountEditorWindowService.openEditor` acquires the parent modal overlay, registers `widget.onRefresh` as the `account_editor_saved` callback, and spawns the sub-window.
+3. The sub-window bootstraps its own bridge, renders `CloudStorageAccountDialog(asDialog: false)`.
+4. User fills the form and submits; the dialog builds a `RemoteStorageConfig` via `buildAccountConfig` and calls the sub-window `_onSave`.
+5. `_onSave` generates the profile key (or reuses the existing one) and calls `api.saveProfile`.
+6. On success, the dialog invokes `onSaved`, which sends `account_editor_saved` to the creator window, then closes the sub-window.
+7. The main engine receives `account_editor_saved`, calls the registered callback (`widget.onRefresh`), and the account list refreshes.
+8. If the sub-window path is unsupported, the flow falls back to `showShadDialog` with `CloudStorageAccountDialog(asDialog: true)`, saving directly in the page callback.
+
 ### Feature: Transfer Queue (通用传输队列)
 
 Shared upload/download queue backing both manual file operations and sync-generated tasks. Sync tasks are identified by `rawType` starting with `sync_`.

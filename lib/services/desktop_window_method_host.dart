@@ -18,6 +18,7 @@ class DesktopWindowMethodHost {
   static bool _installed = false;
   static final Map<String, Completer<RemoteDirectoryResultPayload?>>
       _remoteDirectoryRequests = {};
+  static final Map<String, void Function()> _accountEditorSavedCallbacks = {};
 
   /// Registers a single handler on the current (main) window controller.
   static Future<void> ensureInstalled() async {
@@ -31,6 +32,9 @@ class DesktopWindowMethodHost {
     switch (call.method) {
       case 'remote_directory_picker_result':
         _completeRemoteDirectory(call.arguments);
+        return null;
+      case 'account_editor_saved':
+        _completeAccountEditorSaved(call.arguments);
         return null;
       case kModalOverlayReleaseMethod:
         DesktopModalOverlayController.instance.release();
@@ -109,5 +113,24 @@ class DesktopWindowMethodHost {
         Map<String, dynamic>.from(resultJson as Map),
       ),
     );
+  }
+
+  static void registerAccountEditorSavedCallback(
+    String windowId,
+    void Function() callback,
+  ) {
+    _accountEditorSavedCallbacks[windowId] = callback;
+  }
+
+  static void unregisterAccountEditorSavedCallback(String windowId) {
+    _accountEditorSavedCallbacks.remove(windowId);
+  }
+
+  static void _completeAccountEditorSaved(dynamic raw) {
+    if (raw is! Map) return;
+    final windowId = raw['creatorWindowId']?.toString();
+    if (windowId == null) return;
+    final callback = _accountEditorSavedCallbacks.remove(windowId);
+    callback?.call();
   }
 }

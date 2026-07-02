@@ -189,7 +189,8 @@ const String kModalClearAlwaysOnTopMethod = 'modal_clear_always_on_top';
 bool _isModalSubWindowArguments(String arguments) {
   if (arguments.trim().isEmpty) return false;
   return arguments.contains('sync_editor') ||
-      arguments.contains('remote_directory_picker');
+      arguments.contains('remote_directory_picker') ||
+      arguments.contains('account_editor');
 }
 
 /// Clears always-on-top on every modal sub-window (nested stack included).

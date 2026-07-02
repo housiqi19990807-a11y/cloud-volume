@@ -1,47 +1,21 @@
-// 新增账号弹窗先选择存储类型，再展示对应的认证字段。
-// 表单沿用配置初始化引导页的“标签 + 输入框”样式，便于用户辨识每一项。
+// 新增/编辑账号弹窗。支持两种模式：
+// - 拟态框模式（asDialog: true）：包装成 ShadDialog，用于 Web 回退。
+// - 子窗口模式（asDialog: false）：返回裸内容，用于桌面独立子窗口。
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/cloud_storage_account_draft.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/utils/account_config_builder.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
-import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
+import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-/// 新增/编辑账号时提交给上层的草稿数据。
-class CloudStorageAccountDraft {
-  const CloudStorageAccountDraft({
-    required this.storageType,
-    required this.name,
-    required this.mappedBucketName,
-    required this.endpoint,
-    required this.region,
-    required this.accessKey,
-    required this.secretKey,
-    required this.usePathStyle,
-    required this.webdavUsername,
-    required this.webdavPassword,
-    required this.baiduAccessToken,
-    required this.baiduRefreshToken,
-    required this.hasBaiduRefreshToken,
-  });
-
-  final StorageType storageType;
-  final String name;
-  final String mappedBucketName;
-  final String endpoint;
-  final String region;
-  final String accessKey;
-  final String secretKey;
-  final bool usePathStyle;
-  final String webdavUsername;
-  final String webdavPassword;
-  final String baiduAccessToken;
-  final String baiduRefreshToken;
-  final bool hasBaiduRefreshToken;
-}
+export 'package:remote_storage/models/cloud_storage_account_draft.dart';
 
 /// 账号管理页使用的新增/编辑账号对话框。
+///
+/// 保存时返回 [RemoteStorageConfig] 给调用方，由调用方决定 profileName 并保存。
 class CloudStorageAccountDialog extends StatefulWidget {
   const CloudStorageAccountDialog({
     super.key,
@@ -50,14 +24,26 @@ class CloudStorageAccountDialog extends StatefulWidget {
     required this.onAuthorizeBaiduPan,
     this.initialConfig,
     this.editing = false,
+    this.asDialog = true,
+    this.onSaved,
+    this.onCancel,
   });
 
-  final Future<bool> Function(CloudStorageAccountDraft draft) onSave;
+  final Future<bool> Function(RemoteStorageConfig config) onSave;
   final Future<String> Function() onStartBaiduPanAuthorization;
   final Future<RemoteStorageConfig> Function(String displayName, String code)
-  onAuthorizeBaiduPan;
+      onAuthorizeBaiduPan;
   final RemoteStorageConfig? initialConfig;
   final bool editing;
+
+  /// true = ShadDialog 拟态框模式（Web 端），false = 裸内容（子窗口）。
+  final bool asDialog;
+
+  /// 子窗口模式保存成功后回调（关闭窗口）。
+  final VoidCallback? onSaved;
+
+  /// 子窗口模式取消时回调。
+  final VoidCallback? onCancel;
 
   @override
   State<CloudStorageAccountDialog> createState() =>
@@ -117,8 +103,8 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isWebDav = _storageType == StorageType.webdav;
-    final isBaiduPan = _storageType == StorageType.baiduPan;
+    final content = _buildContent();
+    if (!widget.asDialog) return content;
     return ShadDialog(
       title: Text(widget.editing ? '编辑账号' : '新增账号'),
       description: Text(
@@ -126,64 +112,69 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
             ? '修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。'
             : '先选择存储类型，再填写对应的连接信息。',
       ),
-      child: SizedBox(
-        width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _StorageTypeSegmentedControl(
-              value: _storageType,
-              onChanged: (value) => setState(() => _storageType = value),
-            ),
-            const SizedBox(height: 18),
-            CloudStorageLabeledField(
-              label: '名称',
-              child: ShadInput(
-                controller: _nameController,
-                placeholder: Text(
-                  isBaiduPan
-                      ? '例如：我的百度网盘'
-                      : isWebDav
+      child: SizedBox(width: 440, child: content),
+    );
+  }
+
+  Widget _buildContent() {
+    final isWebDav = _storageType == StorageType.webdav;
+    final isBaiduPan = _storageType == StorageType.baiduPan;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _StorageTypeSegmentedControl(
+          value: _storageType,
+          onChanged: (value) => setState(() => _storageType = value),
+        ),
+        const SizedBox(height: 18),
+        CloudStorageLabeledField(
+          label: '名称',
+          child: ShadInput(
+            controller: _nameController,
+            placeholder: Text(
+              isBaiduPan
+                  ? '例如：我的百度网盘'
+                  : isWebDav
                       ? '例如：IHEP WebDAV'
                       : '例如：对象存储账号',
-                ),
-                onChanged: (_) => _syncMappedBucketName(),
-              ),
             ),
-            if (isWebDav) ...[
-              const SizedBox(height: 14),
-              CloudStorageLabeledField(
-                label: '映射桶名称',
-                child: ShadInput(
-                  controller: _mappedBucketNameController,
-                  placeholder: const Text('默认使用名称'),
-                  onChanged: (_) => _mappedBucketNameEdited = true,
-                ),
-              ),
-            ],
-            const SizedBox(height: 14),
-            if (isBaiduPan) ..._baiduPanFields(),
-            if (!isBaiduPan && !isWebDav) ..._s3Fields(),
-            if (!isBaiduPan && isWebDav) ..._webdavFields(),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ShadButton.outline(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('取消'),
-                ),
-                const SizedBox(width: 10),
-                ShadButton(
-                  onPressed: _submit,
-                  child: Text(widget.editing ? '保存修改' : '保存账号'),
-                ),
-              ],
+            onChanged: (_) => _syncMappedBucketName(),
+          ),
+        ),
+        if (isWebDav) ...[
+          const SizedBox(height: 14),
+          CloudStorageLabeledField(
+            label: '映射桶名称',
+            child: ShadInput(
+              controller: _mappedBucketNameController,
+              placeholder: const Text('默认使用名称'),
+              onChanged: (_) => _mappedBucketNameEdited = true,
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        if (isBaiduPan) ..._baiduPanFields(),
+        if (!isBaiduPan && !isWebDav) ..._s3Fields(),
+        if (!isBaiduPan && isWebDav) ..._webdavFields(),
+        const SizedBox(height: 18),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            ShadButton.outline(
+              onPressed: widget.asDialog
+                  ? () => Navigator.of(context).pop()
+                  : widget.onCancel,
+              child: const Text('取消'),
+            ),
+            const SizedBox(width: 10),
+            ShadButton(
+              onPressed: _submit,
+              child: Text(widget.editing ? '保存修改' : '保存账号'),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 
@@ -273,7 +264,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         accountLabel: label,
         authorized:
             _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty == true &&
-            _authorizedBaiduConfig?.hasSecretAccessKey == true,
+                _authorizedBaiduConfig?.hasSecretAccessKey == true,
         codeController: _baiduAuthCodeController,
         authUrl: _baiduAuthUrl,
         openingBrowser: _openingBaiduAuthPage,
@@ -286,39 +277,27 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   }
 
   Future<void> _submit() async {
-    final name = _nameController.text.trim();
-    final baiduConfig = _authorizedBaiduConfig;
-    final mappedBucketName = _storageType == StorageType.webdav
-        ? (_mappedBucketNameController.text.trim().isEmpty
-              ? name
-              : _mappedBucketNameController.text)
-        : _storageType == StorageType.baiduPan
-        ? (name.isEmpty ? '百度网盘' : name)
-        : _nameController.text;
-    final saved = await widget.onSave(
+    final config = buildAccountConfig(
       CloudStorageAccountDraft(
         storageType: _storageType,
-        name: name,
-        mappedBucketName: mappedBucketName,
-        endpoint: _storageType == StorageType.baiduPan
-            ? (baiduConfig?.endpoint ?? 'https://pan.baidu.com')
-            : _endpointController.text,
+        name: _nameController.text.trim(),
+        mappedBucketName: _mappedBucketNameController.text.trim(),
+        endpoint: _endpointController.text,
         region: _regionController.text,
-        accessKey: _storageType == StorageType.baiduPan
-            ? (baiduConfig?.accessKeyId ?? '')
-            : _accessKeyController.text,
-        secretKey: _storageType == StorageType.baiduPan
-            ? (baiduConfig?.secretAccessKey ?? '')
-            : _secretKeyController.text,
+        accessKey: _accessKeyController.text,
+        secretKey: _secretKeyController.text,
         usePathStyle: _usePathStyle,
         webdavUsername: _webdavUsernameController.text,
         webdavPassword: _webdavPasswordController.text,
-        baiduAccessToken: baiduConfig?.accessKeyId ?? '',
-        baiduRefreshToken: baiduConfig?.secretAccessKey ?? '',
-        hasBaiduRefreshToken: baiduConfig?.hasSecretAccessKey ?? false,
       ),
+      existing: widget.initialConfig,
+      authorizedBaiduConfig: _authorizedBaiduConfig,
     );
-    if (saved && mounted) Navigator.of(context).pop();
+    final saved = await widget.onSave(config);
+    if (saved && mounted) {
+      widget.onSaved?.call();
+      if (widget.asDialog) Navigator.of(context).pop();
+    }
   }
 
   void _syncMappedBucketName() {
@@ -355,16 +334,12 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         }
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _baiduAuthErrorText = describeBridgeError(error);
       });
     } finally {
-      if (mounted) {
-        setState(() => _authorizingBaidu = false);
-      }
+      if (mounted) setState(() => _authorizingBaidu = false);
     }
   }
 
@@ -380,16 +355,12 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         _baiduAuthUrl = authUrl;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _baiduAuthErrorText = describeBridgeError(error);
       });
     } finally {
-      if (mounted) {
-        setState(() => _openingBaiduAuthPage = false);
-      }
+      if (mounted) setState(() => _openingBaiduAuthPage = false);
     }
   }
 }
