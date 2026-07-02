@@ -158,7 +158,7 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
     final storageType = args.initialConfig?.storageType;
     return switch (storageType) {
       StorageType.baiduPan => const Size(520, 420),
-      StorageType.webdav => const Size(520, 520),
-      _ => const Size(520, 580),
+      StorageType.webdav => const Size(520, 540),
+      _ => const Size(520, 600),
     };
   }
