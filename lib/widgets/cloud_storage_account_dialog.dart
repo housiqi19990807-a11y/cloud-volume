@@ -125,6 +125,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       children: [
         _StorageTypeSegmentedControl(
           value: _storageType,
+          enabled: !widget.editing,
           onChanged: (value) => setState(() => _storageType = value),
         ),
         const SizedBox(height: 18),
@@ -409,10 +410,12 @@ class _StorageTypeSegmentedControl extends StatelessWidget {
   const _StorageTypeSegmentedControl({
     required this.value,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final StorageType value;
   final ValueChanged<StorageType> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -423,7 +426,7 @@ class _StorageTypeSegmentedControl extends StatelessWidget {
           Expanded(
             child: ShadButton(
               size: ShadButtonSize.sm,
-              onPressed: () => onChanged(item),
+              onPressed: enabled ? () => onChanged(item) : null,
               backgroundColor: item == value
                   ? theme.colorScheme.primary
                   : theme.colorScheme.secondary,
