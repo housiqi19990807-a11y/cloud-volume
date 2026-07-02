@@ -1,8 +1,7 @@
 part of 'settings_page.dart';
 
-// Per-tab content builders. Each method returns a list of widgets for a single
-// settings panel, keeping the card construction close to its tab. Extracted
-// from settings_page.dart so the main file stays under 500 lines.
+// Per-anchor content builders. Each method returns the card widgets for one
+// settings section; the layout file stitches them into one long scroll page.
 
 extension _SettingsSections on _SettingsPageState {
   // ---- General group ----
@@ -35,17 +34,24 @@ extension _SettingsSections on _SettingsPageState {
         SettingsProxySection(
           theme: theme,
           config: config,
-          onSaveProxy: (proxyMode, proxyType, proxyHost, proxyPort,
-              proxyUsername, proxyPassword) async {
-            await widget.api.updateProxySettings(
-              proxyMode: proxyMode,
-              proxyType: proxyType,
-              proxyHost: proxyHost,
-              proxyPort: proxyPort,
-              proxyUsername: proxyUsername,
-              proxyPassword: proxyPassword,
-            );
-          },
+          onSaveProxy:
+              (
+                proxyMode,
+                proxyType,
+                proxyHost,
+                proxyPort,
+                proxyUsername,
+                proxyPassword,
+              ) async {
+                await widget.api.updateProxySettings(
+                  proxyMode: proxyMode,
+                  proxyType: proxyType,
+                  proxyHost: proxyHost,
+                  proxyPort: proxyPort,
+                  proxyUsername: proxyUsername,
+                  proxyPassword: proxyPassword,
+                );
+              },
         ),
       ),
     ];
@@ -142,8 +148,7 @@ extension _SettingsSections on _SettingsPageState {
               seconds: config.writebackQuietSeconds,
               saving: _savingWritebackQuietSeconds,
               errorText: _writebackQuietSecondsError,
-              onChanged: (value) =>
-                  _saveWritebackQuietSeconds(config, value),
+              onChanged: (value) => _saveWritebackQuietSeconds(config, value),
             ),
             const SizedBox(height: 20),
             MountMetadataCacheSection(
@@ -233,7 +238,10 @@ extension _SettingsSections on _SettingsPageState {
         '配置管理',
         Row(
           children: [
-            ShadButton(onPressed: widget.onEditConfig, child: const Text('重新配置')),
+            ShadButton(
+              onPressed: widget.onEditConfig,
+              child: const Text('重新配置'),
+            ),
             const SizedBox(width: 10),
             ShadButton.outline(
               onPressed: widget.onRefresh,
@@ -283,8 +291,7 @@ extension _SettingsSections on _SettingsPageState {
           concurrency: config.windowsWritebackConcurrency,
           saving: _savingWindowsWritebackConcurrency,
           errorText: _windowsWritebackConcurrencyError,
-          onChanged: (value) =>
-              _saveWindowsWritebackConcurrency(config, value),
+          onChanged: (value) => _saveWindowsWritebackConcurrency(config, value),
         ),
       ),
     ];

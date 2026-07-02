@@ -29,9 +29,8 @@ part 'settings_page_actions.dart';
 part 'settings_page_layout.dart';
 part 'settings_page_sections.dart';
 
-/// Each enum value is a single navigable settings panel. The general-category
-/// cards have been promoted from a flat scrolling list into individual tabs so
-/// the left rail acts as a per-section navigator instead of one long page.
+/// Each enum value identifies a settings card that can be reached from the
+/// left-side anchor rail.
 enum _SettingsTab {
   // General group
   update,
@@ -73,6 +72,10 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   _SettingsTab _activeTab = _SettingsTab.update;
+  final ScrollController _contentScrollController = ScrollController();
+  final Map<_SettingsTab, GlobalKey> _sectionKeys = {
+    for (final tab in _SettingsTab.values) tab: GlobalKey(),
+  };
   bool _savingDownloadDirectory = false;
   String? _downloadDirectoryError;
   bool _savingCacheDirectory = false;
@@ -108,6 +111,14 @@ class _SettingsPageState extends State<SettingsPage> {
   void _updateState(VoidCallback action) => setState(action);
 
   @override
+  void initState() {
+    super.initState();
+    // Keep the left rail highlight aligned with the card nearest the top of
+    // the scrolling settings page.
+    _contentScrollController.addListener(_syncActiveAnchorFromScroll);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final config = widget.state.config;
@@ -132,7 +143,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     fontWeight: FontWeight.w700,
                     fontSize: 22,
                   ),
-               ),
+                ),
                 const SizedBox(height: 24),
                 Expanded(child: _buildGroupRail(theme)),
               ],
@@ -142,10 +153,11 @@ class _SettingsPageState extends State<SettingsPage> {
           // --- Right content area ---
           Expanded(
             child: SingleChildScrollView(
+              controller: _contentScrollController,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ..._buildActiveContent(theme, config),
+                  ..._buildAllContent(theme, config),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -154,25 +166,25 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
- }
+  }
 
- Widget _buildCard(ShadThemeData theme, String title, Widget child) {
+  Widget _buildCard(ShadThemeData theme, String title, Widget child) {
     return SizedBox(
       width: double.infinity,
       child: ShadCard(
-     padding: const EdgeInsets.all(20),
-     title: Text(
-       title,
-       style: TextStyle(
-         fontWeight: FontWeight.w600,
-         fontSize: 14,
-         color: theme.colorScheme.foreground,
-       ),
-     ),
-     child: child,
+        padding: const EdgeInsets.all(20),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: theme.colorScheme.foreground,
+          ),
+        ),
+        child: child,
       ),
-   );
- }
+    );
+  }
 
   Future<void> _pickDownloadDirectory(RemoteStorageConfig config) async {
     final initialDirectory = await resolveDefaultDownloadDirectory(
@@ -208,6 +220,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _resetCacheDirectory(RemoteStorageConfig config) async {
     await _saveCacheDirectory(config, '');
+  }
+
+  @override
+  void dispose() {
+    _contentScrollController
+      ..removeListener(_syncActiveAnchorFromScroll)
+      ..dispose();
+    super.dispose();
   }
 
   @override

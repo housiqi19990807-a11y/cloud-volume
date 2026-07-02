@@ -4,7 +4,7 @@ part of 'settings_page.dart';
 // content area. Extracted from settings_page.dart to keep the main file under
 // the 500-line limit.
 
-/// A labelled group of tabs shown as a section header + tile list in the rail.
+/// A labelled group of anchors shown as a section header + tile list.
 class _SettingsRailGroup {
   const _SettingsRailGroup({required this.header, required this.tabs});
 
@@ -12,8 +12,8 @@ class _SettingsRailGroup {
   final List<_SettingsTab> tabs;
 }
 
-/// Vertical navigation rail with section headers. Each group (通用 / Windows /
-/// 关于) gets a muted header label followed by its tab tiles.
+/// Vertical anchor rail with section headers. Each group (通用 / Windows / 关于)
+/// gets a muted header label followed by anchor tiles.
 extension _SettingsLayout on _SettingsPageState {
   /// Builds the ordered group list, conditionally including the Windows group.
   List<_SettingsRailGroup> _railGroups() {
@@ -44,10 +44,7 @@ extension _SettingsLayout on _SettingsPageState {
             _SettingsTab.windowsMount,
           ],
         ),
-      _SettingsRailGroup(
-        header: '关于',
-        tabs: [_SettingsTab.about],
-      ),
+      _SettingsRailGroup(header: '关于', tabs: [_SettingsTab.about]),
     ];
   }
 
@@ -101,9 +98,7 @@ extension _SettingsLayout on _SettingsPageState {
       mutedForeground: theme.colorScheme.mutedForeground,
       label: _tabLabel(tab),
       active: active,
-      // _updateState routes through the State subclass so this extension
-      // does not touch the protected setState directly.
-      onTap: () => _updateState(() => _activeTab = tab),
+      onTap: () => _scrollToAnchor(tab),
     );
   }
 
@@ -128,12 +123,37 @@ extension _SettingsLayout on _SettingsPageState {
     };
   }
 
-  /// Returns the section list for whichever tab is currently active.
-  List<Widget> _buildActiveContent(
+  /// Builds all visible cards as one long scrollable page, keyed by tab so the
+  /// left rail can jump to each card as an anchor.
+  List<Widget> _buildAllContent(
     ShadThemeData theme,
     RemoteStorageConfig config,
   ) {
-    switch (_activeTab) {
+    final content = <Widget>[];
+    for (final group in _railGroups()) {
+      for (final tab in group.tabs) {
+        content.add(
+          KeyedSubtree(
+            key: _sectionKeys[tab],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: _buildContentForTab(theme, config, tab),
+            ),
+          ),
+        );
+        content.add(const SizedBox(height: 20));
+      }
+    }
+    if (content.isNotEmpty) content.removeLast();
+    return content;
+  }
+
+  List<Widget> _buildContentForTab(
+    ShadThemeData theme,
+    RemoteStorageConfig config,
+    _SettingsTab tab,
+  ) {
+    switch (tab) {
       case _SettingsTab.update:
         return _buildUpdateSection(theme, config);
       case _SettingsTab.proxy:
@@ -164,6 +184,42 @@ extension _SettingsLayout on _SettingsPageState {
         return _buildWindowsMountSection(theme);
       case _SettingsTab.about:
         return _buildAboutSection(theme);
+    }
+  }
+
+  void _scrollToAnchor(_SettingsTab tab) {
+    final context = _sectionKeys[tab]?.currentContext;
+    if (context == null) return;
+    _updateState(() => _activeTab = tab);
+    Scrollable.ensureVisible(
+      context,
+      alignment: 0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _syncActiveAnchorFromScroll() {
+    if (!_contentScrollController.hasClients) return;
+
+    _SettingsTab? nearest;
+    var nearestDistance = double.infinity;
+    for (final group in _railGroups()) {
+      for (final tab in group.tabs) {
+        final context = _sectionKeys[tab]?.currentContext;
+        if (context == null) continue;
+        final box = context.findRenderObject();
+        if (box is! RenderBox || !box.attached) continue;
+        final distance = box.localToGlobal(Offset.zero).dy.abs();
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = tab;
+        }
+      }
+    }
+
+    if (nearest != null && nearest != _activeTab) {
+      _updateState(() => _activeTab = nearest!);
     }
   }
 }
@@ -216,8 +272,8 @@ class _SettingsGroupTileState extends State<_SettingsGroupTile> {
     final fg = active
         ? widget.foreground
         : _hovered
-            ? ac.withValues(alpha: 0.9)
-            : widget.mutedForeground;
+        ? ac.withValues(alpha: 0.9)
+        : widget.mutedForeground;
     final baseBg = active ? ac.withValues(alpha: 0.12) : Colors.transparent;
     final hoverOverlay = active
         ? Colors.transparent
