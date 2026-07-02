@@ -17,6 +17,20 @@
 - Large widget trees should be moved into page/widget modules instead of one oversized `build()` method.
 - Keep bootstrap and configuration flows visually distinct from the eventual storage browser so first-run behavior stays obvious.
 
+### Hover-aware clickable rows (binding rule)
+
+Any clickable row, tile, or sidebar item that needs a hover visual response **must be a dedicated `StatefulWidget`** that owns a `bool _hovered` field. The field is toggled by `MouseRegion(onEnter/onExit)` to `setState`, and drives background color, text color, and cursor via an `AnimatedContainer`. This is the only reliable way to get hover to rebuild the widget subtree.
+
+**Never** build hover items as inline `MouseRegion` + `Container` inside an `extension on State` or a plain builder — the extension/builder has no mutable field to store `_hovered`, so the `onEnter`/`onExit` callbacks have nowhere to write, hover never rebuilds, and you get a dead or stuck hover state. This bug has re-occurred multiple times (settings sidebar rail, file list tiles).
+
+Canonical implementations to copy:
+- `lib/pages/main_layout_page.dart` `_SidebarNavItem` / `_SidebarNavItemState` — sidebar nav items.
+- `lib/widgets/file_list_tile.dart` — file-manager rows (`dimmed` disables hover).
+- `lib/widgets/transfer_task_widgets.dart` — transfer queue rows.
+- `lib/pages/settings_page_layout.dart` `_SettingsGroupTile` — settings left rail entries.
+
+The idle cursor should be `SystemMouseCursors.basic` (basic arrow), switching to `SystemMouseCursors.click` only on hover, so it does not get stuck on a pointing hand inherited from an ancestor.
+
 ## Go Bridge Organization
 
 - Split Go files by responsibility within a package, for example:
@@ -215,7 +229,22 @@ The window centers on `self.screen ?? NSScreen.main`. `NSScreen.main` is whateve
 ### Navigation structure
 
 - `lib/pages/main_layout_page.dart` — Root layout with sidebar navigation. Routes include 文件同步 (`FileSyncTasksPage`), 文件管理 (`FileManagerPage`), 传输 (`TransfersPage`), 回收站 (`GlobalTrashPage`), 分享管理 (`ShareManagementPage`), and 设置 (`SettingsPage`).
-- `lib/pages/settings_page.dart` — Settings page with sub-tabs (通用设置, Windows 设置, 关于). Sync management was **removed** from Settings (2026-06-26) and now lives entirely in the File Sync Tasks page.
+- `lib/pages/settings_page.dart` — Settings page. Groups (通用设置, Windows 设置, 关于) use a **left vertical sidebar rail** (not top tabs). Sync management was **removed** from Settings (2026-06-26) and now lives entirely in the File Sync Tasks page.
+
+### Feature: Settings Page Layout (设置页布局)
+
+The settings page uses a **two-column layout**: a left vertical sidebar rail listing the setting groups (通用设置, Windows 设置, 关于), and a right scrolling content area showing the selected group's cards. This replaced the former top horizontal `ShadTabs` bar.
+
+#### Key files
+- `lib/pages/settings_page.dart` — `SettingsPage` + `_SettingsPageState`. `build()` renders a `Row`: left `SizedBox(width: 180)` with title/subtitle + `_buildGroupRail`; right `Expanded` + `SingleChildScrollView` with `_buildActiveContent`. Tab state is `_activeTab` (`_SettingsTab` enum); switching calls `_updateState`.
+- `lib/pages/settings_page_layout.dart` — part file with `_SettingsLayout` extension (build methods `_buildGroupRail`, `_buildGroupTile`, `_buildActiveContent`) and the `_SettingsGroupTile` StatefulWidget. **The tile must be a StatefulWidget for hover to work** (see Hover-aware clickable rows rule above).
+- `lib/pages/settings_page_actions.dart` — part file with `_SettingsPageActions` extension: all config save/refresh/cleanup actions. Unchanged by the layout refactor.
+
+#### Data flow
+1. `_SettingsPageState.build()` computes the ordered tab list (general, windows if applicable, about).
+2. Left rail renders one `_SettingsGroupTile` per tab; tap sets `_activeTab` via `_updateState`.
+3. `_buildActiveContent` switch returns the section list (`_buildGeneralSections` / `_buildWindowsSections` / `_buildAboutSections`), each building `_buildCard` rows.
+4. Only the right column scrolls; the left rail stays fixed.
 
 ### Feature: Flutter → Go app logging
 

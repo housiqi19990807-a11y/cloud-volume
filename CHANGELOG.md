@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 设置页：将顶部「通用设置 / Windows 设置 / 关于」标签页改为页面左侧竖向分组导航栏，右侧显示对应分组内容，分类切换不再需要横向标签栏。
+- 设置页：将顶部「通用设置 / Windows 设置 / 关于」标签页改为页面左侧竖向分组导航栏，右侧显示对应分组内容，分类切换不再需要横向标签栏。左侧分组项支持 hover 高亮反馈（`_SettingsGroupTile` StatefulWidget），修复此前鼠标悬停无视觉变化的问题。
 
 - 配置存储：从 TOML 配置文件迁移到 bbolt 单文件数据库（`~/.cloud-volume/config.db`）。所有账号配置、代理设置统一存储在 bbolt 的 JSON bucket 中，不再使用分散的 TOML 文件。首次启动时自动从旧的 `profiles/*.toml` 和 `config.toml` 迁移到 bbolt，迁移完成后删除旧文件。从根本上避免了 `saveConfig` 整体覆盖导致丢账号的问题。
 
