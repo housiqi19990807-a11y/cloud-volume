@@ -390,7 +390,7 @@ Linux 桌面版同时提供 `tar.gz` 和 `AppImage`：
 产物都包含对应平台的 Flutter 桌面壳和 Go bridge。
 发布流程会自动生成包含更新记录、macOS 打开提示处理方法、国内 GitHub 加速下载表格以及校验信息的 Release 文案；下载表格会按当前 tag 和实际产物列出 GitHub 原始链接、`gh-proxy` 与 `ghfast` 加速链接，方便用户直接点击。
 macOS 的 DMG 现在还会额外附带一个 `修复已损坏问题.txt`，把应用拖到 `Applications` 后可打开它，按说明在终端执行 `xattr` 命令移除隔离属性（之前的 `.command` 双击脚本本身也会被 Gatekeeper 隔离，已替换为纯文本引导）。
-打包后的桌面版现在会优先加载应用 bundle 内置的 Go bridge 动态库，不再要求从仓库目录启动才能正常运行。
+打包后的桌面版现在会优先加载应用 bundle 内置的 Go bridge 动态库，不再要求从仓库目录启动才能正常运行。macOS app bundle 内 bridge dylib 的查找顺序为 `Contents/Frameworks/` 优先于 `Contents/MacOS/`，避免早期调试运行遗留在 `MacOS/` 下的旧 dylib 被误加载导致新方法（如 `install_app`）报 "unsupported bridge method"；`make build-macos` 在写入 dylib 前会先清除 `Contents/MacOS/` 下可能残留的旧副本。
 
 
 ## 许可证

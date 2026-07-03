@@ -173,6 +173,10 @@ build-macos: bridge-macos
 	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) build macos --dart-define=APP_VERSION_LABEL=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 	# Copy the Go bridge dylib into the app bundle so it works when launched
 	# from outside the repo root (_findBundledLibraryPath -> Contents/Frameworks/).
+	# Remove any stale dylib that may have been left in Contents/MacOS/ from an
+	# older build. If it remains, _findBundledLibraryPath might find it first and
+	# load an outdated version, causing "unsupported bridge method" errors.
+	rm -f "$(MACOS_APP_BUNDLE)/Contents/MacOS/$(notdir $(MACOS_BRIDGE_OUT))"
 	cp $(MACOS_BRIDGE_OUT) "$(MACOS_APP_BUNDLE)/Contents/Frameworks/"
 
 build-linux: bridge-linux

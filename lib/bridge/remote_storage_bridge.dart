@@ -113,16 +113,25 @@ class RemoteStorageBridge {
     );
   }
 
+  // Resolve the bundled Go bridge dylib.
+  //
+  // macOS app bundles may carry the dylib in two locations:
+  //   - Contents/Frameworks/<dylib>  ← canonical, written by `make build-macos`
+  //   - Contents/MacOS/<dylib>       ← stray copy from older Debug/Release runs
+  // We probe Frameworks FIRST. Placing MacOS/ first would load a stale dylib
+  // left over from a previous build whenever the Frameworks copy is updated,
+  // causing "unsupported bridge method" errors for newly added methods like
+  // install_app. Frameworks is the canonical Makefile target, so it wins.
   static String? _findBundledLibraryPath() {
     final libraryName = _libraryFileName();
     final executableDir = File(Platform.resolvedExecutable).absolute.parent;
     final candidates = <String>[
-      path.join(executableDir.path, libraryName),
-      if (Platform.isLinux) path.join(executableDir.path, 'lib', libraryName),
       if (Platform.isMacOS)
         path.normalize(
           path.join(executableDir.path, '..', 'Frameworks', libraryName),
         ),
+      if (Platform.isLinux) path.join(executableDir.path, 'lib', libraryName),
+      path.join(executableDir.path, libraryName),
     ];
 
     for (final candidate in candidates) {

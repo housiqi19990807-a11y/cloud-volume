@@ -290,14 +290,18 @@ Detects new GitHub releases and, on desktop, downloads + installs the correct pl
 **Mirror rule (2026-07-02 fix):** The GitHub Releases **API** call (`checkLatestRelease`) is **always direct** to `api.github.com` — public download mirrors like `gh-proxy.com` reject api.github.com URLs with HTTP 403. The configured mirror prefix (`UpdateNetworkConfig.wrapUrl`) is now applied **only** to the asset **download** URL in `downloadAndInstallAsset`.
 **Architecture matching (2026-07-02 fix):** `matchPlatformAsset` previously hardcoded universal-first on macOS, so an arm64 app would download the larger universal DMG. It now prefers the **running build architecture**: the Go bridge exposes `get_build_info` returning `buildArch` (injected at compile time via `-ldflags -X main.buildArch=...` in Makefile / `build_desktop_packages.sh`); Flutter reads it via `widget.api.getBuildInfo()` and passes it to `matchPlatformAsset`. If the bridge is unavailable (web, old dev build), it falls back to `runtimeCpuArchitecture` (parsed from `Platform.version`). Universal is tried only after the arch-specific package, and as a fallback when the specific arch asset is absent.
 **Download progress (2026-07-02 fix):** When the server does not report `Content-Length` and the asset metadata has no size, the progress bar previously stayed stuck at 0%. `_installProgress` is now initialized to `-1` (indeterminate); the `LinearProgressIndicator` uses `null` value (continuous animation) and the status text shows downloaded bytes via `_formatBytes`.
-**Temp download path (2026-07-03 fix):** On macOS, `getTemporaryDirectory()` resolves under `~/Library/Caches/<bundle-id>/` (e.g. `com.example.remoteStorage`), which may not exist on first use. `File.openWrite()` does not create parent directories, so one-click update failed with `PathNotFoundException` on `yunjuan-macos-arm64.dmg`. `app_installer_io.dart` now `create(recursive: true)` on `app_updates/` under that temp root, verifies non-zero download and file existence before install, and `_installMacOS` checks the DMG still exists before `hdiutil attach`.
+**Temp download path (2026-07-03 fix):** Historical Dart-side temp-dir issue; install path is now Go `bridge/dispatch_app_install.go` (`os.TempDir()/app_updates`, `MkdirAll` before download).
+
+**Bundled dylib load order (2026-07-03 fix):** macOS bundles may contain two copies of `libremote_storage_bridge.dylib` — `Contents/Frameworks/` (from `make build-macos`) and a stale `Contents/MacOS/` copy from older dev runs. `_findBundledLibraryPath` previously preferred `MacOS/` first, so Flutter FFI loaded the old dylib without `install_app` → `unsupported bridge method "install_app"`. Fix: probe `Frameworks/` before `MacOS/`; `Makefile` `build-macos` runs `rm -f` on `Contents/MacOS/$(dylib)` before `cp` to Frameworks.
 
 #### Key files
 
+- `lib/bridge/remote_storage_bridge.dart` — FFI loader: `connect()` / `openAtPath()`; `_findBundledLibraryPath()` macOS order Frameworks → MacOS.
 - `lib/services/app_update_service.dart` — `AppUpdateService.checkLatestRelease`: fetches GitHub Releases API **directly** (never wrapped by mirror), parses `tag_name` + `assets` array into `AppUpdateCheckResult` with `List<ReleaseAsset>`. Also has `compareVersionLabels` for semver comparison.
 - `lib/services/platform_asset_matcher.dart` — `matchPlatformAsset(assets, {runtimeArchitecture})`: picks the correct asset. macOS order: arch-specific DMG/zip → universal DMG/zip → other-arch DMG/zip; Windows prefers `installer.exe` → `.zip`; Linux prefers `.AppImage` → `.tar.gz`.
 - `lib/services/app_installer.dart` — Conditional export: IO → `app_installer_io.dart`, Web → `app_installer_stub.dart`. Exports `kSupportsInAppInstall` and `downloadAndInstallAsset`.
-- `lib/services/app_installer_io.dart` — Desktop installer: streams download to temp dir with progress callback, then installs per platform. macOS: `hdiutil attach` DMG → copy `.app` to `/Applications` → `xattr -cr` strip quarantine → relaunch. Windows: run Inno Setup `.exe` with `/SILENT /CLOSEAPPLICATIONS` → `exit(0)`. Linux: replace AppImage in-place or extract tarball → relaunch.
+- `lib/services/app_installer_io.dart` — Desktop: delegates to `api.installApp()` → bridge `install_app`; progress via `TransferQueue` only (no Dart `Process.run` / download).
+- `bridge/dispatch_app_install.go` — Go `install_app`: download (mirror/proxy), platform install (DMG/ZIP/exe/AppImage/tar), relaunch, `os.Exit(0)`; progress via `s3ops` transfer monitor.
 - `lib/services/app_installer_stub.dart` / `app_installer_web.dart` — Web stub: returns error string (no local filesystem access).
 - `lib/widgets/settings_update_section.dart` — Update UI in 设置 → 通用设置 → 应用更新. Calls `widget.api.getBuildInfo()` at init to load `_buildArch`, passes it to `matchPlatformAsset`. Shows version status, “检测更新”, “一键更新” (when matched asset exists), indeterminate-or-percentage progress bar, and “GitHub 下载” fallback.
 - `lib/widgets/settings_update_mirror_field.dart` — GitHub download mirror input (extracted from `settings_update_section.dart` to keep it under 500 lines). Persisted via `UpdateNetworkConfig`; affects only `downloadAndInstallAsset` download URLs.
@@ -309,9 +313,10 @@ Detects new GitHub releases and, on desktop, downloads + installs the correct pl
 
 1. User clicks “检测更新” → `AppUpdateService.checkLatestRelease` → GitHub API **direct** (no mirror).
 2. If `updateAvailable` and `matchPlatformAsset(assets, runtimeArchitecture: _buildArch)` finds a matching asset → “一键更新” button appears.
-3. User clicks “一键更新” → `downloadAndInstallAsset(asset, installerType, networkConfig, onProgress)` streams download (URL wrapped by mirror if configured) to temp dir, shows progress bar.
-4. On download complete, platform installer runs: macOS mounts DMG and replaces app, Windows runs installer silently, Linux replaces AppImage.
-5. New version launches, old process calls `exit(0)`.
+3. User clicks “一键更新” → `lib/services/app_installer_io.dart` `downloadAndInstallAsset` → `api.installApp(...)` → bridge `install_app` → `bridge/dispatch_app_install.go` spawns background goroutine, returns `taskId`.
+4. Go goroutine streams download (URL wrapped by mirror if configured) to `os.TempDir()/app_updates/`, reporting progress through `s3ops` transfer monitor; Flutter `_SettingsUpdateSectionState._onTransferQueueChanged` renders the progress bar.
+5. On download complete, goroutine performs platform install: macOS mounts DMG (`hdiutil attach -plist`) and replaces `/Applications/云卷.app`, Windows runs `.exe` `/SILENT`, Linux replaces AppImage / extracts tarball.
+6. `relaunchApp()` starts the new binary, then `os.Exit(0)`.
 
 ### Feature: Global Proxy & Network Configuration (全局代理设置)
 
