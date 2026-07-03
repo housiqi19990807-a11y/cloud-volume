@@ -28,14 +28,18 @@ Future<String?> downloadAndInstallAsset(
   UpdateNetworkConfig networkConfig = const UpdateNetworkConfig(),
   ProxyConfig proxyConfig = const ProxyConfig(),
 }) async {
+  http.Client? client;
   try {
     final tempDir = await getTemporaryDirectory();
-    final downloadPath = p.join(tempDir.path, asset.name);
+    // macOS temp dir is often under Library/Caches/<bundle-id>; ensure it exists.
+    final updatesDir = Directory(p.join(tempDir.path, 'app_updates'));
+    await updatesDir.create(recursive: true);
+    final downloadPath = p.join(updatesDir.path, asset.name);
     final file = File(downloadPath);
 
     final downloadUrl = networkConfig.wrapUrl(asset.downloadUrl);
     // Download with streaming to report progress.
-    final client = createProxyHttpClient(proxyConfig);
+    client = createProxyHttpClient(proxyConfig);
     final request = http.Request('GET', Uri.parse(downloadUrl));
     final response = await client.send(request);
     if (response.statusCode != 200) {
@@ -50,6 +54,15 @@ Future<String?> downloadAndInstallAsset(
       onProgress?.call(received, total);
     }
     await sink.close();
+    client.close();
+    client = null;
+
+    if (received == 0) {
+      return '下载失败：未收到任何数据，请检查网络或镜像设置后重试。';
+    }
+    if (!await file.exists()) {
+      return '下载失败：安装包未写入磁盘（$downloadPath）。';
+    }
 
     // Install per platform.
     if (isMacOSPlatform) {
@@ -64,6 +77,8 @@ Future<String?> downloadAndInstallAsset(
     return '不支持的平台';
   } catch (e) {
     return '更新失败：$e';
+  } finally {
+    client?.close();
   }
 }
 
@@ -75,6 +90,9 @@ Future<String?> _installMacOS(String downloadPath, String installerType) async {
   final targetApp = p.join(appsDir, appName);
 
   try {
+    if (!await File(downloadPath).exists()) {
+      return '安装包不存在或已被清理：$downloadPath。请重新点击「一键更新」下载。';
+    }
     if (installerType == 'dmg') {
       // Mount the DMG, copy the .app out, then unmount.
       final mountResult = await Process.run('hdiutil', [

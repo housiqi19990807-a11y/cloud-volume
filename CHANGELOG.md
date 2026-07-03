@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：修复一键更新在 macOS 上因临时目录缺失导致 `PathNotFoundException` 的问题。`getTemporaryDirectory()` 在 macOS 上常返回 `~/Library/Caches/<bundle-id>/`，但该目录可能尚未创建，`File.openWrite()` 不会自动建父目录，导致下载阶段即以 "No such file or directory" 失败。现在下载前显式 `create(recursive: true)` 一个 `app_updates` 子目录并校验写入结果；安装阶段若安装包已被清理则给出明确提示而非 `hdiutil` 报错。同时补上 HTTP client 的释放。
+
 - 账号管理：新增/编辑账号在桌面端改为独立子窗口（`desktop_multi_window`），不再使用 ShadDialog 拟态框；子窗口自带 bridge 连接和表单保存，保存成功后通过 method channel 通知主窗口刷新列表。Web 端或无法创建子窗口时仍回退到拟态框。
 
 - 应用更新：修复三个问题。① 版本检查（GitHub Releases API）走镜像会返回 403，现在 API 调用永远直连 GitHub，镜像只用于安装包下载；② 一键更新在 ARM 版应用上误下 universal 包，改为优先匹配当前构建架构（后端 `get_build_info` 注入 `buildArch`，Dart 侧做兜底），找不到再回退 universal；③ 下载进度在未知总大小时停在 0%，现在显示已下载字节数与连续滚动进度条。
