@@ -44,6 +44,9 @@ class RemoteDirectoryPickerWindowService {
           }
         : localFrame;
     acquireParentModalOverlay();
+    // Yield to the event loop so the parent scrim can render its loading
+    // spinner before the expensive sub-window spawn blocks the UI thread.
+    await Future<void>.delayed(Duration.zero);
     final completer = Completer<RemoteDirectoryResultPayload?>();
     final requestId =
         DesktopWindowMethodHost.registerRemoteDirectoryRequest(completer);

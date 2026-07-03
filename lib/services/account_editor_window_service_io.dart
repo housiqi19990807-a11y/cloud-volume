@@ -21,6 +21,9 @@ class AccountEditorWindowService {
     required void Function() onSaved,
   }) async {
     acquireParentModalOverlay();
+    // Yield to the event loop so the parent scrim can render its loading
+    // spinner before the expensive sub-window spawn blocks the UI thread.
+    await Future<void>.delayed(Duration.zero);
     try {
       final creator = await WindowController.fromCurrentEngine();
       final creatorFrame = await readLocalWindowBounds();
