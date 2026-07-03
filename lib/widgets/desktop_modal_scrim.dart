@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 class DesktopModalScrim extends StatefulWidget {
   const DesktopModalScrim({super.key});
@@ -37,9 +38,24 @@ class _DesktopModalScrimState extends State<DesktopModalScrim> {
         child: ColoredBox(
           color: Colors.black.withValues(alpha: 0.45),
           child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.loader,
+                  size: 28,
+                  color: Colors.white,
+                ),
+                SizedBox(height: 10),
+                Text(
+                  '加载中...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
