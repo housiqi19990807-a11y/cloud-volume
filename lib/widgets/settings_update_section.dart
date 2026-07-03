@@ -12,7 +12,7 @@ import 'package:remote_storage/services/update_settings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/settings_update_mirror_field.dart'
-   show SettingsUpdateMirrorField;
+    show SettingsUpdateMirrorField;
 import 'package:remote_storage/widgets/update_status_row.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -70,7 +70,9 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     if (api == null) return;
     try {
       final info = await api.getBuildInfo();
-      final arch = info.buildArch.isNotEmpty ? info.buildArch : info.runtimeArch;
+      final arch = info.buildArch.isNotEmpty
+          ? info.buildArch
+          : info.runtimeArch;
       if (!mounted) return;
       if (arch.isNotEmpty) setState(() => _buildArch = arch);
     } catch (_) {
@@ -98,9 +100,10 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
   void _onTransferQueueChanged() {
     final taskId = _installTaskId;
     if (taskId == null || !_installing) return;
-    final task = TransferQueue.instance.tasks
-        .cast<TransferTask?>()
-        .firstWhere((t) => t?.id == taskId, orElse: () => null);
+    final task = TransferQueue.instance.tasks.cast<TransferTask?>().firstWhere(
+      (t) => t?.id == taskId,
+      orElse: () => null,
+    );
     if (task == null) return;
 
     if (task.status == TransferStatus.done || task.statusDetail == 'done') {
@@ -110,6 +113,15 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
         setState(() {
           _installStatusText = '安装完成，正在重启...';
           _installProgress = 1;
+        });
+      }
+      return;
+    }
+    if (task.status == TransferStatus.canceled) {
+      if (mounted) {
+        setState(() {
+          _resetInstallState();
+          _errorText = null;
         });
       }
       return;
@@ -157,20 +169,22 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         UpdateStatusRow(
-         theme: theme,
-         title: _statusTitle,
-         subtitle: _statusSubtitle,
-        highlighted: _result?.updateAvailable == true,
-        errorText: _errorText,
-        checking: _checking,
-        openingDownloadPage: _openingDownloadPage,
-         installing: _installing,
-     installProgress: _installProgress,
-         canInstallInApp: _canInstallInApp,
-        onCheckForUpdates: _checking ? null : _checkForUpdates,
-        onOpenDownloadPage: _openingDownloadPage ? null : _openDownloadPage,
-       onInstall: (_installing || !_canInstallInApp) ? null : _startInstall,
-     ),
+          theme: theme,
+          title: _statusTitle,
+          subtitle: _statusSubtitle,
+          highlighted: _result?.updateAvailable == true,
+          errorText: _errorText,
+          checking: _checking,
+          openingDownloadPage: _openingDownloadPage,
+          installing: _installing,
+          installProgress: _installProgress,
+          canInstallInApp: _canInstallInApp,
+          onCheckForUpdates: _checking ? null : _checkForUpdates,
+          onOpenDownloadPage: _openingDownloadPage ? null : _openDownloadPage,
+          onInstall: (_installing || !_canInstallInApp) ? null : _startInstall,
+          canCancelInstall: _canCancelInstall,
+          onCancelInstall: _canCancelInstall ? _cancelInstall : null,
+        ),
         const SizedBox(height: 14),
         SettingsUpdateMirrorField(
           theme: theme,
@@ -179,7 +193,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
             setState(() => _mirrorConfig = config);
           },
         ),
-     ],
+      ],
     );
   }
 
@@ -188,10 +202,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     final result = _result;
     if (result == null || !result.updateAvailable) return false;
     if (!kSupportsInAppInstall) return false;
-    return matchPlatformAsset(
-          result.assets,
-          runtimeArchitecture: _buildArch,
-        ) !=
+    return matchPlatformAsset(result.assets, runtimeArchitecture: _buildArch) !=
         null;
   }
 
@@ -255,6 +266,33 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     _installStatusText = '';
   }
 
+  /// True while a Go `app_update` task is cancellable from this card.
+  bool get _canCancelInstall => _installing && _installTaskId != null;
+
+  /// Stops the in-flight update via bridge `cancel_transfer` (aborts HTTP download).
+  Future<void> _cancelInstall() async {
+    final taskId = _installTaskId;
+    if (taskId == null) return;
+    setState(() => _installStatusText = '正在取消更新...');
+    try {
+      if (TransferQueue.instance.canCancelTask(taskId)) {
+        await TransferQueue.instance.cancelTask(taskId);
+      } else {
+        await widget.api?.cancelTransfer(taskId);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      _showError('取消更新失败：$error');
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _resetInstallState();
+      _errorText = null;
+    });
+    await TransferQueue.instance.pollNow();
+  }
+
   String get _statusTitle {
     final result = _result;
     if (_checking) {
@@ -307,7 +345,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       _errorText = null;
     });
     try {
-     final result = await _updateService.checkLatestRelease(
+      final result = await _updateService.checkLatestRelease(
         currentVersion: widget.currentVersion,
         networkConfig: _mirrorConfig,
         proxyConfig: _proxyConfig,

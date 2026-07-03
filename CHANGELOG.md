@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：一键更新进行中时，在更新卡片按钮区直接显示“取消更新”。点击后会调用传输队列/bridge 的 `cancel_transfer` 终止 Go 侧 `app_update` 任务，取消正在进行的 HTTP 下载并恢复更新卡片状态，无需跳转到“传输”页。
+
 - 应用更新：修复 macOS 上 `unsupported bridge method "install_app"` 错误。根因是 macOS app bundle 可能同时存在两个 bridge dylib 副本——一个在 `Contents/MacOS/`（早期手动构建或调试运行遗留），一个在 `Contents/Frameworks/`（`make build-macos` 写入）。`_findBundledLibraryPath` 的查找顺序里 `MacOS/` 排在 `Frameworks/` 之前，导致 Dart FFI 加载的是旧 dylib，没有 `install_app` 方法。现在改为 `Frameworks/` 优先于 `MacOS/`，并在 `build-macos` 目标里拷贝前 `rm -f` 清除 `Contents/MacOS/` 下可能残留的旧 dylib。
 
 - 应用更新：macOS/Windows/Linux 三平台更新全流程从 Dart 迁移到 Go bridge。Dart 不再执行任何平台逻辑（无 `Process.run`/`hdiutil`/`cp`/`xattr`/`HttpClient`），仅通过 `TransferQueue` 轮询进度。Go bridge 新增 `install_app` 方法，后台 goroutine 完成下载（带镜像/代理）+ 安装 + 重启，进度实时上报 `transferMonitor`。修复之前 `hdiutil attach` 输出因 locale 差异解析失败导致挂载点定位错误的根因（改用 `-plist` 输出解析 + `/Volumes` 扫描兜底）。设置页 `SettingsUpdateSection` 改为监听 `TransferQueue.instance` 获取实时进度。`RemoteStorageApi` 的 `installApp` 方法拆入独立 part 文件控制代码行数。

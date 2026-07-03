@@ -18,9 +18,11 @@ class UpdateStatusRow extends StatelessWidget {
     required this.installing,
     required this.installProgress,
     required this.canInstallInApp,
+    required this.canCancelInstall,
     required this.onCheckForUpdates,
     required this.onOpenDownloadPage,
     required this.onInstall,
+    required this.onCancelInstall,
   });
 
   final ShadThemeData theme;
@@ -33,9 +35,11 @@ class UpdateStatusRow extends StatelessWidget {
   final bool installing;
   final double installProgress;
   final bool canInstallInApp;
+  final bool canCancelInstall;
   final VoidCallback? onCheckForUpdates;
   final VoidCallback? onOpenDownloadPage;
   final VoidCallback? onInstall;
+  final VoidCallback? onCancelInstall;
 
   @override
   Widget build(BuildContext context) {
@@ -177,6 +181,18 @@ class UpdateStatusRow extends StatelessWidget {
                 Icon(LucideIcons.download, size: 15),
                 const SizedBox(width: 8),
                 Text(installing ? '更新中...' : '一键更新'),
+              ],
+            ),
+          ),
+        if (installing && canCancelInstall)
+          ShadButton.outline(
+            onPressed: onCancelInstall,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.x, size: 15),
+                const SizedBox(width: 8),
+                const Text('取消更新'),
               ],
             ),
           ),

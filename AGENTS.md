@@ -303,7 +303,7 @@ Detects new GitHub releases and, on desktop, downloads + installs the correct pl
 - `lib/services/app_installer_io.dart` — Desktop: delegates to `api.installApp()` → bridge `install_app`; progress via `TransferQueue` only (no Dart `Process.run` / download).
 - `bridge/dispatch_app_install.go` — Go `install_app`: download (mirror/proxy), platform install (DMG/ZIP/exe/AppImage/tar), relaunch, `os.Exit(0)`; progress via `s3ops` transfer monitor.
 - `lib/services/app_installer_stub.dart` / `app_installer_web.dart` — Web stub: returns error string (no local filesystem access).
-- `lib/widgets/settings_update_section.dart` — Update UI in 设置 → 通用设置 → 应用更新. Calls `widget.api.getBuildInfo()` at init to load `_buildArch`, passes it to `matchPlatformAsset`. Shows version status, “检测更新”, “一键更新” (when matched asset exists), indeterminate-or-percentage progress bar, and “GitHub 下载” fallback.
+- `lib/widgets/settings_update_section.dart` — Update UI in 设置 → 通用设置 → 应用更新. Calls `widget.api.getBuildInfo()` at init to load `_buildArch`, passes it to `matchPlatformAsset`. Shows version status, “检测更新”, “一键更新” (when matched asset exists), “取消更新” while an `app_update` task is active, indeterminate-or-percentage progress bar, and “GitHub 下载” fallback.
 - `lib/widgets/settings_update_mirror_field.dart` — GitHub download mirror input (extracted from `settings_update_section.dart` to keep it under 500 lines). Persisted via `UpdateNetworkConfig`; affects only `downloadAndInstallAsset` download URLs.
 - `bridge/build_info.go` — `buildArch` package var (set by ldflags) + `getBuildInfo()` returns `{buildArch, runtimeOS, runtimeArch}`. Falls back to `runtime.GOARCH` when `buildArch` is empty (local dev builds).
 - `bridge/dispatch.go` — Routes `get_build_info` → `getBuildInfo()`.
@@ -316,7 +316,8 @@ Detects new GitHub releases and, on desktop, downloads + installs the correct pl
 3. User clicks “一键更新” → `lib/services/app_installer_io.dart` `downloadAndInstallAsset` → `api.installApp(...)` → bridge `install_app` → `bridge/dispatch_app_install.go` spawns background goroutine, returns `taskId`.
 4. Go goroutine streams download (URL wrapped by mirror if configured) to `os.TempDir()/app_updates/`, reporting progress through `s3ops` transfer monitor; Flutter `_SettingsUpdateSectionState._onTransferQueueChanged` renders the progress bar.
 5. On download complete, goroutine performs platform install: macOS mounts DMG (`hdiutil attach -plist`) and replaces `/Applications/云卷.app`, Windows runs `.exe` `/SILENT`, Linux replaces AppImage / extracts tarball.
-6. `relaunchApp()` starts the new binary, then `os.Exit(0)`.
+6. If the user clicks “取消更新” before completion, `SettingsUpdateSection._cancelInstall` calls `TransferQueue.cancelTask(taskId)` (or `api.cancelTransfer(taskId)` before the task has been polled), which reaches bridge `cancel_transfer`; Go `CancelTransfer` invokes the stored context cancel and aborts the HTTP download.
+7. `relaunchApp()` starts the new binary, then `os.Exit(0)`.
 
 ### Feature: Global Proxy & Network Configuration (全局代理设置)
 
