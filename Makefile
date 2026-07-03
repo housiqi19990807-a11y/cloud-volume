@@ -164,8 +164,16 @@ else
 	@exit 1
 endif
 
+# The macOS app bundle name is hardcoded by flutter build macos to match the
+# Xcode project product name.
+MACOS_APP_NAME := 云卷
+MACOS_APP_BUNDLE := build/macos/Build/Products/Release/$(MACOS_APP_NAME).app
+
 build-macos: bridge-macos
-	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) build macos --dart-define=APP_VERSION_LABEL=dev
+	DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer $(FLUTTER) build macos --dart-define=APP_VERSION_LABEL=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+	# Copy the Go bridge dylib into the app bundle so it works when launched
+	# from outside the repo root (_findBundledLibraryPath -> Contents/Frameworks/).
+	cp $(MACOS_BRIDGE_OUT) "$(MACOS_APP_BUNDLE)/Contents/Frameworks/"
 
 build-linux: bridge-linux
 ifeq ($(HOST_PLATFORM),linux)
