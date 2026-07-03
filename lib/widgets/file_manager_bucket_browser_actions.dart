@@ -83,7 +83,7 @@ class _BucketMountActions extends StatelessWidget {
               color: foreground,
               onPressed: primaryAction == null
                   ? null
-                  : () => primaryAction!(bucket),
+                  : () => primaryAction(bucket),
             ),
           ),
           const SizedBox(width: 4),
@@ -94,7 +94,7 @@ class _BucketMountActions extends StatelessWidget {
               color: foreground,
               onPressed: secondaryAction == null
                   ? null
-                  : () => secondaryAction!(bucket),
+                  : () => secondaryAction(bucket),
             ),
           ),
           const SizedBox(width: 4),

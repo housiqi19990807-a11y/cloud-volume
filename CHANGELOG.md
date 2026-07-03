@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：macOS/Windows/Linux 三平台更新全流程从 Dart 迁移到 Go bridge。Dart 不再执行任何平台逻辑（无 `Process.run`/`hdiutil`/`cp`/`xattr`/`HttpClient`），仅通过 `TransferQueue` 轮询进度。Go bridge 新增 `install_app` 方法，后台 goroutine 完成下载（带镜像/代理）+ 安装 + 重启，进度实时上报 `transferMonitor`。修复之前 `hdiutil attach` 输出因 locale 差异解析失败导致挂载点定位错误的根因（改用 `-plist` 输出解析 + `/Volumes` 扫描兜底）。设置页 `SettingsUpdateSection` 改为监听 `TransferQueue.instance` 获取实时进度。`RemoteStorageApi` 的 `installApp` 方法拆入独立 part 文件控制代码行数。
+
 - 应用更新：修复一键更新在 macOS 上因临时目录缺失导致 `PathNotFoundException` 的问题。`getTemporaryDirectory()` 在 macOS 上常返回 `~/Library/Caches/<bundle-id>/`，但该目录可能尚未创建，`File.openWrite()` 不会自动建父目录，导致下载阶段即以 "No such file or directory" 失败。现在下载前显式 `create(recursive: true)` 一个 `app_updates` 子目录并校验写入结果；安装阶段若安装包已被清理则给出明确提示而非 `hdiutil` 报错。同时补上 HTTP client 的释放。
 
 - 账号管理：新增/编辑账号在桌面端改为独立子窗口（`desktop_multi_window`），不再使用 ShadDialog 拟态框；子窗口自带 bridge 连接和表单保存，保存成功后通过 method channel 通知主窗口刷新列表。Web 端或无法创建子窗口时仍回退到拟态框。

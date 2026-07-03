@@ -124,6 +124,22 @@ class RemoteStorageApi
   }) async {}
 
   @override
+  Future<String> installApp({
+    required String assetUrl,
+    required String assetName,
+    required String installerType,
+    required String mirrorPrefix,
+    required String proxyMode,
+    required String proxyType,
+    required String proxyHost,
+    required String proxyPort,
+    required String proxyUsername,
+    required String proxyPassword,
+  }) async {
+    throw UnsupportedError('Web 端不支持应用内自动更新，请前往 GitHub 下载。');
+  }
+
+  @override
   Future<AuthSessionState> loadAuthSession() async {
     final response = await _client.get(_apiUri('/api/auth/session'));
     if (response.statusCode == 401) {

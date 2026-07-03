@@ -106,6 +106,20 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<BridgeBuildInfo> getBuildInfo() async => const BridgeBuildInfo();
 
   @override
+  Future<String> installApp({
+    required String assetUrl,
+    required String assetName,
+    required String installerType,
+    required String mirrorPrefix,
+    required String proxyMode,
+    required String proxyType,
+    required String proxyHost,
+    required String proxyPort,
+    required String proxyUsername,
+    required String proxyPassword,
+  }) async => '';
+
+  @override
   Future<void> login(String username, String password) async {}
 
   @override

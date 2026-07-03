@@ -10,6 +10,7 @@ import 'package:remote_storage/services/proxy_http_client.dart';
 import 'package:remote_storage/services/platform_asset_matcher.dart';
 import 'package:remote_storage/services/update_settings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/widgets/settings_update_mirror_field.dart'
    show SettingsUpdateMirrorField;
 import 'package:remote_storage/widgets/update_status_row.dart';
@@ -49,6 +50,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
   UpdateNetworkConfig _mirrorConfig = const UpdateNetworkConfig();
   // Compile-time architecture reported by the Go bridge; empty until loaded.
   String _buildArch = '';
+  // Task id of the in-flight app update, used to poll TransferQueue progress.
+  String? _installTaskId;
 
   @override
   void initState() {
@@ -57,6 +60,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     _ownsUpdateService = widget.updateService == null;
     _loadMirrorConfig();
     _loadBuildArch();
+    TransferQueue.instance.addListener(_onTransferQueueChanged);
   }
 
   /// Prefer the architecture injected into the Go bridge at build time. Falls
@@ -82,10 +86,68 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
 
   @override
   void dispose() {
+    TransferQueue.instance.removeListener(_onTransferQueueChanged);
     if (_ownsUpdateService) {
       _updateService.close();
     }
     super.dispose();
+  }
+
+  /// TransferQueue listener: when our install task progresses or finishes,
+  /// reflect that in the local UI state.
+  void _onTransferQueueChanged() {
+    final taskId = _installTaskId;
+    if (taskId == null || !_installing) return;
+    final task = TransferQueue.instance.tasks
+        .cast<TransferTask?>()
+        .firstWhere((t) => t?.id == taskId, orElse: () => null);
+    if (task == null) return;
+
+    if (task.status == TransferStatus.done || task.statusDetail == 'done') {
+      // The Go side will relaunch and exit; reaching here as done means
+      // relaunch already started. Reset on next frame to avoid UI flicker.
+      if (mounted) {
+        setState(() {
+          _installStatusText = '安装完成，正在重启...';
+          _installProgress = 1;
+        });
+      }
+      return;
+    }
+    if (task.status == TransferStatus.failed) {
+      final errMsg = task.error ?? '更新失败，请重试或前往 GitHub 手动下载。';
+      if (mounted) {
+        setState(() {
+          _installing = false;
+          _installTaskId = null;
+          _installProgress = 0;
+          _installStatusText = '';
+          _errorText = errMsg;
+        });
+      }
+      return;
+    }
+    // Running: update progress from bytes.
+    final total = task.totalBytes;
+    final received = task.bytesCompleted;
+    final detail = task.statusDetail;
+    if (mounted) {
+      setState(() {
+        if (total > 0) {
+          _installProgress = (received / total).clamp(0.0, 1.0);
+        } else {
+          _installProgress = -1;
+        }
+        if (detail == 'installing') {
+          _installStatusText = '下载完成，正在安装...';
+        } else if (total > 0) {
+          _installStatusText =
+              '正在下载 ${_formatBytes(received)} / ${_formatBytes(total)}';
+        } else {
+          _installStatusText = '正在下载 ${_formatBytes(received)}...';
+        }
+      });
+    }
   }
 
   @override
@@ -142,10 +204,13 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     password: widget.config?.proxyPassword ?? '',
   );
 
-  /// Full download + install + relaunch flow.
+  /// Dispatches the install to the Go bridge. The Go side runs the download +
+  /// install + relaunch in a background goroutine and reports progress through
+  /// the shared TransferQueue, which we listen to in [_onTransferQueueChanged].
   Future<void> _startInstall() async {
+    final api = widget.api;
     final result = _result;
-    if (result == null) return;
+    if (api == null || result == null) return;
     final matched = matchPlatformAsset(
       result.assets,
       runtimeArchitecture: _buildArch,
@@ -158,44 +223,34 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     setState(() {
       _installing = true;
       _installProgress = -1;
-      _installStatusText = '正在下载 ${matched.asset.name}...';
+      _installStatusText = '正在启动更新任务...';
       _errorText = null;
     });
 
-    final error = await downloadAndInstallAsset(
-      matched.asset,
-      matched.installerType,
-      networkConfig: _mirrorConfig,
-      proxyConfig: _proxyConfig,
-      onProgress: (received, total) {
-        if (!mounted) return;
-        final progress = total > 0 ? received / total : -1.0;
-        setState(() {
-          _installProgress = progress;
-          if (progress >= 1) {
-            _installStatusText = '下载完成，正在安装...';
-          } else if (progress < 0) {
-            _installStatusText = '正在下载 ${_formatBytes(received)}...';
-          }
-        });
-      },
-    );
-
-    // On success the installer calls exit(0) after relaunching, so reaching
-    // here means something went wrong.
-    if (!mounted) return;
-    // The installer exits on success; reaching here means it failed.
-   _resetInstallState();
-    // ignore: invalid_null_aware_operator
-    final hasError = error?.isNotEmpty == true;
-    _showError(
-      // ignore: unnecessary_non_null_assertion
-      hasError ? error! : '更新未完成，请重试或前往 GitHub 手动下载。',
-    );
-}
+    try {
+      final taskId = await downloadAndInstallAsset(
+        api,
+        matched.asset,
+        matched.installerType,
+        networkConfig: _mirrorConfig,
+        proxyConfig: _proxyConfig,
+      );
+      if (!mounted) return;
+      setState(() {
+        _installTaskId = taskId;
+        _installStatusText = '正在下载 ${matched.asset.name}...';
+      });
+      TransferQueue.instance.pollNow();
+    } catch (error) {
+      if (!mounted) return;
+      _resetInstallState();
+      _showError(error.toString());
+    }
+  }
 
   void _resetInstallState() {
     _installing = false;
+    _installTaskId = null;
     _installProgress = 0;
     _installStatusText = '';
   }

@@ -122,11 +122,13 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return triggerSyncProfile(args)
 	case "write_flutter_log":
 		return writeFlutterLog(args)
+	// In-app update (download + install + relaunch).
+	case "install_app":
+		return installApp(args)
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}
 }
-
 
 // --- Storage operations ---
 

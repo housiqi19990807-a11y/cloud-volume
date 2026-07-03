@@ -17,6 +17,7 @@ import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
 part 'remote_storage_api_desktop_shares.dart';
 part 'remote_storage_api_desktop_paging.dart';
+part 'remote_storage_api_desktop_runtime.dart';
 
 dynamic _invokeBridgeCall(
   String libraryPath,
@@ -28,7 +29,10 @@ dynamic _invokeBridgeCall(
 }
 
 class RemoteStorageApi
-    with _RemoteStorageShareApiMixin, _RemoteStoragePagingApiMixin
+    with
+        _RemoteStorageShareApiMixin,
+        _RemoteStoragePagingApiMixin,
+        _RemoteStorageRuntimeApiMixin
     implements RemoteStorageGateway {
   RemoteStorageApi(this._bridge);
 
