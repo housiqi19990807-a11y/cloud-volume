@@ -1,9 +1,11 @@
 // GitHub 加速镜像配置：独立于代理设置，仅影响 GitHub 更新包下载。
 // Release 元数据检查走 GitHub API 直连，不受此镜像影响。
-// 交互上采用“选择模式”：直连 / 常用镜像 / 自定义；只有自定义时才需要填写地址。
+// 交互上采用下拉选择：直连 / 常用镜像 / 自定义；仅自定义时显示地址输入框。
+
+import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:remote_storage/services/app_update_service.dart';
 import 'package:remote_storage/services/update_settings.dart';
@@ -135,11 +137,7 @@ class _SettingsUpdateMirrorFieldState extends State<SettingsUpdateMirrorField> {
             ),
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _kOptions.map((option) => _buildOptionChip(theme, option)).toList(),
-          ),
+          _buildMirrorDropdown(theme),
           if (_mode == _kModeCustom) ...[
             const SizedBox(height: 10),
             _buildCustomInput(theme),
@@ -149,6 +147,49 @@ class _SettingsUpdateMirrorFieldState extends State<SettingsUpdateMirrorField> {
         ],
       ),
     );
+  }
+
+  /// 镜像来源下拉；探测或保存过程中禁止切换，避免测试结果与选项不一致。
+  Widget _buildMirrorDropdown(ShadThemeData theme) {
+    final locked = _probing || _saving;
+    return SizedBox(
+      width: double.infinity,
+      child: ShadSelect<String>(
+        key: ValueKey<String>('mirror-$_mode'),
+        minWidth: 220,
+        initialValue: _mode,
+        placeholder: Text(_labelForMode(_mode)),
+        selectedOptionBuilder: (context, selected) =>
+            Text(_labelForMode(selected)),
+        options: _kOptions
+            .map(
+              (o) => ShadOption<String>(
+                value: o.mode,
+                child: Text(o.label),
+              ),
+            )
+            .toList(growable: false),
+        onChanged: locked
+            ? null
+            : (value) {
+                if (value == null) return;
+                final option = _kOptions.firstWhere(
+                  (o) => o.mode == value,
+                  orElse: () => _kOptions.first,
+                );
+                unawaited(_selectOption(option));
+              },
+      ),
+    );
+  }
+
+  String _labelForMode(String mode) {
+    return _kOptions
+        .firstWhere(
+          (o) => o.mode == mode,
+          orElse: () => _kOptions.first,
+        )
+        .label;
   }
 
   Widget _buildProbeButton(ShadThemeData theme) {
@@ -270,39 +311,19 @@ class _SettingsUpdateMirrorFieldState extends State<SettingsUpdateMirrorField> {
     }
   }
 
-  Widget _buildOptionChip(ShadThemeData theme, _MirrorOption option) {
-    final selected = _mode == option.mode;
-    return ShadButton.outline(
-      onPressed: _saving ? null : () => _selectOption(option),
-      backgroundColor: selected
-          ? theme.colorScheme.primary.withValues(alpha: 0.12)
-          : null,
-      height: 32,
-      child: Text(
-        option.label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          color: selected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.mutedForeground,
-        ),
-      ),
-    );
-  }
-
   Widget _buildCustomInput(ShadThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ShadInput(
           controller: _controller,
+          enabled: !_probing && !_saving,
           placeholder: const Text('https://example.com'),
           style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
         ),
         const SizedBox(height: 8),
         ShadButton(
-          onPressed: _saving ? null : _saveCustom,
+          onPressed: (_probing || _saving) ? null : _saveCustom,
           height: 30,
           child: Text(
             _saving ? '保存中...' : '保存自定义镜像',
