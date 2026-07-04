@@ -41,7 +41,14 @@ next_tag() {
       echo "v${MAJOR}.$((MINOR + 1)).0"
       ;;
     patch)
-      echo "v${MAJOR}.${MINOR}.$((PATCH + 1))"
+      # Patch rolls 9→0 and carries: v1.1.9→v1.2.0, v1.9.9→v2.0.0
+      if [[ "$PATCH" -lt 9 ]]; then
+        echo "v${MAJOR}.${MINOR}.$((PATCH + 1))"
+      elif [[ "$MINOR" -lt 9 ]]; then
+        echo "v${MAJOR}.$((MINOR + 1)).0"
+      else
+        echo "v$((MAJOR + 1)).0.0"
+      fi
       ;;
     *)
       die "unknown BUMP=$BUMP_KIND (use patch, minor, or major)"

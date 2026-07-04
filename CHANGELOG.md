@@ -3,6 +3,7 @@
 ## Unreleased
 
 - 构建：`make push` 在最新 `v*` 语义化标签上递增版本（默认 patch）、创建附注标签并推送当前分支与标签以触发 Release CI；脚本 `scripts/bump_and_push_tag.sh`，支持 `BUMP=minor|major`、`FORCE=1`。
+- 构建：`make push` 的 patch 递增在 patch 为 9 时进位到 minor（`v1.1.9`→`v1.2.0`），minor 为 9 时再进位到 major（`v1.9.9`→`v2.0.0`）。
 
 - 设置页：网络代理改为下拉选择（跟随系统 / 直连 / 自定义）；切换跟随系统或直连后自动保存，仅自定义时显示代理表单与「保存代理设置」按钮。
 
