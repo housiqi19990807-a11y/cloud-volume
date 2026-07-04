@@ -172,21 +172,9 @@ class UpdateStatusRow extends StatelessWidget {
       runSpacing: 8,
       alignment: alignment,
       children: [
-        if (canInstallInApp || installing)
+        if (installing)
           ShadButton(
-            onPressed: installing ? null : onInstall,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.download, size: 15),
-                const SizedBox(width: 8),
-                Text(installing ? '更新中...' : '一键更新'),
-              ],
-            ),
-          ),
-        if (installing && canCancelInstall)
-          ShadButton.outline(
-            onPressed: onCancelInstall,
+            onPressed: canCancelInstall ? onCancelInstall : null,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -195,18 +183,31 @@ class UpdateStatusRow extends StatelessWidget {
                 const Text('取消更新'),
               ],
             ),
+          )
+        else if (canInstallInApp)
+          ShadButton(
+            onPressed: onInstall,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.download, size: 15),
+                const SizedBox(width: 8),
+                const Text('一键更新'),
+              ],
+            ),
           ),
-        ShadButton.outline(
-          onPressed: onCheckForUpdates,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.refreshCw, size: 15),
-              const SizedBox(width: 8),
-              Text(checking ? '检测中...' : '检测更新'),
-            ],
+        if (!installing)
+          ShadButton.outline(
+            onPressed: onCheckForUpdates,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.refreshCw, size: 15),
+                const SizedBox(width: 8),
+                Text(checking ? '检测中...' : '检测更新'),
+              ],
+            ),
           ),
-        ),
         ShadButton.outline(
           onPressed: onOpenDownloadPage,
           child: Row(

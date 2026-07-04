@@ -299,8 +299,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     }
   }
 
-  /// True while a Go `app_update` task is cancellable from this card.
-  bool get _canCancelInstall => _installing && _installTaskId != null;
+  /// True while one-click update flow is active (wait, download, or install).
+  bool get _canCancelInstall => _installing;
 
   /// Stops the in-flight update via bridge `cancel_transfer` (aborts HTTP download).
   Future<void> _cancelInstall() async {
