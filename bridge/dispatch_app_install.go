@@ -404,7 +404,10 @@ func installLinux(taskID, dlPath, installerType string) error {
 func relaunchApp() {
 	switch runtime.GOOS {
 	case "darwin":
-		exec.Command("open", "-n", "/Applications/云卷.app/Contents/MacOS/云卷").Start()
+		// Launch via the .app bundle so LaunchServices owns the new process;
+		// spawning the raw binary directly surfaces a foreground shell-style
+		// process without normal window/activation lifecycle.
+		_ = exec.Command("open", "-n", "/Applications/云卷.app").Start()
 	case "windows":
 		// The installer handles relaunch; just exit.
 	case "linux":

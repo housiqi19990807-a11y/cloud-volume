@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 应用更新：修复 macOS 一键更新完成后弹出前台 shell 进程且旧进程未正常退出的问题。根因是 `relaunchApp` 用 `open -n .../Contents/MacOS/云卷` 启动可执行文件二进制而非 `.app` bundle，绕过了 LaunchServices 的窗口/激活生命周期。现改为 `open -n /Applications/云卷.app`，新进程作为正常 app 启动；旧进程仍走 `os.Exit(0)` 退出全进程。
+
+- 应用更新：修复每次启动镜像配置都显示为“直连”的问题。根因是 `SettingsUpdateMirrorField` 在 `_loadMirrorConfig` 异步完成前用空前缀初始化 `_mode`，`initialConfig` 到达后没有 `didUpdateWidget` 重新解析。新增 `didUpdateWidget`：当父级传入的 `mirrorPrefix` 变化时重新推断 `_mode` 并清空探测结果。SharedPreferences 中实际已正确保存 `flutter.update.mirror_prefix`。
+
 - 应用更新：修复一键更新在传输页显示为“上传”的空任务（`app_update` 类型现映射为下载），并在使用镜像下载前做 HEAD 预检，镜像返回非 2xx 时直接给出“镜像不可用”提示而非一直停在 0B。镜像配置区新增“测试镜像可用性”按钮，对当前选中镜像包裹真实 GitHub Release asset URL 做 HEAD 探测，直观显示镜像是否支持大文件下载；新增单元测试验证 mirrorPrefix 持久化读写与 `app_update` kind 映射。
 
 - 应用更新：降低“检测更新”与一键下载因超时失败的概率。GitHub Release 版本检查单次超时由 10 秒放宽至 30 秒，并对网络类错误自动重试最多 3 次；Go 侧安装包下载 HTTP 客户端整包超时由 120 秒放宽至 7200 秒，避免大包或慢速镜像下载中途被切断。

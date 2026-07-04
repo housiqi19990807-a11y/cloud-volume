@@ -71,6 +71,25 @@ class _SettingsUpdateMirrorFieldState extends State<SettingsUpdateMirrorField> {
   }
 
   @override
+  void didUpdateWidget(covariant SettingsUpdateMirrorField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 父级 `_loadMirrorConfig` 是异步的：首次构建时 initialConfig 为空，
+    // 读取完成后会带着真实镜像前缀重建本组件。若不在这里重新解析
+    // _mode，UI 会一直停留在“直连”，导致每次启动镜像都显示错。
+    final prefix = widget.initialConfig.mirrorPrefix;
+    if (prefix != oldWidget.initialConfig.mirrorPrefix) {
+      final newMode = _resolveMode(prefix);
+      if (newMode != _mode) {
+        _mode = newMode;
+        if (newMode == _kModeCustom) _controller.text = prefix;
+        // 清空上一次探测结果，避免文案与新选中镜像不匹配。
+        _probeOk = null;
+        _probeMessage = '';
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
