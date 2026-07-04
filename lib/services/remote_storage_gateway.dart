@@ -248,8 +248,10 @@ abstract class RemoteStorageGateway {
   Future<String> installApp({
     required String assetUrl,
     required String assetName,
+    required int assetSize,
     required String installerType,
     required String mirrorPrefix,
+    required RemoteStorageConfig config,
     required String proxyMode,
     required String proxyType,
     required String proxyHost,

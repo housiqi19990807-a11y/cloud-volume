@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：安装包写入设置/工作路径下的 `cache/app_updates/`（不再用系统临时目录）；完整包且大小与 Release asset 一致时直接命中本地缓存跳过下载。支持 HTTP Range 断点续传，中断后再次更新可从已有部分文件继续。
+
 - 应用更新：传输队列将 `app_update` 显示为独立「应用更新」任务（不再误显示为上传）。修复 `TransferQueue._kindFromWire` 未处理 Go 快照 `type: app_update` 而默认成上传；新增 `TransferKind.appUpdate`、传输页类型筛选与任务行图标/等待文案。
 
 - 应用更新：修复 macOS 一键更新完成后弹出前台 shell 进程且旧进程未正常退出的问题。根因是 `relaunchApp` 用 `open -n .../Contents/MacOS/云卷` 启动可执行文件二进制而非 `.app` bundle，绕过了 LaunchServices 的窗口/激活生命周期。现改为 `open -n /Applications/云卷.app`，新进程作为正常 app 启动；旧进程仍走 `os.Exit(0)` 退出全进程。

@@ -14,7 +14,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -31,8 +30,10 @@ import (
 type appInstallArgs struct {
 	AssetURL      string `json:"assetUrl"`
 	AssetName     string `json:"assetName"`
+	AssetSize     int64  `json:"assetSize"`
 	InstallerType string `json:"installerType"`
 	MirrorPrefix  string `json:"mirrorPrefix"`
+	Config        storageconfig.RemoteStorageConfig `json:"config"`
 	ProxyMode     string `json:"proxyMode"`
 	ProxyType     string `json:"proxyType"`
 	ProxyHost     string `json:"proxyHost"`
@@ -109,15 +110,13 @@ func runAppUpdateInstall(ctx context.Context, cancel context.CancelFunc, taskID 
 		}
 	}
 
-	// Download to a temp directory.
-	tmpDir := filepath.Join(os.TempDir(), "app_updates")
-	if err := os.MkdirAll(tmpDir, 0755); err != nil {
-		finishTransferError(taskID, fmt.Sprintf("创建临时目录失败：%v", err))
+	dlPath, err := resolveInstallerDestPath(input.Config, input.AssetName)
+	if err != nil {
+		finishTransferError(taskID, fmt.Sprintf("准备更新缓存目录失败：%v", err))
 		return
 	}
-	dlPath := filepath.Join(tmpDir, input.AssetName)
 
-	if err := streamDownload(ctx, httpClient, taskID, downloadURL, dlPath); err != nil {
+	if err := downloadInstaller(ctx, httpClient, taskID, downloadURL, dlPath, input.AssetSize); err != nil {
 		finishTransferError(taskID, fmt.Sprintf("下载失败：%v", err))
 		return
 	}
@@ -155,64 +154,6 @@ func runAppUpdateInstall(ctx context.Context, cancel context.CancelFunc, taskID 
 	relaunchApp()
 	time.Sleep(800 * time.Millisecond)
 	os.Exit(0)
-}
-
-func streamDownload(ctx context.Context, client *http.Client, taskID, url, destPath string) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return fmt.Errorf("创建请求失败：%w", err)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("请求失败：%w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-
-	totalBytes := resp.ContentLength
-	if totalBytes > 0 {
-		s3ops.AddTransferTotal(taskID, totalBytes)
-		s3ops.SetTransferCurrentFile(taskID, filepath.Base(destPath), totalBytes)
-	}
-
-	f, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("创建文件失败：%w", err)
-	}
-	defer f.Close()
-
-	buf := make([]byte, 32*1024)
-	var received int64
-	for {
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
-				return fmt.Errorf("写入文件失败：%w", writeErr)
-			}
-			received += int64(n)
-			s3ops.AdvanceTransfer(taskID, int64(n))
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			return fmt.Errorf("读取响应失败：%w", readErr)
-		}
-	}
-
-	// Set final total now that we know it, so progress bar hits 100%.
-	if totalBytes <= 0 && received > 0 {
-		s3ops.AddTransferTotal(taskID, received)
-	}
-
-	if received == 0 {
-		return fmt.Errorf("未收到任何数据")
-	}
-	return nil
 }
 
 // installMacOS handles DMG or ZIP installation on macOS.

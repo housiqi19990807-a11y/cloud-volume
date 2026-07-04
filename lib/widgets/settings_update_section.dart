@@ -152,6 +152,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
         }
         if (detail == 'installing') {
           _installStatusText = '下载完成，正在安装...';
+        } else if (detail == 'cached') {
+          _installStatusText = '已命中本地更新包缓存，跳过下载...';
         } else if (total > 0) {
           _installStatusText =
               '正在下载 ${_formatBytes(received)} / ${_formatBytes(total)}';
@@ -245,6 +247,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
         matched.installerType,
         networkConfig: _mirrorConfig,
         proxyConfig: _proxyConfig,
+        config: widget.config,
       );
       if (!mounted) return;
       setState(() {
