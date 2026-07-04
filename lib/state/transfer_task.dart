@@ -118,6 +118,12 @@ class TransferTask {
   bool get isDelete => kind == TransferKind.delete;
   bool get isAppUpdate => kind == TransferKind.appUpdate;
 
+  /// Pending/running user file upload or download (not in-app update).
+  bool get isActiveFileTransfer =>
+      (isPending || isRunning) &&
+      !isAppUpdate &&
+      (isUpload || isDownload);
+
   /// 是否为文件同步产生的任务（原始 type 以 sync_ 开头）。
   bool get isSyncTask => rawType.startsWith('sync_');
   bool get isMountWriteback => id.startsWith('mount-writeback-');

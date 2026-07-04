@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：一键更新前若传输队列中存在进行中的上传或下载任务，会先等待这些任务完成再启动更新下载，避免与文件传输争抢带宽或中断用户传输。
+
 - 应用更新：安装包写入设置/工作路径下的 `cache/app_updates/`（不再用系统临时目录）；完整包且大小与 Release asset 一致时直接命中本地缓存跳过下载。支持 HTTP Range 断点续传，中断后再次更新可从已有部分文件继续。
 
 - 应用更新：传输队列将 `app_update` 显示为独立「应用更新」任务（不再误显示为上传）。修复 `TransferQueue._kindFromWire` 未处理 Go 快照 `type: app_update` 而默认成上传；新增 `TransferKind.appUpdate`、传输页类型筛选与任务行图标/等待文案。

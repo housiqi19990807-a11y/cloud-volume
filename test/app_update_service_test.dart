@@ -23,6 +23,21 @@ void main() {
     expect(task.typeLabel, '应用更新');
   });
 
+  test('isActiveFileTransfer excludes app update', () {
+    final upload = TransferTask.fromJson(const {
+      'id': 'u1',
+      'kind': 'upload',
+      'status': 'running',
+    });
+    final update = TransferTask.fromJson(const {
+      'id': 'app_update_1',
+      'kind': 'app_update',
+      'status': 'running',
+    });
+    expect(upload.isActiveFileTransfer, isTrue);
+    expect(update.isActiveFileTransfer, isFalse);
+  });
+
   test('compareVersionLabels detects newer GitHub release tags', () {
     expect(compareVersionLabels('v1.2.2', 'v1.2.3'), lessThan(0));
     expect(compareVersionLabels('1.2.3+7', 'v1.2.3'), 0);

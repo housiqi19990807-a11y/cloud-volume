@@ -45,6 +45,9 @@ class TransferQueue extends ChangeNotifier {
   List<TransferTask> get tasks => List.unmodifiable(_tasks);
   Iterable<TransferTask> get taskView => _tasks;
   bool get hasRunning => _tasks.any((task) => task.isRunning || task.isPending);
+  /// True while a normal upload/download is pending or running (blocks app update).
+  bool get hasActiveFileTransfers =>
+      _tasks.any((task) => task.isActiveFileTransfer);
   int get runningCount =>
       _tasks.where((task) => task.isRunning || task.isPending).length;
 

@@ -233,6 +233,17 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       return;
     }
 
+    if (TransferQueue.instance.hasActiveFileTransfers) {
+      setState(() {
+        _installing = true;
+        _installProgress = -1;
+        _installStatusText = '等待当前上传/下载任务完成...';
+        _errorText = null;
+      });
+      await _waitForFileTransfersIdle();
+      if (!mounted) return;
+    }
+
     setState(() {
       _installing = true;
       _installProgress = -1;
@@ -269,11 +280,39 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     _installStatusText = '';
   }
 
+  /// Blocks until no pending/running upload/download remains in the queue.
+  Future<void> _waitForFileTransfersIdle() async {
+    final queue = TransferQueue.instance;
+    if (!queue.hasActiveFileTransfers) return;
+    final completer = Completer<void>();
+    void listener() {
+      if (!queue.hasActiveFileTransfers) {
+        queue.removeListener(listener);
+        if (!completer.isCompleted) completer.complete();
+      }
+    }
+    queue.addListener(listener);
+    try {
+      await completer.future;
+    } finally {
+      queue.removeListener(listener);
+    }
+  }
+
   /// True while a Go `app_update` task is cancellable from this card.
   bool get _canCancelInstall => _installing && _installTaskId != null;
 
   /// Stops the in-flight update via bridge `cancel_transfer` (aborts HTTP download).
   Future<void> _cancelInstall() async {
+    if (_installTaskId == null && _installing) {
+      if (mounted) {
+        setState(() {
+          _resetInstallState();
+          _errorText = null;
+        });
+      }
+      return;
+    }
     final taskId = _installTaskId;
     if (taskId == null) return;
     setState(() => _installStatusText = '正在取消更新...');
