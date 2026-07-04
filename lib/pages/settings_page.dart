@@ -113,9 +113,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    // Keep the left rail highlight aligned with the card nearest the top of
-    // the scrolling settings page.
-    _contentScrollController.addListener(_syncActiveAnchorFromScroll);
   }
 
   @override
@@ -224,9 +221,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
-    _contentScrollController
-      ..removeListener(_syncActiveAnchorFromScroll)
-      ..dispose();
+    _contentScrollController.dispose();
     super.dispose();
   }
 

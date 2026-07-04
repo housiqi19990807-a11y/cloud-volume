@@ -190,6 +190,7 @@ extension _SettingsLayout on _SettingsPageState {
   void _scrollToAnchor(_SettingsTab tab) {
     final context = _sectionKeys[tab]?.currentContext;
     if (context == null) return;
+    // Left rail highlight follows user clicks only, not scroll position.
     _updateState(() => _activeTab = tab);
     Scrollable.ensureVisible(
       context,
@@ -197,30 +198,6 @@ extension _SettingsLayout on _SettingsPageState {
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
     );
-  }
-
-  void _syncActiveAnchorFromScroll() {
-    if (!_contentScrollController.hasClients) return;
-
-    _SettingsTab? nearest;
-    var nearestDistance = double.infinity;
-    for (final group in _railGroups()) {
-      for (final tab in group.tabs) {
-        final context = _sectionKeys[tab]?.currentContext;
-        if (context == null) continue;
-        final box = context.findRenderObject();
-        if (box is! RenderBox || !box.attached) continue;
-        final distance = box.localToGlobal(Offset.zero).dy.abs();
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearest = tab;
-        }
-      }
-    }
-
-    if (nearest != null && nearest != _activeTab) {
-      _updateState(() => _activeTab = nearest!);
-    }
   }
 }
 
