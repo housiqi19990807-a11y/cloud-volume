@@ -372,6 +372,8 @@ WebDAV 账号包括：
 
 推送形如 `v0.0.1` 的语义化版本标签后，会触发 GitHub Actions 构建并自动创建 / 更新对应 GitHub Release：
 
+本地可在提交干净工作区后执行 `make push`：在现有最新 `v*` 标签基础上自动递增 patch（如 `v1.1.4` → `v1.1.5`），打附注标签并 `git push` 当前分支与标签。需要升 minor/major 时用 `BUMP=minor make push` 或 `BUMP=major make push`。
+
 - macOS `universal` / `arm64`：桌面版 `dmg`、`zip`
 - Windows `amd64`：桌面版 `installer.exe`、`zip`
 - Linux `amd64`：桌面版 `tar.gz`、`AppImage`

@@ -37,7 +37,7 @@ ifneq ($(BRIDGE_CXX),)
 BRIDGE_GO_ENV += CXX=$(BRIDGE_CXX)
 endif
 
-.PHONY: bridge bridge-macos bridge-linux bridge-windows cli cli-full build-cli build-cli-full cli-release cli-release-full cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64 cli-release-full-linux-amd64 cli-release-full-linux-arm64 cli-release-full-darwin-amd64 cli-release-full-darwin-arm64 cli-release-full-windows-amd64 run-cli run run-macos run-linux run-web build build-macos build-linux build-windows build-web test analyze clean
+.PHONY: bridge bridge-macos bridge-linux bridge-windows cli cli-full build-cli build-cli-full cli-release cli-release-full cli-release-linux-amd64 cli-release-linux-arm64 cli-release-darwin-amd64 cli-release-darwin-arm64 cli-release-windows-amd64 cli-release-full-linux-amd64 cli-release-full-linux-arm64 cli-release-full-darwin-amd64 cli-release-full-darwin-arm64 cli-release-full-windows-amd64 run-cli run run-macos run-linux run-web build build-macos build-linux build-windows build-web test analyze clean push
 
 bridge:
 ifeq ($(HOST_PLATFORM),macos)
@@ -207,3 +207,9 @@ analyze:
 clean:
 	$(FLUTTER) clean
 	rm -rf $(BRIDGE_DIR)
+
+# Bump patch from the latest v* tag, annotate, push branch + tag (triggers release CI).
+# Optional: BUMP=minor|major make push ; FORCE=1 if working tree is dirty.
+push:
+	@chmod +x scripts/bump_and_push_tag.sh
+	@./scripts/bump_and_push_tag.sh
