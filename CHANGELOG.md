@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：降低“检测更新”与一键下载因超时失败的概率。GitHub Release 版本检查单次超时由 10 秒放宽至 30 秒，并对网络类错误自动重试最多 3 次；Go 侧安装包下载 HTTP 客户端整包超时由 120 秒放宽至 7200 秒，避免大包或慢速镜像下载中途被切断。
+
 - 应用更新：一键更新进行中时，在更新卡片按钮区直接显示“取消更新”。点击后会调用传输队列/bridge 的 `cancel_transfer` 终止 Go 侧 `app_update` 任务，取消正在进行的 HTTP 下载并恢复更新卡片状态，无需跳转到“传输”页。
 
 - 应用更新：修复 macOS 上 `unsupported bridge method "install_app"` 错误。根因是 macOS app bundle 可能同时存在两个 bridge dylib 副本——一个在 `Contents/MacOS/`（早期手动构建或调试运行遗留），一个在 `Contents/Frameworks/`（`make build-macos` 写入）。`_findBundledLibraryPath` 的查找顺序里 `MacOS/` 排在 `Frameworks/` 之前，导致 Dart FFI 加载的是旧 dylib，没有 `install_app` 方法。现在改为 `Frameworks/` 优先于 `MacOS/`，并在 `build-macos` 目标里拷贝前 `rm -f` 清除 `Contents/MacOS/` 下可能残留的旧 dylib。

@@ -355,7 +355,10 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       }
       setState(() => _result = result);
     } on TimeoutException {
-      _showError('连接 GitHub 超时，请稍后重试。');
+      _showError(
+        '连接 GitHub 超时（已自动重试）。请检查网络或代理设置，'
+        '安装包下载可在下方配置 GitHub 加速镜像后重试一键更新。',
+      );
     } catch (error) {
       _showError(error.toString());
     } finally {

@@ -4,6 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_storage/services/app_update_service.dart';
 
 void main() {
+  test('release API check uses a longer timeout budget', () {
+    expect(kAppReleaseApiTimeout.inSeconds, 30);
+    expect(kAppReleaseApiMaxAttempts, 3);
+  });
+
   test('compareVersionLabels detects newer GitHub release tags', () {
     expect(compareVersionLabels('v1.2.2', 'v1.2.3'), lessThan(0));
     expect(compareVersionLabels('1.2.3+7', 'v1.2.3'), 0);

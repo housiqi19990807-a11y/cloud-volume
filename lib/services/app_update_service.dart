@@ -13,6 +13,10 @@ const String kAppLatestReleaseApiUrl =
 const String kAppLatestReleasePageUrl =
     'https://github.com/lfhy/cloud-volume/releases/latest';
 
+/// GitHub API 在国内/代理环境下经常慢于 10s；单次请求放宽并带有限重试。
+const Duration kAppReleaseApiTimeout = Duration(seconds: 30);
+const int kAppReleaseApiMaxAttempts = 3;
+
 /// Metadata for a single downloadable asset attached to a GitHub release.
 class ReleaseAsset {
   const ReleaseAsset({
@@ -82,6 +86,37 @@ class AppUpdateService {
     UpdateNetworkConfig networkConfig = const UpdateNetworkConfig(),
     ProxyConfig proxyConfig = const ProxyConfig(),
   }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= kAppReleaseApiMaxAttempts; attempt++) {
+      try {
+        return await _fetchLatestReleaseOnce(
+          currentVersion: currentVersion,
+          proxyConfig: proxyConfig,
+        );
+      } on TimeoutException catch (error) {
+        lastError = error;
+      } on AppUpdateException {
+        rethrow;
+      } catch (error) {
+        if (!_isRetryableReleaseCheckError(error) ||
+            attempt >= kAppReleaseApiMaxAttempts) {
+          rethrow;
+        }
+        lastError = error;
+      }
+      if (attempt < kAppReleaseApiMaxAttempts) {
+        await Future<void>.delayed(Duration(seconds: attempt * 2));
+      }
+    }
+    throw lastError is TimeoutException
+        ? lastError
+        : AppUpdateException('连接 GitHub 失败：$lastError');
+  }
+
+  Future<AppUpdateCheckResult> _fetchLatestReleaseOnce({
+    required String currentVersion,
+    required ProxyConfig proxyConfig,
+  }) async {
     // Rebuild the HTTP client if a non-default proxy config is given so runtime
     // changes to the proxy settings take effect immediately.
     final client = _clientForProxy(proxyConfig);
@@ -95,7 +130,7 @@ class AppUpdateService {
             'accept': 'application/vnd.github+json',
           },
         )
-        .timeout(const Duration(seconds: 10));
+        .timeout(kAppReleaseApiTimeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AppUpdateException('GitHub 返回 HTTP ${response.statusCode}');
     }
@@ -143,6 +178,15 @@ class AppUpdateService {
       updateAvailable: comparison != null && comparison < 0,
       comparable: comparison != null,
     );
+  }
+
+  bool _isRetryableReleaseCheckError(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('socketexception') ||
+        text.contains('connection') ||
+        text.contains('handshake') ||
+        text.contains('failed host lookup') ||
+        text.contains('network is unreachable');
   }
 
   void close() {

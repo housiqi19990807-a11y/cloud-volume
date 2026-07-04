@@ -94,7 +94,9 @@ func runAppUpdateInstall(ctx context.Context, cancel context.CancelFunc, taskID 
 		ProxyUsername: input.ProxyUsername,
 		ProxyPassword: input.ProxyPassword,
 	}
-	httpClient := storageconfig.ProxyHTTPClient(proxyCfg, 120)
+	// Install packages are large; a 120s whole-request timeout caused frequent
+	// mid-download failures on slow links or mirrors. Allow up to two hours.
+	httpClient := storageconfig.ProxyHTTPClient(proxyCfg, 7200)
 
 	// Download to a temp directory.
 	tmpDir := filepath.Join(os.TempDir(), "app_updates")
