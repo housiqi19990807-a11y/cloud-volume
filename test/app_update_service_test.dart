@@ -12,14 +12,15 @@ void main() {
     expect(kAppReleaseApiMaxAttempts, 3);
   });
 
-  test('TransferTask maps app_update kind to download', () {
+  test('TransferTask maps app_update kind to appUpdate', () {
     final task = TransferTask.fromJson(const {
       'id': 'app_update_1',
       'kind': 'app_update',
       'rawType': 'app_update',
       'title': 'app_update',
     });
-    expect(task.kind, TransferKind.download);
+    expect(task.kind, TransferKind.appUpdate);
+    expect(task.typeLabel, '应用更新');
   });
 
   test('compareVersionLabels detects newer GitHub release tags', () {

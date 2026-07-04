@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：传输队列将 `app_update` 显示为独立「应用更新」任务（不再误显示为上传）。修复 `TransferQueue._kindFromWire` 未处理 Go 快照 `type: app_update` 而默认成上传；新增 `TransferKind.appUpdate`、传输页类型筛选与任务行图标/等待文案。
+
 - 应用更新：修复 macOS 一键更新完成后弹出前台 shell 进程且旧进程未正常退出的问题。根因是 `relaunchApp` 用 `open -n .../Contents/MacOS/云卷` 启动可执行文件二进制而非 `.app` bundle，绕过了 LaunchServices 的窗口/激活生命周期。现改为 `open -n /Applications/云卷.app`，新进程作为正常 app 启动；旧进程仍走 `os.Exit(0)` 退出全进程。
 
 - 应用更新：修复每次启动镜像配置都显示为“直连”的问题。根因是 `SettingsUpdateMirrorField` 在 `_loadMirrorConfig` 异步完成前用空前缀初始化 `_mode`，`initialConfig` 到达后没有 `didUpdateWidget` 重新解析。新增 `didUpdateWidget`：当父级传入的 `mirrorPrefix` 变化时重新推断 `_mode` 并清空探测结果。SharedPreferences 中实际已正确保存 `flutter.update.mirror_prefix`。

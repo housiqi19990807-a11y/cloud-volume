@@ -600,7 +600,8 @@ enum _TransferKindFilter {
   download('下载'),
   copy('复制'),
   move('移动'),
-  delete('删除');
+  delete('删除'),
+  appUpdate('应用更新');
 
   const _TransferKindFilter(this.label);
   final String label;
@@ -613,6 +614,7 @@ enum _TransferKindFilter {
       _TransferKindFilter.copy => task.isCopy,
       _TransferKindFilter.move => task.isMove,
       _TransferKindFilter.delete => task.isDelete,
+      _TransferKindFilter.appUpdate => task.isAppUpdate,
     };
   }
 }

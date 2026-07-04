@@ -548,6 +548,8 @@ class TransferQueue extends ChangeNotifier {
         return TransferKind.move;
       case 'delete':
         return TransferKind.delete;
+      case 'app_update':
+        return TransferKind.appUpdate;
       default:
         return TransferKind.upload;
     }

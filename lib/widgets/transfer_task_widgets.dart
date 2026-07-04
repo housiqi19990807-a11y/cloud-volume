@@ -25,6 +25,8 @@ class TransferStatusBadge extends StatelessWidget {
       TransferStatus.pending =>
         task.statusDetail == 'selecting_path'
             ? '选择路径'
+            : task.isAppUpdate
+            ? '等待更新'
             : task.isUpload
             ? (task.isUploadWaiting ? '等待上传' : '等待同步')
             : '等待中',
@@ -416,6 +418,7 @@ String _selectionSummary({
 }
 
 IconData _iconFor(TransferTask task) {
+  if (task.isAppUpdate) return LucideIcons.refreshCw;
   if (task.isUpload) return LucideIcons.upload;
   if (task.isDownload) return LucideIcons.download;
   if (task.isCopy) return LucideIcons.copy;
@@ -424,6 +427,7 @@ IconData _iconFor(TransferTask task) {
 }
 
 Color _colorFor(TransferTask task) {
+  if (task.isAppUpdate) return const Color(0xff0369a1);
   if (task.isUpload) return const Color(0xff2563eb);
   if (task.isDownload) return const Color(0xff0f766e);
   if (task.isCopy) return const Color(0xff7c3aed);

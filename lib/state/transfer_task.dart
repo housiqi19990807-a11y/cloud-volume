@@ -5,7 +5,7 @@ part of 'transfer_queue.dart';
 /// 传输任务状态。
 enum TransferStatus { pending, running, done, failed, canceled }
 
-enum TransferKind { upload, download, copy, move, delete }
+enum TransferKind { upload, download, copy, move, delete, appUpdate }
 
 /// 单个传输任务。
 class TransferTask {
@@ -78,6 +78,10 @@ class TransferTask {
   String? error;
 
   String get displayName {
+    if (isAppUpdate) {
+      final name = key.trim();
+      return name.isNotEmpty ? name : '应用更新';
+    }
     final raw = targetPath.isNotEmpty && (isCopy || isMove) ? targetPath : key;
     final segments = raw.split('/').where((segment) => segment.isNotEmpty);
     if (segments.isEmpty) {
@@ -96,6 +100,7 @@ class TransferTask {
       TransferKind.copy => '复制',
       TransferKind.move => '移动',
       TransferKind.delete => '删除',
+      TransferKind.appUpdate => '应用更新',
     };
   }
 
@@ -111,6 +116,7 @@ class TransferTask {
   bool get isCopy => kind == TransferKind.copy;
   bool get isMove => kind == TransferKind.move;
   bool get isDelete => kind == TransferKind.delete;
+  bool get isAppUpdate => kind == TransferKind.appUpdate;
 
   /// 是否为文件同步产生的任务（原始 type 以 sync_ 开头）。
   bool get isSyncTask => rawType.startsWith('sync_');
@@ -169,9 +175,7 @@ TransferKind _transferKindFromName(String value) {
     'copy' => TransferKind.copy,
     'move' => TransferKind.move,
     'delete' => TransferKind.delete,
-    // In-app self-update downloads an installer package; treat it as a
-    // download so the transfers UI shows the correct direction verb.
-    'app_update' => TransferKind.download,
+    'app_update' => TransferKind.appUpdate,
     _ => TransferKind.upload,
   };
 }
