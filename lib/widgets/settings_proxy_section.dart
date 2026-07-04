@@ -1,10 +1,22 @@
-// 代理设置区：全局代理模式选择（跟随系统 / 直连 / 自定义）。
-// 自定义代理支持 HTTP / SOCKS5 类型、主机端口、可选账号密码。
+// 代理设置区：下拉选择跟随系统 / 直连 / 自定义。
+// 跟随系统、直连切换后自动保存；仅自定义时展示表单与「保存代理设置」。
 // GitHub 加速镜像不在这里，在「应用更新」区域单独配置。
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+const String _kProxyModeSystem = 'system';
+const String _kProxyModeDirect = 'direct';
+const String _kProxyModeCustom = 'custom';
+
+const List<({String value, String label})> _kProxyModeOptions = [
+  (value: _kProxyModeSystem, label: '跟随系统'),
+  (value: _kProxyModeDirect, label: '直连'),
+  (value: _kProxyModeCustom, label: '自定义'),
+];
 
 class SettingsProxySection extends StatefulWidget {
   const SettingsProxySection({
@@ -42,13 +54,32 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
   @override
   void initState() {
     super.initState();
-    final c = widget.config;
-    _proxyMode = c.proxyMode;
+    _applyConfig(widget.config);
+    _hostController = TextEditingController(text: widget.config.proxyHost);
+    _portController = TextEditingController(text: widget.config.proxyPort);
+    _usernameController = TextEditingController(text: widget.config.proxyUsername);
+    _passwordController = TextEditingController(text: widget.config.proxyPassword);
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsProxySection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.config.proxyMode != widget.config.proxyMode && !_saving) {
+      _applyConfig(widget.config);
+    }
+  }
+
+  void _applyConfig(RemoteStorageConfig c) {
+    _proxyMode = _normalizeMode(c.proxyMode);
     _proxyType = c.proxyType.isEmpty ? 'http' : c.proxyType;
-    _hostController = TextEditingController(text: c.proxyHost);
-    _portController = TextEditingController(text: c.proxyPort);
-    _usernameController = TextEditingController(text: c.proxyUsername);
-    _passwordController = TextEditingController(text: c.proxyPassword);
+  }
+
+  String _normalizeMode(String mode) {
+    final trimmed = mode.trim();
+    if (trimmed == _kProxyModeDirect || trimmed == _kProxyModeCustom) {
+      return trimmed;
+    }
+    return _kProxyModeSystem;
   }
 
   @override
@@ -75,46 +106,53 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
           ),
         ),
         const SizedBox(height: 14),
-        _buildProxyModeSelector(theme),
-        if (_proxyMode == 'custom') ...[
+        _buildProxyModeDropdown(theme),
+        if (_proxyMode == _kProxyModeCustom) ...[
           const SizedBox(height: 12),
           _buildCustomProxyFields(theme),
+          const SizedBox(height: 14),
+          _buildSaveButton(theme),
         ],
-        const SizedBox(height: 14),
-        _buildSaveButton(theme),
       ],
     );
   }
 
-  Widget _buildProxyModeSelector(ShadThemeData theme) {
-    return Wrap(
-      spacing: 8,
-      children: [
-        _modeChip(theme, '跟随系统', 'system'),
-        _modeChip(theme, '直连', 'direct'),
-        _modeChip(theme, '自定义', 'custom'),
-      ],
-    );
-  }
-
-  Widget _modeChip(ShadThemeData theme, String label, String value) {
-    final selected = _proxyMode == value;
-    return ShadButton.outline(
-      onPressed: () => setState(() => _proxyMode = value),
-      backgroundColor: selected
-          ? theme.colorScheme.primary.withValues(alpha: 0.12)
-          : null,
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          color: selected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.mutedForeground,
-        ),
+  Widget _buildProxyModeDropdown(ShadThemeData theme) {
+    return SizedBox(
+      width: double.infinity,
+      child: ShadSelect<String>(
+        key: ValueKey<String>('proxy-mode-$_proxyMode'),
+        minWidth: 220,
+        initialValue: _proxyMode,
+        placeholder: Text(_labelForMode(_proxyMode)),
+        selectedOptionBuilder: (context, selected) =>
+            Text(_labelForMode(selected)),
+        options: _kProxyModeOptions
+            .map(
+              (o) => ShadOption<String>(
+                value: o.value,
+                child: Text(o.label),
+              ),
+            )
+            .toList(growable: false),
+        onChanged: _saving
+            ? null
+            : (value) {
+                if (value == null || value == _proxyMode) return;
+                setState(() => _proxyMode = value);
+                if (value == _kProxyModeSystem || value == _kProxyModeDirect) {
+                  unawaited(_savePresetMode(value));
+                }
+              },
       ),
     );
+  }
+
+  String _labelForMode(String mode) {
+    for (final o in _kProxyModeOptions) {
+      if (o.value == mode) return o.label;
+    }
+    return _kProxyModeOptions.first.label;
   }
 
   Widget _buildCustomProxyFields(ShadThemeData theme) {
@@ -257,19 +295,39 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
     );
   }
 
- Future<void> _save() async {
-   setState(() => _saving = true);
-   try {
-     await widget.onSaveProxy(
-       _proxyMode,
-       _proxyType,
-       _hostController.text.trim(),
-       _portController.text.trim(),
-       _usernameController.text.trim(),
-       _passwordController.text,
-     );
-   } finally {
-     if (mounted) setState(() => _saving = false);
-   }
- }
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onSaveProxy(
+        _proxyMode,
+        _proxyType,
+        _hostController.text.trim(),
+        _portController.text.trim(),
+        _usernameController.text.trim(),
+        _passwordController.text,
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// System/direct only: switch mode and keep stored custom fields in config.
+  Future<void> _savePresetMode(String mode) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final c = widget.config;
+      await widget.onSaveProxy(
+        mode,
+        c.proxyType.isEmpty ? 'http' : c.proxyType,
+        c.proxyHost,
+        c.proxyPort,
+        c.proxyUsername,
+        c.proxyPassword,
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 }
