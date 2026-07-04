@@ -3,6 +3,9 @@
 // 交互上采用“选择模式”：直连 / 常用镜像 / 自定义；只有自定义时才需要填写地址。
 
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:remote_storage/services/app_update_service.dart';
 import 'package:remote_storage/services/update_settings.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -51,6 +54,10 @@ class _SettingsUpdateMirrorFieldState extends State<SettingsUpdateMirrorField> {
   late String _mode;
   late TextEditingController _controller;
   bool _saving = false;
+  // 镜像探测按钮状态：null=空闲，true=可用，false=不可用，短文案显示在按钮旁。
+  bool? _probeOk;
+  bool _probing = false;
+  String _probeMessage = '';
 
   @override
   void initState() {
@@ -118,9 +125,130 @@ class _SettingsUpdateMirrorFieldState extends State<SettingsUpdateMirrorField> {
             const SizedBox(height: 10),
             _buildCustomInput(theme),
           ],
+          const SizedBox(height: 10),
+          _buildProbeButton(theme),
         ],
       ),
     );
+  }
+
+  Widget _buildProbeButton(ShadThemeData theme) {
+    final hasTarget = _currentMirrorPrefix().isNotEmpty;
+    return Row(
+      children: [
+        ShadButton.outline(
+          onPressed: (_probing || !hasTarget) ? null : _probeMirror,
+          height: 30,
+          child: Text(
+            _probing ? '测试中...' : '测试镜像可用性',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+        if (_probeMessage.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _probeMessage,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: _probeOk == true
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.destructive,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 返回当前选中模式下应使用的镜像前缀；直连返回空。自定义模式取输入框文本。
+  String _currentMirrorPrefix() {
+    if (_mode == _kModeCustom) return _controller.text.trim();
+    return _kOptions.firstWhere(
+      (o) => o.mode == _mode,
+      orElse: () => _kOptions.first,
+    ).value;
+  }
+
+  /// 对当前选中的镜像做一次 HEAD 探测。用 GitHub 最新 Release 的第一个 asset
+  /// 作为真实下载 URL，包裹镜像前缀后请求，2xx 视为可用。
+  Future<void> _probeMirror() async {
+    final prefix = _currentMirrorPrefix();
+    if (prefix.isEmpty) {
+      setState(() {
+        _probeOk = null;
+        _probeMessage = '当前为直连，无需测试镜像。';
+      });
+      return;
+    }
+    setState(() {
+      _probing = true;
+      _probeMessage = '正在测试镜像...';
+    });
+    try {
+      // 先直连 GitHub API 拿到一个真实 asset 的 download URL。
+      final apiResponse = await http
+          .get(Uri.parse(kAppLatestReleaseApiUrl),
+              headers: const {'accept': 'application/vnd.github+json'})
+          .timeout(const Duration(seconds: 30));
+      if (apiResponse.statusCode < 200 || apiResponse.statusCode >= 300) {
+        if (!mounted) return;
+        setState(() {
+          _probing = false;
+          _probeOk = false;
+          _probeMessage =
+              '获取 GitHub Release 失败 (HTTP ${apiResponse.statusCode})。';
+        });
+        return;
+      }
+      final payload = jsonDecode(apiResponse.body) as Map<String, dynamic>;
+      final rawAssets = payload['assets'];
+      String? sampleUrl;
+      if (rawAssets is List) {
+        for (final asset in rawAssets) {
+          if (asset is Map<String, dynamic>) {
+            final url = asset['browser_download_url']?.toString();
+            if (url != null && url.isNotEmpty) {
+              sampleUrl = url;
+              break;
+            }
+          }
+        }
+      }
+      if (sampleUrl == null) {
+        if (!mounted) return;
+        setState(() {
+          _probing = false;
+          _probeOk = false;
+          _probeMessage = '当前 Release 没有可下载的 asset。';
+        });
+        return;
+      }
+      final wrapped =
+          UpdateNetworkConfig(mirrorPrefix: prefix).wrapUrl(sampleUrl);
+      final probeResp =
+          await http.head(Uri.parse(wrapped)).timeout(const Duration(seconds: 20));
+      final ok = probeResp.statusCode >= 200 && probeResp.statusCode < 300;
+      if (!mounted) return;
+      setState(() {
+        _probing = false;
+        _probeOk = ok;
+        _probeMessage = ok
+            ? '镜像可用 (HTTP ${probeResp.statusCode})。'
+            : '镜像返回 HTTP ${probeResp.statusCode}，可能不支持大文件下载。';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _probing = false;
+        _probeOk = false;
+        final text = error.toString();
+        _probeMessage = text.contains('TimeoutException')
+            ? '镜像探测超时，该镜像可能不可用或较慢。'
+            : '镜像探测失败：$text';
+      });
+    }
   }
 
   Widget _buildOptionChip(ShadThemeData theme, _MirrorOption option) {
@@ -168,13 +296,21 @@ class _SettingsUpdateMirrorFieldState extends State<SettingsUpdateMirrorField> {
 
   Future<void> _selectOption(_MirrorOption option) async {
     if (_mode == option.mode) return;
-    setState(() => _mode = option.mode);
+    setState(() {
+      _mode = option.mode;
+      _probeOk = null;
+      _probeMessage = '';
+    });
     if (option.mode != _kModeCustom) {
       await _save(option.value);
     }
   }
 
   Future<void> _saveCustom() async {
+    setState(() {
+      _probeOk = null;
+      _probeMessage = '';
+    });
     await _save(_controller.text.trim());
   }
 

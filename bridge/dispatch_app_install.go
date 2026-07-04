@@ -98,6 +98,17 @@ func runAppUpdateInstall(ctx context.Context, cancel context.CancelFunc, taskID 
 	// mid-download failures on slow links or mirrors. Allow up to two hours.
 	httpClient := storageconfig.ProxyHTTPClient(proxyCfg, 7200)
 
+	// Some mirrors silently return 403/HTML for large releases; probe the
+	// wrapped URL with a quick HEAD so we can fail fast with a clear message
+	// and let the user switch mirrors rather than watching 0 bytes forever.
+	if input.MirrorPrefix != "" {
+		probeClient := storageconfig.ProxyHTTPClient(proxyCfg, 20)
+		if err := probeDownloadURL(probeClient, downloadURL); err != nil {
+			finishTransferError(taskID, fmt.Sprintf("镜像不可用：%v", err))
+			return
+		}
+	}
+
 	// Download to a temp directory.
 	tmpDir := filepath.Join(os.TempDir(), "app_updates")
 	if err := os.MkdirAll(tmpDir, 0755); err != nil {
@@ -408,4 +419,24 @@ func relaunchApp() {
 func finishTransferError(taskID, msg string) {
 	log.Printf("[app_install] %s: %s", taskID, msg)
 	s3ops.FinishQueuedTransfer(taskID, fmt.Errorf("%s", msg))
+}
+
+// probeDownloadURL sends a short HEAD request to verify a mirror is actually
+// serving the release asset. Many public mirrors return 403/HTML for large
+// GitHub release downloads or drop the Range header; failing fast here beats a
+// silent 0-byte download that looks like a stuck progress bar.
+func probeDownloadURL(client *http.Client, url string) error {
+	req, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return fmt.Errorf("构造探测请求失败：%w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("探测镜像失败：%w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("镜像返回 HTTP %d", resp.StatusCode)
+	}
+	return nil
 }

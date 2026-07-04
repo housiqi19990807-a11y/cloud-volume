@@ -169,6 +169,9 @@ TransferKind _transferKindFromName(String value) {
     'copy' => TransferKind.copy,
     'move' => TransferKind.move,
     'delete' => TransferKind.delete,
+    // In-app self-update downloads an installer package; treat it as a
+    // download so the transfers UI shows the correct direction verb.
+    'app_update' => TransferKind.download,
     _ => TransferKind.upload,
   };
 }
