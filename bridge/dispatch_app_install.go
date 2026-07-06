@@ -98,8 +98,7 @@ func runAppUpdateInstall(ctx context.Context, cancel context.CancelFunc, taskID 
 	}
 	// Install packages are large; a 120s whole-request timeout caused frequent
 	// mid-download failures on slow links or mirrors. Allow up to two hours.
-	// Force HTTP/1.1 to avoid mirror HTTP/2 stream resets (INTERNAL_ERROR).
-	httpClient := storageconfig.InstallerDownloadHTTPClient(proxyCfg, 7200)
+	httpClient := storageconfig.ProxyHTTPClient(proxyCfg, 7200)
 
 	// Some mirrors silently return 403/HTML for large releases; probe the
 	// wrapped URL with a quick HEAD so we can fail fast with a clear message
