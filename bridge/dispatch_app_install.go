@@ -104,7 +104,7 @@ func runAppUpdateInstall(ctx context.Context, cancel context.CancelFunc, taskID 
 	// and let the user switch mirrors rather than watching 0 bytes forever.
 	if input.MirrorPrefix != "" {
 		probeClient := storageconfig.ProxyHTTPClient(proxyCfg, 20)
-		if err := probeDownloadURL(probeClient, downloadURL); err != nil {
+		if err := probeDownloadURL(probeClient, downloadURL, input.AssetSize); err != nil {
 			finishTransferError(taskID, fmt.Sprintf("镜像不可用：%v", err))
 			return
 		}
@@ -369,7 +369,12 @@ func finishTransferError(taskID, msg string) {
 // serving the release asset. Many public mirrors return 403/HTML for large
 // GitHub release downloads or drop the Range header; failing fast here beats a
 // silent 0-byte download that looks like a stuck progress bar.
-func probeDownloadURL(client *http.Client, url string) error {
+//
+// When expectedSize > 0 we also compare the mirror's reported Content-Length
+// against it. Some mirrors answer HEAD 200 with a bogus/small Content-Length
+// (or omit it) while GET would serve a truncated payload; flagging the mismatch
+// here steers the user toward a working mirror before a corrupt download.
+func probeDownloadURL(client *http.Client, url string, expectedSize int64) error {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return fmt.Errorf("构造探测请求失败：%w", err)
@@ -381,6 +386,16 @@ func probeDownloadURL(client *http.Client, url string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("镜像返回 HTTP %d", resp.StatusCode)
+	}
+	if expectedSize > 0 {
+		// A server may legitimately not know the length (chunked transfer) and
+		// report -1; only reject when it advertises a concrete, wrong length.
+		if resp.ContentLength > 0 && resp.ContentLength != expectedSize {
+			return fmt.Errorf(
+				"镜像报称大小为 %d 字节，与 GitHub Release 的 %d 字节不一致",
+				resp.ContentLength, expectedSize,
+			)
+		}
 	}
 	return nil
 }

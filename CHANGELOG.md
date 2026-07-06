@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：修复 macOS 一键更新报「挂载 DMG 失败：映像数据已损坏」的问题。根因是安装包下载完成后没有校验落盘大小，部分 GitHub 加速镜像会用 HTTP 200 返回截断的内容或 HTML 错误页，被原样写入 `.dmg`，到 `hdiutil attach` 时才暴露为「映像数据已损坏」。现在下载完成后强 制比对本地文件大小与 GitHub Release asset 的上报大小，不一致时删除残留文件并报「下载文件大小不匹配……镜像可能返回了截断或错误内容」；镜像预检 HEAD 也增加 `Content-Length` 与 asset 大小的一致性比对，HeadServer 谎报长度时直接提示「镜像不可用」而非继续下载。
+
 - 构建：`make push` 在最新 `v*` 语义化标签上递增版本（默认 patch）、创建附注标签并推送当前分支与标签以触发 Release CI；脚本 `scripts/bump_and_push_tag.sh`，支持 `BUMP=minor|major`、`FORCE=1`。
 - 构建：`make push` 的 patch 递增在 patch 为 9 时进位到 minor（`v1.1.9`→`v1.2.0`），minor 为 9 时再进位到 major（`v1.9.9`→`v2.0.0`）。
 

@@ -117,7 +117,8 @@ func downloadInstaller(
 	if err != nil {
 		return fmt.Errorf("打开文件失败：%w", err)
 	}
-	defer f.Close()
+	// Close explicitly (not deferred) so the bytes are flushed to disk before
+	// we stat the file for the post-download size integrity check.
 
 	buf := make([]byte, 32*1024)
 	var received int64
@@ -125,6 +126,7 @@ func downloadInstaller(
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
 			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
+				_ = f.Close()
 				return fmt.Errorf("写入文件失败：%w", writeErr)
 			}
 			received += int64(n)
@@ -134,8 +136,12 @@ func downloadInstaller(
 			break
 		}
 		if readErr != nil {
+			_ = f.Close()
 			return fmt.Errorf("读取响应失败：%w", readErr)
 		}
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("关闭文件失败：%w", err)
 	}
 
 	if received == 0 && existing == 0 {
@@ -146,6 +152,17 @@ func downloadInstaller(
 		if finalSize > 0 {
 			s3ops.AddTransferTotal(taskID, finalSize)
 		}
+		// No expected size to verify against; leave integrity to the installer.
+		return nil
+	}
+
+	// The download completed, but mirrors routinely serve a truncated body or
+	// an HTML error page while still returning HTTP 200, which produces a
+	// corrupt DMG/ZIP that only fails later at mount/extract time with a
+	// confusing "image data corrupted" message. Verify the saved file matches
+	// the GitHub-reported asset size before handing it to the installer.
+	if err := verifyDownloadedSize(destPath, expectedSize); err != nil {
+		return err
 	}
 	return nil
 }
@@ -170,4 +187,28 @@ func existingPartialBytes(path string, expectedSize int64) (int64, error) {
 		return 0, nil
 	}
 	return info.Size(), nil
+}
+
+// verifyDownloadedSize confirms the on-disk file matches the expected byte
+// count reported by GitHub. Mirrors frequently return a truncated body or an
+// HTML error page with HTTP 200; without this check the saved file is silently
+// handed to hdiutil/unzip, which then fails with a confusing "image data
+// corrupted" error. On mismatch the partial file is removed so the next attempt
+// starts clean instead of resuming a garbage prefix.
+func verifyDownloadedSize(destPath string, expectedSize int64) error {
+	if expectedSize <= 0 {
+		return nil
+	}
+	info, err := os.Stat(destPath)
+	if err != nil {
+		return fmt.Errorf("校验下载文件失败：%w", err)
+	}
+	if info.Size() != expectedSize {
+		_ = os.Remove(destPath)
+		return fmt.Errorf(
+			"下载文件大小不匹配（实际 %d 字节，应为 %d 字节），镜像可能返回了截断或错误内容",
+			info.Size(), expectedSize,
+		)
+	}
+	return nil
 }
