@@ -8,6 +8,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -96,6 +97,29 @@ func TestVerifyDownloadedDigestMalformed(t *testing.T) {
 		}
 		if err := verifyDownloadedDigest(path, digest); err != nil {
 			t.Fatalf("case %d (%q): want nil, got %v", i, digest, err)
+		}
+	}
+}
+
+func TestIsRetryableFetchError(t *testing.T) {
+	retryable := []string{
+		"读取响应失败：stream error: stream ID 1; INTERNAL_ERROR; received from peer",
+		"请求失败：connection reset by peer",
+		"读取响应失败：unexpected EOF",
+	}
+	for _, msg := range retryable {
+		if !isRetryableFetchError(fmt.Errorf("%s", msg)) {
+			t.Fatalf("want retryable: %q", msg)
+		}
+	}
+	nonRetryable := []string{
+		"HTTP 403",
+		"写入文件失败：no space left on device",
+		"打开文件失败：permission denied",
+	}
+	for _, msg := range nonRetryable {
+		if isRetryableFetchError(fmt.Errorf("%s", msg)) {
+			t.Fatalf("want non-retryable: %q", msg)
 		}
 	}
 }

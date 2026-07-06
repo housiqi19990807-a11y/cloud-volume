@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
@@ -34,6 +35,12 @@ func resolveInstallerDestPath(cfg storageconfig.RemoteStorageConfig, assetName s
 // When expectedDigest is a non-empty ``sha256:<hex>`` string, the saved file is
 // re-read and hashed after the size check; this catches mirrors that return
 // same-length-but-wrong content where a size check alone would be fooled.
+//
+// Mirrors (especially ghproxy-style ones) frequently abort the HTTP/2 stream
+// mid-transfer with ``stream error: stream ID N; INTERNAL_ERROR; received from
+// peer``, which surfaces straight to the user as a failed update. The download
+// is retried with Range resume (up to maxFetchAttempts) so a mid-transfer reset
+// heals itself instead of failing the whole task.
 func downloadInstaller(
 	ctx context.Context,
 	client *http.Client,
@@ -68,17 +75,74 @@ func downloadInstaller(
 		return nil
 	}
 
-	existing, err := existingPartialBytes(destPath, expectedSize)
-	if err != nil {
-		return err
+	// Each retry re-measures bytes already on disk and resumes from there via
+	// HTTP Range. A successful fetchOnce returns the final received byte count.
+	const maxFetchAttempts = 5
+	var lastErr error
+	for attempt := 1; attempt <= maxFetchAttempts; attempt++ {
+		existing, existingErr := existingPartialBytes(destPath, expectedSize)
+		if existingErr != nil {
+			return existingErr
+		}
+		if existing > 0 && attempt == 1 {
+			s3ops.AdvanceTransfer(taskID, existing)
+		}
+
+		received, fetchErr := fetchOnce(ctx, client, taskID, url, destPath, existing, expectedSize)
+		if fetchErr == nil {
+			if received == 0 && existing == 0 {
+				return fmt.Errorf("未收到任何数据")
+			}
+			break // success
+		}
+		lastErr = fetchErr
+		if !isRetryableFetchError(fetchErr) {
+			return fetchErr
+		}
+		if attempt < maxFetchAttempts {
+			s3ops.SetTransferStatusDetail(taskID, "cont")
+			// Small backoff so a burst of retries doesn't hammer a flaky mirror.
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("下载被取消：%w", ctx.Err())
+			case <-time.After(time.Duration(attempt) * time.Second):
+			}
+		}
 	}
-	if existing > 0 {
-		s3ops.AdvanceTransfer(taskID, existing)
+	if lastErr != nil {
+		return fmt.Errorf("下载失败（已重试 %d 次）：%w", maxFetchAttempts-1, lastErr)
 	}
 
+	// The download completed, but mirrors routinely serve a truncated body or
+	// an HTML error page while still returning HTTP 200, which produces a
+	// corrupt DMG/ZIP that only fails later at mount/extract time with a
+	// confusing "image data corrupted" message. Verify the saved file matches
+	// the GitHub-reported asset size before handing it to the installer.
+	if err := verifyDownloadedSize(destPath, expectedSize); err != nil {
+		return err
+	}
+	// Size alone can be fooled by same-length-wrong-content; the GitHub asset
+	// digest (sha256:<hex>) is the authoritative content fingerprint.
+	if err := verifyDownloadedDigest(destPath, expectedDigest); err != nil {
+		return err
+	}
+	return nil
+}
+
+// fetchOnce performs a single download attempt, appending to destPath when
+// existing == offset already saved (HTTP Range 206) or truncating when the
+// server ignores Range (HTTP 200). It returns the bytes received this attempt.
+// A retryable mid-transfer error (HTTP/2 INTERNAL_ERROR, connection reset) is
+// returned as-is so the caller can resume from the new on-disk offset.
+func fetchOnce(
+	ctx context.Context,
+	client *http.Client,
+	taskID, url, destPath string,
+	existing, expectedSize int64,
+) (int64, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return fmt.Errorf("创建请求失败：%w", err)
+		return 0, fmt.Errorf("创建请求失败：%w", err)
 	}
 	if existing > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", existing))
@@ -86,7 +150,7 @@ func downloadInstaller(
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("请求失败：%w", err)
+		return 0, fmt.Errorf("请求失败：%w", err)
 	}
 	defer resp.Body.Close()
 
@@ -102,12 +166,12 @@ func downloadInstaller(
 		// Resume as expected.
 	case http.StatusRequestedRangeNotSatisfiable:
 		if usable, checkErr := storageconfig.UsableCachedInstaller(destPath, expectedSize); checkErr == nil && usable {
-			return nil
+			return 0, nil
 		}
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
+		return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
 	default:
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("HTTP %d", resp.StatusCode)
+			return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
 		}
 	}
 
@@ -132,10 +196,10 @@ func downloadInstaller(
 	}
 	f, err := os.OpenFile(destPath, flags, 0o644)
 	if err != nil {
-		return fmt.Errorf("打开文件失败：%w", err)
+		return 0, fmt.Errorf("打开文件失败：%w", err)
 	}
 	// Close explicitly (not deferred) so the bytes are flushed to disk before
-	// we stat the file for the post-download size integrity check.
+	// the caller re-stats the file to resume from the new offset.
 
 	buf := make([]byte, 32*1024)
 	var received int64
@@ -144,7 +208,7 @@ func downloadInstaller(
 		if n > 0 {
 			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
 				_ = f.Close()
-				return fmt.Errorf("写入文件失败：%w", writeErr)
+				return received, fmt.Errorf("写入文件失败：%w", writeErr)
 			}
 			received += int64(n)
 			s3ops.AdvanceTransfer(taskID, int64(n))
@@ -154,39 +218,42 @@ func downloadInstaller(
 		}
 		if readErr != nil {
 			_ = f.Close()
-			return fmt.Errorf("读取响应失败：%w", readErr)
+			// Return received too so the caller's progress accounting matches
+			// the bytes actually persisted before the reset.
+			return received, fmt.Errorf("读取响应失败：%w", readErr)
 		}
 	}
 	if err := f.Close(); err != nil {
-		return fmt.Errorf("关闭文件失败：%w", err)
+		return received, fmt.Errorf("关闭文件失败：%w", err)
 	}
+	return received, nil
+}
 
-	if received == 0 && existing == 0 {
-		return fmt.Errorf("未收到任何数据")
+// isRetryableFetchError reports whether an error from fetchOnce is worth a
+// resume retry: mid-transfer resets that leave a healthy partial file on disk.
+// Definitive failures (HTTP 4xx, missing asset, write errors) are not retried.
+func isRetryableFetchError(err error) bool {
+	if err == nil {
+		return false
 	}
-	if totalBytes <= 0 {
-		finalSize := existing + received
-		if finalSize > 0 {
-			s3ops.AddTransferTotal(taskID, finalSize)
-		}
-		// No expected size to verify against; leave integrity to the installer.
-		return nil
+	msg := err.Error()
+	// HTTP/2 stream resets from mirrors, e.g. "stream error: stream ID 1;
+	// INTERNAL_ERROR; received from peer".
+	if strings.Contains(msg, "stream error") || strings.Contains(msg, "INTERNAL_ERROR") {
+		return true
 	}
-
-	// The download completed, but mirrors routinely serve a truncated body or
-	// an HTML error page while still returning HTTP 200, which produces a
-	// corrupt DMG/ZIP that only fails later at mount/extract time with a
-	// confusing "image data corrupted" message. Verify the saved file matches
-	// the GitHub-reported asset size before handing it to the installer.
-	if err := verifyDownloadedSize(destPath, expectedSize); err != nil {
-		return err
+	if strings.Contains(msg, "connection reset") || strings.Contains(msg, "broken pipe") {
+		return true
 	}
-	// Size alone can be fooled by same-length-wrong-content; the GitHub asset
-	// digest (sha256:<hex>) is the authoritative content fingerprint.
-	if err := verifyDownloadedDigest(destPath, expectedDigest); err != nil {
-		return err
+	if strings.Contains(msg, "unexpected EOF") || strings.Contains(msg, "EOF") {
+		return true
 	}
-	return nil
+	// Generic request-layer failures (dial, TLS handshake) are also retryable;
+	// HTTP status codes are wrapped as "HTTP %d" and are left to the caller.
+	if strings.Contains(msg, "请求失败") || strings.Contains(msg, "dial") || strings.Contains(msg, "tls") {
+		return true
+	}
+	return false
 }
 
 func existingPartialBytes(path string, expectedSize int64) (int64, error) {

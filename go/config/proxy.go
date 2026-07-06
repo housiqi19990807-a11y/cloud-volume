@@ -63,6 +63,27 @@ func ProxyHTTPClient(cfg RemoteStorageConfig, timeoutSeconds int) *http.Client {
 	}
 }
 
+// InstallerDownloadHTTPClient is like ProxyHTTPClient but disables HTTP/2 on the
+// transport. GitHub release mirrors often negotiate HTTP/2 and then reset the
+// stream mid-transfer (INTERNAL_ERROR); HTTP/1.1 with Range resume is more
+// reliable for large installer downloads.
+func InstallerDownloadHTTPClient(cfg RemoteStorageConfig, timeoutSeconds int) *http.Client {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 60
+	}
+	base := ProxyTransport(cfg)
+	transport := base
+	if t, ok := base.(*http.Transport); ok {
+		cloned := t.Clone()
+		cloned.ForceAttemptHTTP2 = false
+		transport = cloned
+	}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   durationFromSeconds(timeoutSeconds),
+	}
+}
+
 // buildCustomTransport creates a round-tripper for HTTP CONNECT or SOCKS5 proxy.
 func buildCustomTransport(proxyType, host, port, username, password string) (http.RoundTripper, error) {
 	addr := host + ":" + port
