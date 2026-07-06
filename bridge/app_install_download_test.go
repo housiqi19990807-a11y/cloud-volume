@@ -6,6 +6,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,3 +51,51 @@ func TestVerifyDownloadedSizeNoExpected(t *testing.T) {
 	}
 }
 
+// A file whose SHA-256 matches the GitHub digest should pass.
+func TestVerifyDownloadedDigestMatch(t *testing.T) {
+	content := []byte("hello installer")
+	sum := sha256.Sum256(content)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+
+	path := filepath.Join(t.TempDir(), "pkg.dmg")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyDownloadedDigest(path, digest); err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+}
+
+// A file whose content differs from the expected digest should be removed.
+func TestVerifyDownloadedDigestMismatchRemovesFile(t *testing.T) {
+	// Use the digest of a different payload so the check fails.
+	other := []byte("honest download")
+	sum := sha256.Sum256(other)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+
+	path := filepath.Join(t.TempDir(), "pkg.dmg")
+	if err := os.WriteFile(path, []byte("corrupt mirror body"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := verifyDownloadedDigest(path, digest)
+	if err == nil {
+		t.Fatal("want error on digest mismatch, got nil")
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("want file removed after mismatch, stat err = %v", statErr)
+	}
+}
+
+// An empty or malformed digest is ignored (we cannot verify, so we don't block).
+func TestVerifyDownloadedDigestMalformed(t *testing.T) {
+	cases := []string{"", "md5:deadbeef", "sha256:not-hex"}
+	for i, digest := range cases {
+		path := filepath.Join(t.TempDir(), "pkg.dmg")
+		if err := os.WriteFile(path, []byte("placeholder"), 0o644); err != nil {
+			t.Fatalf("case %d: %v", i, err)
+		}
+		if err := verifyDownloadedDigest(path, digest); err != nil {
+			t.Fatalf("case %d (%q): want nil, got %v", i, digest, err)
+		}
+	}
+}

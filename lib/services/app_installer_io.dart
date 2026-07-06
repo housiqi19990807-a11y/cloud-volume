@@ -24,11 +24,12 @@ Future<String> downloadAndInstallAsset(
   ProxyConfig proxyConfig = const ProxyConfig(),
   RemoteStorageConfig? config,
 }) {
-  return api.installApp(
-    assetUrl: asset.downloadUrl,
-    assetName: asset.name,
-    assetSize: asset.size,
-    installerType: installerType,
+	return api.installApp(
+		assetUrl: asset.downloadUrl,
+		assetName: asset.name,
+		assetSize: asset.size,
+	assetDigest: asset.digest,
+		installerType: installerType,
     mirrorPrefix: networkConfig.mirrorPrefix,
     config: config ?? RemoteStorageConfig.empty(),
     proxyMode: proxyConfig.mode,

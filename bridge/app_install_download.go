@@ -4,11 +4,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
@@ -27,15 +30,29 @@ func resolveInstallerDestPath(cfg storageconfig.RemoteStorageConfig, assetName s
 
 // downloadInstaller fetches the release asset with HTTP Range resume. A complete
 // cached file matching expectedSize is reused without network I/O.
+//
+// When expectedDigest is a non-empty ``sha256:<hex>`` string, the saved file is
+// re-read and hashed after the size check; this catches mirrors that return
+// same-length-but-wrong content where a size check alone would be fooled.
 func downloadInstaller(
 	ctx context.Context,
 	client *http.Client,
-	taskID, url, destPath string,
+	taskID, url, destPath, expectedDigest string,
 	expectedSize int64,
 ) error {
 	usable, err := storageconfig.UsableCachedInstaller(destPath, expectedSize)
 	if err != nil {
 		return err
+	}
+	if usable {
+		// Even a size-matching cached file can be wrong content (mirror once
+		// served a garbage same-length body). If we have a digest, verify the
+		// cache is genuinely correct; otherwise fall through to re-download.
+		if expectedDigest != "" {
+			if digestErr := verifyDownloadedDigest(destPath, expectedDigest); digestErr != nil {
+				usable = false
+			}
+		}
 	}
 	if usable {
 		if expectedSize > 0 {
@@ -164,6 +181,11 @@ func downloadInstaller(
 	if err := verifyDownloadedSize(destPath, expectedSize); err != nil {
 		return err
 	}
+	// Size alone can be fooled by same-length-wrong-content; the GitHub asset
+	// digest (sha256:<hex>) is the authoritative content fingerprint.
+	if err := verifyDownloadedDigest(destPath, expectedDigest); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -208,6 +230,45 @@ func verifyDownloadedSize(destPath string, expectedSize int64) error {
 		return fmt.Errorf(
 			"下载文件大小不匹配（实际 %d 字节，应为 %d 字节），镜像可能返回了截断或错误内容",
 			info.Size(), expectedSize,
+		)
+	}
+	return nil
+}
+
+// verifyDownloadedDigest re-reads the saved file and compares its SHA-256
+// against the GitHub asset digest (``sha256:<hex>``). Size alone is not a
+// content check: some mirrors return a same-length but wrong payload. The
+// mismatched file is removed so the next attempt starts clean.
+func verifyDownloadedDigest(destPath, expectedDigest string) error {
+	expected := strings.TrimSpace(expectedDigest)
+	if expected == "" {
+		return nil
+	}
+	const prefix = "sha256:"
+	if !strings.HasPrefix(expected, prefix) {
+		return nil
+	}
+	expectedHex := strings.ToLower(strings.TrimPrefix(expected, prefix))
+	if decoded, err := hex.DecodeString(expectedHex); err != nil || len(decoded) != sha256.Size {
+		// Not a usable digest; don't block the install on a malformed hint.
+		return nil
+	}
+
+	f, err := os.Open(destPath)
+	if err != nil {
+		return fmt.Errorf("校验文件完整性失败：%w", err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return fmt.Errorf("计算校验和失败：%w", err)
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	if !strings.EqualFold(actual, expectedHex) {
+		_ = os.Remove(destPath)
+		return fmt.Errorf(
+			"安装包校验和不匹配：下载内容已被损改，请尝试切换镜像或直连 GitHub 重新更新",
 		)
 	}
 	return nil

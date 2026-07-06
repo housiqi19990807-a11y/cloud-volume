@@ -246,10 +246,11 @@ abstract class RemoteStorageGateway {
   /// [TransferQueue]. The download/install runs entirely in Go so the Dart
   /// side only renders UI state.
   Future<String> installApp({
-    required String assetUrl,
-    required String assetName,
-    required int assetSize,
-    required String installerType,
+	required String assetUrl,
+	required String assetName,
+	required int assetSize,
+	required String assetDigest,
+	required String installerType,
     required String mirrorPrefix,
     required RemoteStorageConfig config,
     required String proxyMode,

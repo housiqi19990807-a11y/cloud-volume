@@ -10,10 +10,11 @@ mixin _RemoteStorageRuntimeApiMixin implements RemoteStorageGateway {
 
   @override
   Future<String> installApp({
-    required String assetUrl,
-    required String assetName,
-    required int assetSize,
-    required String installerType,
+	required String assetUrl,
+	required String assetName,
+	required int assetSize,
+	required String assetDigest,
+	required String installerType,
     required String mirrorPrefix,
     required RemoteStorageConfig config,
     required String proxyMode,
@@ -24,10 +25,11 @@ mixin _RemoteStorageRuntimeApiMixin implements RemoteStorageGateway {
     required String proxyPassword,
   }) async {
     final result = await runBridgeCall('install_app', <String, dynamic>{
-      'assetUrl': assetUrl,
-      'assetName': assetName,
-      'assetSize': assetSize,
-      'installerType': installerType,
+		'assetUrl': assetUrl,
+		'assetName': assetName,
+		'assetSize': assetSize,
+		'assetDigest': assetDigest,
+		'installerType': installerType,
       'mirrorPrefix': mirrorPrefix,
       'config': config.toJson(),
       'proxyMode': proxyMode,

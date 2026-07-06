@@ -24,10 +24,11 @@ class ReleaseAsset {
     required this.downloadUrl,
     required this.size,
     this.contentType = '',
+    this.digest = '',
   });
 
-  /// Asset file name, e.g. `yunjuan-macos-universal.dmg`.
-  final String name;
+	/// Asset file name, e.g. `yunjuan-macos-universal.dmg`.
+	final String name;
 
   /// Browser/HTTPS download URL provided by GitHub.
   final String downloadUrl;
@@ -35,11 +36,15 @@ class ReleaseAsset {
   /// File size in bytes.
   final int size;
 
-  /// MIME type reported by GitHub (may be `application/octet-stream`).
-  final String contentType;
+	/// MIME type reported by GitHub (may be `application/octet-stream`).
+	final String contentType;
+	/// SHA-256 digest reported by GitHub in the form `sha256:<hex>`. Empty when
+	/// the release asset has no digest; the in-app installer uses it only when
+	/// present to verify download integrity against mirror corruption.
+	final String digest;
 
-  @override
-  String toString() => 'ReleaseAsset($name, ${size}B)';
+	@override
+	String toString() => 'ReleaseAsset($name, ${size}B, digest=$digest)';
 }
 
 class AppUpdateCheckResult {
@@ -160,12 +165,13 @@ class AppUpdateService {
         final name = asset['name']?.toString() ?? '';
         final url = asset['browser_download_url']?.toString() ?? '';
         if (name.isEmpty || url.isEmpty) continue;
-        assets.add(ReleaseAsset(
-          name: name,
-          downloadUrl: url,
-          size: (asset['size'] as num?)?.toInt() ?? 0,
-          contentType: asset['content_type']?.toString() ?? '',
-        ));
+		assets.add(ReleaseAsset(
+			name: name,
+			downloadUrl: url,
+			size: (asset['size'] as num?)?.toInt() ?? 0,
+			contentType: asset['content_type']?.toString() ?? '',
+			digest: asset['digest']?.toString() ?? '',
+		));
       }
     }
 

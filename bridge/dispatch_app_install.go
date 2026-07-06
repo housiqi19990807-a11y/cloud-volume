@@ -31,6 +31,7 @@ type appInstallArgs struct {
 	AssetURL      string `json:"assetUrl"`
 	AssetName     string `json:"assetName"`
 	AssetSize     int64  `json:"assetSize"`
+	AssetDigest   string `json:"assetDigest"`
 	InstallerType string `json:"installerType"`
 	MirrorPrefix  string `json:"mirrorPrefix"`
 	Config        storageconfig.RemoteStorageConfig `json:"config"`
@@ -116,7 +117,7 @@ func runAppUpdateInstall(ctx context.Context, cancel context.CancelFunc, taskID 
 		return
 	}
 
-	if err := downloadInstaller(ctx, httpClient, taskID, downloadURL, dlPath, input.AssetSize); err != nil {
+	if err := downloadInstaller(ctx, httpClient, taskID, downloadURL, dlPath, input.AssetDigest, input.AssetSize); err != nil {
 		finishTransferError(taskID, fmt.Sprintf("下载失败：%v", err))
 		return
 	}
