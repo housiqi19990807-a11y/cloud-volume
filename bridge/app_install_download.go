@@ -325,11 +325,13 @@ func verifyDownloadedDigest(destPath, expectedDigest string) error {
 	if err != nil {
 		return fmt.Errorf("校验文件完整性失败：%w", err)
 	}
-	defer f.Close()
-
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("计算校验和失败：%w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close digest verification file: %w", err)
 	}
 	actual := hex.EncodeToString(h.Sum(nil))
 	if !strings.EqualFold(actual, expectedHex) {

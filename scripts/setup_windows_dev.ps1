@@ -85,6 +85,60 @@ function Add-UserPathEntry {
   }
 }
 
+function Save-Download {
+  param(
+    [string]$Url,
+    [string]$Destination
+  )
+
+  $parent = Split-Path -Parent $Destination
+  New-Item -ItemType Directory -Force -Path $parent | Out-Null
+  $lastError = $null
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    Write-Host "Downloading $Url (attempt $attempt/3)"
+    try {
+      Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+      if ((Test-Path -LiteralPath $Destination) -and ((Get-Item -LiteralPath $Destination).Length -gt 0)) {
+        return
+      }
+      $lastError = 'downloaded file is empty'
+    } catch {
+      $lastError = $_.Exception.Message
+    }
+    Start-Sleep -Seconds $attempt
+  }
+
+  $curl = Resolve-Executable -Name 'curl.exe'
+  if ($curl) {
+    Write-Host "Retrying $Url with curl.exe"
+    & $curl -L --ssl-no-revoke --retry 5 --retry-delay 2 --fail -o $Destination $Url
+    if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $Destination) -and ((Get-Item -LiteralPath $Destination).Length -gt 0)) {
+      return
+    }
+    $lastError = "curl.exe failed with exit code $LASTEXITCODE"
+  }
+
+  throw "Failed to download $Url. $lastError"
+}
+
+function Invoke-Installer {
+  param(
+    [string]$Path,
+    [string[]]$Arguments,
+    [string]$Name,
+    [int[]]$SuccessExitCodes = @(0, 3010)
+  )
+
+  Write-Host "Running $Name installer..."
+  $process = Start-Process -FilePath $Path -ArgumentList $Arguments -Wait -PassThru -WindowStyle Hidden
+  if ($SuccessExitCodes -notcontains $process.ExitCode) {
+    throw "$Name installer failed with exit code $($process.ExitCode)."
+  }
+  if ($process.ExitCode -eq 3010) {
+    Write-Host "$Name installer requested a reboot; continuing because installation completed." -ForegroundColor Yellow
+  }
+}
+
 function Invoke-WingetInstall {
   param(
     [string]$Id,
@@ -99,7 +153,8 @@ function Invoke-WingetInstall {
 
   $winget = Resolve-Executable -Name 'winget'
   if (-not $winget) {
-    throw 'winget is required for automatic package installation. Install App Installer from Microsoft Store, or rerun with -SkipWingetInstall after installing dependencies manually.'
+    Write-Skip "winget is not available for $Name"
+    return $false
   }
 
   Write-Host "Installing $Name with winget..."
@@ -115,6 +170,7 @@ function Invoke-WingetInstall {
     throw "winget failed while installing $Name ($Id)."
   }
   Refresh-ProcessPath
+  return $true
 }
 
 function Ensure-Git {
@@ -177,7 +233,7 @@ function Ensure-VisualStudioBuildTools {
     return
   }
 
-  Invoke-WingetInstall `
+  $installedByWinget = Invoke-WingetInstall `
     -Id 'Microsoft.VisualStudio.2022.BuildTools' `
     -Name 'Visual Studio 2022 Build Tools' `
     -ExtraArgs @(
@@ -185,6 +241,22 @@ function Ensure-VisualStudioBuildTools {
       '--override',
       '--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
     )
+
+  if (-not $installedByWinget) {
+    $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\vs_BuildTools.exe'
+    Save-Download -Url 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -Destination $installer
+    Invoke-Installer `
+      -Path $installer `
+      -Name 'Visual Studio 2022 Build Tools' `
+      -Arguments @(
+        '--wait',
+        '--quiet',
+        '--norestart',
+        '--add',
+        'Microsoft.VisualStudio.Workload.VCTools',
+        '--includeRecommended'
+      )
+  }
 
   if (-not (Test-VCToolsInstalled)) {
     throw 'Visual Studio C++ build tools were not detected after installation. Reboot or open Visual Studio Installer to finish setup, then rerun this script.'
@@ -195,7 +267,20 @@ function Ensure-Msys2 {
   Write-Section 'MSYS2 UCRT64 toolchain'
   $bash = Join-Path $MsysRoot 'usr\bin\bash.exe'
   if (-not (Test-Path -LiteralPath $bash)) {
-    Invoke-WingetInstall -Id 'MSYS2.MSYS2' -Name 'MSYS2'
+    $installedByWinget = Invoke-WingetInstall -Id 'MSYS2.MSYS2' -Name 'MSYS2'
+    if (-not $installedByWinget) {
+      $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\msys2-x86_64-latest.exe'
+      Save-Download -Url 'https://github.com/msys2/msys2-installer/releases/latest/download/msys2-x86_64-latest.exe' -Destination $installer
+      Invoke-Installer `
+        -Path $installer `
+        -Name 'MSYS2' `
+        -Arguments @(
+          'install',
+          '--root',
+          $MsysRoot,
+          '--confirm-command'
+        )
+    }
   }
 
   $bash = Resolve-Executable -Name '' -Candidates @(
@@ -256,6 +341,14 @@ function Ensure-Flutter {
   Add-UserPathEntry -Entry $flutterBin
   [Environment]::SetEnvironmentVariable('FLUTTER_ROOT', $FlutterRoot, 'User')
   $env:FLUTTER_ROOT = $FlutterRoot
+  if (-not $env:FLUTTER_STORAGE_BASE_URL) {
+    $env:FLUTTER_STORAGE_BASE_URL = 'https://storage.flutter-io.cn'
+  }
+  if (-not $env:PUB_HOSTED_URL) {
+    $env:PUB_HOSTED_URL = 'https://pub.flutter-io.cn'
+  }
+
+  Repair-FlutterDartSdk
 
   $flutter = Resolve-Executable -Name 'flutter' -Candidates @((Join-Path $flutterBin 'flutter.bat'))
   if (-not $flutter) {
@@ -264,6 +357,35 @@ function Ensure-Flutter {
 
   & $flutter --version
   & $flutter config --enable-windows-desktop
+}
+
+function Repair-FlutterDartSdk {
+  $dart = Join-Path $FlutterRoot 'bin\cache\dart-sdk\bin\dart.exe'
+  if (Test-Path -LiteralPath $dart) {
+    return
+  }
+
+  $engineVersionPath = Join-Path $FlutterRoot 'bin\internal\engine.version'
+  if (-not (Test-Path -LiteralPath $engineVersionPath)) {
+    return
+  }
+
+  Write-Host 'Flutter Dart SDK cache is incomplete; downloading it directly.' -ForegroundColor Yellow
+  $engine = (Get-Content -LiteralPath $engineVersionPath -Raw).Trim()
+  $baseUrl = $env:FLUTTER_STORAGE_BASE_URL
+  if (-not $baseUrl) {
+    $baseUrl = 'https://storage.googleapis.com'
+  }
+  $baseUrl = $baseUrl.TrimEnd('/')
+  $url = "$baseUrl/flutter_infra_release/flutter/$engine/dart-sdk-windows-x64.zip"
+  $zip = Join-Path $env:TEMP 'cloud-volume-dev-setup\dart-sdk-windows-x64.zip'
+  Save-Download -Url $url -Destination $zip
+  Remove-Item -LiteralPath (Join-Path $FlutterRoot 'bin\cache\dart-sdk') -Recurse -Force -ErrorAction SilentlyContinue
+  Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $FlutterRoot 'bin\cache') -Force
+
+  if (-not (Test-Path -LiteralPath $dart)) {
+    throw 'Flutter Dart SDK repair completed, but dart.exe is still missing.'
+  }
 }
 
 function Test-ProjectBuildInputs {
