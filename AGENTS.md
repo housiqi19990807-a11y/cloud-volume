@@ -79,6 +79,24 @@ The idle cursor should be `SystemMouseCursors.basic` (basic arrow), switching to
 > 2. **Exploration:** Any time the codebase is explored to answer a question, debug an issue, or understand a feature — even when no code change lands — record the discovered structure, file responsibilities, gotchas, and data flow into the relevant Code Map entry (or create a new one) before the turn ends. The goal is that the next session never has to re-read the same files to learn the same thing.
 > 3. **Freshness:** Correct or remove entries that are no longer accurate. Do not leave this section stale — stale knowledge here is worse than no knowledge.
 
+### Feature: Windows Local Development Workflow
+
+Windows development now has two scripts: one for new-machine dependency bootstrap, and one for project run/build after dependencies exist.
+
+#### Key files
+
+- `scripts/setup_windows_dev.ps1` - New-machine bootstrap script. Uses `winget` to install/verify Git, Go, Visual Studio 2022 Build Tools with the C++ workload, and MSYS2; clones Flutter stable into `$HOME\dev\flutter` by default; installs MSYS2 UCRT64 `gcc/g++`; sets user `FLUTTER_ROOT`, `BRIDGE_CC`, `BRIDGE_CXX`, and appends Flutter/MSYS2/Go paths to the user `PATH`. Optional flags: `-FlutterRoot`, `-MsysRoot`, `-SkipWingetInstall`, `-SkipFlutterClone`, `-SkipMsysPackages`, `-SkipDoctor`, and `-ValidateProject`.
+- `scripts/run_windows.ps1` - Canonical Windows local run/build helper after dependencies are available. It resolves an existing Flutter binary from `-FlutterPath`, `FLUTTER_ROOT`, `$HOME/dev/flutter/bin/flutter.bat`, or `C:\src\flutter\bin\flutter.bat`; resolves existing MSYS2-style `gcc.exe`/`g++.exe` from `-BridgeCc`/`-BridgeCxx`, `BRIDGE_CC`/`BRIDGE_CXX`, or standard `C:\msys64\...` toolchain paths; sets `CGO_ENABLED`, bridge compiler env vars, and local `NO_PROXY`; runs `flutter config --enable-windows-desktop`, optional `flutter pub get`, `go build -buildmode=c-shared -o bin/bridge/remote_storage_bridge.dll ./bridge`, then `flutter run -d windows` or `flutter build windows` with `-Build`/`--build`.
+- `README.md` - Local development docs point new Windows machines to `powershell -ExecutionPolicy Bypass -File .\scripts\setup_windows_dev.ps1`, then use `scripts/run_windows.ps1` for normal project run/build.
+- `AGENTS.md` Build Outputs section - Reinforces that Windows validation should prefer `scripts/run_windows.ps1` over bare `flutter run -d windows` so the bridge DLL and CGO toolchain are configured correctly.
+
+#### Gotchas
+
+- `scripts/run_windows.ps1` fails fast with clear errors if Flutter or `gcc`/`g++` is missing; it does not download or install them.
+- `scripts/setup_windows_dev.ps1` depends on `winget` for package installation and GitHub access for cloning Flutter. If package installation is skipped, prerequisites must already exist.
+- `scripts/setup_windows_dev.ps1` does not run a full app build by default; pass `-ValidateProject` to call `scripts/run_windows.ps1 -Build` after dependency setup.
+- After setup writes user environment variables and `PATH`, open a new PowerShell window before using `scripts/run_windows.ps1` interactively.
+
 ### Feature: File Sync (文件同步)
 
 The sync feature lets users bind a local directory to a remote bucket prefix and keep them in sync (upload / download / two-way) on a configurable schedule, with conflict policies and exclude rules. The Go side runs a scheduler that computes diffs and executes operations; the Flutter side manages config and shows live status.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Windows 开发环境：新增 `scripts/setup_windows_dev.ps1`，用于新 Windows 机器一键准备本地开发依赖。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2，clone Flutter stable 到 `$HOME\dev\flutter`，安装 MSYS2 UCRT64 `gcc/g++`，写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并可通过 `-ValidateProject` 调用现有 `scripts/run_windows.ps1 -Build` 做项目构建验证。
+
 - 应用更新：修复 macOS 一键更新报「挂载 DMG 失败：映像数据已损坏」的问题。根因是安装包下载完成后没有任何校验，部分 GitHub 加速镜像会用 HTTP 200 返回截断的内容或 HTML 错误页，被原样写入 `.dmg`，到 `hdiutil attach` 时才暴露为映像损坏。现在下载完成后做两道校验：①比对本地文件大小与 GitHub Release asset 的 `size`，不一致时删除残留文件并报「下载文件大小不匹配……镜像可能返回了截断或错误内容」；②用 GitHub asset 的 `digest`（`sha256:<hex>`）对落盘文件算 SHA-256 全文校验，大小相同但内容被替换的情况也能挡住，不匹配时删除文件并提示「安装包校验和不匹配：下载内容已被损改，请尝试切换镜像或直连 GitHub 重新更新」。缓存命中本地保留的安装包时也会用这一套大小+校验和校验，避免反复复用坏包。镜像预检 HEAD 也增加 `Content-Length` 与 asset 大小的一致性比对，镜像谎报长度时直接提示「镜像不可用」而非继续下载。
 
 - 应用更新：修复一键更新报「下载失败：读取响应失败：stream error: stream ID 1; INTERNAL_ERROR; received from peer」的问题。根因是部分 GitHub 加速镜像在 HTTP/2 上转发大文件时会在中段 reset 流，单次读取错误直接传给用户即终止。现在下载改为重试续传：遇到 `stream error` / `INTERNAL_ERROR` / 连接重置 / 意外 EOF 等可重试错误时，不直接失败，而是按已落盘字节数用 HTTP Range 续传重试，最多 5 次（含退避）；HTTP 状态码、写入磁盘失败等不可重试错误仍立即返回。撤回此前强制 HTTP/1.1 的尝试，因为 `gh-proxy.com` 会在该路径下返回 HTTP/2 二进制帧，导致 Go 报 `malformed HTTP response`。
