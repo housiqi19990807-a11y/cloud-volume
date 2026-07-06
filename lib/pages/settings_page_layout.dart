@@ -91,13 +91,13 @@ extension _SettingsLayout on _SettingsPageState {
   /// tracked and rebuilt correctly (see the class doc for why an extension
   /// cannot own hover state).
   Widget _buildGroupTile(ShadThemeData theme, _SettingsTab tab) {
-    final active = tab == _activeTab;
+    // No persistent active state: clicking a rail entry only scrolls the page,
+    // so no entry is ever rendered as selected.
     return _SettingsGroupTile(
       accent: theme.colorScheme.accent,
       foreground: theme.colorScheme.foreground,
       mutedForeground: theme.colorScheme.mutedForeground,
       label: _tabLabel(tab),
-      active: active,
       onTap: () => _scrollToAnchor(tab),
     );
   }
@@ -190,8 +190,8 @@ extension _SettingsLayout on _SettingsPageState {
   void _scrollToAnchor(_SettingsTab tab) {
     final context = _sectionKeys[tab]?.currentContext;
     if (context == null) return;
-    // Left rail highlight follows user clicks only, not scroll position.
-    _updateState(() => _activeTab = tab);
+    // Clicking a left rail entry only scrolls the page; no persistent active
+    // highlight. Scroll position also no longer syncs rail highlight.
     Scrollable.ensureVisible(
       context,
       alignment: 0,
@@ -223,7 +223,6 @@ class _SettingsGroupTile extends StatefulWidget {
     required this.foreground,
     required this.mutedForeground,
     required this.label,
-    required this.active,
     required this.onTap,
   });
 
@@ -231,7 +230,6 @@ class _SettingsGroupTile extends StatefulWidget {
   final Color foreground;
   final Color mutedForeground;
   final String label;
-  final bool active;
   final VoidCallback onTap;
 
   @override
@@ -243,18 +241,11 @@ class _SettingsGroupTileState extends State<_SettingsGroupTile> {
 
   @override
   Widget build(BuildContext context) {
-    final active = widget.active;
     final ac = widget.accent;
 
-    final fg = active
-        ? widget.foreground
-        : _hovered
-        ? ac.withValues(alpha: 0.9)
-        : widget.mutedForeground;
-    final baseBg = active ? ac.withValues(alpha: 0.12) : Colors.transparent;
-    final hoverOverlay = active
-        ? Colors.transparent
-        : ac.withValues(alpha: _hovered ? 0.1 : 0);
+    final fg = _hovered ? ac.withValues(alpha: 0.9) : widget.mutedForeground;
+    final baseBg = Colors.transparent;
+    final hoverOverlay = ac.withValues(alpha: _hovered ? 0.1 : 0);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -277,7 +268,7 @@ class _SettingsGroupTileState extends State<_SettingsGroupTile> {
             widget.label,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              fontWeight: FontWeight.w400,
               color: fg,
             ),
           ),

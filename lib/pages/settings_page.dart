@@ -71,7 +71,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  _SettingsTab _activeTab = _SettingsTab.update;
   final ScrollController _contentScrollController = ScrollController();
   final Map<_SettingsTab, GlobalKey> _sectionKeys = {
     for (final tab in _SettingsTab.values) tab: GlobalKey(),
