@@ -24,6 +24,7 @@ extension _SettingsLayout on _SettingsPageState {
           _SettingsTab.update,
           _SettingsTab.proxy,
           _SettingsTab.appearance,
+          _SettingsTab.logging,
           if (widget.api.capabilities.supportsDownloadDirectory)
             _SettingsTab.download,
           _SettingsTab.cache,
@@ -108,6 +109,7 @@ extension _SettingsLayout on _SettingsPageState {
       _SettingsTab.update => '应用更新',
       _SettingsTab.proxy => '网络代理',
       _SettingsTab.appearance => '外观',
+      _SettingsTab.logging => '日志设置',
       _SettingsTab.download => '下载设置',
       _SettingsTab.cache => '缓存设置',
       _SettingsTab.visibility => '显示设置',
@@ -160,6 +162,8 @@ extension _SettingsLayout on _SettingsPageState {
         return _buildProxySection(theme, config);
       case _SettingsTab.appearance:
         return _buildAppearanceSection(theme);
+      case _SettingsTab.logging:
+        return _buildLogSection(theme);
       case _SettingsTab.download:
         return _buildDownloadSection(theme, config);
       case _SettingsTab.cache:

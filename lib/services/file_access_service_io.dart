@@ -41,7 +41,7 @@ class FileAccessService {
       object: object,
     );
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'prepare source cache ready bucket=$bucket key=${object.key} elapsedMs=${watch.elapsedMilliseconds} path=$cachePath',
         tag: 'preview',
       ),
@@ -49,7 +49,7 @@ class FileAccessService {
     final readWatch = Stopwatch()..start();
     final bytes = await File(cachePath).readAsBytes();
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'prepare source read bytes bucket=$bucket key=${object.key} readMs=${readWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} bytes=${bytes.length}',
         tag: 'preview',
       ),
@@ -174,7 +174,7 @@ class FileAccessService {
   }) async {
     final watch = Stopwatch()..start();
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'ensure start bucket=$bucket key=${object.key}',
         tag: 'preview',
       ),
@@ -182,7 +182,7 @@ class FileAccessService {
     final headWatch = Stopwatch()..start();
     final remoteObject = await api.headObject(config, bucket, object.key);
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'head done bucket=$bucket key=${object.key} phaseMs=${headWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} size=${remoteObject.size} lastModified=${remoteObject.lastModified}',
         tag: 'preview',
       ),
@@ -195,7 +195,7 @@ class FileAccessService {
       remoteObject,
     );
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'cache find done bucket=$bucket key=${object.key} phaseMs=${cacheFindWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} hit=${cachedPath != null}',
         tag: 'preview',
       ),
@@ -211,7 +211,7 @@ class FileAccessService {
       object.key,
     );
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'cache path done bucket=$bucket key=${object.key} phaseMs=${pathWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} path=$cachePath',
         tag: 'preview',
       ),
@@ -224,7 +224,7 @@ class FileAccessService {
     );
     if (existingTask != null) {
       unawaited(
-        AppLog.info(
+        AppLog.debug(
           'reuse download task bucket=$bucket key=${object.key} taskId=${existingTask.id} totalMs=${watch.elapsedMilliseconds}',
           tag: 'preview',
         ),
@@ -244,7 +244,7 @@ class FileAccessService {
       localPath: cachePath,
     );
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'download task created bucket=$bucket key=${object.key} taskId=${task.id} totalMs=${watch.elapsedMilliseconds}',
         tag: 'preview',
       ),
@@ -263,7 +263,7 @@ class FileAccessService {
               localPath: cachePath,
             );
             unawaited(
-              AppLog.info(
+              AppLog.debug(
                 'cache upsert done bucket=$bucket key=${object.key} phaseMs=${indexWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds}',
                 tag: 'preview',
               ),
@@ -280,7 +280,7 @@ class FileAccessService {
           },
         ).then((_) {
           unawaited(
-            AppLog.info(
+            AppLog.debug(
               'download complete bucket=$bucket key=${object.key} totalMs=${watch.elapsedMilliseconds}',
               tag: 'preview',
             ),

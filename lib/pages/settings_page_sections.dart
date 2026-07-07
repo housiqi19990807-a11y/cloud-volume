@@ -14,12 +14,12 @@ extension _SettingsSections on _SettingsPageState {
       _buildCard(
         theme,
         '应用更新',
-       SettingsUpdateSection(
-         theme: theme,
-         currentVersion: kAppRuntimeVersion,
-         config: config,
-         api: widget.api,
-       ),
+        SettingsUpdateSection(
+          theme: theme,
+          currentVersion: kAppRuntimeVersion,
+          config: config,
+          api: widget.api,
+        ),
       ),
     ];
   }
@@ -60,6 +60,10 @@ extension _SettingsSections on _SettingsPageState {
 
   List<Widget> _buildAppearanceSection(ShadThemeData theme) {
     return [_buildCard(theme, '外观', const ThemePicker())];
+  }
+
+  List<Widget> _buildLogSection(ShadThemeData theme) {
+    return [_buildCard(theme, '日志设置', SettingsLogSection(theme: theme))];
   }
 
   List<Widget> _buildDownloadSection(

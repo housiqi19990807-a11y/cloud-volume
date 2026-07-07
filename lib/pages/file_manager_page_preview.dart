@@ -14,7 +14,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
     final kind = previewKindForName(object.displayName);
     final openWatch = Stopwatch()..start();
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'open start bucket=$bucket key=${object.key} kind=${kind.name} size=${object.size}',
         tag: 'preview',
       ),
@@ -37,7 +37,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
               started = true;
               final loadWatch = Stopwatch()..start();
               unawaited(
-                AppLog.info(
+                AppLog.debug(
                   'source load start bucket=$bucket key=${object.key} sinceOpenMs=${openWatch.elapsedMilliseconds}',
                   tag: 'preview',
                 ),
@@ -52,7 +52,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                     )
                     .then((value) {
                       unawaited(
-                        AppLog.info(
+                        AppLog.debug(
                           'source load done bucket=$bucket key=${object.key} elapsedMs=${loadWatch.elapsedMilliseconds} sinceOpenMs=${openWatch.elapsedMilliseconds}',
                           tag: 'preview',
                         ),
@@ -152,7 +152,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
       },
     );
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'dialog closed bucket=$bucket key=${object.key} sinceOpenMs=${openWatch.elapsedMilliseconds}',
         tag: 'preview',
       ),

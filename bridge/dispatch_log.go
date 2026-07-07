@@ -28,15 +28,24 @@ func writeFlutterLog(args json.RawMessage) (any, error) {
 	if tag == "" {
 		tag = "flutter"
 	}
-	level := strings.ToLower(strings.TrimSpace(input.Level))
-	prefix := fmt.Sprintf("[app/%s]", tag)
-	switch level {
-	case "error", "err":
-		log.Printf("%s ERROR %s", prefix, msg)
-	case "warn", "warning":
-		log.Printf("%s WARN %s", prefix, msg)
-	default:
-		log.Printf("%s %s", prefix, msg)
+	level := normalizeFlutterLogLevel(input.Level)
+	if level == "SILENT" {
+		return map[string]any{"ok": true}, nil
 	}
+	prefix := fmt.Sprintf("[app/%s]", tag)
+	log.Printf("%s %s %s", prefix, level, msg)
 	return map[string]any{"ok": true}, nil
+}
+
+func normalizeFlutterLogLevel(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "silent":
+		return "SILENT"
+	case "error", "err":
+		return "ERROR"
+	case "debug":
+		return "DEBUG"
+	default:
+		return "INFO"
+	}
 }

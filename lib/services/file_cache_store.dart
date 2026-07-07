@@ -32,7 +32,7 @@ class FileCacheStore {
       objectKey: remoteObject.key,
     );
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'cache index find bucket=$bucket key=${remoteObject.key} phaseMs=${indexWatch.elapsedMilliseconds} hit=${record != null}',
         tag: 'preview',
       ),
@@ -52,7 +52,7 @@ class FileCacheStore {
         matchesRemote &&
         fileSize == remoteObject.size;
     unawaited(
-      AppLog.info(
+      AppLog.debug(
         'cache validate bucket=$bucket key=${remoteObject.key} phaseMs=${validateWatch.elapsedMilliseconds} valid=$valid insideRoot=$insideRoot exists=$fileExists fileSize=$fileSize remoteSize=${remoteObject.size} matchesRemote=$matchesRemote',
         tag: 'preview',
       ),

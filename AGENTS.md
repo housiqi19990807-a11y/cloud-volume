@@ -230,7 +230,7 @@ Shared upload/download queue backing both manual file operations and sync-genera
 
 **Windows SQLite removal (2026-07-07):** Windows Debug 真实回归中界面闪退，日志为 `Failed to load dynamic library 'sqlite3.dll'`，根因是 `sqflite_common_ffi` 需要系统/打包的 SQLite 动态库，而新 Windows 开发机没有。最终方案已移除 `sqflite_common_ffi` / `sqlite3` 依赖和 `platform_bootstrap_io.dart` 的 SQLite FFI 初始化，且不再由 Flutter 前端维护 JSON 索引；缓存索引通过 bridge 方法 `cache_index_find` / `cache_index_upsert` / `cache_index_remove` / `cache_index_remove_prefix` 存进 Go config bbolt DB 的 `preview_cache` bucket。bbolt key 为 `bucket + "\x00" + objectKey`，record 字段为 `bucket`、`objectKey`、`localPath`、`fileSize`、`lastModified`、`updatedAtEpochMs`。这样 Windows 前端启动不再依赖 `sqlite3.dll`，缓存索引 I/O 也留在 Go bridge 后台 isolate 调用链上。
 
-**Preview latency logging (2026-07-07):** 点击预览卡顿排查使用 `AppLog` 的 `preview` tag。`lib/pages/file_manager_page_preview.dart` 记录 open/source-load/dialog-close；`lib/services/file_access_service_io.dart` 记录 `ensure start`、`head done`、`cache find done`、`cache path done`、download task create/reuse、cache upsert、download complete、read bytes；`lib/services/file_cache_store.dart` 记录 `cache index find` 和 `cache validate`。日志写入 bridge log（macOS/Windows 桌面端通常在 `~/.cloud-volume/runtime/logs/bridge.log`），看 `phaseMs` / `totalMs` 即可判断卡在远端 head、bridge/bbolt index、本地文件 stat/read，还是下载链路。
+**Preview latency logging (2026-07-07):** 点击预览卡顿排查使用 `AppLog.debug` 的 `preview` tag。`lib/pages/file_manager_page_preview.dart` 记录 open/source-load/dialog-close；`lib/services/file_access_service_io.dart` 记录 `ensure start`、`head done`、`cache find done`、`cache path done`、download task create/reuse、cache upsert、download complete、read bytes；`lib/services/file_cache_store.dart` 记录 `cache index find` 和 `cache validate`。日志写入 bridge log（macOS/Windows 桌面端通常在 `~/.cloud-volume/runtime/logs/bridge.log`），看 `phaseMs` / `totalMs` 即可判断卡在远端 head、bridge/bbolt index、本地文件 stat/read，还是下载链路。默认日志等级为 `Info`，不会采集这些高频 preview debug 日志；需要在 设置 → 通用 → 日志设置 切到 `Debug` 后再复现。
 
 **问题（2026-06-30 修复）：** 上传走传输队列，成功后只 `markTaskDone` + 刷新列表，从不动缓存表。所以"刚上传完的文件双击还要重下"——上传与预览是两套独立记账。
 
@@ -308,20 +308,22 @@ The settings page uses a **two-column anchor layout**: a left vertical anchor ra
 #### Key files
 - `lib/pages/settings_page.dart` — `SettingsPage` + `_SettingsPageState`. `_SettingsTab` enum identifies one card/anchor per config block. State owns `_contentScrollController` and `_sectionKeys` (**no `_activeTab` field**). `build()` renders a `Row`: left `SizedBox(width: 180)` with title + `_buildGroupRail(theme)`; right `Expanded` + `SingleChildScrollView(controller: _contentScrollController)` with `_buildAllContent`.
 - `lib/pages/settings_page_layout.dart` — part file. `_SettingsLayout` extension: `_railGroups()` builds `_SettingsRailGroup` list with section headers + anchors; `_buildGroupRail` renders headers + `_SettingsGroupTile` rows; `_tabLabel` maps enum to Chinese label; `_buildAllContent` renders every visible card as one page using `KeyedSubtree` + `_sectionKeys`; `_scrollToAnchor` uses `Scrollable.ensureVisible` and **only scrolls** — it no longer updates any `_activeTab` (2026-07-06). `_SettingsGroupTile` is the hover-aware StatefulWidget tile (must be StatefulWidget — see Hover rule above); it exposes **no `active` parameter** — appearance is hover-only.
-- `lib/pages/settings_page_sections.dart` — part file. `_SettingsSections` extension with per-anchor card builders (`_buildUpdateSection`, `_buildProxySection`, `_buildAppearanceSection`, `_buildDownloadSection`, `_buildCacheSection`, `_buildVisibilitySection`, `_buildSyncSection`, `_buildTrashSection`, `_buildWebdavSection`, `_buildResetAccountSection`, `_buildConfigManageSection`, `_buildWindowsEntrySection`, `_buildWindowsWritebackSection`, `_buildWindowsMountSection`, `_buildAboutSection`). Each returns `[_buildCard(...)]`.
+- `lib/pages/settings_page_sections.dart` — part file. `_SettingsSections` extension with per-anchor card builders (`_buildUpdateSection`, `_buildProxySection`, `_buildAppearanceSection`, `_buildLogSection`, `_buildDownloadSection`, `_buildCacheSection`, `_buildVisibilitySection`, `_buildSyncSection`, `_buildTrashSection`, `_buildWebdavSection`, `_buildResetAccountSection`, `_buildConfigManageSection`, `_buildWindowsEntrySection`, `_buildWindowsWritebackSection`, `_buildWindowsMountSection`, `_buildAboutSection`). Each returns `[_buildCard(...)]`.
 - `lib/pages/settings_page_actions.dart` — part file with `_SettingsPageActions` extension: all config save/refresh/cleanup actions.
 
 #### Data flow
 1. `_SettingsPageState.build()` wires the right-side `SingleChildScrollView` to `_contentScrollController` and calls `_buildAllContent(theme, config)`.
-2. `_railGroups()` returns 通用 (download anchor only when supported; WebDAV 凭据 anchor only on Web), Windows (if `isWindowsPlatform`), 关于 groups.
+2. `_railGroups()` returns 通用 (including 日志设置; download anchor only when supported; WebDAV 凭据 anchor only on Web), Windows (if `isWindowsPlatform`), 关于 groups.
 3. `_buildAllContent` loops through those same visible anchors, wrapping each section card with the matching `_sectionKeys[tab]`.
 4. Tapping `_SettingsGroupTile` calls `_scrollToAnchor(tab)`, which runs `Scrollable.ensureVisible` to scroll the right page to the keyed card. It does **not** set any active/selected state — the rail tile only shows hover feedback while the pointer is over it.
 5. Left rail scrolls independently when the anchor list is taller than the viewport.
 
 ### Feature: Flutter → Go app logging
 
-- `bridge/dispatch_log.go` — `write_flutter_log` bridge method; lines go to stderr + `BridgeLogPath()` via `log.Printf` with `[app/<tag>]` prefix.
-- `lib/utils/app_log.dart` — `AppLog.info/warning/error`; bound in `AppBootstrapPage` after API bootstrap.
+- `bridge/dispatch_log.go` — `write_flutter_log` bridge method; normalizes Flutter levels to `SILENT` / `ERROR` / `INFO` / `DEBUG`. `SILENT` is ignored; other lines go to stderr + `BridgeLogPath()` via `log.Printf` as `[app/<tag>] LEVEL message`.
+- `lib/utils/app_log.dart` — `AppLogLevel` (`silent`, `error`, `info`, `debug`) + `AppLog.info/debug/error`; bound in `AppBootstrapPage` after API bootstrap. The current level is persisted in SharedPreferences key `app.log.level`; default is `Info`. Filtering happens before bridge calls, so `Silent` and filtered-out debug/info messages do not spawn bridge log calls.
+- `lib/widgets/settings_log_section.dart` — Settings UI for the four log levels. Lives under Settings → 通用 → 日志设置 and calls `AppLog.setLevel` so changes apply immediately.
+- `lib/pages/settings_page.dart` / `settings_page_layout.dart` / `settings_page_sections.dart` — Adds the `logging` anchor/card to the Settings page.
 - `RemoteStorageGateway.writeAppLog` — desktop FFI; web no-op.
 
 ### Feature: In-App Auto Update (应用内自动更新)
