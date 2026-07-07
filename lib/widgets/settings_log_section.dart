@@ -67,24 +67,6 @@ class _SettingsLogSectionState extends State<SettingsLogSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '控制应用诊断日志的采集量。通常保持默认即可；排查卡顿、启动失败或文件操作异常时，可以临时切到调试。',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.6,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '未手动设置时，开发调试版默认“调试”，正式发布版默认“安静”。',
-          style: TextStyle(
-            fontSize: 11.5,
-            height: 1.5,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 14),
         SizedBox(
           width: double.infinity,
           child: ShadSelect<AppLogLevel>(
