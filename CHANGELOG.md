@@ -16,7 +16,7 @@
 
 - 文件列表交互：修复文件行鼠标移入后长期保持手指指针的问题。`FileListTile` 现在空闲时使用基础箭头，仅在行自身 `_hovered` 时切换为点击手指；删除中或 dimmed 行同时禁用标题点击，避免不可操作状态仍触发预览/打开。
 
-- 日志采集：新增设置页「日志设置」，支持 `Silent` / `Error` / `Info` / `Debug` 四级过滤并持久化到本地偏好。Flutter 侧 `AppLog` 会按等级决定是否调用后端 `write_flutter_log` bridge，Go bridge 落盘时统一输出 `[app/<tag>] LEVEL message`；预览耗时诊断降为 `Debug` 级，Release 默认 `Info` 不再采集高频预览性能日志。
+- 日志采集：新增设置页「日志设置」，支持 `Silent` / `Error` / `Info` / `Debug` 四级过滤并持久化到本地偏好。Flutter 侧 `AppLog` 会把当前等级同步给 Go bridge，后端日志也通过统一的 `go/logging` 包过滤；未手动设置时 Debug 构建默认 `Debug`，Release 构建默认 `Silent`。预览耗时诊断降为 `Debug` 级，正式版默认不采集高频诊断日志。
 
 - Windows 构建脚本：修复 Go 1.18+ VCS stamping 在 Git 返回 128 时阻断 bridge 构建的问题。`run_windows.ps1` 现在会把仓库根目录加入当前用户 Git `safe.directory`，并用 `go build -buildvcs=false -buildmode=c-shared ...` 构建本地调试 DLL。
 

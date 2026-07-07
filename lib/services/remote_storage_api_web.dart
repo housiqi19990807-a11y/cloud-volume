@@ -125,6 +125,9 @@ class RemoteStorageApi
   }) async {}
 
   @override
+  Future<void> setLogLevel(String level) async {}
+
+  @override
   Future<String> installApp({
     required String assetUrl,
     required String assetName,

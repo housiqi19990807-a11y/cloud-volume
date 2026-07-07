@@ -1,4 +1,4 @@
-// Log settings control how much Flutter-side diagnostic data is bridged to disk.
+// Log settings control how much diagnostic data the app keeps for support.
 
 import 'dart:async';
 
@@ -68,10 +68,19 @@ class _SettingsLogSectionState extends State<SettingsLogSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '控制 Flutter 侧诊断日志写入 bridge.log 的详细程度。Debug 会包含预览耗时等高频排查日志，Release 采集时建议按需开启。',
+          '控制应用诊断日志的采集量。通常保持默认即可；排查卡顿、启动失败或文件操作异常时，可以临时切到调试。',
           style: TextStyle(
             fontSize: 12,
             height: 1.6,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '未手动设置时，开发调试版默认“调试”，正式发布版默认“安静”。',
+          style: TextStyle(
+            fontSize: 11.5,
+            height: 1.5,
             color: theme.colorScheme.mutedForeground,
           ),
         ),
@@ -133,10 +142,10 @@ class _SettingsLogSectionState extends State<SettingsLogSection> {
 
   String _descriptionFor(AppLogLevel level) {
     return switch (level) {
-      AppLogLevel.silent => '不写入 Flutter 侧应用日志。',
-      AppLogLevel.error => '仅写入错误日志。',
-      AppLogLevel.info => '写入错误和常规信息日志。',
-      AppLogLevel.debug => '写入全部日志，包括高频调试和性能诊断。',
+      AppLogLevel.silent => '不采集应用诊断日志，适合正式版日常使用。',
+      AppLogLevel.error => '只记录失败和异常，适合低噪音问题采集。',
+      AppLogLevel.info => '记录关键操作和错误，适合常规排查。',
+      AppLogLevel.debug => '记录详细耗时和内部步骤，适合临时复现问题。',
     };
   }
 }

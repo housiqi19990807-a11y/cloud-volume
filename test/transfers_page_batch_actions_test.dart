@@ -442,6 +442,9 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<void> deleteSyncProfile(String id) async {}
 
   @override
+  Future<void> setLogLevel(String level) async {}
+
+  @override
   Future<void> writeAppLog(
     String message, {
     String level = 'info',

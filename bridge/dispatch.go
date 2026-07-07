@@ -128,6 +128,10 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return deleteSyncProfile(args)
 	case "trigger_sync_profile":
 		return triggerSyncProfile(args)
+	case "get_log_level":
+		return getLogLevel()
+	case "set_log_level":
+		return setLogLevel(args)
 	case "write_flutter_log":
 		return writeFlutterLog(args)
 	// In-app update (download + install + relaunch).

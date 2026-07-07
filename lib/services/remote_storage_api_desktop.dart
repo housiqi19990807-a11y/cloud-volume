@@ -85,6 +85,11 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> setLogLevel(String level) async {
+    await runBridgeCall('set_log_level', <String, dynamic>{'level': level});
+  }
+
+  @override
   Future<AuthSessionState> loadAuthSession() async {
     return const AuthSessionState.desktop();
   }

@@ -40,7 +40,7 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
 
   Future<_BootstrapSession> _loadSession() async {
     final api = await widget.apiFactory();
-    AppLog.bind(api);
+    await AppLog.bind(api);
     final auth = await api.loadAuthSession();
     final state = await api.loadBootstrapState();
     return _BootstrapSession(api: api, state: state, auth: auth);

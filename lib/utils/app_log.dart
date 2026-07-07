@@ -9,10 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 const String kAppLogLevelPreferenceKey = 'app.log.level';
 
 enum AppLogLevel {
-  silent('silent', 'Silent', 0),
-  error('error', 'Error', 1),
-  info('info', 'Info', 2),
-  debug('debug', 'Debug', 3);
+  silent('silent', '安静', 0),
+  error('error', '仅错误', 1),
+  info('info', '常规', 2),
+  debug('debug', '调试', 3);
 
   const AppLogLevel(this.storageValue, this.label, this.priority);
 
@@ -20,13 +20,20 @@ enum AppLogLevel {
   final String label;
   final int priority;
 
+  static AppLogLevel defaultForBuild() {
+    if (kReleaseMode) return AppLogLevel.silent;
+    if (kDebugMode) return AppLogLevel.debug;
+    return AppLogLevel.info;
+  }
+
   static AppLogLevel fromStorage(Object? value) {
     final normalized = (value ?? '').toString().trim().toLowerCase();
     return switch (normalized) {
       'silent' => AppLogLevel.silent,
       'error' || 'err' => AppLogLevel.error,
       'debug' => AppLogLevel.debug,
-      _ => AppLogLevel.info,
+      'info' => AppLogLevel.info,
+      _ => defaultForBuild(),
     };
   }
 }
@@ -36,14 +43,14 @@ class AppLog {
   AppLog._();
 
   static RemoteStorageGateway? _gateway;
-  static AppLogLevel _level = AppLogLevel.info;
+  static AppLogLevel _level = AppLogLevel.defaultForBuild();
 
   static AppLogLevel get level => _level;
 
   /// Call once after [RemoteStorageGateway] is ready (see AppBootstrapPage).
-  static void bind(RemoteStorageGateway gateway) {
+  static Future<AppLogLevel> bind(RemoteStorageGateway gateway) {
     _gateway = gateway;
-    unawaited(loadLevel());
+    return loadLevel();
   }
 
   static Future<AppLogLevel> loadLevel() async {
@@ -51,6 +58,7 @@ class AppLog {
     _level = AppLogLevel.fromStorage(
       prefs.getString(kAppLogLevelPreferenceKey),
     );
+    await _syncBackendLevel(_level);
     return _level;
   }
 
@@ -58,6 +66,7 @@ class AppLog {
     _level = level;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(kAppLogLevelPreferenceKey, level.storageValue);
+    await _syncBackendLevel(level);
   }
 
   static Future<void> info(String message, {String tag = 'flutter'}) =>
@@ -92,6 +101,18 @@ class AppLog {
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[app/$tag] bridge log failed: $e');
+      }
+    }
+  }
+
+  static Future<void> _syncBackendLevel(AppLogLevel level) async {
+    final gateway = _gateway;
+    if (gateway == null) return;
+    try {
+      await gateway.setLogLevel(level.storageValue);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[app/log] backend log level sync failed: $e');
       }
     }
   }

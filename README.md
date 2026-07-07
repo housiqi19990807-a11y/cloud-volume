@@ -124,7 +124,7 @@ Windows 本地启动前提：
 
 Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，生成的主程序文件名为 `cloud-volume.exe`，避免构建后 exe 因缺少 bridge 而无法启动。
 Windows 调试启动不再依赖系统 `sqlite3.dll`。预览/打开文件用到的缓存索引现在通过 Go bridge 写入现有 bbolt `config.db`，Flutter 前端不再引入 `sqflite_common_ffi` / `sqlite3` 原生依赖，避免新机器缺少 SQLite 动态库导致界面闪退。
-排查点击文件预览卡顿时，先在 设置 → 通用 → 日志设置 把日志等级切到 `Debug`，再在 `~/.cloud-volume/runtime/logs/bridge.log` 搜索 `[app/preview]`；日志会显示 `headObject`、cache index、缓存文件校验、下载任务和读取预览 bytes 的分段耗时。采集结束后可切回 `Info`，避免 Release 环境长期写入高频调试日志。
+排查点击文件预览卡顿时，先在 设置 → 通用 → 日志设置 把日志等级切到“调试”，再在 `~/.cloud-volume/runtime/logs/bridge.log` 搜索 `[app/preview]`；日志会显示 `headObject`、cache index、缓存文件校验、下载任务和读取预览 bytes 的分段耗时。未手动设置时，开发调试版默认采集调试日志，正式发布版默认保持安静；采集结束后可切回“安静”或“常规”，避免正式环境长期写入高频诊断日志。
 如果本机配置了 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，请确保 `NO_PROXY` 包含 `127.0.0.1,localhost`；仓库自带的 `scripts/run_windows.ps1` 会自动补上这两个值，避免 `flutter run` 通过代理去连接本地 Dart VM service 而导致调试连接提前断开。
 
 Linux 本地启动前提：
@@ -430,7 +430,7 @@ If a remount fails because `~/.cloud-volume/runtime/mounts/<bucket>/writeback/qu
 The Cloud Files placeholder path now coalesces repeated directory fetch callbacks and skips placeholder creation for entries that already exist locally, which reduces Explorer browse loops and placeholder callback errors on busy folders.
 ## Runtime Logs
 
-Go bridge runtime logs are written to `~/.cloud-volume/runtime/logs/bridge.log` on macOS, Linux, and Windows, which now includes Windows Cloud Files fetch-data and placeholder diagnostics for mount failures.
+Go bridge runtime logs are written to `~/.cloud-volume/runtime/logs/bridge.log` on macOS, Linux, and Windows when the current log level allows them. The log level is configured in Settings and applies to both Flutter-forwarded diagnostics and Go backend logs; release builds default to silent logging unless the user enables collection.
 
 ## UI Responsiveness
 
@@ -444,4 +444,4 @@ The desktop runners now use adaptive startup sizing on all three platforms:
 - Windows now applies the same low-resolution startup sizing strategy in the native runner before the Flutter surface is shown.
 - macOS now resolves the initial centered frame from the visible screen area as well, and also lowers the minimum resizable size when the display is smaller than the normal default window.
 
-- 桌面端 Flutter 日志可通过 `AppLog` 写入 Go bridge 日志文件。
+- 桌面端诊断日志由设置页统一控制，Flutter `AppLog` 与 Go backend 日志共享 `Silent` / `Error` / `Info` / `Debug` 等级。

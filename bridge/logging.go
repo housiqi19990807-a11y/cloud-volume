@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	storageconfig "remote-storage/go/config"
+	bridgelog "remote-storage/go/logging"
 )
 
 var configureBridgeLoggerOnce sync.Once
@@ -37,7 +38,7 @@ func configureBridgeLogger() {
 			return
 		}
 
-		log.SetOutput(io.MultiWriter(os.Stderr, file))
-		log.Printf("[bridge/log] writing Go bridge logs to %s", logPath)
+		bridgelog.ConfigureOutput(io.MultiWriter(os.Stderr, file))
+		bridgelog.Infof("[bridge/log] writing Go bridge logs to %s", logPath)
 	})
 }

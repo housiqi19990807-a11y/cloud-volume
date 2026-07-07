@@ -248,7 +248,10 @@ abstract class RemoteStorageGateway {
   Future<void> deleteSyncProfile(String id);
   Future<int> triggerSyncProfile(String id);
 
-  /// Desktop: append a line to the Go bridge log file; Web: no-op.
+  /// Desktop: update the backend log filter; Web keeps the value locally.
+  Future<void> setLogLevel(String level) async {}
+
+  /// Desktop: append a line through the shared backend log filter; Web: no-op.
   Future<void> writeAppLog(
     String message, {
     String level = 'info',
