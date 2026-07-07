@@ -5,7 +5,7 @@
 //
 // Supported platforms:
 //   - macOS:  DMG (hdiutil attach → cp → detach → xattr) or ZIP (unzip)
-//   - Windows: Inno Setup .exe installer (silent /SILENT /CLOSEAPPLICATIONS)
+//   - Windows: Inno Setup .exe installer or ZIP green-package replacement
 //   - Linux:   .AppImage (self-replace) or .tar.gz (extract to install dir)
 
 package main
@@ -28,19 +28,19 @@ import (
 )
 
 type appInstallArgs struct {
-	AssetURL      string `json:"assetUrl"`
-	AssetName     string `json:"assetName"`
-	AssetSize     int64  `json:"assetSize"`
-	AssetDigest   string `json:"assetDigest"`
-	InstallerType string `json:"installerType"`
-	MirrorPrefix  string `json:"mirrorPrefix"`
+	AssetURL      string                            `json:"assetUrl"`
+	AssetName     string                            `json:"assetName"`
+	AssetSize     int64                             `json:"assetSize"`
+	AssetDigest   string                            `json:"assetDigest"`
+	InstallerType string                            `json:"installerType"`
+	MirrorPrefix  string                            `json:"mirrorPrefix"`
 	Config        storageconfig.RemoteStorageConfig `json:"config"`
-	ProxyMode     string `json:"proxyMode"`
-	ProxyType     string `json:"proxyType"`
-	ProxyHost     string `json:"proxyHost"`
-	ProxyPort     string `json:"proxyPort"`
-	ProxyUsername string `json:"proxyUsername"`
-	ProxyPassword string `json:"proxyPassword"`
+	ProxyMode     string                            `json:"proxyMode"`
+	ProxyType     string                            `json:"proxyType"`
+	ProxyHost     string                            `json:"proxyHost"`
+	ProxyPort     string                            `json:"proxyPort"`
+	ProxyUsername string                            `json:"proxyUsername"`
+	ProxyPassword string                            `json:"proxyPassword"`
 }
 
 type appInstallResult struct {
@@ -302,9 +302,74 @@ func installWindows(taskID, dlPath, installerType string) error {
 		}
 		time.Sleep(500 * time.Millisecond)
 		return nil
+	case "zip":
+		return installWindowsZip(dlPath)
 	default:
 		return fmt.Errorf("请使用 installer (.exe) 版本进行自动更新")
 	}
+}
+
+func installWindowsZip(dlPath string) error {
+	if _, err := os.Stat(dlPath); err != nil {
+		return fmt.Errorf("update package not found: %s", dlPath)
+	}
+	currentExe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolve current executable: %w", err)
+	}
+	installDir := filepath.Dir(currentExe)
+	updaterDir := filepath.Join(os.TempDir(), "cloud-volume-updater")
+	if err := os.MkdirAll(updaterDir, 0755); err != nil {
+		return fmt.Errorf("create updater directory: %w", err)
+	}
+	updaterPath := filepath.Join(updaterDir, fmt.Sprintf("update-%d.ps1", time.Now().UnixMilli()))
+
+	// The helper runs after this process exits so Windows releases the EXE/DLL
+	// file locks before the green package is expanded over the current folder.
+	script := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
+$archive = %s
+$installDir = %s
+$processId = %d
+$staging = Join-Path ([System.IO.Path]::GetTempPath()) ('cloud-volume-update-' + [System.Guid]::NewGuid().ToString('N'))
+try {
+  try { Wait-Process -Id $processId -Timeout 45 -ErrorAction SilentlyContinue } catch {}
+  Start-Sleep -Milliseconds 500
+  New-Item -ItemType Directory -Force -Path $staging | Out-Null
+  Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
+  $payload = $staging
+  if (-not (Test-Path -LiteralPath (Join-Path $payload 'cloud-volume.exe'))) {
+    $candidate = Get-ChildItem -LiteralPath $staging -Directory -Force | Where-Object {
+      Test-Path -LiteralPath (Join-Path $_.FullName 'cloud-volume.exe')
+    } | Select-Object -First 1
+    if ($null -ne $candidate) { $payload = $candidate.FullName }
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $payload 'cloud-volume.exe'))) {
+    throw 'cloud-volume.exe was not found in the update ZIP.'
+  }
+  Get-ChildItem -LiteralPath $payload -Force | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination $installDir -Recurse -Force
+  }
+  Start-Process -FilePath (Join-Path $installDir 'cloud-volume.exe') -WorkingDirectory $installDir
+} finally {
+  Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+}
+`, psQuote(dlPath), psQuote(installDir), os.Getpid())
+
+	if err := os.WriteFile(updaterPath, []byte(script), 0600); err != nil {
+		return fmt.Errorf("write updater script: %w", err)
+	}
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", updaterPath)
+	cmd.SysProcAttr = windowsHiddenProcessAttrs()
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start ZIP updater script: %w", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	return nil
+}
+
+func psQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 // installLinux handles AppImage or tarball installation on Linux.
