@@ -112,11 +112,18 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
           ),
         ),
         const SizedBox(height: 12),
-        _InfoBlock(
+        _SectionHeader(
           theme: theme,
-          label: '缓存目录',
-          value: resolvedPath,
-          actions: [
+          title: '缓存目录设置',
+          description: '设置预览和挂载缓存保存位置。',
+        ),
+        const SizedBox(height: 8),
+        _InfoBlock(theme: theme, label: '缓存目录', value: resolvedPath),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
             ShadButton(
               onPressed: widget.saving ? null : widget.onPickDirectory,
               child: Text(widget.saving ? '保存中...' : '选择目录'),
@@ -134,7 +141,13 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
               ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 18),
+        _SectionHeader(
+          theme: theme,
+          title: '缓存占用',
+          description: '查看当前缓存文件数量和空间占用。',
+        ),
+        const SizedBox(height: 8),
         _InfoBlock(
           theme: theme,
           label: '当前占用',
@@ -150,7 +163,7 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 10,
           runSpacing: 10,
@@ -159,6 +172,19 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
               onPressed: widget.loadingStats ? null : widget.onRefreshStats,
               child: const Text('刷新统计'),
             ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _SectionHeader(
+          theme: theme,
+          title: '缓存清理',
+          description: '手动清理缓存，或设置自动清理规则。',
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
             ShadButton.outline(
               onPressed: widget.cleaning ? null : widget.onCleanRules,
               child: const Text('按规则清理'),
@@ -169,7 +195,7 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
             ),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         _RulesEditor(
           theme: theme,
           autoEnabled: widget.config.cacheAutoCleanupEnabled,
@@ -196,6 +222,43 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
       return size;
     }
     return '$size · ${stats.fileCount} 个文件';
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.theme,
+    required this.title,
+    required this.description,
+  });
+
+  final ShadThemeData theme;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.foreground,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: TextStyle(
+            fontSize: 11.5,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -319,13 +382,11 @@ class _InfoBlock extends StatelessWidget {
     required this.theme,
     required this.label,
     required this.value,
-    this.actions = const <Widget>[],
   });
 
   final ShadThemeData theme;
   final String label;
   final String value;
-  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -336,36 +397,25 @@ class _InfoBlock extends StatelessWidget {
         color: theme.colorScheme.secondary,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SelectableText(
-                  value,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.foreground,
-                  ),
-                ),
-              ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: theme.colorScheme.mutedForeground,
             ),
           ),
-          if (actions.isNotEmpty) ...[
-            const SizedBox(width: 12),
-            Wrap(spacing: 8, runSpacing: 8, children: actions),
-          ],
+          const SizedBox(height: 6),
+          SelectableText(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.foreground,
+            ),
+          ),
         ],
       ),
     );

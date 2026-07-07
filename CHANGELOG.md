@@ -18,6 +18,8 @@
 
 - 日志采集：新增设置页「日志设置」，支持 `Silent` / `Error` / `Info` / `Debug` 四级过滤并持久化到本地偏好。Flutter 侧 `AppLog` 会把当前等级同步给 Go bridge，后端日志也通过统一的 `go/logging` 包过滤；未手动设置时 Debug 构建默认 `Debug`，Release 构建默认 `Silent`。预览耗时诊断降为 `Debug` 级，正式版默认不采集高频诊断日志。
 
+- 设置页缓存管理：将“缓存设置”卡片拆成「缓存目录设置」「缓存占用」「缓存清理」三个明确分区，目录选择/打开、占用刷新、手动清理与自动清理规则各归其位，避免按钮和状态信息混在同一排。
+
 - Windows 构建脚本：修复 Go 1.18+ VCS stamping 在 Git 返回 128 时阻断 bridge 构建的问题。`run_windows.ps1` 现在会把仓库根目录加入当前用户 Git `safe.directory`，并用 `go build -buildvcs=false -buildmode=c-shared ...` 构建本地调试 DLL。
 
 - 应用更新：修复 Windows 下安装包 SHA-256 校验失败后无法删除坏文件的问题。`verifyDownloadedDigest` 之前在文件句柄仍打开时调用 `os.Remove`，Windows 会保留文件导致 `TestVerifyDownloadedDigestMismatchRemovesFile` 失败；现在读取并关闭文件后再删除 mismatch 文件。
