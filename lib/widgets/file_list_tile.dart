@@ -46,6 +46,7 @@ class FileListTile extends StatefulWidget {
   final bool showSelectionControl;
   final bool showDivider;
   final bool deleting;
+
   /// 仅展示、不可选中的行（例如远端目录选择器中的文件）。
   final bool dimmed;
   final Widget? trailing;
@@ -65,44 +66,43 @@ class _FileListTileState extends State<FileListTile> {
     final interactionColors = ListInteractionColors.fromTheme(theme);
     final dividerColor = theme.colorScheme.border.withValues(alpha: 0.55);
     final dimmed = widget.dimmed;
+    final interactive = !dimmed && !widget.deleting;
     final showSizeColumn =
         widget.sizeColumnWidthOverride > 0 || widget.sizeLabel.isNotEmpty;
     final titleColor = widget.deleting
         ? theme.colorScheme.mutedForeground
         : dimmed
-            ? theme.colorScheme.mutedForeground.withValues(alpha: 0.82)
-            : theme.colorScheme.foreground;
+        ? theme.colorScheme.mutedForeground.withValues(alpha: 0.82)
+        : theme.colorScheme.foreground;
     final metaColor = widget.deleting
         ? theme.colorScheme.primary
         : dimmed
-            ? theme.colorScheme.mutedForeground.withValues(alpha: 0.72)
-            : theme.colorScheme.mutedForeground;
+        ? theme.colorScheme.mutedForeground.withValues(alpha: 0.72)
+        : theme.colorScheme.mutedForeground;
     final backgroundColor = interactionColors.rowBackground(
       selected: widget.isSelected,
-      hovered: dimmed ? false : _hovered,
-      pressed: dimmed ? false : _pressed,
+      hovered: interactive ? _hovered : false,
+      pressed: interactive ? _pressed : false,
     );
 
     return MouseRegion(
-      cursor: dimmed ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      onEnter: dimmed ? null : (_) => setState(() => _hovered = true),
+      cursor: interactive && _hovered
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      onEnter: interactive ? (_) => setState(() => _hovered = true) : null,
       onExit: (_) => setState(() {
         _hovered = false;
         _pressed = false;
       }),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: widget.deleting || dimmed ? null : widget.onTap,
-        onTapDown: widget.deleting || dimmed
-            ? null
-            : (_) => setState(() => _pressed = true),
-        onTapUp: widget.deleting || dimmed
-            ? null
-            : (_) => setState(() => _pressed = false),
-        onTapCancel: widget.deleting || dimmed
-            ? null
-            : () => setState(() => _pressed = false),
-        onDoubleTap: widget.deleting || dimmed ? null : widget.onDoubleTap,
+        onTap: interactive ? widget.onTap : null,
+        onTapDown: interactive ? (_) => setState(() => _pressed = true) : null,
+        onTapUp: interactive ? (_) => setState(() => _pressed = false) : null,
+        onTapCancel: interactive
+            ? () => setState(() => _pressed = false)
+            : null,
+        onDoubleTap: interactive ? widget.onDoubleTap : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
@@ -129,7 +129,7 @@ class _FileListTileState extends State<FileListTile> {
                   alignment: Alignment.centerLeft,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: widget.onTitleTap,
+                    onTap: interactive ? widget.onTitleTap : null,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -168,10 +168,7 @@ class _FileListTileState extends State<FileListTile> {
                   child: Text(
                     widget.sizeLabel,
                     textAlign: TextAlign.right,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: metaColor,
-                    ),
+                    style: TextStyle(fontSize: 11.5, color: metaColor),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -196,10 +193,7 @@ class _FileListTileState extends State<FileListTile> {
                   child: Text(
                     widget.modifiedLabel,
                     textAlign: TextAlign.right,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: metaColor,
-                    ),
+                    style: TextStyle(fontSize: 11.5, color: metaColor),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

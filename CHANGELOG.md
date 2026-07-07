@@ -14,6 +14,8 @@
 
 - 文件预览诊断：为点击预览链路增加 `preview` tag 分段耗时日志，覆盖弹窗打开、预览源加载、`headObject`、cache index bridge 查询、本地缓存文件校验、下载任务创建/复用、缓存索引写入和读取预览 bytes，方便定位 Windows 预览点击卡顿具体发生在哪一步。
 
+- 文件列表交互：修复文件行鼠标移入后长期保持手指指针的问题。`FileListTile` 现在空闲时使用基础箭头，仅在行自身 `_hovered` 时切换为点击手指；删除中或 dimmed 行同时禁用标题点击，避免不可操作状态仍触发预览/打开。
+
 - Windows 构建脚本：修复 Go 1.18+ VCS stamping 在 Git 返回 128 时阻断 bridge 构建的问题。`run_windows.ps1` 现在会把仓库根目录加入当前用户 Git `safe.directory`，并用 `go build -buildvcs=false -buildmode=c-shared ...` 构建本地调试 DLL。
 
 - 应用更新：修复 Windows 下安装包 SHA-256 校验失败后无法删除坏文件的问题。`verifyDownloadedDigest` 之前在文件句柄仍打开时调用 `os.Remove`，Windows 会保留文件导致 `TestVerifyDownloadedDigestMismatchRemovesFile` 失败；现在读取并关闭文件后再删除 mismatch 文件。
