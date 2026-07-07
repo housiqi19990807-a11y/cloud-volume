@@ -112,7 +112,28 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
           ),
         ),
         const SizedBox(height: 12),
-        _InfoBlock(theme: theme, label: '缓存目录', value: resolvedPath),
+        _InfoBlock(
+          theme: theme,
+          label: '缓存目录',
+          value: resolvedPath,
+          actions: [
+            ShadButton(
+              onPressed: widget.saving ? null : widget.onPickDirectory,
+              child: Text(widget.saving ? '保存中...' : '选择目录'),
+            ),
+            ShadButton.outline(
+              onPressed: widget.saving || !hasCustomPath
+                  ? null
+                  : widget.onResetDirectory,
+              child: const Text('恢复默认'),
+            ),
+            if (widget.api.capabilities.supportsCacheDirectoryOpen)
+              ShadButton.outline(
+                onPressed: widget.opening ? null : widget.onOpenDirectory,
+                child: Text(widget.opening ? '打开中...' : '打开目录'),
+              ),
+          ],
+        ),
         const SizedBox(height: 10),
         _InfoBlock(
           theme: theme,
@@ -134,21 +155,6 @@ class _SettingsCacheSectionState extends State<SettingsCacheSection> {
           spacing: 10,
           runSpacing: 10,
           children: [
-            ShadButton(
-              onPressed: widget.saving ? null : widget.onPickDirectory,
-              child: Text(widget.saving ? '保存中...' : '选择目录'),
-            ),
-            ShadButton.outline(
-              onPressed: widget.saving || !hasCustomPath
-                  ? null
-                  : widget.onResetDirectory,
-              child: const Text('恢复默认'),
-            ),
-            if (widget.api.capabilities.supportsCacheDirectoryOpen)
-              ShadButton.outline(
-                onPressed: widget.opening ? null : widget.onOpenDirectory,
-                child: Text(widget.opening ? '打开中...' : '打开目录'),
-              ),
             ShadButton.outline(
               onPressed: widget.loadingStats ? null : widget.onRefreshStats,
               child: const Text('刷新统计'),
@@ -296,8 +302,8 @@ class _RulesEditor extends StatelessWidget {
                 onPressed: saving
                     ? null
                     : () => onMaxSizeChanged(
-                          int.tryParse(maxSizeController.text.trim()) ?? 0,
-                        ),
+                        int.tryParse(maxSizeController.text.trim()) ?? 0,
+                      ),
                 child: Text(saving ? '保存中...' : '保存规则'),
               ),
             ],
@@ -309,11 +315,17 @@ class _RulesEditor extends StatelessWidget {
 }
 
 class _InfoBlock extends StatelessWidget {
-  const _InfoBlock({required this.theme, required this.label, required this.value});
+  const _InfoBlock({
+    required this.theme,
+    required this.label,
+    required this.value,
+    this.actions = const <Widget>[],
+  });
 
   final ShadThemeData theme;
   final String label;
   final String value;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -324,25 +336,36 @@ class _InfoBlock extends StatelessWidget {
         color: theme.colorScheme.secondary,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.5,
-              color: theme.colorScheme.mutedForeground,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.foreground,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          SelectableText(
-            value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.foreground,
-            ),
-          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(width: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: actions),
+          ],
         ],
       ),
     );
