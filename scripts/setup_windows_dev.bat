@@ -2,8 +2,9 @@
 REM Double-click launcher for the Windows development environment bootstrap.
 setlocal
 
-set "REPO_ROOT=%~dp0"
-set "SETUP_SCRIPT=%REPO_ROOT%scripts\setup_windows_dev.ps1"
+set "SCRIPT_DIR=%~dp0"
+set "REPO_ROOT=%SCRIPT_DIR%.."
+set "SETUP_SCRIPT=%SCRIPT_DIR%setup_windows_dev.ps1"
 
 if not exist "%SETUP_SCRIPT%" (
   echo Cannot find %SETUP_SCRIPT%

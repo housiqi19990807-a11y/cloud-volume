@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Windows 开发环境：新增根目录 `setup_windows_dev.bat` 双击入口，并新增 `scripts/setup_windows_dev.ps1` 用于新 Windows 机器一键准备本地开发依赖。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2；没有 `winget` 时，VS Build Tools 和 MSYS2 会回退到官方安装器直链静默安装。脚本会 clone Flutter stable 到 `$HOME\dev\flutter`，安装 MSYS2 UCRT64 `gcc/g++`，写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并可通过 `-ValidateProject` 调用现有 `scripts/run_windows.ps1 -Build` 做项目构建验证。针对当前 Windows 环境还补了两处安装韧性：接受 VS 安装器 `3010`（安装成功、需要重启）退出码；Flutter cache 缺少 `dart.exe` 时直接下载对应 Dart SDK 修复首次 bootstrap 卡死。
+- Windows 开发环境：新增 `scripts/setup_windows_dev.bat` 双击入口，并新增 `scripts/setup_windows_dev.ps1` 用于新 Windows 机器一键准备本地开发依赖。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2；没有 `winget` 时，VS Build Tools 和 MSYS2 会回退到官方安装器直链静默安装。脚本会 clone Flutter stable 到 `$HOME\dev\flutter`，安装 MSYS2 UCRT64 `gcc/g++`，写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并可通过 `-ValidateProject` 调用现有 `scripts/run_windows.ps1 -Build` 做项目构建验证。针对当前 Windows 环境还补了两处安装韧性：接受 VS 安装器 `3010`（安装成功、需要重启）退出码；Flutter cache 缺少 `dart.exe` 时直接下载对应 Dart SDK 修复首次 bootstrap 卡死。
+
+- Windows 开发环境：新增 `scripts/run_windows_debug.bat` 和 `scripts/build_windows.bat` 双击入口，分别用于一键 Debug 运行和 Release 构建。三个 Windows 双击入口统一放在 `scripts/` 下，底层都复用现有 PowerShell 工作流。
 
 - Windows 开发环境：修复 Flutter 目录由管理员创建时 Git 报 `detected dubious ownership`，导致 Flutter 无法确定 engine version 但脚本仍显示完成的问题。`setup_windows_dev.ps1` 和 `run_windows.ps1` 现在会自动将 Flutter 根目录加入当前用户的 Git `safe.directory`，并统一检查 Flutter/Go/MSYS2 等外部命令退出码，失败时正确中止。
 
