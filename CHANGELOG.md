@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Windows 构建：`scripts/run_windows.ps1 -Build` 和双击 `scripts/build_windows.bat` 现在会把 `git describe --tags --always --dirty` 写入 `APP_VERSION_LABEL`，不再产出应用内更新无法比较的 `dev` 版本；需要手动指定时可传 `-Version 1.2.3`。`make build-windows` 也改为和 macOS 一样使用 Git 版本标签。
+
 - 应用更新：Windows 一键更新现在优先使用绿色版 `yunjuan-windows-amd64.zip`，启动临时 PowerShell updater 等待当前进程退出，解压覆盖当前应用目录并重新启动 `cloud-volume.exe`；如果 Release 只有 Inno Setup `installer.exe`，仍会回退到静默安装器更新。
 
 - Windows desktop close flow: fixed the confirmed "Exit Yunjuan" action from the close confirmation dialog and tray menu. Confirmed exits now use a dedicated native `exitApp` channel that bypasses the tray `WM_CLOSE` interception, while ordinary close gestures still show the hide-to-tray versus exit prompt.

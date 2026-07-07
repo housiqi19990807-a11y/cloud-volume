@@ -189,7 +189,7 @@ endif
 
 build-windows: bridge-windows
 ifeq ($(HOST_PLATFORM),windows)
-	$(FLUTTER) build windows --dart-define=APP_VERSION_LABEL=dev
+	$(FLUTTER) build windows --dart-define=APP_VERSION_LABEL=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 else
 	@echo "build-windows must be run on a Windows host."
 	@exit 1

@@ -121,7 +121,7 @@ Windows 本地启动前提：
 - 如果希望安装完成后顺便构建本项目，可加 `-ValidateProject`；默认只做依赖安装、`flutter config --enable-windows-desktop` 和 `flutter doctor -v`，避免首次安装后立刻进入长时间构建。
 - 需要可用的 Flutter Windows Desktop 环境。
 - 需要可用的 MinGW-style C toolchain 供 Go `c-shared` bridge 使用，推荐 `MSYS2 UCRT64` 的 `gcc/g++`。
-- 双击 `scripts\run_windows_debug.bat` 可按 Debug 模式启动 Windows 桌面端；双击 `scripts\build_windows.bat` 可一键构建 Release 包。命令行也可以直接运行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_windows.ps1`；如果只想构建不启动，可用 `-Build`，现在也兼容 `--build`。
+- 双击 `scripts\run_windows_debug.bat` 可按 Debug 模式启动 Windows 桌面端；双击 `scripts\build_windows.bat` 可一键构建 Release 包。Release 构建会写入 `git describe --tags --always --dirty` 版本标签，便于应用内更新正常比较；需要手动指定本地版本时可传 `-Version 1.2.3`。命令行也可以直接运行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_windows.ps1`；如果只想构建不启动，可用 `-Build`，现在也兼容 `--build`。
 
 Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，生成的主程序文件名为 `cloud-volume.exe`，避免构建后 exe 因缺少 bridge 而无法启动。
 Windows 调试启动不再依赖系统 `sqlite3.dll`。预览/打开文件用到的缓存索引现在通过 Go bridge 写入现有 bbolt `config.db`，Flutter 前端不再引入 `sqflite_common_ffi` / `sqlite3` 原生依赖，避免新机器缺少 SQLite 动态库导致界面闪退。

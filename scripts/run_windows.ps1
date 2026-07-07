@@ -4,6 +4,7 @@ param(
   [string]$FlutterPath,
   [string]$BridgeCc,
   [string]$BridgeCxx,
+  [string]$Version,
   [switch]$Build,
   [switch]$SkipPubGet,
   [Parameter(ValueFromRemainingArguments = $true)]
@@ -130,6 +131,26 @@ function Ensure-GitSafeDirectory {
   }
 }
 
+function Resolve-VersionLabel {
+  param(
+    [bool]$ForBuild,
+    [string]$ExplicitVersion
+  )
+
+  if ($ExplicitVersion) {
+    return $ExplicitVersion
+  }
+  if (-not $ForBuild) {
+    return 'dev'
+  }
+
+  $version = (& git describe --tags --always --dirty 2>$null)
+  if ($LASTEXITCODE -eq 0 -and $version) {
+    return $version.Trim()
+  }
+  return 'dev'
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $repoRootPath = $repoRoot.Path
 $bridgeDir = Join-Path $repoRoot 'bin/bridge'
@@ -193,6 +214,8 @@ try {
   } else {
     Write-Host 'run_windows.ps1 mode: run'
   }
+  $versionLabel = Resolve-VersionLabel -ForBuild ([bool]$Build) -ExplicitVersion $Version
+  Write-Host "Using APP_VERSION_LABEL=$versionLabel"
   Ensure-WindowsSymlinkSupport
   Invoke-NativeCommand -Name 'flutter config --enable-windows-desktop' -Command {
     & $flutter config --enable-windows-desktop
@@ -210,11 +233,11 @@ try {
 
   if ($Build) {
     Invoke-NativeCommand -Name 'flutter build windows' -Command {
-      & $flutter build windows --dart-define APP_VERSION_LABEL=dev
+      & $flutter build windows --dart-define "APP_VERSION_LABEL=$versionLabel"
     }
   } else {
     Invoke-NativeCommand -Name 'flutter run windows' -Command {
-      & $flutter run -d windows --dart-define APP_VERSION_LABEL=dev
+      & $flutter run -d windows --dart-define "APP_VERSION_LABEL=$versionLabel"
     }
   }
 } finally {
