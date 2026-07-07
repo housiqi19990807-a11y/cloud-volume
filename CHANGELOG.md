@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 应用更新：Windows 一键更新现在支持绿色版 `yunjuan-windows-amd64.zip`。当 Release 中没有 Inno Setup `installer.exe` 时，应用会下载 zip，启动临时 PowerShell updater 等待当前进程退出，解压覆盖当前应用目录并重新启动 `cloud-volume.exe`，让绿色版也能完成自动升级闭环。
+- 应用更新：Windows 一键更新现在优先使用绿色版 `yunjuan-windows-amd64.zip`，启动临时 PowerShell updater 等待当前进程退出，解压覆盖当前应用目录并重新启动 `cloud-volume.exe`；如果 Release 只有 Inno Setup `installer.exe`，仍会回退到静默安装器更新。
 
 - Windows desktop close flow: fixed the confirmed "Exit Yunjuan" action from the close confirmation dialog and tray menu. Confirmed exits now use a dedicated native `exitApp` channel that bypasses the tray `WM_CLOSE` interception, while ordinary close gestures still show the hide-to-tray versus exit prompt.
 

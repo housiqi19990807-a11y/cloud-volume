@@ -33,10 +33,7 @@ PlatformUpdateAsset? matchPlatformAsset(
   if (assets.isEmpty) return null;
 
   if (isMacOSPlatform) {
-    return _matchMacOS(
-      assets,
-      runtimeArchitecture ?? runtimeCpuArchitecture,
-    );
+    return _matchMacOS(assets, runtimeArchitecture ?? runtimeCpuArchitecture);
   }
   if (isWindowsPlatform) {
     return _matchWindows(assets);
@@ -82,10 +79,19 @@ PlatformUpdateAsset? _matchMacOS(List<ReleaseAsset> assets, String arch) {
 }
 
 PlatformUpdateAsset? _matchWindows(List<ReleaseAsset> assets) {
-  // Prefer the Inno Setup installer; fall back to zip.
+  // Prefer the green ZIP package; fall back to the Inno Setup installer.
+  final zip = _findAsset(assets, 'windows-amd64', '.zip');
+  if (zip != null) {
+    return PlatformUpdateAsset(
+      asset: zip,
+      platform: 'Windows',
+      installerType: 'zip',
+    );
+  }
   const installerPattern = 'windows-amd64-installer';
   final installer = assets.cast<ReleaseAsset?>().firstWhere(
-    (a) => a!.name.toLowerCase().contains(installerPattern) &&
+    (a) =>
+        a!.name.toLowerCase().contains(installerPattern) &&
         a.name.toLowerCase().endsWith('.exe'),
     orElse: () => null,
   );
@@ -94,14 +100,6 @@ PlatformUpdateAsset? _matchWindows(List<ReleaseAsset> assets) {
       asset: installer,
       platform: 'Windows',
       installerType: 'exe',
-    );
-  }
-  final zip = _findAsset(assets, 'windows-amd64', '.zip');
-  if (zip != null) {
-    return PlatformUpdateAsset(
-      asset: zip,
-      platform: 'Windows',
-      installerType: 'zip',
     );
   }
   return null;
