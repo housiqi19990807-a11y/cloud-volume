@@ -1,23 +1,24 @@
-// File cache store persists local cached-file metadata and cache paths in SQLite.
+// File cache store persists local cached-file metadata without native libraries.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:remote_storage/models/cached_file_record.dart';
 import 'package:remote_storage/models/s3_objects.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class FileCacheStore {
   FileCacheStore._();
 
   static final FileCacheStore instance = FileCacheStore._();
 
-  static const _dbName = 'remote_storage_cache.db';
-  static const _tableName = 'cached_files';
+  static const _indexFileName = 'remote_storage_cache.json';
   static const _cacheDirName = 'files';
 
-  Database? _database;
+  File? _indexFile;
+  Map<String, CachedFileRecord>? _records;
+  Future<void> _writeQueue = Future<void>.value();
   Directory? _cacheRoot;
   String? _cacheRootPath;
 
@@ -27,18 +28,11 @@ class FileCacheStore {
     ObjectInfo remoteObject,
   ) async {
     final root = await _cacheDirectory(cacheDirectory);
-    final db = await _openDatabase();
-    final rows = await db.query(
-      _tableName,
-      where: 'bucket = ? AND object_key = ?',
-      whereArgs: <Object?>[bucket, remoteObject.key],
-      limit: 1,
-    );
-    if (rows.isEmpty) {
+    final records = await _loadRecords();
+    final record = records[_recordKey(bucket, remoteObject.key)];
+    if (record == null) {
       return null;
     }
-
-    final record = CachedFileRecord.fromJson(rows.first);
     final file = File(record.localPath);
     final fileExists = await file.exists();
     final fileSize = fileExists ? await file.length() : -1;
@@ -81,19 +75,16 @@ class FileCacheStore {
     required ObjectInfo object,
     required String localPath,
   }) async {
-    final db = await _openDatabase();
-    await db.insert(
-      _tableName,
-      CachedFileRecord(
-        bucket: bucket,
-        objectKey: object.key,
-        localPath: localPath,
-        fileSize: object.size,
-        lastModified: object.lastModified,
-        updatedAtEpochMs: DateTime.now().millisecondsSinceEpoch,
-      ).toJson(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+    final records = await _loadRecords();
+    records[_recordKey(bucket, object.key)] = CachedFileRecord(
+      bucket: bucket,
+      objectKey: object.key,
+      localPath: localPath,
+      fileSize: object.size,
+      lastModified: object.lastModified,
+      updatedAtEpochMs: DateTime.now().millisecondsSinceEpoch,
     );
+    await _persistRecords();
   }
 
   Future<void> removeCacheRecord({
@@ -102,12 +93,9 @@ class FileCacheStore {
     String? localPath,
     bool deleteFile = false,
   }) async {
-    final db = await _openDatabase();
-    await db.delete(
-      _tableName,
-      where: 'bucket = ? AND object_key = ?',
-      whereArgs: <Object?>[bucket, objectKey],
-    );
+    final records = await _loadRecords();
+    records.remove(_recordKey(bucket, objectKey));
+    await _persistRecords();
     if (deleteFile && localPath != null) {
       await _deleteFileIfExists(localPath);
     }
@@ -118,26 +106,23 @@ class FileCacheStore {
     required String objectKeyPrefix,
     bool deleteFiles = false,
   }) async {
-    final db = await _openDatabase();
-    final rows = await db.query(
-      _tableName,
-      columns: const <String>['local_path'],
-      where: 'bucket = ? AND object_key LIKE ?',
-      whereArgs: <Object?>[bucket, '$objectKeyPrefix%'],
-    );
-    await db.delete(
-      _tableName,
-      where: 'bucket = ? AND object_key LIKE ?',
-      whereArgs: <Object?>[bucket, '$objectKeyPrefix%'],
-    );
+    final records = await _loadRecords();
+    final removedPaths = <String>[];
+    records.removeWhere((_, record) {
+      final matches =
+          record.bucket == bucket &&
+          record.objectKey.startsWith(objectKeyPrefix);
+      if (matches && record.localPath.isNotEmpty) {
+        removedPaths.add(record.localPath);
+      }
+      return matches;
+    });
+    await _persistRecords();
     if (!deleteFiles) {
       return;
     }
-    for (final row in rows) {
-      final localPath = (row['local_path'] ?? '').toString();
-      if (localPath.isNotEmpty) {
-        await _deleteFileIfExists(localPath);
-      }
+    for (final localPath in removedPaths) {
+      await _deleteFileIfExists(localPath);
     }
   }
 
@@ -145,33 +130,60 @@ class FileCacheStore {
     await _deleteFileIfExists(localPath);
   }
 
-  Future<Database> _openDatabase() async {
-    if (_database != null) {
-      return _database!;
+  Future<Map<String, CachedFileRecord>> _loadRecords() async {
+    if (_records != null) {
+      return _records!;
     }
     final supportDir = await getApplicationSupportDirectory();
     await supportDir.create(recursive: true);
-    final dbPath = path.join(supportDir.path, _dbName);
-    _database = await databaseFactory.openDatabase(
-      dbPath,
-      options: OpenDatabaseOptions(
-        version: 1,
-        onCreate: (db, version) async {
-          await db.execute('''
-            CREATE TABLE $_tableName (
-              bucket TEXT NOT NULL,
-              object_key TEXT NOT NULL,
-              local_path TEXT NOT NULL,
-              file_size INTEGER NOT NULL,
-              last_modified TEXT NOT NULL,
-              updated_at_epoch_ms INTEGER NOT NULL,
-              PRIMARY KEY (bucket, object_key)
-            )
-          ''');
-        },
-      ),
-    );
-    return _database!;
+    _indexFile = File(path.join(supportDir.path, _indexFileName));
+    if (!await _indexFile!.exists()) {
+      _records = <String, CachedFileRecord>{};
+      return _records!;
+    }
+
+    final text = await _indexFile!.readAsString();
+    if (text.trim().isEmpty) {
+      _records = <String, CachedFileRecord>{};
+      return _records!;
+    }
+    final decoded = jsonDecode(text);
+    final records = <String, CachedFileRecord>{};
+    if (decoded is List) {
+      for (final item in decoded) {
+        if (item is Map) {
+          final json = Map<String, Object?>.from(item);
+          final record = CachedFileRecord.fromJson(json);
+          records[_recordKey(record.bucket, record.objectKey)] = record;
+        }
+      }
+    }
+    _records = records;
+    return _records!;
+  }
+
+  Future<void> _persistRecords() {
+    _writeQueue = _writeQueue.then((_) async {
+      final records = _records;
+      final indexFile = _indexFile;
+      if (records == null || indexFile == null) {
+        return;
+      }
+      final rows = records.values.map((record) => record.toJson()).toList()
+        ..sort((a, b) {
+          final left = '${a['bucket']}\u0000${a['object_key']}';
+          final right = '${b['bucket']}\u0000${b['object_key']}';
+          return left.compareTo(right);
+        });
+      final tempFile = File('${indexFile.path}.tmp');
+      const encoder = JsonEncoder.withIndent('  ');
+      await tempFile.writeAsString(encoder.convert(rows));
+      if (await indexFile.exists()) {
+        await indexFile.delete();
+      }
+      await tempFile.rename(indexFile.path);
+    });
+    return _writeQueue;
   }
 
   Future<Directory> _cacheDirectory(String cacheDirectory) async {
@@ -197,6 +209,9 @@ class FileCacheStore {
         record.lastModified == remoteObject.lastModified;
     return sameSize && sameTimestamp;
   }
+
+  String _recordKey(String bucket, String objectKey) =>
+      '$bucket\u0000$objectKey';
 
   String _safeSegment(String raw) {
     final trimmed = raw.trim();

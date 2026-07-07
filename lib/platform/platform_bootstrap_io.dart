@@ -1,8 +1,5 @@
-// Desktop bootstrap installs the SQLite FFI factory before Flutter renders.
-
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+// Desktop bootstrap keeps platform-only service initialization in one place.
 
 Future<void> initializePlatformServices() async {
-  sqfliteFfiInit();
-  databaseFactory = databaseFactoryFfi;
+  // Reserved for desktop services that must be initialized before rendering.
 }

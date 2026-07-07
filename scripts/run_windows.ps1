@@ -131,6 +131,7 @@ function Ensure-GitSafeDirectory {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$repoRootPath = $repoRoot.Path
 $bridgeDir = Join-Path $repoRoot 'bin/bridge'
 $bridgeDll = Join-Path $bridgeDir 'remote_storage_bridge.dll'
 $flutterCandidates = @()
@@ -147,6 +148,7 @@ if (-not $flutter) {
 }
 $flutterRoot = Resolve-Path (Join-Path (Split-Path -Parent $flutter) '..')
 Ensure-GitSafeDirectory -Path $flutterRoot
+Ensure-GitSafeDirectory -Path $repoRootPath
 
 $gcc = Resolve-Executable -Name $BridgeCc -Candidates @(
   $env:BRIDGE_CC,
@@ -203,7 +205,7 @@ try {
 
   New-Item -ItemType Directory -Force -Path $bridgeDir | Out-Null
   Invoke-NativeCommand -Name 'go bridge build' -Command {
-    & go build -buildmode=c-shared -o $bridgeDll ./bridge
+    & go build -buildvcs=false -buildmode=c-shared -o $bridgeDll ./bridge
   }
 
   if ($Build) {

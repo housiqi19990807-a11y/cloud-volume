@@ -479,6 +479,7 @@ Write-Host 'Cloud Volume Windows development environment setup'
 Write-Host 'Run from a normal PowerShell first. winget or Visual Studio may prompt for elevation.'
 
 Ensure-Git
+Ensure-GitSafeDirectory -Path (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Ensure-Go
 Ensure-VisualStudioBuildTools
 Ensure-WindowsSymlinkSupport
