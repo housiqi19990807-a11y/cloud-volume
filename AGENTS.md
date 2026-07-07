@@ -123,6 +123,22 @@ The custom desktop chrome routes close actions through Flutter so Windows can of
 - Use `WindowControls.close()` only for unconfirmed close requests such as the app-owned close button pre-confirmation path, Alt+F4, or taskbar close handling.
 - Use `WindowControls.exitApp()` for explicit "Exit" choices after confirmation, including tray menu exit actions on the native side.
 
+### Feature: Windows Custom Chrome / Window Corners
+
+The Windows host removes the native title bar and uses app-owned chrome, while still asking DWM for native rounded corners where the OS supports it.
+
+#### Key files
+
+- `windows/runner/win32_window.cpp` - Defines `GetBorderlessWindowStyle()` as `WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU`, handles custom hit-testing, and calls `DwmSetWindowAttribute(..., DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)` in `UpdateTheme`.
+- `windows/runner/flutter_window.cpp` - Hosts the Flutter view inside the custom Win32 shell and controls window visibility/tray behavior.
+- `lib/widgets/desktop_window_controls.dart` - Draws the app-owned top-right controls over the hidden native title bar.
+
+#### Gotchas
+
+- Native DWM rounded corners are a Windows 11-era shell feature. On Windows 10 / Windows Server 2022 build 20348, the `DWMWA_WINDOW_CORNER_PREFERENCE` call is ignored even though it compiles, so the main window stays square.
+- Even on Windows 11, fully custom borderless/popup windows can be less reliable than standard overlapped windows for OS-drawn corners. The current code requests rounded corners but does not implement a manual `SetWindowRgn` or transparent-window mask fallback.
+- The current development machine reported `Windows Server 2022 Datacenter`, `OsBuildNumber 20348`; lack of rounded corners there is expected and does not prove the DWM call is broken on Windows 11.
+
 ### Feature: File Sync (文件同步)
 
 The sync feature lets users bind a local directory to a remote bucket prefix and keep them in sync (upload / download / two-way) on a configurable schedule, with conflict policies and exclude rules. The Go side runs a scheduler that computes diffs and executes operations; the Flutter side manages config and shows live status.
