@@ -115,6 +115,7 @@ make run
 Windows 本地启动前提：
 
 - 新 Windows 机器可以双击仓库根目录的 `setup_windows_dev.bat` 一键准备开发环境；命令行也可以运行 `powershell -ExecutionPolicy Bypass -File .\scripts\setup_windows_dev.ps1`。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2；如果本机没有 `winget`，VS Build Tools 和 MSYS2 会回退到官方安装器直链静默安装。脚本会把 Flutter stable clone 到默认的 `$HOME\dev\flutter`，安装 MSYS2 UCRT64 `gcc/g++`，写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`。
+- 如果 Flutter 目录是管理员权限创建的，Git 可能报 `detected dubious ownership`；安装脚本和 Windows 运行脚本会自动把 Flutter 根目录加入当前用户的 Git `safe.directory`，避免 Flutter 取 engine version 失败。
 - 如果希望安装完成后顺便构建本项目，可加 `-ValidateProject`；默认只做依赖安装、`flutter config --enable-windows-desktop` 和 `flutter doctor -v`，避免首次安装后立刻进入长时间构建。
 - 需要可用的 Flutter Windows Desktop 环境。
 - 需要可用的 MinGW-style C toolchain 供 Go `c-shared` bridge 使用，推荐 `MSYS2 UCRT64` 的 `gcc/g++`。

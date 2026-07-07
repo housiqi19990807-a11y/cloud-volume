@@ -139,6 +139,37 @@ function Invoke-Installer {
   }
 }
 
+function Invoke-NativeCommand {
+  param(
+    [string]$Name,
+    [scriptblock]$Command
+  )
+
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Name failed with exit code $LASTEXITCODE."
+  }
+}
+
+function Ensure-GitSafeDirectory {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath (Join-Path $Path '.git'))) {
+    return
+  }
+  $resolved = (Resolve-Path -LiteralPath $Path).Path.Replace('\', '/')
+  $existing = @(& git config --global --get-all safe.directory 2>$null)
+  foreach ($entry in $existing) {
+    if ([string]::Equals($entry.TrimEnd('/'), $resolved.TrimEnd('/'), [StringComparison]::OrdinalIgnoreCase)) {
+      return
+    }
+  }
+  Write-Host "Adding Git safe.directory: $resolved"
+  Invoke-NativeCommand -Name 'git config safe.directory' -Command {
+    git config --global --add safe.directory $resolved
+  }
+}
+
 function Invoke-WingetInstall {
   param(
     [string]$Id,
@@ -293,9 +324,8 @@ function Ensure-Msys2 {
 
   if (-not $SkipMsysPackages) {
     Write-Host 'Installing MSYS2 UCRT64 gcc/g++ packages...'
-    & $bash -lc 'pacman -Sy --needed --noconfirm mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkg-config make'
-    if ($LASTEXITCODE -ne 0) {
-      throw 'MSYS2 package installation failed.'
+    Invoke-NativeCommand -Name 'MSYS2 package installation' -Command {
+      & $bash -lc 'pacman -Sy --needed --noconfirm mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkg-config make'
     }
   } else {
     Write-Skip 'MSYS2 package installation skipped'
@@ -331,11 +361,12 @@ function Ensure-Flutter {
     $parent = Split-Path -Parent $FlutterRoot
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     Write-Host "Cloning Flutter stable into $FlutterRoot..."
-    & git clone --branch stable https://github.com/flutter/flutter.git $FlutterRoot
-    if ($LASTEXITCODE -ne 0) {
-      throw 'Flutter clone failed.'
+    Invoke-NativeCommand -Name 'Flutter clone' -Command {
+      git clone --branch stable https://github.com/flutter/flutter.git $FlutterRoot
     }
   }
+
+  Ensure-GitSafeDirectory -Path $FlutterRoot
 
   $flutterBin = Join-Path $FlutterRoot 'bin'
   Add-UserPathEntry -Entry $flutterBin
@@ -355,8 +386,12 @@ function Ensure-Flutter {
     throw 'Flutter was not found after setup.'
   }
 
-  & $flutter --version
-  & $flutter config --enable-windows-desktop
+  Invoke-NativeCommand -Name 'flutter --version' -Command {
+    & $flutter --version
+  }
+  Invoke-NativeCommand -Name 'flutter config --enable-windows-desktop' -Command {
+    & $flutter config --enable-windows-desktop
+  }
 }
 
 function Repair-FlutterDartSdk {
@@ -421,7 +456,9 @@ Ensure-Flutter
 
 if (-not $SkipDoctor) {
   Write-Section 'Flutter doctor'
-  & flutter doctor -v
+  Invoke-NativeCommand -Name 'flutter doctor' -Command {
+    & flutter doctor -v
+  }
 } else {
   Write-Skip 'flutter doctor skipped'
 }

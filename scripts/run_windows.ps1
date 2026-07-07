@@ -71,6 +71,37 @@ function Resolve-Executable {
   return $null
 }
 
+function Invoke-NativeCommand {
+  param(
+    [string]$Name,
+    [scriptblock]$Command
+  )
+
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Name failed with exit code $LASTEXITCODE."
+  }
+}
+
+function Ensure-GitSafeDirectory {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath (Join-Path $Path '.git'))) {
+    return
+  }
+  $resolved = (Resolve-Path -LiteralPath $Path).Path.Replace('\', '/')
+  $existing = @(& git config --global --get-all safe.directory 2>$null)
+  foreach ($entry in $existing) {
+    if ([string]::Equals($entry.TrimEnd('/'), $resolved.TrimEnd('/'), [StringComparison]::OrdinalIgnoreCase)) {
+      return
+    }
+  }
+  Write-Host "Adding Git safe.directory: $resolved"
+  Invoke-NativeCommand -Name 'git config safe.directory' -Command {
+    git config --global --add safe.directory $resolved
+  }
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $bridgeDir = Join-Path $repoRoot 'bin/bridge'
 $bridgeDll = Join-Path $bridgeDir 'remote_storage_bridge.dll'
@@ -86,6 +117,8 @@ $flutter = Resolve-Executable -Name $FlutterPath -Candidates $flutterCandidates
 if (-not $flutter) {
   throw 'Could not find flutter. Pass -FlutterPath or set FLUTTER_ROOT.'
 }
+$flutterRoot = Resolve-Path (Join-Path (Split-Path -Parent $flutter) '..')
+Ensure-GitSafeDirectory -Path $flutterRoot
 
 $gcc = Resolve-Executable -Name $BridgeCc -Candidates @(
   $env:BRIDGE_CC,
@@ -130,18 +163,28 @@ try {
   } else {
     Write-Host 'run_windows.ps1 mode: run'
   }
-  & $flutter config --enable-windows-desktop
+  Invoke-NativeCommand -Name 'flutter config --enable-windows-desktop' -Command {
+    & $flutter config --enable-windows-desktop
+  }
   if (-not $SkipPubGet) {
-    & $flutter pub get
+    Invoke-NativeCommand -Name 'flutter pub get' -Command {
+      & $flutter pub get
+    }
   }
 
   New-Item -ItemType Directory -Force -Path $bridgeDir | Out-Null
-  & go build -buildmode=c-shared -o $bridgeDll ./bridge
+  Invoke-NativeCommand -Name 'go bridge build' -Command {
+    & go build -buildmode=c-shared -o $bridgeDll ./bridge
+  }
 
   if ($Build) {
-    & $flutter build windows --dart-define APP_VERSION_LABEL=dev
+    Invoke-NativeCommand -Name 'flutter build windows' -Command {
+      & $flutter build windows --dart-define APP_VERSION_LABEL=dev
+    }
   } else {
-    & $flutter run -d windows --dart-define APP_VERSION_LABEL=dev
+    Invoke-NativeCommand -Name 'flutter run windows' -Command {
+      & $flutter run -d windows --dart-define APP_VERSION_LABEL=dev
+    }
   }
 } finally {
   Pop-Location

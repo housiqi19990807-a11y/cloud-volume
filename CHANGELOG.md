@@ -4,6 +4,8 @@
 
 - Windows 开发环境：新增根目录 `setup_windows_dev.bat` 双击入口，并新增 `scripts/setup_windows_dev.ps1` 用于新 Windows 机器一键准备本地开发依赖。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2；没有 `winget` 时，VS Build Tools 和 MSYS2 会回退到官方安装器直链静默安装。脚本会 clone Flutter stable 到 `$HOME\dev\flutter`，安装 MSYS2 UCRT64 `gcc/g++`，写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并可通过 `-ValidateProject` 调用现有 `scripts/run_windows.ps1 -Build` 做项目构建验证。针对当前 Windows 环境还补了两处安装韧性：接受 VS 安装器 `3010`（安装成功、需要重启）退出码；Flutter cache 缺少 `dart.exe` 时直接下载对应 Dart SDK 修复首次 bootstrap 卡死。
 
+- Windows 开发环境：修复 Flutter 目录由管理员创建时 Git 报 `detected dubious ownership`，导致 Flutter 无法确定 engine version 但脚本仍显示完成的问题。`setup_windows_dev.ps1` 和 `run_windows.ps1` 现在会自动将 Flutter 根目录加入当前用户的 Git `safe.directory`，并统一检查 Flutter/Go/MSYS2 等外部命令退出码，失败时正确中止。
+
 - 应用更新：修复 Windows 下安装包 SHA-256 校验失败后无法删除坏文件的问题。`verifyDownloadedDigest` 之前在文件句柄仍打开时调用 `os.Remove`，Windows 会保留文件导致 `TestVerifyDownloadedDigestMismatchRemovesFile` 失败；现在读取并关闭文件后再删除 mismatch 文件。
 
 - 应用更新：修复 macOS 一键更新报「挂载 DMG 失败：映像数据已损坏」的问题。根因是安装包下载完成后没有任何校验，部分 GitHub 加速镜像会用 HTTP 200 返回截断的内容或 HTML 错误页，被原样写入 `.dmg`，到 `hdiutil attach` 时才暴露为映像损坏。现在下载完成后做两道校验：①比对本地文件大小与 GitHub Release asset 的 `size`，不一致时删除残留文件并报「下载文件大小不匹配……镜像可能返回了截断或错误内容」；②用 GitHub asset 的 `digest`（`sha256:<hex>`）对落盘文件算 SHA-256 全文校验，大小相同但内容被替换的情况也能挡住，不匹配时删除文件并提示「安装包校验和不匹配：下载内容已被损改，请尝试切换镜像或直连 GitHub 重新更新」。缓存命中本地保留的安装包时也会用这一套大小+校验和校验，避免反复复用坏包。镜像预检 HEAD 也增加 `Content-Length` 与 asset 大小的一致性比对，镜像谎报长度时直接提示「镜像不可用」而非继续下载。
