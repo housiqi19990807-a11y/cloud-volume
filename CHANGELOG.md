@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Windows 开发环境：新增 `scripts/setup_windows_dev.ps1`，用于新 Windows 机器一键准备本地开发依赖。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2；没有 `winget` 时，VS Build Tools 和 MSYS2 会回退到官方安装器直链静默安装。脚本会 clone Flutter stable 到 `$HOME\dev\flutter`，安装 MSYS2 UCRT64 `gcc/g++`，写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并可通过 `-ValidateProject` 调用现有 `scripts/run_windows.ps1 -Build` 做项目构建验证。针对当前 Windows 环境还补了两处安装韧性：接受 VS 安装器 `3010`（安装成功、需要重启）退出码；Flutter cache 缺少 `dart.exe` 时直接下载对应 Dart SDK 修复首次 bootstrap 卡死。
+- Windows 开发环境：新增根目录 `setup_windows_dev.bat` 双击入口，并新增 `scripts/setup_windows_dev.ps1` 用于新 Windows 机器一键准备本地开发依赖。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2；没有 `winget` 时，VS Build Tools 和 MSYS2 会回退到官方安装器直链静默安装。脚本会 clone Flutter stable 到 `$HOME\dev\flutter`，安装 MSYS2 UCRT64 `gcc/g++`，写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并可通过 `-ValidateProject` 调用现有 `scripts/run_windows.ps1 -Build` 做项目构建验证。针对当前 Windows 环境还补了两处安装韧性：接受 VS 安装器 `3010`（安装成功、需要重启）退出码；Flutter cache 缺少 `dart.exe` 时直接下载对应 Dart SDK 修复首次 bootstrap 卡死。
 
 - 应用更新：修复 Windows 下安装包 SHA-256 校验失败后无法删除坏文件的问题。`verifyDownloadedDigest` 之前在文件句柄仍打开时调用 `os.Remove`，Windows 会保留文件导致 `TestVerifyDownloadedDigestMismatchRemovesFile` 失败；现在读取并关闭文件后再删除 mismatch 文件。
 
