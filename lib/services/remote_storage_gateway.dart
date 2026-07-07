@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
+import 'package:remote_storage/models/cached_file_record.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -224,6 +225,19 @@ abstract class RemoteStorageGateway {
     RemoteStorageConfig config, {
     required bool clearAll,
   });
+  Future<CachedFileRecord?> findCacheIndexRecord({
+    required String bucket,
+    required String objectKey,
+  });
+  Future<void> upsertCacheIndexRecord(CachedFileRecord record);
+  Future<void> removeCacheIndexRecord({
+    required String bucket,
+    required String objectKey,
+  });
+  Future<List<CachedFileRecord>> removeCacheIndexPrefix({
+    required String bucket,
+    required String objectKeyPrefix,
+  });
   Future<BucketMountStatus> unmountBucket(String bucket);
   Future<BucketMountStatus> getBucketMountStatus(String bucket);
   Future<BucketMountStatus> openBucketMount(String bucket);
@@ -246,11 +260,11 @@ abstract class RemoteStorageGateway {
   /// [TransferQueue]. The download/install runs entirely in Go so the Dart
   /// side only renders UI state.
   Future<String> installApp({
-	required String assetUrl,
-	required String assetName,
-	required int assetSize,
-	required String assetDigest,
-	required String installerType,
+    required String assetUrl,
+    required String assetName,
+    required int assetSize,
+    required String assetDigest,
+    required String installerType,
     required String mirrorPrefix,
     required RemoteStorageConfig config,
     required String proxyMode,

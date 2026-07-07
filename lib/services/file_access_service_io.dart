@@ -16,6 +16,8 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 
+part 'file_access_service_downloads_io.dart';
+
 class FileAccessService {
   FileAccessService._();
 
@@ -122,6 +124,7 @@ class FileAccessService {
         await cacheFile.writeAsBytes(bytes!, flush: true);
       }
       await _cacheStore.upsertCacheRecord(
+        api: api,
         bucket: bucket,
         object: remoteObject,
         localPath: cachePath,
@@ -154,6 +157,7 @@ class FileAccessService {
   }) async {
     final remoteObject = await api.headObject(config, bucket, object.key);
     final cachedPath = await _cacheStore.findUsableCachePath(
+      api,
       config.resolvedCacheDirectory,
       bucket,
       remoteObject,
@@ -194,6 +198,7 @@ class FileAccessService {
       task: task,
       onSuccess: () async {
         await _cacheStore.upsertCacheRecord(
+          api: api,
           bucket: bucket,
           object: remoteObject,
           localPath: cachePath,
@@ -201,6 +206,7 @@ class FileAccessService {
       },
       onFailure: () async {
         await _cacheStore.removeCacheRecord(
+          api: api,
           bucket: bucket,
           objectKey: remoteObject.key,
           localPath: cachePath,
@@ -209,141 +215,6 @@ class FileAccessService {
       },
     ).then((_) => cachePath);
     return FileAccessTransferRequest(task: task, completion: completion);
-  }
-
-  Future<FileAccessTransferRequest?> prepareDownloadObjectWithPicker({
-    required RemoteStorageGateway api,
-    required RemoteStorageConfig config,
-    required String bucket,
-    required ObjectInfo object,
-    FileAccessDirectoryLister? directoryLister,
-  }) async {
-    if (object.isDir) {
-      final targetDirectory = await FilePicker.getDirectoryPath(
-        dialogTitle: '下载到',
-        initialDirectory: await resolveDefaultDownloadDirectory(
-          config.defaultDownloadDirectory,
-        ),
-      );
-      if (targetDirectory == null || targetDirectory.trim().isEmpty) {
-        return null;
-      }
-      return prepareDownloadObjectToPath(
-        api: api,
-        config: config,
-        bucket: bucket,
-        object: object,
-        savePath: uniqueDownloadDirectoryPath(
-          targetDirectory,
-          object.displayName,
-        ),
-        directoryLister: directoryLister,
-      );
-    }
-    final initialDirectory = await resolveDefaultDownloadDirectory(
-      config.defaultDownloadDirectory,
-    );
-    final savePath = await FilePicker.saveFile(
-      dialogTitle: '下载到',
-      fileName: object.displayName,
-      initialDirectory: initialDirectory,
-    );
-    if (savePath == null || savePath.trim().isEmpty) {
-      return null;
-    }
-
-    return prepareDownloadObjectToPath(
-      api: api,
-      config: config,
-      bucket: bucket,
-      object: object,
-      savePath: savePath,
-      directoryLister: directoryLister,
-    );
-  }
-
-  FileAccessTransferRequest startDownloadObjectWithPicker({
-    required RemoteStorageGateway api,
-    required RemoteStorageConfig config,
-    required String bucket,
-    required ObjectInfo object,
-    FileAccessDirectoryLister? directoryLister,
-  }) {
-    final task = TransferQueue.instance.startTask(
-      kind: TransferKind.download,
-      bucket: bucket,
-      key: object.key,
-      localPath: '',
-    );
-    TransferQueue.instance.markTaskSelectingPath(task.id);
-    final completion = Future<void>.delayed(Duration.zero)
-        .then((_) => _selectDownloadPath(config: config, object: object))
-        .then((savePath) async {
-          if (savePath == null || savePath.trim().isEmpty) {
-            TransferQueue.instance.markTaskCanceled(task.id);
-            throw StateError('已取消选择保存位置');
-          }
-          TransferQueue.instance.updateTaskLocalPath(task.id, savePath);
-          await _runDownloadObjectToPath(
-            api: api,
-            config: config,
-            bucket: bucket,
-            object: object,
-            savePath: savePath,
-            task: task,
-            directoryLister: directoryLister,
-          );
-          return savePath;
-        });
-    return FileAccessTransferRequest(task: task, completion: completion);
-  }
-
-  Future<String?> _selectDownloadPath({
-    required RemoteStorageConfig config,
-    required ObjectInfo object,
-  }) async {
-    if (object.isDir) {
-      final targetDirectory = await FilePicker.getDirectoryPath(
-        dialogTitle: '下载到',
-        initialDirectory: await resolveDefaultDownloadDirectory(
-          config.defaultDownloadDirectory,
-        ),
-      );
-      if (targetDirectory == null || targetDirectory.trim().isEmpty) {
-        return null;
-      }
-      return uniqueDownloadDirectoryPath(targetDirectory, object.displayName);
-    }
-    return FilePicker.saveFile(
-      dialogTitle: '下载到',
-      fileName: object.displayName,
-      initialDirectory: await resolveDefaultDownloadDirectory(
-        config.defaultDownloadDirectory,
-      ),
-    );
-  }
-
-  Future<FileAccessTransferRequest> prepareDownloadObjectToDefaultDirectory({
-    required RemoteStorageGateway api,
-    required RemoteStorageConfig config,
-    required String bucket,
-    required ObjectInfo object,
-  }) async {
-    final directory = await resolveDefaultDownloadDirectory(
-      config.defaultDownloadDirectory,
-    );
-    if (directory == null || directory.trim().isEmpty) {
-      throw StateError('无法解析默认下载目录，请使用另存为选择保存位置。');
-    }
-    return prepareDownloadObjectToPath(
-      api: api,
-      config: config,
-      bucket: bucket,
-      object: object,
-      savePath: object.isDir
-          ? uniqueDownloadDirectoryPath(directory, object.displayName)
-          : uniqueDownloadPath(directory, object.displayName),
-    );
   }
 
   Future<String> prepareLocalCopyPath({
@@ -438,6 +309,7 @@ class FileAccessService {
     }
     return runDownloadToPathWithCache(
       cacheStore: _cacheStore,
+      api: api,
       config: config,
       task: task,
       object: object,
@@ -452,12 +324,14 @@ class FileAccessService {
   }
 
   Future<void> evictCacheForObject({
+    required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,
     required ObjectInfo object,
   }) async {
     if (object.isDir) {
       await _cacheStore.removeCachePrefix(
+        api: api,
         bucket: bucket,
         objectKeyPrefix: object.key,
         deleteFiles: true,
@@ -465,6 +339,7 @@ class FileAccessService {
       return;
     }
     await _cacheStore.removeCacheRecord(
+      api: api,
       bucket: bucket,
       objectKey: object.key,
       deleteFile: true,

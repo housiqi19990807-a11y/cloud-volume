@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/cached_file_record.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -99,19 +100,19 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
       const RemoteStorageCapabilities.desktop();
 
   @override
- Future<AuthSessionState> loadAuthSession() async =>
-     const AuthSessionState.desktop();
+  Future<AuthSessionState> loadAuthSession() async =>
+      const AuthSessionState.desktop();
 
   @override
   Future<BridgeBuildInfo> getBuildInfo() async => const BridgeBuildInfo();
 
   @override
   Future<String> installApp({
-	required String assetUrl,
-	required String assetName,
-	required int assetSize,
-	required String assetDigest,
-	required String installerType,
+    required String assetUrl,
+    required String assetName,
+    required int assetSize,
+    required String assetDigest,
+    required String installerType,
     required String mirrorPrefix,
     required RemoteStorageConfig config,
     required String proxyMode,
@@ -165,8 +166,7 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
     required String proxyPort,
     required String proxyUsername,
     required String proxyPassword,
-  }) async =>
-      true;
+  }) async => true;
 
   @override
   Future<RemoteStorageConfig> loadProfile(String name) async =>
@@ -197,8 +197,28 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<CleanCacheResult> cleanCache(
     RemoteStorageConfig config, {
     required bool clearAll,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<CachedFileRecord?> findCacheIndexRecord({
+    required String bucket,
+    required String objectKey,
+  }) async => null;
+
+  @override
+  Future<void> upsertCacheIndexRecord(CachedFileRecord record) async {}
+
+  @override
+  Future<void> removeCacheIndexRecord({
+    required String bucket,
+    required String objectKey,
+  }) async {}
+
+  @override
+  Future<List<CachedFileRecord>> removeCacheIndexPrefix({
+    required String bucket,
+    required String objectKeyPrefix,
+  }) async => <CachedFileRecord>[];
 
   @override
   Future<BootstrapState> setActiveProfile(String name) async =>
@@ -422,7 +442,11 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<void> deleteSyncProfile(String id) async {}
 
   @override
-  Future<void> writeAppLog(String message, {String level = 'info', String tag = 'flutter'}) async {}
+  Future<void> writeAppLog(
+    String message, {
+    String level = 'info',
+    String tag = 'flutter',
+  }) async {}
 
   @override
   Future<int> triggerSyncProfile(String id) async => 0;

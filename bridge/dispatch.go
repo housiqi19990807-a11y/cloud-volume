@@ -111,6 +111,14 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return openCacheDirectory(args)
 	case "clean_cache":
 		return cleanCache(args)
+	case "cache_index_find":
+		return cacheIndexFind(args)
+	case "cache_index_upsert":
+		return cacheIndexUpsert(args)
+	case "cache_index_remove":
+		return cacheIndexRemove(args)
+	case "cache_index_remove_prefix":
+		return cacheIndexRemovePrefix(args)
 	// Directory sync profiles.
 	case "list_sync_profiles":
 		return listSyncProfiles(args)

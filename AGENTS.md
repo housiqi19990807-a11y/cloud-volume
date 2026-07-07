@@ -224,9 +224,9 @@ Shared upload/download queue backing both manual file operations and sync-genera
 
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)
 
-点击/双击文件打开走的是 `FileAccessService._ensureCachedObjectRequest`：`headObject` 拿远端 size/mtime → `FileCacheStore.findUsableCachePath` 查本地 JSON 缓存索引（应用支持目录下 `remote_storage_cache.json`）→ 命中则直接用缓存文件，未命中则建 `download` 任务拉到 `<cacheDir>/files/<bucket>/<key>` 并写缓存记录。缓存命中的硬约束：记录的 `localPath` 必须 `_isInsideRoot` 缓存目录内，且 size/mtime 与远端匹配（`_matchesRemoteObject`）。
+点击/双击文件打开走的是 `FileAccessService._ensureCachedObjectRequest`：`headObject` 拿远端 size/mtime → `FileCacheStore.findUsableCachePath` 通过 `RemoteStorageGateway.findCacheIndexRecord` 调 Go bridge 查询 bbolt 缓存索引 → 命中则直接用缓存文件，未命中则建 `download` 任务拉到 `<cacheDir>/files/<bucket>/<key>` 并写缓存记录。缓存命中的硬约束：记录的 `localPath` 必须 `_isInsideRoot` 缓存目录内，且 size/mtime 与远端匹配（`_matchesRemoteObject`）。
 
-**Windows SQLite removal (2026-07-07):** Windows Debug 真实回归中界面闪退，日志为 `Failed to load dynamic library 'sqlite3.dll'`，根因是 `sqflite_common_ffi` 需要系统/打包的 SQLite 动态库，而新 Windows 开发机没有。由于 `FileCacheStore` 只需要按 `(bucket, object_key)` 读写少量缓存元数据，已移除 `sqflite_common_ffi` / `sqlite3` 依赖和 `platform_bootstrap_io.dart` 的 SQLite FFI 初始化，改用纯 Dart JSON 索引文件持久化，避免引入 sqlite DLL、Go bridge/bbolt 跨层接口或 cgo/nocgo SQLite 复杂度。
+**Windows SQLite removal (2026-07-07):** Windows Debug 真实回归中界面闪退，日志为 `Failed to load dynamic library 'sqlite3.dll'`，根因是 `sqflite_common_ffi` 需要系统/打包的 SQLite 动态库，而新 Windows 开发机没有。最终方案已移除 `sqflite_common_ffi` / `sqlite3` 依赖和 `platform_bootstrap_io.dart` 的 SQLite FFI 初始化，且不再由 Flutter 前端维护 JSON 索引；缓存索引通过 bridge 方法 `cache_index_find` / `cache_index_upsert` / `cache_index_remove` / `cache_index_remove_prefix` 存进 Go config bbolt DB 的 `preview_cache` bucket。bbolt key 为 `bucket + "\x00" + objectKey`，record 字段为 `bucket`、`objectKey`、`localPath`、`fileSize`、`lastModified`、`updatedAtEpochMs`。这样 Windows 前端启动不再依赖 `sqlite3.dll`，缓存索引 I/O 也留在 Go bridge 后台 isolate 调用链上。
 
 **问题（2026-06-30 修复）：** 上传走传输队列，成功后只 `markTaskDone` + 刷新列表，从不动缓存表。所以"刚上传完的文件双击还要重下"——上传与预览是两套独立记账。
 
@@ -234,10 +234,20 @@ Shared upload/download queue backing both manual file operations and sync-genera
 
 #### Key files
 - `lib/services/file_access_service_io.dart` — `seedCacheFromUpload`（桌面实现）、`_ensureCachedObjectRequest`（预览/打开缓存命中逻辑）。
+- `lib/services/file_access_service_downloads_io.dart` — part extension，承接下载另存为/默认目录选择相关方法，保持 `file_access_service_io.dart` 在线数规则内。
 - `lib/services/file_access_service_web.dart` — `seedCacheFromUpload` 空操作（浏览器无本地缓存目录）。
 - `lib/pages/file_manager_page_actions.dart` — `_runUploadTask`（本地路径上传，传 `localSourcePath`）、`_runBrowserUploadTask`（bytes 上传，传 `bytes`）成功分支调 seed。
-- `lib/services/file_cache_store.dart` — 纯 Dart JSON 缓存索引：`findUsableCachePath` / `cachePathFor` / `upsertCacheRecord`；`_matchesRemoteObject` 要求 size+mtime 都匹配。索引文件为应用支持目录下 `remote_storage_cache.json`，缓存文件本体仍放在 `<cacheDir>/files/<bucket>/<key>`。
+- `lib/services/file_cache_store.dart` — 只负责缓存路径生成、安全校验、size/mtime 比对、本地缓存文件删除；索引持久化全部委托 `RemoteStorageGateway` bridge 方法。缓存文件本体仍放在 `<cacheDir>/files/<bucket>/<key>`。
+- `lib/models/cached_file_record.dart` — Dart cache index record，JSON 使用 bridge camelCase 字段，并兼容旧 snake_case 读取。
+- `lib/services/remote_storage_gateway.dart` / `lib/services/remote_storage_api_desktop_cache.dart` / `lib/services/remote_storage_api_web.dart` — gateway cache index API。Desktop 调 bridge；Web 本地缓存索引方法为 no-op/null，因为浏览器没有本地预览缓存目录。
+- `go/config/cache_index.go` — Go bbolt cache index store，复用 `config.db`，bucket 为 `preview_cache`，支持 find/upsert/remove/remove-prefix；`go/config/cache_index_test.go` 覆盖读写和前缀删除。
+- `bridge/dispatch_cache_index.go` / `bridge/dispatch.go` — bridge JSON 方法路由：`cache_index_find`、`cache_index_upsert`、`cache_index_remove`、`cache_index_remove_prefix`。
 - `lib/pages/file_manager_page_preview.dart` — 双击预览入口 `_showObjectPreview`。
+
+#### Data flow
+1. 预览/打开：`FileAccessService._ensureCachedObjectRequest` → `api.headObject` → `FileCacheStore.findUsableCachePath(api, cacheDir, bucket, remoteObject)` → desktop gateway `cache_index_find` → Go `config.FindCacheIndexRecord` → Dart 校验路径在 cache root 内、文件存在、size/mtime 匹配。
+2. 下载成功或上传 seed 成功：文件写入 `<cacheDir>/files/<bucket>/<objectKey>` → `FileCacheStore.upsertCacheRecord(api, ...)` → desktop gateway `cache_index_upsert` → Go bbolt `preview_cache`。
+3. 删除/移动/重命名对象：`FileAccessService.evictCacheForObject(api, ...)` → 文件对象走 `cache_index_remove`；目录对象走 `cache_index_remove_prefix`，Go 返回被删记录，Dart 再清理对应本地缓存文件。
 
 ### Feature: Local File Paste / Drag Upload (本地粘贴/拖拽上传)
 

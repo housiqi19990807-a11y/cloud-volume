@@ -1,4 +1,4 @@
-// Cached file metadata mirrors the SQLite record used for local open/download reuse.
+// Cached file metadata mirrors the Go bridge preview-cache index record.
 
 class CachedFileRecord {
   const CachedFileRecord({
@@ -13,11 +13,14 @@ class CachedFileRecord {
   factory CachedFileRecord.fromJson(Map<String, Object?> json) {
     return CachedFileRecord(
       bucket: (json['bucket'] ?? '').toString(),
-      objectKey: (json['object_key'] ?? '').toString(),
-      localPath: (json['local_path'] ?? '').toString(),
-      fileSize: (json['file_size'] as int?) ?? 0,
-      lastModified: (json['last_modified'] ?? '').toString(),
-      updatedAtEpochMs: (json['updated_at_epoch_ms'] as int?) ?? 0,
+      objectKey: (json['objectKey'] ?? json['object_key'] ?? '').toString(),
+      localPath: (json['localPath'] ?? json['local_path'] ?? '').toString(),
+      fileSize: _readInt(json['fileSize'] ?? json['file_size']),
+      lastModified: (json['lastModified'] ?? json['last_modified'] ?? '')
+          .toString(),
+      updatedAtEpochMs: _readInt(
+        json['updatedAtEpochMs'] ?? json['updated_at_epoch_ms'],
+      ),
     );
   }
 
@@ -31,11 +34,21 @@ class CachedFileRecord {
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'bucket': bucket,
-      'object_key': objectKey,
-      'local_path': localPath,
-      'file_size': fileSize,
-      'last_modified': lastModified,
-      'updated_at_epoch_ms': updatedAtEpochMs,
+      'objectKey': objectKey,
+      'localPath': localPath,
+      'fileSize': fileSize,
+      'lastModified': lastModified,
+      'updatedAtEpochMs': updatedAtEpochMs,
     };
+  }
+
+  static int _readInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

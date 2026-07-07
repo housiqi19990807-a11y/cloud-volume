@@ -79,6 +79,7 @@ Future<void> runDirectoryDownloadToPath({
     try {
       final copied = await copyCachedObjectToPath(
         cacheStore: cacheStore,
+        api: api,
         config: config,
         bucket: bucket,
         object: file,

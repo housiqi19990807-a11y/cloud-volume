@@ -238,6 +238,7 @@ class FileAccessService {
   }
 
   Future<void> evictCacheForObject({
+    required RemoteStorageGateway api,
     required RemoteStorageConfig config,
     required String bucket,
     required ObjectInfo object,

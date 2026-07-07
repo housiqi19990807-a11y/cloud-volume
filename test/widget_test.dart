@@ -10,6 +10,7 @@ import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
+import 'package:remote_storage/models/cached_file_record.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -144,8 +145,7 @@ class _FakeApi implements RemoteStorageGateway {
     required String proxyPort,
     required String proxyUsername,
     required String proxyPassword,
-  }) async =>
-      true;
+  }) async => true;
 
   @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async =>
@@ -168,11 +168,11 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<String> installApp({
-	required String assetUrl,
-	required String assetName,
-	required int assetSize,
-	required String assetDigest,
-	required String installerType,
+    required String assetUrl,
+    required String assetName,
+    required int assetSize,
+    required String assetDigest,
+    required String installerType,
     required String mirrorPrefix,
     required RemoteStorageConfig config,
     required String proxyMode,
@@ -215,12 +215,11 @@ class _FakeApi implements RemoteStorageGateway {
   Future<void> deleteProfile(String name) async {}
 
   @override
-  Future<BootstrapState> resetUserConfig() async =>
-      BootstrapState(
-        configPath: '/tmp/.remote-storage/config.toml',
-        configured: false,
-        config: RemoteStorageConfig.empty(),
-      );
+  Future<BootstrapState> resetUserConfig() async => BootstrapState(
+    configPath: '/tmp/.remote-storage/config.toml',
+    configured: false,
+    config: RemoteStorageConfig.empty(),
+  );
 
   @override
   Future<CacheStats> getCacheStats(RemoteStorageConfig config) async =>
@@ -239,13 +238,33 @@ class _FakeApi implements RemoteStorageGateway {
   Future<CleanCacheResult> cleanCache(
     RemoteStorageConfig config, {
     required bool clearAll,
-  }) async =>
-      const CleanCacheResult(
-        beforeBytes: 0,
-        afterBytes: 0,
-        removed: 0,
-        freedBytes: 0,
-      );
+  }) async => const CleanCacheResult(
+    beforeBytes: 0,
+    afterBytes: 0,
+    removed: 0,
+    freedBytes: 0,
+  );
+
+  @override
+  Future<CachedFileRecord?> findCacheIndexRecord({
+    required String bucket,
+    required String objectKey,
+  }) async => null;
+
+  @override
+  Future<void> upsertCacheIndexRecord(CachedFileRecord record) async {}
+
+  @override
+  Future<void> removeCacheIndexRecord({
+    required String bucket,
+    required String objectKey,
+  }) async {}
+
+  @override
+  Future<List<CachedFileRecord>> removeCacheIndexPrefix({
+    required String bucket,
+    required String objectKeyPrefix,
+  }) async => <CachedFileRecord>[];
 
   @override
   Future<BootstrapState> setActiveProfile(String name) async =>
@@ -518,7 +537,11 @@ class _FakeApi implements RemoteStorageGateway {
   Future<void> deleteSyncProfile(String id) async {}
 
   @override
-  Future<void> writeAppLog(String message, {String level = 'info', String tag = 'flutter'}) async {}
+  Future<void> writeAppLog(
+    String message, {
+    String level = 'info',
+    String tag = 'flutter',
+  }) async {}
 
   @override
   Future<int> triggerSyncProfile(String id) async => 0;

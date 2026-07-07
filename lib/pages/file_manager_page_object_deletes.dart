@@ -72,6 +72,7 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
         task.id,
       );
       await FileAccessService.instance.evictCacheForObject(
+        api: widget.api,
         config: bucket.config,
         bucket: bucket.bucket.name,
         object: object,

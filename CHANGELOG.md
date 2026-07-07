@@ -10,7 +10,7 @@
 
 - Windows 开发环境：修复 `flutter pub get` 报 “Building with plugins requires symlink support” 导致双击 Debug/构建失败的问题。`setup_windows_dev.ps1` 和 `run_windows.ps1` 现在会检测 Windows Developer Mode；管理员权限下自动启用 symlink 支持，非管理员权限下打开 `ms-settings:developers` 并提示手动启用后重试。
 
-- Windows 调试启动：修复界面闪一下后因 `sqlite3.dll` 缺失崩溃的问题。文件预览缓存索引不再使用 `sqflite_common_ffi` / SQLite FFI，改为纯 Dart JSON 索引文件 `remote_storage_cache.json`，彻底移除 Windows 运行时对系统 SQLite 动态库的依赖。
+- Windows 调试启动：修复界面闪一下后因 `sqlite3.dll` 缺失崩溃的问题。文件预览缓存索引不再使用 `sqflite_common_ffi` / SQLite FFI，也不在 Flutter 前端维护 JSON 索引；现在通过 Go bridge 写入现有 bbolt `config.db` 的 `preview_cache` bucket，彻底移除 Windows 运行时对系统 SQLite 动态库的依赖。
 
 - Windows 构建脚本：修复 Go 1.18+ VCS stamping 在 Git 返回 128 时阻断 bridge 构建的问题。`run_windows.ps1` 现在会把仓库根目录加入当前用户 Git `safe.directory`，并用 `go build -buildvcs=false -buildmode=c-shared ...` 构建本地调试 DLL。
 
