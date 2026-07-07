@@ -12,6 +12,8 @@
 
 - Windows 调试启动：修复界面闪一下后因 `sqlite3.dll` 缺失崩溃的问题。文件预览缓存索引不再使用 `sqflite_common_ffi` / SQLite FFI，也不在 Flutter 前端维护 JSON 索引；现在通过 Go bridge 写入现有 bbolt `config.db` 的 `preview_cache` bucket，彻底移除 Windows 运行时对系统 SQLite 动态库的依赖。
 
+- 文件预览诊断：为点击预览链路增加 `preview` tag 分段耗时日志，覆盖弹窗打开、预览源加载、`headObject`、cache index bridge 查询、本地缓存文件校验、下载任务创建/复用、缓存索引写入和读取预览 bytes，方便定位 Windows 预览点击卡顿具体发生在哪一步。
+
 - Windows 构建脚本：修复 Go 1.18+ VCS stamping 在 Git 返回 128 时阻断 bridge 构建的问题。`run_windows.ps1` 现在会把仓库根目录加入当前用户 Git `safe.directory`，并用 `go build -buildvcs=false -buildmode=c-shared ...` 构建本地调试 DLL。
 
 - 应用更新：修复 Windows 下安装包 SHA-256 校验失败后无法删除坏文件的问题。`verifyDownloadedDigest` 之前在文件句柄仍打开时调用 `os.Remove`，Windows 会保留文件导致 `TestVerifyDownloadedDigestMismatchRemovesFile` 失败；现在读取并关闭文件后再删除 mismatch 文件。

@@ -12,6 +12,13 @@ extension _FileManagerPagePreview on _FileManagerPageState {
     final bucket = _activeBucket;
     if (bucket == null) return;
     final kind = previewKindForName(object.displayName);
+    final openWatch = Stopwatch()..start();
+    unawaited(
+      AppLog.info(
+        'open start bucket=$bucket key=${object.key} kind=${kind.name} size=${object.size}',
+        tag: 'preview',
+      ),
+    );
     if (!mounted) return;
     var loading = kind == FilePreviewKind.image;
     FilePreviewTransferState? transfer;
@@ -28,6 +35,13 @@ extension _FileManagerPagePreview on _FileManagerPageState {
           builder: (dialogContext, setDialogState) {
             if (loading && !started) {
               started = true;
+              final loadWatch = Stopwatch()..start();
+              unawaited(
+                AppLog.info(
+                  'source load start bucket=$bucket key=${object.key} sinceOpenMs=${openWatch.elapsedMilliseconds}',
+                  tag: 'preview',
+                ),
+              );
               unawaited(
                 FileAccessService.instance
                     .preparePreviewSource(
@@ -37,6 +51,12 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                       object: object,
                     )
                     .then((value) {
+                      unawaited(
+                        AppLog.info(
+                          'source load done bucket=$bucket key=${object.key} elapsedMs=${loadWatch.elapsedMilliseconds} sinceOpenMs=${openWatch.elapsedMilliseconds}',
+                          tag: 'preview',
+                        ),
+                      );
                       if (!dialogContext.mounted) return;
                       setDialogState(() {
                         source = value;
@@ -44,6 +64,12 @@ extension _FileManagerPagePreview on _FileManagerPageState {
                       });
                     })
                     .catchError((error) {
+                      unawaited(
+                        AppLog.error(
+                          'source load failed bucket=$bucket key=${object.key} elapsedMs=${loadWatch.elapsedMilliseconds} error=$error',
+                          tag: 'preview',
+                        ),
+                      );
                       if (!dialogContext.mounted) return;
                       setDialogState(() {
                         errorText = describeBridgeError(error);
@@ -124,6 +150,12 @@ extension _FileManagerPagePreview on _FileManagerPageState {
           },
         );
       },
+    );
+    unawaited(
+      AppLog.info(
+        'dialog closed bucket=$bucket key=${object.key} sinceOpenMs=${openWatch.elapsedMilliseconds}',
+        tag: 'preview',
+      ),
     );
     // 弹窗关闭时无条件刷一下当前目录元数据：兼容"对象已被远端删除"
     // 的所有路径（预览加载失败、下载/另存为/外部打开返回 404，甚至用户

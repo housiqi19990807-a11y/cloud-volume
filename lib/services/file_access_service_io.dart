@@ -1,5 +1,6 @@
 // File access service owns click-to-open, explicit download, and cache bookkeeping.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -14,6 +15,7 @@ import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/local_file_opener.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
+import 'package:remote_storage/utils/app_log.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
 
 part 'file_access_service_downloads_io.dart';
@@ -31,13 +33,28 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
   }) async {
+    final watch = Stopwatch()..start();
     final cachePath = await _ensureCachedObject(
       api: api,
       config: config,
       bucket: bucket,
       object: object,
     );
-    return FilePreviewSource(bytes: await File(cachePath).readAsBytes());
+    unawaited(
+      AppLog.info(
+        'prepare source cache ready bucket=$bucket key=${object.key} elapsedMs=${watch.elapsedMilliseconds} path=$cachePath',
+        tag: 'preview',
+      ),
+    );
+    final readWatch = Stopwatch()..start();
+    final bytes = await File(cachePath).readAsBytes();
+    unawaited(
+      AppLog.info(
+        'prepare source read bytes bucket=$bucket key=${object.key} readMs=${readWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} bytes=${bytes.length}',
+        tag: 'preview',
+      ),
+    );
+    return FilePreviewSource(bytes: bytes);
   }
 
   Future<String> preparePreviewFilePath({
@@ -155,21 +172,49 @@ class FileAccessService {
     required String bucket,
     required ObjectInfo object,
   }) async {
+    final watch = Stopwatch()..start();
+    unawaited(
+      AppLog.info(
+        'ensure start bucket=$bucket key=${object.key}',
+        tag: 'preview',
+      ),
+    );
+    final headWatch = Stopwatch()..start();
     final remoteObject = await api.headObject(config, bucket, object.key);
+    unawaited(
+      AppLog.info(
+        'head done bucket=$bucket key=${object.key} phaseMs=${headWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} size=${remoteObject.size} lastModified=${remoteObject.lastModified}',
+        tag: 'preview',
+      ),
+    );
+    final cacheFindWatch = Stopwatch()..start();
     final cachedPath = await _cacheStore.findUsableCachePath(
       api,
       config.resolvedCacheDirectory,
       bucket,
       remoteObject,
     );
+    unawaited(
+      AppLog.info(
+        'cache find done bucket=$bucket key=${object.key} phaseMs=${cacheFindWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} hit=${cachedPath != null}',
+        tag: 'preview',
+      ),
+    );
     if (cachedPath != null) {
       return FileAccessTransferRequest(completion: Future.value(cachedPath));
     }
 
+    final pathWatch = Stopwatch()..start();
     final cachePath = await _cacheStore.cachePathFor(
       config.resolvedCacheDirectory,
       bucket,
       object.key,
+    );
+    unawaited(
+      AppLog.info(
+        'cache path done bucket=$bucket key=${object.key} phaseMs=${pathWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds} path=$cachePath',
+        tag: 'preview',
+      ),
     );
     final existingTask = TransferQueue.instance.findActiveTask(
       kind: TransferKind.download,
@@ -178,6 +223,12 @@ class FileAccessService {
       localPath: cachePath,
     );
     if (existingTask != null) {
+      unawaited(
+        AppLog.info(
+          'reuse download task bucket=$bucket key=${object.key} taskId=${existingTask.id} totalMs=${watch.elapsedMilliseconds}',
+          tag: 'preview',
+        ),
+      );
       return FileAccessTransferRequest(
         task: existingTask,
         completion: waitForTransferTaskSuccess(
@@ -192,28 +243,50 @@ class FileAccessService {
       key: object.key,
       localPath: cachePath,
     );
-    final completion = _runDownload(
-      api: api,
-      config: config,
-      task: task,
-      onSuccess: () async {
-        await _cacheStore.upsertCacheRecord(
+    unawaited(
+      AppLog.info(
+        'download task created bucket=$bucket key=${object.key} taskId=${task.id} totalMs=${watch.elapsedMilliseconds}',
+        tag: 'preview',
+      ),
+    );
+    final completion =
+        _runDownload(
           api: api,
-          bucket: bucket,
-          object: remoteObject,
-          localPath: cachePath,
-        );
-      },
-      onFailure: () async {
-        await _cacheStore.removeCacheRecord(
-          api: api,
-          bucket: bucket,
-          objectKey: remoteObject.key,
-          localPath: cachePath,
-          deleteFile: true,
-        );
-      },
-    ).then((_) => cachePath);
+          config: config,
+          task: task,
+          onSuccess: () async {
+            final indexWatch = Stopwatch()..start();
+            await _cacheStore.upsertCacheRecord(
+              api: api,
+              bucket: bucket,
+              object: remoteObject,
+              localPath: cachePath,
+            );
+            unawaited(
+              AppLog.info(
+                'cache upsert done bucket=$bucket key=${object.key} phaseMs=${indexWatch.elapsedMilliseconds} totalMs=${watch.elapsedMilliseconds}',
+                tag: 'preview',
+              ),
+            );
+          },
+          onFailure: () async {
+            await _cacheStore.removeCacheRecord(
+              api: api,
+              bucket: bucket,
+              objectKey: remoteObject.key,
+              localPath: cachePath,
+              deleteFile: true,
+            );
+          },
+        ).then((_) {
+          unawaited(
+            AppLog.info(
+              'download complete bucket=$bucket key=${object.key} totalMs=${watch.elapsedMilliseconds}',
+              tag: 'preview',
+            ),
+          );
+          return cachePath;
+        });
     return FileAccessTransferRequest(task: task, completion: completion);
   }
 

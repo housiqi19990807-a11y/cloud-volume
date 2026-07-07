@@ -26,6 +26,7 @@ import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/utils/default_download_directory.dart';
+import 'package:remote_storage/utils/app_log.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/utils/object_visibility.dart';
 import 'package:remote_storage/widgets/create_directory_dialog.dart';
@@ -184,8 +185,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       unawaited(_loadBuckets());
     }
     final pending = widget.pendingSyncRemoteOpen;
-    if (pending != null &&
-        pending != oldWidget.pendingSyncRemoteOpen) {
+    if (pending != null && pending != oldWidget.pendingSyncRemoteOpen) {
       schedulePendingSyncRemoteOpen(pending);
     }
   }

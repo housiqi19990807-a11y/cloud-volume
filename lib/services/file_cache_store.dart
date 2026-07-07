@@ -1,11 +1,13 @@
 // File cache store validates cached files while Go bridge persists the index.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:remote_storage/models/cached_file_record.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
+import 'package:remote_storage/utils/app_log.dart';
 
 class FileCacheStore {
   FileCacheStore._();
@@ -24,20 +26,38 @@ class FileCacheStore {
     ObjectInfo remoteObject,
   ) async {
     final root = await _cacheDirectory(cacheDirectory);
+    final indexWatch = Stopwatch()..start();
     final record = await api.findCacheIndexRecord(
       bucket: bucket,
       objectKey: remoteObject.key,
     );
+    unawaited(
+      AppLog.info(
+        'cache index find bucket=$bucket key=${remoteObject.key} phaseMs=${indexWatch.elapsedMilliseconds} hit=${record != null}',
+        tag: 'preview',
+      ),
+    );
     if (record == null) {
       return null;
     }
+    final validateWatch = Stopwatch()..start();
     final file = File(record.localPath);
     final fileExists = await file.exists();
     final fileSize = fileExists ? await file.length() : -1;
-    if (!_isInsideRoot(root.path, record.localPath) ||
-        !fileExists ||
-        !_matchesRemoteObject(record, remoteObject) ||
-        fileSize != remoteObject.size) {
+    final insideRoot = _isInsideRoot(root.path, record.localPath);
+    final matchesRemote = _matchesRemoteObject(record, remoteObject);
+    final valid =
+        insideRoot &&
+        fileExists &&
+        matchesRemote &&
+        fileSize == remoteObject.size;
+    unawaited(
+      AppLog.info(
+        'cache validate bucket=$bucket key=${remoteObject.key} phaseMs=${validateWatch.elapsedMilliseconds} valid=$valid insideRoot=$insideRoot exists=$fileExists fileSize=$fileSize remoteSize=${remoteObject.size} matchesRemote=$matchesRemote',
+        tag: 'preview',
+      ),
+    );
+    if (!valid) {
       await removeCacheRecord(
         api: api,
         bucket: bucket,
