@@ -176,6 +176,11 @@ void FlutterWindow::RegisterWindowChannel() {
           result->Success();
           return;
         }
+        if (method == "exitApp") {
+          result->Success();
+          ExitApplication();
+          return;
+        }
         if (method == "hideToTray") {
           HideToTray();
           result->Success();
@@ -209,6 +214,12 @@ void FlutterWindow::CloseViaChannel() {
     window_channel_->InvokeMethod(
         "requestClose", std::make_unique<flutter::EncodableValue>());
   }
+}
+
+void FlutterWindow::ExitApplication() {
+  // User confirmation has already happened in Flutter; destroy directly so
+  // the tray WM_CLOSE interception cannot reopen the confirmation dialog.
+  Destroy();
 }
 
 void FlutterWindow::InitializeTrayIcon() {
@@ -301,7 +312,7 @@ bool FlutterWindow::HandleTrayCommand(UINT command_id) {
       RestoreFromTray();
       return true;
     case kTrayCommandExit:
-      Close();
+      ExitApplication();
       return true;
     default:
       return false;

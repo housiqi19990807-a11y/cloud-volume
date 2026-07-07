@@ -119,7 +119,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
           await WindowControls.minimize();
           break;
         case _CloseAction.exit:
-          await WindowControls.close();
+          await WindowControls.exitApp();
           break;
         case null:
           break;

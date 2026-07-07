@@ -58,6 +58,13 @@ class WindowControls {
     await _channel.invokeMethod<void>('close');
   }
 
+  /// Exits the app after the user has already confirmed the close dialog.
+  /// Unlike [close], this must bypass the Windows tray WM_CLOSE interception.
+  static Future<void> exitApp() async {
+    if (!supported) return;
+    await _channel.invokeMethod<void>('exitApp');
+  }
+
   /// Asks the native host whether the in-app close button should drive the
   /// "hide to tray vs exit" confirmation. On Windows the host intercepts
   /// WM_CLOSE so Alt+F4 / taskbar close also route through this path.

@@ -35,6 +35,7 @@ class FlutterWindow : public Win32Window {
   void ShowTrayContextMenu(POINT anchor);
   bool HandleTrayCommand(UINT command_id);
   void CloseViaChannel();
+  void ExitApplication();
 
   // The project to run.
   flutter::DartProject project_;

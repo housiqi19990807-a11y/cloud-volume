@@ -105,6 +105,24 @@ Windows development now has two scripts: one for new-machine dependency bootstra
 - `scripts/setup_windows_dev.ps1` does not run a full app build by default; pass `-ValidateProject` to call `scripts/run_windows.ps1 -Build` after dependency setup.
 - After setup writes user environment variables and `PATH`, open a new PowerShell window before using `scripts/run_windows.ps1` interactively.
 
+### Feature: Desktop Window Close / Tray Exit
+
+The custom desktop chrome routes close actions through Flutter so Windows can offer "hide to tray" versus "exit" without losing OS-level close gestures.
+
+#### Key files
+
+- `lib/widgets/desktop_window_controls.dart` - App-owned minimize/maximize/close controls. The close button and native close requests call `_confirmClose`; after the user chooses the exit action, it calls `WindowControls.exitApp()` rather than `WindowControls.close()`.
+- `lib/services/window_controls.dart` - Method-channel facade for desktop window actions. `close()` means "request close" and may be intercepted by Windows tray logic; `exitApp()` means the user already confirmed and the native host must bypass tray interception.
+- `windows/runner/flutter_window.cpp` / `windows/runner/flutter_window.h` - Windows host channel implementation. `WM_CLOSE` is intercepted while the tray icon exists and sent back to Flutter as `requestClose`; `exitApp` calls `ExitApplication()` which destroys the window directly. The tray context-menu Exit command also uses `ExitApplication()`.
+- `windows/runner/win32_window.cpp` / `windows/runner/win32_window.h` - Base Win32 window lifecycle. `Close()` posts `WM_CLOSE`, while `Destroy()` performs the real teardown and posts quit when `quit_on_close_` is set.
+- `linux/runner/my_application.cc` - Linux channel implementation. It has no tray interception; `exitApp` is equivalent to `close`, and `shouldConfirmClose` returns `false`.
+
+#### Gotchas
+
+- Do not use `WindowControls.close()` for a confirmed app exit on Windows. It posts `WM_CLOSE`, which is intentionally intercepted when the tray icon is active and will reopen the confirmation flow instead of quitting.
+- Use `WindowControls.close()` only for unconfirmed close requests such as the app-owned close button pre-confirmation path, Alt+F4, or taskbar close handling.
+- Use `WindowControls.exitApp()` for explicit "Exit" choices after confirmation, including tray menu exit actions on the native side.
+
 ### Feature: File Sync (文件同步)
 
 The sync feature lets users bind a local directory to a remote bucket prefix and keep them in sync (upload / download / two-way) on a configurable schedule, with conflict policies and exclude rules. The Go side runs a scheduler that computes diffs and executes operations; the Flutter side manages config and shows live status.

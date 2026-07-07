@@ -53,8 +53,14 @@ static void handle_window_method_call(MyApplication* self,
   } else if (g_strcmp0(method, "close") == 0) {
     gtk_window_close(self->window);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(method, "exitApp") == 0) {
+    gtk_window_close(self->window);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else if (g_strcmp0(method, "hideToTray") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(method, "shouldConfirmClose") == 0) {
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(
+        fl_value_new_bool(FALSE)));
   } else if (g_strcmp0(method, "startDrag") == 0) {
     GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(self->window));
     if (display != nullptr) {
