@@ -67,6 +67,14 @@ class _SettingsLogSectionState extends State<SettingsLogSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          '控制诊断日志的详细程度。',
+          style: TextStyle(
+            fontSize: 12,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: ShadSelect<AppLogLevel>(
