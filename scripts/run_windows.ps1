@@ -83,6 +83,34 @@ function Invoke-NativeCommand {
   }
 }
 
+function Test-IsAdministrator {
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = [Security.Principal.WindowsPrincipal] $identity
+  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Ensure-WindowsSymlinkSupport {
+  $path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
+  $enabled = $false
+  if (Test-Path -LiteralPath $path) {
+    $value = (Get-ItemProperty -Path $path -Name AllowDevelopmentWithoutDevLicense -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
+    $enabled = ($value -eq 1)
+  }
+  if ($enabled) {
+    return
+  }
+
+  if (Test-IsAdministrator) {
+    Write-Host 'Enabling Windows Developer Mode symlink support for Flutter plugins...'
+    New-Item -Path $path -Force | Out-Null
+    New-ItemProperty -Path $path -Name AllowDevelopmentWithoutDevLicense -PropertyType DWord -Value 1 -Force | Out-Null
+    return
+  }
+
+  Start-Process 'ms-settings:developers' | Out-Null
+  throw 'Flutter Windows plugins require symlink support. Enable Developer Mode in Windows Settings, then rerun this script. The settings page has been opened.'
+}
+
 function Ensure-GitSafeDirectory {
   param([string]$Path)
 
@@ -163,6 +191,7 @@ try {
   } else {
     Write-Host 'run_windows.ps1 mode: run'
   }
+  Ensure-WindowsSymlinkSupport
   Invoke-NativeCommand -Name 'flutter config --enable-windows-desktop' -Command {
     & $flutter config --enable-windows-desktop
   }

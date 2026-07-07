@@ -8,6 +8,8 @@
 
 - Windows 开发环境：修复 Flutter 目录由管理员创建时 Git 报 `detected dubious ownership`，导致 Flutter 无法确定 engine version 但脚本仍显示完成的问题。`setup_windows_dev.ps1` 和 `run_windows.ps1` 现在会自动将 Flutter 根目录加入当前用户的 Git `safe.directory`，并统一检查 Flutter/Go/MSYS2 等外部命令退出码，失败时正确中止。
 
+- Windows 开发环境：修复 `flutter pub get` 报 “Building with plugins requires symlink support” 导致双击 Debug/构建失败的问题。`setup_windows_dev.ps1` 和 `run_windows.ps1` 现在会检测 Windows Developer Mode；管理员权限下自动启用 symlink 支持，非管理员权限下打开 `ms-settings:developers` 并提示手动启用后重试。
+
 - 应用更新：修复 Windows 下安装包 SHA-256 校验失败后无法删除坏文件的问题。`verifyDownloadedDigest` 之前在文件句柄仍打开时调用 `os.Remove`，Windows 会保留文件导致 `TestVerifyDownloadedDigestMismatchRemovesFile` 失败；现在读取并关闭文件后再删除 mismatch 文件。
 
 - 应用更新：修复 macOS 一键更新报「挂载 DMG 失败：映像数据已损坏」的问题。根因是安装包下载完成后没有任何校验，部分 GitHub 加速镜像会用 HTTP 200 返回截断的内容或 HTML 错误页，被原样写入 `.dmg`，到 `hdiutil attach` 时才暴露为映像损坏。现在下载完成后做两道校验：①比对本地文件大小与 GitHub Release asset 的 `size`，不一致时删除残留文件并报「下载文件大小不匹配……镜像可能返回了截断或错误内容」；②用 GitHub asset 的 `digest`（`sha256:<hex>`）对落盘文件算 SHA-256 全文校验，大小相同但内容被替换的情况也能挡住，不匹配时删除文件并提示「安装包校验和不匹配：下载内容已被损改，请尝试切换镜像或直连 GitHub 重新更新」。缓存命中本地保留的安装包时也会用这一套大小+校验和校验，避免反复复用坏包。镜像预检 HEAD 也增加 `Content-Length` 与 asset 大小的一致性比对，镜像谎报长度时直接提示「镜像不可用」而非继续下载。
