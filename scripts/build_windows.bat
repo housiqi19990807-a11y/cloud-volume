@@ -5,6 +5,7 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "REPO_ROOT=%SCRIPT_DIR%.."
 set "RUN_SCRIPT=%SCRIPT_DIR%run_windows.ps1"
+set "OUTPUT_DIR=%REPO_ROOT%\build\windows\x64\runner\Release"
 
 if not exist "%RUN_SCRIPT%" (
   echo Cannot find %RUN_SCRIPT%
@@ -20,6 +21,11 @@ if not "%EXIT_CODE%"=="0" goto :failed
 
 echo.
 echo Windows release build completed.
+if exist "%OUTPUT_DIR%" (
+  start "" "%OUTPUT_DIR%"
+) else (
+  echo Build output directory was not found: %OUTPUT_DIR%
+)
 goto :done
 
 :failed
@@ -31,4 +37,3 @@ if not defined EXIT_CODE set "EXIT_CODE=1"
 echo.
 if not defined CLOUD_VOLUME_NO_PAUSE pause
 exit /b %EXIT_CODE%
-
