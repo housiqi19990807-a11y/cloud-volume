@@ -321,13 +321,15 @@ func installWindowsZip(dlPath string) error {
 	}
 	installDir := filepath.Dir(currentExe)
 
-	// Extract the standalone updater EXE from the downloaded zip into a temp
-	// directory and launch it from there. This way the old version does not
-	// need to already ship cloud-volume-updater.exe — the updater ships inside
-	// the new release zip and is extracted on demand.
-	updaterPath, err := extractUpdaterFromZip(dlPath)
-	if err != nil {
-		return fmt.Errorf("extract updater from zip: %w", err)
+	// Prefer the updater EXE already in the install directory (shipped with
+	// the current build). If it's missing (old version pre-updater), fall back
+	// to extracting it from the downloaded zip into a temp file.
+	updaterPath := filepath.Join(installDir, "cloud-volume-updater.exe")
+	if _, err := os.Stat(updaterPath); err != nil {
+		updaterPath, err = extractUpdaterFromZip(dlPath)
+		if err != nil {
+			return fmt.Errorf("updater not found and extract from zip failed: %w", err)
+		}
 	}
 	cmd := exec.Command(updaterPath,
 		"-zip", dlPath,
