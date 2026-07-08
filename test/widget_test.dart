@@ -171,6 +171,12 @@ class _FakeApi implements RemoteStorageGateway {
   Future<SystemProxyInfo?> resolveSystemProxy() async => null;
 
   @override
+  Future<Map<String, dynamic>?> matchPlatformAsset(
+    List<Map<String, dynamic>> assets, {
+    String? runtimeArchitecture,
+  }) async => null;
+
+  @override
   Future<String> installApp({
     required String assetUrl,
     required String assetName,

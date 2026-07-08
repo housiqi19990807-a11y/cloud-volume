@@ -139,6 +139,9 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 	// In-app update (download + install + relaunch).
 	case "install_app":
 		return installApp(args)
+	// Match the correct release asset for this platform (Go-side, not frontend).
+	case "match_platform_asset":
+		return matchPlatformAsset(args)
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}

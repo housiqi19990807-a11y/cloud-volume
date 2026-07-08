@@ -32,11 +32,19 @@ func main() {
 	)
 	flag.Parse()
 
+	// Open the diagnostic log as early as possible so every step below is
+	// captured. The path is %TEMP%\cloud-volume-updater-<pid>.log.
+	initLogger()
+	logf("cloud-volume-updater starting: zip=%s install-dir=%s pid=%d exe=%s",
+		*zipPath, *installDir, *oldPID, *exeName)
+
 	if *zipPath == "" || *installDir == "" {
+		logf("ERROR: missing required arguments")
 		fmt.Fprintln(os.Stderr, "usage: cloud-volume-updater -zip <path> -install-dir <dir> -pid <pid>")
 		os.Exit(2)
 	}
 	if _, err := os.Stat(*zipPath); err != nil {
+		logf("ERROR: update package missing: %v", err)
 		fail("更新包不存在", err)
 	}
 
@@ -56,14 +64,20 @@ func main() {
 func performUpdate(zipPath, installDir string, oldPID int, exeName string, setStatus func(string)) error {
 	exePath := filepath.Join(installDir, exeName)
 
+	// Wrap setStatus so every status change is also written to the log file.
+	status := func(msg string) {
+		logf("status: %s", msg)
+		setStatus(msg)
+	}
+
 	// 1. Wait for the old process to exit so Windows releases file locks.
 	if oldPID > 0 {
-		setStatus("正在等待应用退出...")
+		status("正在等待应用退出...")
 		waitForProcess(oldPID, 60*time.Second)
 	}
 
 	// 2. Poll until the main exe is writable (child/background procs may linger).
-	setStatus("正在准备更新...")
+	status("正在准备更新...")
 	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
 		if isFileWritable(exePath) {
@@ -72,47 +86,70 @@ func performUpdate(zipPath, installDir string, oldPID int, exeName string, setSt
 		time.Sleep(time.Second)
 	}
 	if !isFileWritable(exePath) {
+		logf("ERROR: %s still locked after 60s", exePath)
 		return fmt.Errorf("%s 仍被占用，请手动关闭后重试", exeName)
 	}
 
 	// 3. Extract the zip to a staging directory.
-	setStatus("正在解压更新包...")
+	status("正在解压更新包...")
 	staging, err := extractZip(zipPath)
 	if err != nil {
+		logf("ERROR: extract failed: %v", err)
 		return fmt.Errorf("解压失败: %w", err)
 	}
 	defer os.RemoveAll(staging)
+	logf("extracted to staging: %s", staging)
 
 	// 4. Find the payload directory (zip root, or first child containing the exe).
 	payload := staging
 	if _, err := os.Stat(filepath.Join(payload, exeName)); os.IsNotExist(err) {
+		logf("exe not at zip root, scanning subdirectories...")
 		entries, _ := os.ReadDir(staging)
 		for _, e := range entries {
 			if e.IsDir() {
 				if _, err := os.Stat(filepath.Join(staging, e.Name(), exeName)); err == nil {
 					payload = filepath.Join(staging, e.Name())
+					logf("found payload in subdirectory: %s", payload)
 					break
 				}
 			}
 		}
 	}
 	if _, err := os.Stat(filepath.Join(payload, exeName)); err != nil {
+		logf("ERROR: %s not found in payload %s", exeName, payload)
 		return fmt.Errorf("更新包中未找到 %s", exeName)
 	}
 
 	// 5. Copy each file from the payload over the install directory.
-	setStatus("正在替换文件...")
+	status("正在替换文件...")
 	if err := copyDir(payload, installDir); err != nil {
+		logf("ERROR: copy failed: %v", err)
 		return fmt.Errorf("替换文件失败: %w", err)
 	}
+	logf("files copied successfully")
 
 	// 6. Relaunch the app.
-	setStatus("更新完成，正在启动...")
+	status("更新完成，正在启动...")
 	cmd := exec.Command(exePath)
 	cmd.Dir = installDir
 	if err := cmd.Start(); err != nil {
+		logf("ERROR: relaunch failed: %v", err)
 		return fmt.Errorf("启动失败: %w", err)
 	}
+	logf("new app started, pid=%d", cmd.Process.Pid)
+
+	// 7. Wait for the new app to actually appear before exiting, so we don't
+	// race the relaunch. Poll for up to 30 seconds for a cloud-volume.exe
+	// process whose PID differs from the old one.
+	status("正在确认应用启动...")
+	newPID := waitForNewApp(exePath, oldPID, 30*time.Second)
+	if newPID > 0 {
+		logf("confirmed new app running, pid=%d", newPID)
+	} else {
+		logf("WARNING: new app did not appear within 30s, exiting anyway")
+	}
+	// Give the new instance a moment to initialize its window before we vanish.
+	time.Sleep(2 * time.Second)
 	return nil
 }
 
@@ -221,12 +258,5 @@ func copyFileOnce(src, dst string, mode os.FileMode) error {
 		return err
 	}
 	return out.Close()
-}
-
-// fail prints an error and exits.  On Windows the windowed runner keeps the
-// message visible; headless callers just see stderr.
-func fail(msg string, err error) {
-	fmt.Fprintf(os.Stderr, "%s: %v\n", msg, err)
-	os.Exit(1)
 }
 

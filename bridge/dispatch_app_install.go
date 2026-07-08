@@ -341,6 +341,10 @@ func installWindowsZip(dlPath string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start updater: %w", err)
 	}
+	// Log the updater invocation so failures are traceable in bridge.log. The
+	// updater itself writes a detailed per-step log to %TEMP%\cloud-volume-updater-<pid>.log.
+	log.Printf("[app_install] spawned updater: %s pid=%d install-dir=%s zip=%s",
+		updaterPath, cmd.Process.Pid, installDir, dlPath)
 	time.Sleep(500 * time.Millisecond)
 	return nil
 }

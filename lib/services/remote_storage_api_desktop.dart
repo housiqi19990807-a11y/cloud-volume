@@ -118,6 +118,25 @@ class RemoteStorageApi
   }
 
   @override
+  Future<Map<String, dynamic>?> matchPlatformAsset(
+    List<Map<String, dynamic>> assets, {
+    String? runtimeArchitecture,
+  }) async {
+    try {
+      final payload = await runBridgeCall(
+        'match_platform_asset',
+        {
+          'assets': assets,
+          if (runtimeArchitecture != null) 'runtimeArchitecture': runtimeArchitecture,
+        },
+      ) as Map<String, dynamic>?;
+      return payload;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
   Future<SystemProxyInfo?> resolveSystemProxy() async {
     final payload =
         await runBridgeCall('resolve_system_proxy') as Map<String, dynamic>? ??

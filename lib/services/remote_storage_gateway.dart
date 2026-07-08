@@ -68,6 +68,14 @@ abstract class RemoteStorageGateway {
   Future<BootstrapState> loadBootstrapState();
   Future<BridgeBuildInfo> getBuildInfo();
 
+  /// Matches the correct release asset for this platform via the Go bridge.
+  /// Returns the matched asset fields and installer type, or null if no match.
+  /// The Go side owns the asset name suffixes (synced with build scripts).
+  Future<Map<String, dynamic>?> matchPlatformAsset(
+    List<Map<String, dynamic>> assets, {
+    String? runtimeArchitecture,
+  });
+
   /// Resolves the host-level system proxy (e.g. Windows Settings manual proxy).
   /// Returns null when no usable system proxy is configured.
   Future<SystemProxyInfo?> resolveSystemProxy();

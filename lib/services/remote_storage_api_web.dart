@@ -199,6 +199,15 @@ class RemoteStorageApi
   }
 
   @override
+  Future<Map<String, dynamic>?> matchPlatformAsset(
+    List<Map<String, dynamic>> assets, {
+    String? runtimeArchitecture,
+  }) async {
+    // Web builds cannot install native packages; no asset matching needed.
+    return null;
+  }
+
+  @override
   Future<BootstrapState> saveConfig(RemoteStorageConfig config) async {
     final payload =
         await _invoke('save_config', <String, dynamic>{

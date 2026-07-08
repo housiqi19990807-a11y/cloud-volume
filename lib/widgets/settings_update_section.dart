@@ -41,6 +41,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
   late final AppUpdateService _updateService;
   late final bool _ownsUpdateService;
   AppUpdateCheckResult? _result;
+  // Matched asset from the Go bridge; null when no platform package exists.
+  PlatformUpdateAsset? _matchedAsset;
   String? _errorText;
   bool _checking = false;
   bool _openingDownloadPage = false;
@@ -84,6 +86,25 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     final config = await loadUpdateNetworkConfig();
     if (!mounted) return;
     setState(() => _mirrorConfig = config);
+  }
+
+  /// Asks the Go bridge to pick the correct asset for this platform. The Go
+  /// side owns the release-asset name suffixes (synced with build scripts) so
+  /// the frontend never guesses which file to download.
+  Future<void> _resolveMatchedAsset(List<ReleaseAsset> assets) async {
+    final api = widget.api;
+    if (api == null || !kSupportsInAppInstall) return;
+    try {
+      final payload = await api.matchPlatformAsset(
+        assets.map((a) => a.toJson()).toList(),
+        runtimeArchitecture: _buildArch.isNotEmpty ? _buildArch : null,
+      );
+      if (!mounted) return;
+      final matched = PlatformUpdateAsset.fromBridgeJson(payload);
+      setState(() => _matchedAsset = matched);
+    } catch (_) {
+      // Non-fatal: the "一键更新" button stays hidden.
+    }
   }
 
   @override
@@ -204,8 +225,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     final result = _result;
     if (result == null || !result.updateAvailable) return false;
     if (!kSupportsInAppInstall) return false;
-    return matchPlatformAsset(result.assets, runtimeArchitecture: _buildArch) !=
-        null;
+    return _matchedAsset != null;
   }
 
   ProxyConfig get _proxyConfig => ProxyConfig(
@@ -254,10 +274,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     final api = widget.api;
     final result = _result;
     if (api == null || result == null) return;
-    final matched = matchPlatformAsset(
-      result.assets,
-      runtimeArchitecture: _buildArch,
-    );
+    // Use the asset resolved by the Go bridge when the release was fetched.
+    final matched = _matchedAsset;
     if (matched == null) {
       _showError('未找到适合当前平台的安装包，请前往 GitHub 手动下载。');
       return;
@@ -429,6 +447,8 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
         return;
       }
       setState(() => _result = result);
+      // Ask the Go bridge which asset to download; it owns the name suffixes.
+      _resolveMatchedAsset(result.assets);
     } on TimeoutException {
       _showError(
         '连接 GitHub 超时（已自动重试）。请检查网络或代理设置，'

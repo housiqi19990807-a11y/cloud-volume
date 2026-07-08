@@ -43,8 +43,18 @@ class ReleaseAsset {
 	/// present to verify download integrity against mirror corruption.
 	final String digest;
 
-	@override
-	String toString() => 'ReleaseAsset($name, ${size}B, digest=$digest)';
+  @override
+  String toString() => 'ReleaseAsset($name, ${size}B, digest=$digest)';
+
+  /// Serializes to the JSON map shape expected by the Go bridge
+  /// `match_platform_asset` call.
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'downloadUrl': downloadUrl,
+        'size': size,
+        'contentType': contentType,
+        'digest': digest,
+      };
 }
 
 class AppUpdateCheckResult {

@@ -7,6 +7,7 @@
 - 应用更新：Windows 绿色版 zip 更新改用独立 `cloud-volume-updater.exe` 替代 PowerShell 脚本。updater 是纯 Go 编译的独立 exe，从下载的 zip 包内动态提取到临时目录运行，旧版本无需预装。启动后显示"正在更新云卷，请稍候..."进度窗口，等待旧进程退出、解压覆盖文件并重新启动应用。相比之前的隐藏 PowerShell 脚本，它不受执行策略影响、不会静默失败、且给用户可见的更新反馈。updater exe 会打包进 release zip。
 
 - 应用更新：修复 Windows 绿色版 zip 更新覆盖文件失败的问题。根因是 updater 脚本等待进程退出后没有二次确认 `cloud-volume.exe` 的文件锁已释放，如果后台/子进程仍占用 DLL，`Copy-Item` 静默失败，旧文件被保留。现在 updater 会轮询等待 exe 可写后再覆盖，并将每步进度和错误写入 `%TEMP%\cloud-volume-update-<pid>.log` 便于排查。
+- 应用更新：重写 Windows cloud-volume-updater.exe 的进度窗口。新窗口使用 Win32 自绘（非 MessageBox），匹配项目视觉风格——浅色背景、Microsoft YaHei UI 字体、"云卷"品牌字样、当前步骤文案、分段进度条，并在 Windows 11 上请求 DWM 原生圆角。updater 现在会将每一步写入 %TEMP%\cloud-volume-updater-<pid>.log（解压路径、覆盖结果、新进程 PID），并在确认新 cloud-volume.exe 进程真正启动后才退出，避免重启竞态导致更新静默失败。
 
 - 应用更新：修复「跟随系统」代理模式下检查更新不走 Windows 系统代理的问题。根因是 Dart 的 `HttpClient.findProxyFromEnvironment` 只读 `http_proxy`/`https_proxy` 环境变量，不读 Windows 设置里的手动代理。现在桌面端新增 bridge 方法 `resolve_system_proxy`，由 Go 读取 `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` 注册表的 `ProxyEnable`/`ProxyServer`，Dart 在 system 模式下先查它，命中后当 HTTP/SOCKS5 代理用于检查更新和安装下载。
 

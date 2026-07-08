@@ -16,3 +16,10 @@ func isFileWritable(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil || os.IsNotExist(err)
 }
+
+// waitForNewApp is a no-op stub on non-Windows (the updater is Windows-only
+// in production; this keeps cross-compilation working).
+func waitForNewApp(exePath string, oldPID int, timeout time.Duration) int {
+	time.Sleep(time.Second)
+	return 0
+}

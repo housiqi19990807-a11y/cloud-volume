@@ -22,6 +22,25 @@ class PlatformUpdateAsset {
 
   @override
   String toString() => 'PlatformUpdateAsset(${asset.name}, $installerType)';
+
+  /// Reconstructs from the Go bridge `match_platform_asset` response, or null
+  /// when the payload is absent (no match or bridge unavailable).
+  static PlatformUpdateAsset? fromBridgeJson(Map<String, dynamic>? json) {
+    if (json == null) return null;
+    final assetJson = json['asset'] as Map<String, dynamic>?;
+    if (assetJson == null) return null;
+    return PlatformUpdateAsset(
+      asset: ReleaseAsset(
+        name: assetJson['name'] as String? ?? '',
+        downloadUrl: assetJson['downloadUrl'] as String? ?? '',
+        size: assetJson['size'] as int? ?? 0,
+        contentType: assetJson['contentType'] as String? ?? '',
+        digest: assetJson['digest'] as String? ?? '',
+      ),
+      platform: json['platform'] as String? ?? '',
+      installerType: json['installerType'] as String? ?? '',
+    );
+  }
 }
 
 /// Returns the best-matching asset for the current runtime platform, or `null`
