@@ -354,6 +354,9 @@ build_windows() {
   [[ -f "$bridge_dll" ]] || fail "Windows bridge was not built: $bridge_dll"
 
   cp "$bridge_dll" "$release_dir/remote_storage_bridge.dll"
+  # Build the standalone updater EXE into the release dir so green-package
+  # auto-updates show a progress dialog instead of relying on PowerShell.
+  go build -o "$release_dir/cloud-volume-updater.exe" ./cmd/cloud-volume-updater
   local release_dir_win zip_path_win
   release_dir_win="$(to_windows_path "$release_dir")"
   zip_path_win="$(to_windows_path "$zip_path")"

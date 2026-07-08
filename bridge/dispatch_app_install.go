@@ -11,9 +11,11 @@
 package main
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -318,88 +320,60 @@ func installWindowsZip(dlPath string) error {
 		return fmt.Errorf("resolve current executable: %w", err)
 	}
 	installDir := filepath.Dir(currentExe)
-	updaterDir := filepath.Join(os.TempDir(), "cloud-volume-updater")
-	if err := os.MkdirAll(updaterDir, 0755); err != nil {
-		return fmt.Errorf("create updater directory: %w", err)
-	}
-	updaterPath := filepath.Join(updaterDir, fmt.Sprintf("update-%d.ps1", time.Now().UnixMilli()))
 
-	// The helper runs after this process exits so Windows releases the EXE/DLL
-	// file locks before the green package is expanded over the current folder.
-	// It writes a timestamped log to %TEMP%\cloud-volume-update-<pid>.log so a
-	// failed green update can be diagnosed instead of silently disappearing.
-	script := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
-$archive = %s
-$installDir = %s
-$processId = %d
-$staging = Join-Path ([System.IO.Path]::GetTempPath()) ('cloud-volume-update-' + [System.Guid]::NewGuid().ToString('N'))
-$logFile = Join-Path ([System.IO.Path]::GetTempPath()) ('cloud-volume-update-' + $processId + '.log')
-function Write-UpdateLog([string]$msg) {
-  try { Add-Content -LiteralPath $logFile -Value ((Get-Date -Format 'HH:mm:ss.fff') + ' ' + $msg) -ErrorAction SilentlyContinue } catch {}
-}
-try {
-  Write-UpdateLog ('updater started pid=' + $processId + ' archive=' + $archive + ' installDir=' + $installDir)
-  # Wait up to 60s for the old process to release file locks on the EXE/DLLs.
-  try { Wait-Process -Id $processId -Timeout 60 -ErrorAction SilentlyContinue } catch {}
-  # Poll until the main exe becomes writable, in case background/child processes
-  # still hold it after the main PID exits.
-  $exePath = Join-Path $installDir 'cloud-volume.exe'
-  $unlocked = $false
-  for ($i = 0; $i -lt 60; $i++) {
-    try {
-      $fs = [System.IO.File]::Open($exePath, 'Open', 'ReadWrite', 'None')
-      $fs.Close()
-      $unlocked = $true
-      break
-    } catch {
-      Start-Sleep -Seconds 1
-    }
-  }
-  if (-not $unlocked) {
-    Write-UpdateLog 'timed out waiting for cloud-volume.exe to become writable'
-    throw 'cloud-volume.exe is still locked after 60s; another process may still be running.'
-  }
-  Write-UpdateLog 'old process exited, file locks released'
-  Start-Sleep -Milliseconds 500
-  New-Item -ItemType Directory -Force -Path $staging | Out-Null
-  Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
-  Write-UpdateLog ('archive expanded to ' + $staging)
-  $payload = $staging
-  if (-not (Test-Path -LiteralPath (Join-Path $payload 'cloud-volume.exe'))) {
-    $candidate = Get-ChildItem -LiteralPath $staging -Directory -Force | Where-Object {
-      Test-Path -LiteralPath (Join-Path $_.FullName 'cloud-volume.exe')
-    } | Select-Object -First 1
-    if ($null -ne $candidate) { $payload = $candidate.FullName }
-  }
-  if (-not (Test-Path -LiteralPath (Join-Path $payload 'cloud-volume.exe'))) {
-    throw 'cloud-volume.exe was not found in the update ZIP.'
-  }
-  Write-UpdateLog ('payload dir = ' + $payload)
-  Get-ChildItem -LiteralPath $payload -Force | ForEach-Object {
-    Write-UpdateLog ('copying ' + $_.Name)
-    Copy-Item -LiteralPath $_.FullName -Destination $installDir -Recurse -Force
-  }
-  Write-UpdateLog 'all files copied, launching new app'
-  Start-Process -FilePath (Join-Path $installDir 'cloud-volume.exe') -WorkingDirectory $installDir
-} catch {
-  Write-UpdateLog ('ERROR: ' + $_.Exception.Message)
-  throw
-} finally {
-  Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
-}
-`, psQuote(dlPath), psQuote(installDir), os.Getpid())
-
-	if err := os.WriteFile(updaterPath, []byte(script), 0600); err != nil {
-		return fmt.Errorf("write updater script: %w", err)
+	// Extract the standalone updater EXE from the downloaded zip into a temp
+	// directory and launch it from there. This way the old version does not
+	// need to already ship cloud-volume-updater.exe — the updater ships inside
+	// the new release zip and is extracted on demand.
+	updaterPath, err := extractUpdaterFromZip(dlPath)
+	if err != nil {
+		return fmt.Errorf("extract updater from zip: %w", err)
 	}
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", updaterPath)
+	cmd := exec.Command(updaterPath,
+		"-zip", dlPath,
+		"-install-dir", installDir,
+		"-pid", fmt.Sprintf("%d", os.Getpid()),
+		"-exe-name", filepath.Base(currentExe),
+	)
 	cmd.SysProcAttr = windowsHiddenProcessAttrs()
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start ZIP updater script: %w", err)
+		return fmt.Errorf("start updater: %w", err)
 	}
 	time.Sleep(500 * time.Millisecond)
 	return nil
+}
+
+// extractUpdaterFromZip opens the release zip, finds cloud-volume-updater.exe
+// at the root or in a subdirectory, and copies it to a temp file.
+func extractUpdaterFromZip(zipPath string) (string, error) {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	const updaterName = "cloud-volume-updater.exe"
+	for _, f := range r.File {
+		base := filepath.Base(f.Name)
+		if !strings.EqualFold(base, updaterName) || f.FileInfo().IsDir() {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return "", err
+		}
+		defer rc.Close()
+		tmp, err := os.CreateTemp("", "cloud-volume-updater-*.exe")
+		if err != nil {
+			return "", err
+		}
+		if _, err := io.Copy(tmp, rc); err != nil {
+			tmp.Close()
+			return "", err
+		}
+		tmp.Close()
+		return tmp.Name(), nil
+	}
+	return "", fmt.Errorf("%s not found in the update package", updaterName)
 }
 
 // installLinux handles AppImage or tarball installation on Linux.

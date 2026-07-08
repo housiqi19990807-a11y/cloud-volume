@@ -231,15 +231,23 @@ try {
     & go build -buildvcs=false -buildmode=c-shared -o $bridgeDll ./bridge
   }
 
-  if ($Build) {
-    Invoke-NativeCommand -Name 'flutter build windows' -Command {
-      & $flutter build windows --dart-define "APP_VERSION_LABEL=$versionLabel"
+ if ($Build) {
+   Invoke-NativeCommand -Name 'flutter build windows' -Command {
+     & $flutter build windows --dart-define "APP_VERSION_LABEL=$versionLabel"
+   }
+    # Build the standalone updater EXE and copy it into the release dir so
+    # green-package (zip) auto-updates have a visible progress dialog.
+    $releaseDir = Join-Path $repoRoot 'build\windows\x64\runner\Release'
+    $updaterExe = Join-Path $releaseDir 'cloud-volume-updater.exe'
+    Write-Host 'Building standalone updater...'
+    Invoke-NativeCommand -Name 'go build updater' -Command {
+      & go build -o $updaterExe ./cmd/cloud-volume-updater
     }
-  } else {
-    Invoke-NativeCommand -Name 'flutter run windows' -Command {
-      & $flutter run -d windows --dart-define "APP_VERSION_LABEL=$versionLabel"
-    }
-  }
+ } else {
+   Invoke-NativeCommand -Name 'flutter run windows' -Command {
+     & $flutter run -d windows --dart-define "APP_VERSION_LABEL=$versionLabel"
+   }
+ }
 } finally {
   Pop-Location
 }
