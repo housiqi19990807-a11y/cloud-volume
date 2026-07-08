@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -166,8 +167,15 @@ func extractZip(zipPath string) (string, error) {
 	}
 	defer r.Close()
 	for _, f := range r.File {
-		dest := filepath.Join(staging, f.Name)
-		if f.FileInfo().IsDir() {
+		// Normalize path separators: Windows-made zips (e.g. Compress-Archive)
+		// use backslashes, but Go's archive/zip and filepath.Join expect
+		// forward slashes. Without this, directory entries ending with "\"
+		// are not recognized as directories by FileInfo().IsDir(), causing
+		// MkdirAll to be skipped and file extraction to fail.
+		cleanName := strings.ReplaceAll(f.Name, "\\", "/")
+		dest := filepath.Join(staging, cleanName)
+		isDir := f.FileInfo().IsDir() || strings.HasSuffix(cleanName, "/")
+		if isDir {
 			if err := os.MkdirAll(dest, 0755); err != nil {
 				return staging, err
 			}
@@ -259,4 +267,3 @@ func copyFileOnce(src, dst string, mode os.FileMode) error {
 	}
 	return out.Close()
 }
-
