@@ -12,6 +12,7 @@ import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
+import 'package:remote_storage/models/system_proxy_info.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
@@ -114,6 +115,15 @@ class RemoteStorageApi
         await runBridgeCall('get_build_info') as Map<String, dynamic>? ??
         const <String, dynamic>{};
     return BridgeBuildInfo.fromJson(payload);
+  }
+
+  @override
+  Future<SystemProxyInfo?> resolveSystemProxy() async {
+    final payload =
+        await runBridgeCall('resolve_system_proxy') as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final info = SystemProxyInfo.fromJson(payload);
+    return info.available ? info : null;
   }
 
   @override

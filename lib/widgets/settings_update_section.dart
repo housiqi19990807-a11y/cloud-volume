@@ -217,6 +217,36 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     password: widget.config?.proxyPassword ?? '',
   );
 
+  /// Resolves the effective proxy config. When the user selected "follow
+  /// system" mode, Dart's HttpClient only reads http_proxy/https_proxy env
+  /// vars and ignores the Windows Settings manual proxy. On desktop we query
+  /// the bridge for the host-level system proxy so the update check actually
+  /// honors it.
+  Future<ProxyConfig> _resolveEffectiveProxy() async {
+    final base = _proxyConfig;
+    if (base.mode != kProxyModeSystem && base.mode.isNotEmpty) {
+      return base;
+    }
+    final api = widget.api;
+    if (api == null) {
+      return base;
+    }
+    try {
+      final info = await api.resolveSystemProxy();
+      if (info != null && info.host.isNotEmpty) {
+        return ProxyConfig(
+          mode: kProxyModeCustom,
+          type: info.type == 'socks5' ? kProxyTypeSocks5 : kProxyTypeHttp,
+          host: info.host,
+          port: info.port,
+        );
+      }
+    } catch (_) {
+      // Bridge unavailable or not supported: fall back to env-var detection.
+    }
+    return base;
+  }
+
   /// Dispatches the install to the Go bridge. The Go side runs the download +
   /// install + relaunch in a background goroutine and reports progress through
   /// the shared TransferQueue, which we listen to in [_onTransferQueueChanged].
@@ -252,12 +282,13 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
     });
 
     try {
+      final proxyConfig = await _resolveEffectiveProxy();
       final taskId = await downloadAndInstallAsset(
         api,
         matched.asset,
         matched.installerType,
         networkConfig: _mirrorConfig,
-        proxyConfig: _proxyConfig,
+        proxyConfig: proxyConfig,
         config: widget.config,
       );
       if (!mounted) return;
@@ -291,6 +322,7 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
         if (!completer.isCompleted) completer.complete();
       }
     }
+
     queue.addListener(listener);
     try {
       await completer.future;
@@ -387,10 +419,11 @@ class _SettingsUpdateSectionState extends State<SettingsUpdateSection> {
       _errorText = null;
     });
     try {
+      final proxyConfig = await _resolveEffectiveProxy();
       final result = await _updateService.checkLatestRelease(
         currentVersion: widget.currentVersion,
         networkConfig: _mirrorConfig,
-        proxyConfig: _proxyConfig,
+        proxyConfig: proxyConfig,
       );
       if (!mounted) {
         return;

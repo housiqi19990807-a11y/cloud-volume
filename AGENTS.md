@@ -415,7 +415,7 @@ Detects new GitHub releases and, on desktop, downloads + installs the correct pl
 
 ### Feature: Global Proxy & Network Configuration (全局代理设置)
 
-Three proxy modes: system (read `HTTP_PROXY`/`HTTPS_PROXY` env vars, default), direct (no proxy), custom (user-specified URL). Affects all outbound traffic.
+Three proxy modes: system (default), direct (no proxy), custom (user-specified URL). Affects all outbound traffic. **System mode note (2026-07-08):** Dart's `HttpClient.findProxyFromEnvironment` only reads `http_proxy`/`https_proxy` env vars and ignores the Windows Settings manual proxy. The desktop app now resolves the host-level system proxy via a new bridge method `resolve_system_proxy`, which reads `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` (`ProxyEnable`/`ProxyServer`) on Windows. Flutter calls it before GitHub update checks and installer downloads so the "follow system" mode actually honors the Windows proxy. Go-side `ProxyTransport` still uses `http.ProxyFromEnvironment` for S3/WebDAV/Baidu traffic.
 
 #### Key files
 
@@ -435,5 +435,9 @@ Three proxy modes: system (read `HTTP_PROXY`/`HTTPS_PROXY` env vars, default), d
 1. User configures proxy in 设置 → 通用设置 → 网络代理.
 2. `SettingsProxySection._save` → `_saveProxySettings` → `widget.api.saveConfig(config.copyWith(proxyMode, proxyUrl))` → Go `saveConfig` → `ApplyBaiduPanProxy` + `SaveProfile`.
 3. On next S3/WebDAV/MinIO client creation, `ProxyTransport(cfg.ProxyMode, cfg.ProxyURL)` is applied.
-4. Dart http calls (GitHub API, download) use `createProxyHttpClient(ProxyConfig(mode, customUrl))`.
+4. Dart http calls (GitHub API, download) use `createProxyHttpClient(ProxyConfig(mode, customUrl))`. In system mode the update section first calls `api.resolveSystemProxy()` and converts a Windows registry proxy into a custom `ProxyConfig` because Dart cannot read the Windows system proxy directly.
 5. GitHub mirror wraps **download** URLs only (via `UpdateNetworkConfig.wrapUrl` in `app_installer_io.dart`); the Release API call bypasses the mirror entirely.
+- `go/config/proxy.go` 鈥?`ProxyTransport(mode, customURL)` returns an `http.RoundTripper` respecting the mode. `ProxyHTTPClient` wraps it with a timeout.
+- `bridge/dispatch_system_proxy.go` + `dispatch_system_proxy_windows.go` / `_other.go` 鈥?`resolve_system_proxy` bridge method: reads Windows registry `ProxyEnable`/`ProxyServer` on Windows, returns empty on other platforms.
+- `lib/models/system_proxy_info.dart` 鈥?Dart mirror of the Go `systemProxyResult`.
+- `lib/widgets/settings_update_section.dart` 鈥?`_resolveEffectiveProxy()` queries `api.resolveSystemProxy()` in system mode before update check and install download, converting the result to a `ProxyConfig(mode: custom)`.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：修复「跟随系统」代理模式下检查更新不走 Windows 系统代理的问题。根因是 Dart 的 `HttpClient.findProxyFromEnvironment` 只读 `http_proxy`/`https_proxy` 环境变量，不读 Windows 设置里的手动代理。现在桌面端新增 bridge 方法 `resolve_system_proxy`，由 Go 读取 `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` 注册表的 `ProxyEnable`/`ProxyServer`，Dart 在 system 模式下先查它，命中后当 HTTP/SOCKS5 代理用于检查更新和安装下载。
+
 - Windows 构建：`scripts/run_windows.ps1 -Build` 和双击 `scripts/build_windows.bat` 现在会把 `git describe --tags --always --dirty` 写入 `APP_VERSION_LABEL`，不再产出应用内更新无法比较的 `dev` 版本；需要手动指定时可传 `-Version 1.2.3`。`make build-windows` 也改为和 macOS 一样使用 Git 版本标签。
 
 - 应用更新：Windows 一键更新现在优先使用绿色版 `yunjuan-windows-amd64.zip`，启动临时 PowerShell updater 等待当前进程退出，解压覆盖当前应用目录并重新启动 `cloud-volume.exe`；如果 Release 只有 Inno Setup `installer.exe`，仍会回退到静默安装器更新。

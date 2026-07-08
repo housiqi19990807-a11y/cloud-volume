@@ -16,6 +16,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 	switch method {
 	case "get_build_info":
 		return getBuildInfo()
+	case "resolve_system_proxy":
+		return resolveSystemProxy()
 	case "load_bootstrap_state":
 		return loadBootstrapState()
 	case "save_config":

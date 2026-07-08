@@ -10,6 +10,7 @@ import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
+import 'package:remote_storage/models/system_proxy_info.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
@@ -66,6 +67,10 @@ abstract class RemoteStorageGateway {
 
   Future<BootstrapState> loadBootstrapState();
   Future<BridgeBuildInfo> getBuildInfo();
+
+  /// Resolves the host-level system proxy (e.g. Windows Settings manual proxy).
+  /// Returns null when no usable system proxy is configured.
+  Future<SystemProxyInfo?> resolveSystemProxy();
   Future<BootstrapState> saveConfig(RemoteStorageConfig config);
   Future<bool> updateProxySettings({
     required String proxyMode,

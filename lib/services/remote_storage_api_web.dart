@@ -12,6 +12,7 @@ import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/share_record.dart';
+import 'package:remote_storage/models/system_proxy_info.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
@@ -188,6 +189,13 @@ class RemoteStorageApi
   @override
   Future<BridgeBuildInfo> getBuildInfo() async {
     return const BridgeBuildInfo();
+  }
+
+  @override
+  Future<SystemProxyInfo?> resolveSystemProxy() async {
+    // Browsers own proxy resolution; the host system proxy is not exposed to
+    // web origins.
+    return null;
   }
 
   @override
