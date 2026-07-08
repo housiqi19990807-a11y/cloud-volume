@@ -326,16 +326,44 @@ func installWindowsZip(dlPath string) error {
 
 	// The helper runs after this process exits so Windows releases the EXE/DLL
 	// file locks before the green package is expanded over the current folder.
+	// It writes a timestamped log to %TEMP%\cloud-volume-update-<pid>.log so a
+	// failed green update can be diagnosed instead of silently disappearing.
 	script := fmt.Sprintf(`$ErrorActionPreference = 'Stop'
 $archive = %s
 $installDir = %s
 $processId = %d
 $staging = Join-Path ([System.IO.Path]::GetTempPath()) ('cloud-volume-update-' + [System.Guid]::NewGuid().ToString('N'))
+$logFile = Join-Path ([System.IO.Path]::GetTempPath()) ('cloud-volume-update-' + $processId + '.log')
+function Write-UpdateLog([string]$msg) {
+  try { Add-Content -LiteralPath $logFile -Value ((Get-Date -Format 'HH:mm:ss.fff') + ' ' + $msg) -ErrorAction SilentlyContinue } catch {}
+}
 try {
-  try { Wait-Process -Id $processId -Timeout 45 -ErrorAction SilentlyContinue } catch {}
+  Write-UpdateLog ('updater started pid=' + $processId + ' archive=' + $archive + ' installDir=' + $installDir)
+  # Wait up to 60s for the old process to release file locks on the EXE/DLLs.
+  try { Wait-Process -Id $processId -Timeout 60 -ErrorAction SilentlyContinue } catch {}
+  # Poll until the main exe becomes writable, in case background/child processes
+  # still hold it after the main PID exits.
+  $exePath = Join-Path $installDir 'cloud-volume.exe'
+  $unlocked = $false
+  for ($i = 0; $i -lt 60; $i++) {
+    try {
+      $fs = [System.IO.File]::Open($exePath, 'Open', 'ReadWrite', 'None')
+      $fs.Close()
+      $unlocked = $true
+      break
+    } catch {
+      Start-Sleep -Seconds 1
+    }
+  }
+  if (-not $unlocked) {
+    Write-UpdateLog 'timed out waiting for cloud-volume.exe to become writable'
+    throw 'cloud-volume.exe is still locked after 60s; another process may still be running.'
+  }
+  Write-UpdateLog 'old process exited, file locks released'
   Start-Sleep -Milliseconds 500
   New-Item -ItemType Directory -Force -Path $staging | Out-Null
   Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
+  Write-UpdateLog ('archive expanded to ' + $staging)
   $payload = $staging
   if (-not (Test-Path -LiteralPath (Join-Path $payload 'cloud-volume.exe'))) {
     $candidate = Get-ChildItem -LiteralPath $staging -Directory -Force | Where-Object {
@@ -346,10 +374,16 @@ try {
   if (-not (Test-Path -LiteralPath (Join-Path $payload 'cloud-volume.exe'))) {
     throw 'cloud-volume.exe was not found in the update ZIP.'
   }
+  Write-UpdateLog ('payload dir = ' + $payload)
   Get-ChildItem -LiteralPath $payload -Force | ForEach-Object {
+    Write-UpdateLog ('copying ' + $_.Name)
     Copy-Item -LiteralPath $_.FullName -Destination $installDir -Recurse -Force
   }
+  Write-UpdateLog 'all files copied, launching new app'
   Start-Process -FilePath (Join-Path $installDir 'cloud-volume.exe') -WorkingDirectory $installDir
+} catch {
+  Write-UpdateLog ('ERROR: ' + $_.Exception.Message)
+  throw
 } finally {
   Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
@@ -366,10 +400,6 @@ try {
 	}
 	time.Sleep(500 * time.Millisecond)
 	return nil
-}
-
-func psQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 // installLinux handles AppImage or tarball installation on Linux.

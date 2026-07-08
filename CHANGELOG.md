@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 应用更新：修复 Windows 绿色版 zip 更新覆盖文件失败的问题。根因是 updater 脚本等待进程退出后没有二次确认 `cloud-volume.exe` 的文件锁已释放，如果后台/子进程仍占用 DLL，`Copy-Item` 静默失败，旧文件被保留。现在 updater 会轮询等待 exe 可写后再覆盖，并将每步进度和错误写入 `%TEMP%\cloud-volume-update-<pid>.log` 便于排查。
+
 - 应用更新：修复「跟随系统」代理模式下检查更新不走 Windows 系统代理的问题。根因是 Dart 的 `HttpClient.findProxyFromEnvironment` 只读 `http_proxy`/`https_proxy` 环境变量，不读 Windows 设置里的手动代理。现在桌面端新增 bridge 方法 `resolve_system_proxy`，由 Go 读取 `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` 注册表的 `ProxyEnable`/`ProxyServer`，Dart 在 system 模式下先查它，命中后当 HTTP/SOCKS5 代理用于检查更新和安装下载。
 
 - Windows 构建：`scripts/run_windows.ps1 -Build` 和双击 `scripts/build_windows.bat` 现在会把 `git describe --tags --always --dirty` 写入 `APP_VERSION_LABEL`，不再产出应用内更新无法比较的 `dev` 版本；需要手动指定时可传 `-Version 1.2.3`。`make build-windows` 也改为和 macOS 一样使用 Git 版本标签。
