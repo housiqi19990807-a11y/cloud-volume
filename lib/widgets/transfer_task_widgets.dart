@@ -263,7 +263,6 @@ class TransferTaskSelectionActions extends StatelessWidget {
     required this.onStartSelected,
     required this.onCancelSelected,
     required this.onRemoveSelected,
-    required this.onClearSelection,
     required this.onClearFinished,
   });
 
@@ -277,7 +276,6 @@ class TransferTaskSelectionActions extends StatelessWidget {
   final VoidCallback onStartSelected;
   final VoidCallback onCancelSelected;
   final VoidCallback onRemoveSelected;
-  final VoidCallback onClearSelection;
   final VoidCallback onClearFinished;
 
   @override
@@ -285,7 +283,7 @@ class TransferTaskSelectionActions extends StatelessWidget {
     final theme = ShadTheme.of(context);
     final hasSelection = selectedCount > 0;
     return PageHeaderActions(
-      // 主操作：选中徽标 + 批量开始 + 批量取消。
+      // 主操作：选中徽标 + 批量开始 + 批量取消 + 移除记录，统一 outline 风格。
       primary: [
         if (hasSelection)
           Container(
@@ -323,7 +321,7 @@ class TransferTaskSelectionActions extends StatelessWidget {
             ),
           ),
         if (hasSelection)
-          ShadButton.ghost(
+          ShadButton.outline(
             size: ShadButtonSize.sm,
             onPressed: runningBatchAction || startableCount == 0
                 ? null
@@ -333,7 +331,7 @@ class TransferTaskSelectionActions extends StatelessWidget {
             ),
           ),
         if (hasSelection)
-          ShadButton.destructive(
+          ShadButton.outline(
             size: ShadButtonSize.sm,
             onPressed: runningBatchAction || cancelableCount == 0
                 ? null
@@ -342,38 +340,19 @@ class TransferTaskSelectionActions extends StatelessWidget {
               cancelableCount > 0 ? '批量取消 $cancelableCount' : '批量取消',
             ),
           ),
+        if (hasSelection)
+          ShadButton.outline(
+            size: ShadButtonSize.sm,
+            onPressed: runningBatchAction || removableCount == 0
+                ? null
+                : onRemoveSelected,
+            child: Text(
+              removableCount > 0 ? '移除记录 $removableCount' : '移除记录',
+            ),
+          ),
       ],
       // 次操作：宽度不足时收进「…」菜单。
-      // 多选模式下不显示「清空已完成」——它属于非多选操作，多选时显示会与
-      // 批量操作挤在一起导致换行。
       secondary: [
-        if (hasSelection)
-          SecondaryAction(
-            label: removableCount > 0 ? '移除记录 $removableCount' : '移除记录',
-            onPressed:
-                runningBatchAction || removableCount == 0 ? null : onRemoveSelected,
-            enabled: !(runningBatchAction || removableCount == 0),
-            builder: (_) => ShadButton.outline(
-              size: ShadButtonSize.sm,
-              onPressed: runningBatchAction || removableCount == 0
-                  ? null
-                  : onRemoveSelected,
-              child: Text(
-                removableCount > 0 ? '移除记录 $removableCount' : '移除记录',
-              ),
-            ),
-          ),
-        if (hasSelection)
-          SecondaryAction(
-            label: '清空选择',
-            onPressed: runningBatchAction ? null : onClearSelection,
-            enabled: !runningBatchAction,
-            builder: (_) => ShadButton.ghost(
-              size: ShadButtonSize.sm,
-              onPressed: runningBatchAction ? null : onClearSelection,
-              child: const Text('清空选择'),
-            ),
-          ),
         // 仅在非多选模式下显示「清空已完成」。
         if (!hasSelection && finishedCount > 0)
           SecondaryAction(

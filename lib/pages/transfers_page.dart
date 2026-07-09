@@ -83,13 +83,6 @@ class _TransfersPageState extends State<TransfersPage> {
     });
   }
 
-  void _clearSelection() {
-    if (_selectedTaskIds.isEmpty) {
-      return;
-    }
-    setState(_selectedTaskIds.clear);
-  }
-
   Future<void> _startSelectedTasks(TransferQueue queue) async {
     if (_runningBatchAction) {
       return;
@@ -304,7 +297,6 @@ class _TransfersPageState extends State<TransfersPage> {
                   onCancelSelected: () =>
                       unawaited(_cancelSelectedTasks(queue)),
                   onRemoveSelected: () => _removeSelectedTasks(queue),
-                  onClearSelection: _clearSelection,
                   onClearFinished: () =>
                       unawaited(_confirmClearFinished(queue)),
                 ),
