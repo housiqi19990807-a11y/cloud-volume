@@ -1,6 +1,7 @@
 // Global trash controls keep filtering and fixed header actions out of the page file.
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/widgets/page_header_actions.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 const String allBucketsFilter = '__all_buckets__';
@@ -102,35 +103,35 @@ class GlobalTrashHeaderActions extends StatelessWidget {
     final hasSelection = selectedCount > 0;
 
     if (!hasSelection) {
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.end,
-        children: [
+      // 未选中：刷新为主操作，清空回收站在宽度不足时收进菜单。
+      return PageHeaderActions(
+        primary: [
           ShadButton.outline(
             onPressed: loading ? null : onRefresh,
             child: const Text('刷新'),
           ),
-          ShadButton.destructive(
+        ],
+        secondary: [
+          SecondaryAction(
+            label: '清空回收站',
             onPressed: loading ? null : onClearTrash,
-            child: const Text('清空回收站'),
+            enabled: !(loading || onClearTrash == null),
+            builder: (_) => ShadButton.destructive(
+              onPressed: loading ? null : onClearTrash,
+              child: const Text('清空回收站'),
+            ),
           ),
         ],
       );
     }
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      alignment: WrapAlignment.end,
-      children: [
+    // 选中：徽标 + 批量恢复 + 批量彻底删除为主操作，清空选择为次操作。
+    return PageHeaderActions(
+      primary: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
-            color: hasSelection
-                ? theme.colorScheme.primary.withValues(alpha: 0.08)
-                : theme.colorScheme.secondary.withValues(alpha: 0.45),
+            color: theme.colorScheme.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
@@ -138,9 +139,7 @@ class GlobalTrashHeaderActions extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: hasSelection
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.mutedForeground,
+              color: theme.colorScheme.primary,
             ),
           ),
         ),
@@ -154,10 +153,17 @@ class GlobalTrashHeaderActions extends StatelessWidget {
           onPressed: hasSelection ? onDeleteSelected : null,
           child: const Text('批量彻底删除'),
         ),
-        ShadButton.ghost(
-          size: ShadButtonSize.sm,
+      ],
+      secondary: [
+        SecondaryAction(
+          label: '清空选择',
           onPressed: hasSelection ? onClearSelection : null,
-          child: const Text('清空选择'),
+          enabled: hasSelection,
+          builder: (_) => ShadButton.ghost(
+            size: ShadButtonSize.sm,
+            onPressed: hasSelection ? onClearSelection : null,
+            child: const Text('清空选择'),
+          ),
         ),
       ],
     );

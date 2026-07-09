@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 页面头部布局：修复任务队列、分享管理、回收站等页面选中多项后右侧操作按钮挤压标题，导致副标题错位断行（如「回任务。」）的问题。新增通用 `PageHeaderActions` 组件，宽度不足时把次要操作收进「…」更多操作下拉菜单（复用 `ShadContextMenu` 模式），标题列改用 `Flexible` 并给副标题加 `maxLines` 兜底。所有列表页头部统一这一响应式折叠逻辑。
+
 - 挂载同步：修复在文件管理界面删除/重命名/移动/复制/建目录/上传后，挂载点（Finder/WebDAV）仍显示幽灵文件、界面列表卡在"删除中"的问题。根因是 bridge/webapi 的远端 mutation 直接改后端对象却不通知 `go/mount` 的 `bucketCache`，而文件管理列表加载（`list_object_page`）在挂载活跃时会优先读挂载缓存。现在 bridge 与 webapi 的所有外部 mutation 在成功后会调用新增的 `bucketmount.NotifyExternalDelete`/`NotifyExternalUpload`/`NotifyExternalRename`，同步失效挂载 session 的 `listCache`/`objectCache`/`localEntries`/`deletedPaths`，让文件管理与挂载点视图立即一致。
 
 - 应用更新：Windows 绿色版 zip 更新改用独立 `cloud-volume-updater.exe` 替代 PowerShell 脚本。updater 是纯 Go 编译的独立 exe，启动后会显示"正在更新云卷，请稍候..."进度窗口，等待旧进程退出、解压覆盖文件并重新启动应用。相比之前的隐藏 PowerShell 脚本，它不受执行策略影响、不会静默失败、且给用户可见的更新反馈。updater exe 会打包进 release zip 和 installer。

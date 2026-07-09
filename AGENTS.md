@@ -471,3 +471,22 @@ Three proxy modes: system (default), direct (no proxy), custom (user-specified U
 - `bridge/dispatch_system_proxy.go` + `dispatch_system_proxy_windows.go` / `_other.go` 鈥?`resolve_system_proxy` bridge method: reads Windows registry `ProxyEnable`/`ProxyServer` on Windows, returns empty on other platforms.
 - `lib/models/system_proxy_info.dart` 鈥?Dart mirror of the Go `systemProxyResult`.
 - `lib/widgets/settings_update_section.dart` 鈥?`_resolveEffectiveProxy()` queries `api.resolveSystemProxy()` in system mode before update check and install download, converting the result to a `ProxyConfig(mode: custom)`.
+
+### Feature: Responsive Page Header Actions (页面头部响应式操作区)
+
+All list-style pages (任务队列 / 分享管理 / 回收站 / 文件同步 / 账号管理) share the same header pattern: a left `Flexible(Column(title + subtitle))` and right-side action buttons. When many buttons are visible (e.g. bulk-selection mode), the title column was squeezed and the subtitle wrapped mid-sentence. A shared `PageHeaderActions` widget now collapses secondary actions into a `…` overflow menu (`ShadContextMenu`) when the available width drops below a threshold.
+
+#### Key files
+
+- `lib/widgets/page_header_actions.dart` — `PageHeaderActions` (StatelessWidget): takes `primary` (always laid out) and `secondary` (`List<SecondaryAction>`). Uses `LayoutBuilder` to compare `constraints.maxWidth` against `overflowThreshold` (default 520). When wide, renders all primary + secondary `.builder()` inline; when narrow, renders primary + an `_OverflowMenuButton` whose `ShadContextMenu` items come from `secondary` `.label` / `.onPressed`. `_OverflowMenuButton` mirrors the existing `_BucketOverflowMenuButton` pattern (`ShadContextMenuController` + `DesktopContextMenuRegistry` group `_pageHeaderOverflowGroup` + `ShadGlobalAnchor`). `SecondaryAction` carries `label`, `builder`, `onPressed`, `enabled`.
+- `lib/widgets/transfer_task_widgets.dart` — `TransferTaskSelectionActions` now wraps `PageHeaderActions`. Primary: 已选 N 项 badge + 批量开始 + 批量取消. Secondary: 移除记录 / 清空选择 / 清空已完成 (new `onClearFinished` + `finishedCount` params moved from the page-level standalone button).
+- `lib/pages/transfers_page.dart` — header `Row` simplified: `Flexible` title column + single `TransferTaskSelectionActions` (no separate 清空已完成 button). Subtitle gained `maxLines: 2`.
+- `lib/pages/share_management_page.dart` — header rebuilt via `PageHeaderActions`. Selected: primary 已选 N 项 + 删除选中; secondary 取消选择. Unselected: primary 刷新.
+- `lib/widgets/global_trash_controls.dart` — `GlobalTrashHeaderActions` now wraps `PageHeaderActions`. Selected: primary badge + 批量恢复 + 批量彻底删除; secondary 清空选择. Unselected: primary 刷新; secondary 清空回收站.
+- `lib/pages/global_trash_page_view.dart`, `lib/pages/file_sync_tasks_page.dart`, `lib/pages/cloud_storage_page.dart` — title column switched `Expanded` → `Flexible(fit: FlexFit.tight)`; subtitle gained `maxLines: 2, overflow: ellipsis` as a hard floor.
+
+#### Gotchas
+
+- The title column must be `Flexible(flex: 1, fit: FlexFit.tight)`, not `Expanded`, so the right-side `PageHeaderActions` `Wrap` is measured by `LayoutBuilder` against the real remaining width; with `Expanded` the title took all space and the actions never saw a width constraint.
+- `_OverflowMenuButton` must be a `StatefulWidget` owning the `ShadContextMenuController` and `_menuAnchorOffset`; the `onPressed` of `ShadButton.outline` computes the anchor via the button's `GlobalKey` + `localToGlobal` before `_controller.show()`.
+- Single-button headers (文件同步 新建配置, 账号管理 新增账号) intentionally do NOT use `PageHeaderActions` — they can't overflow, but the `Flexible` title column + subtitle `maxLines` floor still applies for consistency.

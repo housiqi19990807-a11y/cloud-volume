@@ -268,13 +268,17 @@ class _TransfersPageState extends State<TransfersPage> {
     final selectedVisibleCount = visibleTasks
         .where((task) => _selectedTaskIds.contains(task.id))
         .length;
+    final finishedCount = queue.taskView.where(_isRemovableFinished).length;
+    final hasHeaderActions = selectedCount > 0 || finishedCount > 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.tight,
+              flex: 1,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -288,6 +292,8 @@ class _TransfersPageState extends State<TransfersPage> {
                   const SizedBox(height: 6),
                   Text(
                     '查看上传、下载、复制、移动、删除，以及等待同步到远端的挂载写回任务。',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: theme.colorScheme.mutedForeground,
                       fontSize: 13,
@@ -296,34 +302,24 @@ class _TransfersPageState extends State<TransfersPage> {
                 ],
               ),
             ),
-            if (selectedCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: TransferTaskSelectionActions(
-                  selectedCount: selectedCount,
-                  selectedVisibleCount: selectedVisibleCount,
-                  startableCount: queue.triggerableTaskCount(_selectedTaskIds),
-                  cancelableCount: queue.cancelableTaskCount(_selectedTaskIds),
-                  removableCount: queue.removableTaskCount(_selectedTaskIds),
-                  runningBatchAction: _runningBatchAction,
-                  onStartSelected: () => unawaited(_startSelectedTasks(queue)),
-                  onCancelSelected: () =>
-                      unawaited(_cancelSelectedTasks(queue)),
-                  onRemoveSelected: () => _removeSelectedTasks(queue),
-                  onClearSelection: _clearSelection,
-                ),
+            if (hasHeaderActions) ...[
+              const SizedBox(width: 16),
+              TransferTaskSelectionActions(
+                selectedCount: selectedCount,
+                selectedVisibleCount: selectedVisibleCount,
+                startableCount: queue.triggerableTaskCount(_selectedTaskIds),
+                cancelableCount: queue.cancelableTaskCount(_selectedTaskIds),
+                removableCount: queue.removableTaskCount(_selectedTaskIds),
+                finishedCount: finishedCount,
+                runningBatchAction: _runningBatchAction,
+                onStartSelected: () => unawaited(_startSelectedTasks(queue)),
+                onCancelSelected: () =>
+                    unawaited(_cancelSelectedTasks(queue)),
+                onRemoveSelected: () => _removeSelectedTasks(queue),
+                onClearSelection: _clearSelection,
+                onClearFinished: () => unawaited(_confirmClearFinished(queue)),
               ),
-            if (queue.taskView.any(_isRemovableFinished))
-              Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: ShadButton.outline(
-                  size: ShadButtonSize.sm,
-                  onPressed: _runningBatchAction
-                      ? null
-                      : () => unawaited(_confirmClearFinished(queue)),
-                  child: const Text('清空已完成'),
-                ),
-              ),
+            ],
           ],
         ),
         const SizedBox(height: 16),

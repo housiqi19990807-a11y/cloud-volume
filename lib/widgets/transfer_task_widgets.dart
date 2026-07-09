@@ -6,6 +6,7 @@ import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
+import 'package:remote_storage/widgets/page_header_actions.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class TransferStatusBadge extends StatelessWidget {
@@ -257,11 +258,13 @@ class TransferTaskSelectionActions extends StatelessWidget {
     required this.startableCount,
     required this.cancelableCount,
     required this.removableCount,
+    required this.finishedCount,
     required this.runningBatchAction,
     required this.onStartSelected,
     required this.onCancelSelected,
     required this.onRemoveSelected,
     required this.onClearSelection,
+    required this.onClearFinished,
   });
 
   final int selectedCount;
@@ -269,39 +272,40 @@ class TransferTaskSelectionActions extends StatelessWidget {
   final int startableCount;
   final int cancelableCount;
   final int removableCount;
+  final int finishedCount;
   final bool runningBatchAction;
   final VoidCallback onStartSelected;
   final VoidCallback onCancelSelected;
   final VoidCallback onRemoveSelected;
   final VoidCallback onClearSelection;
+  final VoidCallback onClearFinished;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      alignment: WrapAlignment.end,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            _selectionSummary(
-              selectedCount: selectedCount,
-              selectedVisibleCount: selectedVisibleCount,
+    final hasSelection = selectedCount > 0;
+    return PageHeaderActions(
+      // 主操作：选中徽标 + 批量开始 + 批量取消。
+      primary: [
+        if (hasSelection)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
             ),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.primary,
+            child: Text(
+              _selectionSummary(
+                selectedCount: selectedCount,
+                selectedVisibleCount: selectedVisibleCount,
+              ),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.primary,
+              ),
             ),
           ),
-        ),
         if (runningBatchAction)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -318,32 +322,67 @@ class TransferTaskSelectionActions extends StatelessWidget {
               ),
             ),
           ),
-        ShadButton.ghost(
-          size: ShadButtonSize.sm,
-          onPressed: runningBatchAction || startableCount == 0
-              ? null
-              : onStartSelected,
-          child: Text(startableCount > 0 ? '批量开始 $startableCount' : '批量开始'),
-        ),
-        ShadButton.destructive(
-          size: ShadButtonSize.sm,
-          onPressed: runningBatchAction || cancelableCount == 0
-              ? null
-              : onCancelSelected,
-          child: Text(cancelableCount > 0 ? '批量取消 $cancelableCount' : '批量取消'),
-        ),
-        ShadButton.outline(
-          size: ShadButtonSize.sm,
-          onPressed: runningBatchAction || removableCount == 0
-              ? null
-              : onRemoveSelected,
-          child: Text(removableCount > 0 ? '移除记录 $removableCount' : '移除记录'),
-        ),
-        ShadButton.ghost(
-          size: ShadButtonSize.sm,
-          onPressed: runningBatchAction ? null : onClearSelection,
-          child: const Text('清空选择'),
-        ),
+        if (hasSelection)
+          ShadButton.ghost(
+            size: ShadButtonSize.sm,
+            onPressed: runningBatchAction || startableCount == 0
+                ? null
+                : onStartSelected,
+            child: Text(
+              startableCount > 0 ? '批量开始 $startableCount' : '批量开始',
+            ),
+          ),
+        if (hasSelection)
+          ShadButton.destructive(
+            size: ShadButtonSize.sm,
+            onPressed: runningBatchAction || cancelableCount == 0
+                ? null
+                : onCancelSelected,
+            child: Text(
+              cancelableCount > 0 ? '批量取消 $cancelableCount' : '批量取消',
+            ),
+          ),
+      ],
+      // 次操作：宽度不足时收进「…」菜单。
+      secondary: [
+        if (hasSelection)
+          SecondaryAction(
+            label: removableCount > 0 ? '移除记录 $removableCount' : '移除记录',
+            onPressed:
+                runningBatchAction || removableCount == 0 ? null : onRemoveSelected,
+            enabled: !(runningBatchAction || removableCount == 0),
+            builder: (_) => ShadButton.outline(
+              size: ShadButtonSize.sm,
+              onPressed: runningBatchAction || removableCount == 0
+                  ? null
+                  : onRemoveSelected,
+              child: Text(
+                removableCount > 0 ? '移除记录 $removableCount' : '移除记录',
+              ),
+            ),
+          ),
+        if (hasSelection)
+          SecondaryAction(
+            label: '清空选择',
+            onPressed: runningBatchAction ? null : onClearSelection,
+            enabled: !runningBatchAction,
+            builder: (_) => ShadButton.ghost(
+              size: ShadButtonSize.sm,
+              onPressed: runningBatchAction ? null : onClearSelection,
+              child: const Text('清空选择'),
+            ),
+          ),
+        if (finishedCount > 0)
+          SecondaryAction(
+            label: '清空已完成',
+            onPressed: runningBatchAction ? null : onClearFinished,
+            enabled: !runningBatchAction,
+            builder: (_) => ShadButton.outline(
+              size: ShadButtonSize.sm,
+              onPressed: runningBatchAction ? null : onClearFinished,
+              child: const Text('清空已完成'),
+            ),
+          ),
       ],
     );
   }

@@ -221,8 +221,11 @@ class _PageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
+        Flexible(
+          fit: FlexFit.tight,
+          flex: 1,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -236,6 +239,8 @@ class _PageHeader extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '所有账号会直接共存；新增账号后可立即在文件管理页看到对应来源。',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: theme.colorScheme.mutedForeground,
                   fontSize: 13,
@@ -244,6 +249,7 @@ class _PageHeader extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: 12),
         ShadButton(onPressed: onAddAccount, child: const Text('新增账号')),
       ],
     );

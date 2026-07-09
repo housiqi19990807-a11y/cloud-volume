@@ -39,7 +39,9 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              Flexible(
+                fit: FlexFit.tight,
+                flex: 1,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -53,6 +55,8 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
                     const SizedBox(height: 6),
                     Text(
                       '集中管理已删除的文件与目录。',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: theme.colorScheme.mutedForeground,
                         fontSize: 13,

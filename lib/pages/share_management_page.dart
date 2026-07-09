@@ -10,6 +10,7 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/share_records_notifier.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/page_header_actions.dart';
 import 'package:remote_storage/widgets/share_dialogs.dart';
 import 'package:remote_storage/widgets/share_management_browser.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -268,8 +269,11 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
+              Flexible(
+                fit: FlexFit.tight,
+                flex: 1,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -283,6 +287,8 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
                     const SizedBox(height: 6),
                     Text(
                       '集中管理已经创建的分享记录，链接内容在详情中查看。',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: theme.colorScheme.mutedForeground,
                         fontSize: 13,
@@ -291,31 +297,47 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
                   ],
                 ),
               ),
-              if (selectedCount > 0) ...[
-                Text(
-                  '已选 $selectedCount 项',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ShadButton.outline(
-                  onPressed: () => setState(() => _selectedIds.clear()),
-                  child: const Text('取消选择'),
-                ),
-                const SizedBox(width: 10),
-                ShadButton.destructive(
-                  onPressed: _loading
-                      ? null
-                      : () => unawaited(_deleteSelected()),
-                  child: const Text('删除选中'),
-                ),
-              ] else
-                ShadButton.outline(
-                  onPressed: _loading ? null : () => unawaited(_loadShares()),
-                  child: const Text('刷新'),
+              const SizedBox(width: 16),
+              if (selectedCount > 0)
+                PageHeaderActions(
+                  primary: [
+                    Text(
+                      '已选 $selectedCount 项',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
+                    ),
+                    ShadButton.destructive(
+                      onPressed: _loading
+                          ? null
+                          : () => unawaited(_deleteSelected()),
+                      child: const Text('删除选中'),
+                    ),
+                  ],
+                  secondary: [
+                    SecondaryAction(
+                      label: '取消选择',
+                      onPressed: () => setState(() => _selectedIds.clear()),
+                      builder: (_) => ShadButton.outline(
+                        onPressed: () =>
+                            setState(() => _selectedIds.clear()),
+                        child: const Text('取消选择'),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                PageHeaderActions(
+                  primary: [
+                    ShadButton.outline(
+                      onPressed: _loading
+                          ? null
+                          : () => unawaited(_loadShares()),
+                      child: const Text('刷新'),
+                    ),
+                  ],
                 ),
             ],
           ),
