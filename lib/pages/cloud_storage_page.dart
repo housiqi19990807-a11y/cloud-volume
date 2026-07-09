@@ -223,9 +223,7 @@ class _PageHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Flexible(
-          fit: FlexFit.tight,
-          flex: 1,
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

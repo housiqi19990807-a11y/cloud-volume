@@ -43,7 +43,10 @@ class PageHeaderActions extends StatelessWidget {
     super.key,
     this.primary = const [],
     this.secondary = const [],
-    this.overflowThreshold = 520,
+    // 阈值与页面头部的 ConstrainedBox(maxWidth) 相等：操作区被外层约束
+    // 限制在这个宽度内，LayoutBuilder 拿到的 maxWidth 即真实可用宽度，
+    // 达到阈值则平铺，否则折叠进「…」菜单。
+    this.overflowThreshold = 360,
     this.spacing = 8,
   });
 

@@ -271,9 +271,7 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(
-                fit: FlexFit.tight,
-                flex: 1,
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -298,47 +296,52 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
                 ),
               ),
               const SizedBox(width: 16),
-              if (selectedCount > 0)
-                PageHeaderActions(
-                  primary: [
-                    Text(
-                      '已选 $selectedCount 项',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.mutedForeground,
+              // 操作区按内容宽度布局，上限 360px（与 PageHeaderActions 阈值相等）。
+              // Expanded 标题吃掉剩余空间，操作区贴右；窄窗口时操作区拿到的宽度
+              // < 360，内层 LayoutBuilder 触发折叠成「…」菜单。
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: (selectedCount > 0)
+                    ? PageHeaderActions(
+                        primary: [
+                          Text(
+                            '已选 $selectedCount 项',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.mutedForeground,
+                            ),
+                          ),
+                          ShadButton.destructive(
+                            onPressed: _loading
+                                ? null
+                                : () => unawaited(_deleteSelected()),
+                            child: const Text('删除选中'),
+                          ),
+                        ],
+                        secondary: [
+                          SecondaryAction(
+                            label: '取消选择',
+                            onPressed: () => setState(() => _selectedIds.clear()),
+                            builder: (_) => ShadButton.outline(
+                              onPressed: () =>
+                                  setState(() => _selectedIds.clear()),
+                              child: const Text('取消选择'),
+                            ),
+                          ),
+                        ],
+                      )
+                    : PageHeaderActions(
+                        primary: [
+                          ShadButton.outline(
+                            onPressed: _loading
+                                ? null
+                                : () => unawaited(_loadShares()),
+                            child: const Text('刷新'),
+                          ),
+                        ],
                       ),
-                    ),
-                    ShadButton.destructive(
-                      onPressed: _loading
-                          ? null
-                          : () => unawaited(_deleteSelected()),
-                      child: const Text('删除选中'),
-                    ),
-                  ],
-                  secondary: [
-                    SecondaryAction(
-                      label: '取消选择',
-                      onPressed: () => setState(() => _selectedIds.clear()),
-                      builder: (_) => ShadButton.outline(
-                        onPressed: () =>
-                            setState(() => _selectedIds.clear()),
-                        child: const Text('取消选择'),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                PageHeaderActions(
-                  primary: [
-                    ShadButton.outline(
-                      onPressed: _loading
-                          ? null
-                          : () => unawaited(_loadShares()),
-                      child: const Text('刷新'),
-                    ),
-                  ],
-                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),

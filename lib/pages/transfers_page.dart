@@ -276,9 +276,7 @@ class _TransfersPageState extends State<TransfersPage> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Flexible(
-              fit: FlexFit.tight,
-              flex: 1,
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -304,20 +302,27 @@ class _TransfersPageState extends State<TransfersPage> {
             ),
             if (hasHeaderActions) ...[
               const SizedBox(width: 16),
-              TransferTaskSelectionActions(
-                selectedCount: selectedCount,
-                selectedVisibleCount: selectedVisibleCount,
-                startableCount: queue.triggerableTaskCount(_selectedTaskIds),
-                cancelableCount: queue.cancelableTaskCount(_selectedTaskIds),
-                removableCount: queue.removableTaskCount(_selectedTaskIds),
-                finishedCount: finishedCount,
-                runningBatchAction: _runningBatchAction,
-                onStartSelected: () => unawaited(_startSelectedTasks(queue)),
-                onCancelSelected: () =>
-                    unawaited(_cancelSelectedTasks(queue)),
-                onRemoveSelected: () => _removeSelectedTasks(queue),
-                onClearSelection: _clearSelection,
-                onClearFinished: () => unawaited(_confirmClearFinished(queue)),
+              // 操作区按内容宽度布局，上限 360px（与 PageHeaderActions 阈值相等）。
+              // 宽窗口时 Expanded 标题吃掉剩余空间，操作区贴右；窄窗口时操作区
+              // 拿到的宽度 < 360，内层 LayoutBuilder 触发折叠成「…」菜单。
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: TransferTaskSelectionActions(
+                  selectedCount: selectedCount,
+                  selectedVisibleCount: selectedVisibleCount,
+                  startableCount: queue.triggerableTaskCount(_selectedTaskIds),
+                  cancelableCount: queue.cancelableTaskCount(_selectedTaskIds),
+                  removableCount: queue.removableTaskCount(_selectedTaskIds),
+                  finishedCount: finishedCount,
+                  runningBatchAction: _runningBatchAction,
+                  onStartSelected: () => unawaited(_startSelectedTasks(queue)),
+                  onCancelSelected: () =>
+                      unawaited(_cancelSelectedTasks(queue)),
+                  onRemoveSelected: () => _removeSelectedTasks(queue),
+                  onClearSelection: _clearSelection,
+                  onClearFinished: () =>
+                      unawaited(_confirmClearFinished(queue)),
+                ),
               ),
             ],
           ],

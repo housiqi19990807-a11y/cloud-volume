@@ -39,34 +39,37 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(
-                fit: FlexFit.tight,
-                flex: 1,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '回收站',
-                      style: theme.textTheme.h3.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 22,
-                      ),
+              Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '回收站',
+                    style: theme.textTheme.h3.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 22,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '集中管理已删除的文件与目录。',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.colorScheme.mutedForeground,
-                        fontSize: 13,
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '集中管理已删除的文件与目录。',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.colorScheme.mutedForeground,
+                      fontSize: 13,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              GlobalTrashHeaderActions(
+            ),
+            const SizedBox(width: 16),
+            // 操作区按内容宽度布局，上限 360px（与 PageHeaderActions 阈值相等）。
+            // Expanded 标题吃掉剩余空间，操作区贴右；窄窗口时操作区拿到的宽度
+            // < 360，内层 LayoutBuilder 触发折叠成「…」菜单。
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: GlobalTrashHeaderActions(
                 selectedCount: selectedFilteredCount,
                 loading: _loading,
                 onRefresh: () => unawaited(_loadInitialBucket()),
@@ -78,6 +81,7 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
                     : () => unawaited(_clearActiveBucketTrash()),
                 onClearSelection: () => setState(() => _selectedIds.clear()),
               ),
+            ),
             ],
           ),
           const SizedBox(height: 16),

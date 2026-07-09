@@ -86,9 +86,7 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Flexible(
-                  fit: FlexFit.tight,
-                  flex: 1,
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
