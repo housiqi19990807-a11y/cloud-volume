@@ -1,0 +1,182 @@
+// External invalidation tests verify that out-of-mount mutations
+// (NotifyExternalDelete/Upload/Rename) keep a mounted bucketCache consistent
+// and are safe no-ops when no matching session exists.
+package mount
+
+import (
+	"context"
+	"testing"
+
+	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
+)
+
+// registerTestSession installs a synthetic manager session for the given config
+// so NotifyExternal* entry points can target it without a real platform mount.
+func registerTestSession(t *testing.T, cfg storageconfig.RemoteStorageConfig, bucket string, access *bucketAccess) {
+	t.Helper()
+	normalized := cfg.Normalized()
+	globalManager.mu.Lock()
+	defer globalManager.mu.Unlock()
+	globalManager.sessions[normalizeBucketName(bucket)] = &mountSession{
+		config: normalized,
+		bucket: normalizeBucketName(bucket),
+		access: access,
+	}
+	t.Cleanup(func() {
+		globalManager.mu.Lock()
+		delete(globalManager.sessions, normalizeBucketName(bucket))
+		globalManager.mu.Unlock()
+	})
+}
+
+func externalInvalidationConfig() storageconfig.RemoteStorageConfig {
+	return storageconfig.RemoteStorageConfig{
+		Endpoint: "https://example.com",
+		Bucket:   "test-bucket",
+	}
+}
+
+// TestNotifyExternalDeleteClearsCachedEntry seeds a cached remote listing plus a
+// staged local file, runs NotifyExternalDelete, and asserts both the tombstone
+// is set and the next listDirectory merge hides the path.
+func TestNotifyExternalDeleteClearsCachedEntry(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	// Simulate a file that was written via the mount and is pending writeback.
+	stagedPath := createTempFile(t, access.cacheRoot, "seed.txt", "hello")
+	access.cache.storeLocalFile("ghost.txt", stagedPath, s3ops.ObjectInfo{Size: 5})
+	// Also seed a cached directory listing that contains the file.
+	access.cache.storeList("", []s3ops.ObjectInfo{{Key: "ghost.txt", Size: 5}})
+
+	cfg := externalInvalidationConfig()
+	registerTestSession(t, cfg, "test-bucket", access)
+
+	NotifyExternalDelete(cfg, "test-bucket", "ghost.txt", false)
+
+	if !access.cache.isMarkedDeleted("ghost.txt") {
+		t.Fatal("expected NotifyExternalDelete to mark the path deleted")
+	}
+	merged := access.cache.mergeLocalFiles("", []s3ops.ObjectInfo{{Key: "ghost.txt", Size: 5}})
+	for _, item := range merged {
+		if item.Key == "ghost.txt" {
+			t.Fatalf("expected ghost.txt removed from merged listing, got %+v", merged)
+		}
+	}
+}
+
+// TestNotifyExternalDeleteOnNonMatchingSessionIsNoop verifies the callback is
+// never invoked when the config does not match an existing session.
+func TestNotifyExternalDeleteOnNonMatchingSessionIsNoop(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	stagedPath := createTempFile(t, access.cacheRoot, "seed.txt", "hello")
+	access.cache.storeLocalFile("ghost.txt", stagedPath, s3ops.ObjectInfo{Size: 5})
+
+	cfg := externalInvalidationConfig()
+	registerTestSession(t, cfg, "test-bucket", access)
+
+	// A different endpoint must not match the session.
+	other := cfg
+	other.Endpoint = "https://other.example.com"
+	NotifyExternalDelete(other, "test-bucket", "ghost.txt", false)
+
+	if access.cache.isMarkedDeleted("ghost.txt") {
+		t.Fatal("expected no tombstone when config does not match session")
+	}
+}
+
+// TestNotifyExternalDeleteWithMissingSessionIsNoop verifies the entry points do
+// not panic when no session is registered for the bucket at all.
+func TestNotifyExternalDeleteWithMissingSessionIsNoop(t *testing.T) {
+	t.Parallel()
+
+	cfg := externalInvalidationConfig()
+	// No session registered; must not panic and must be a no-op.
+	NotifyExternalDelete(cfg, "absent-bucket", "ghost.txt", false)
+	NotifyExternalUpload(cfg, "absent-bucket", "ghost.txt", false)
+	NotifyExternalRename(cfg, "absent-bucket", "old.txt", "new.txt", false)
+}
+
+// TestNotifyExternalUploadInvalidatesStaleListing seeds a stale cached listing
+// and a tombstone, then verifies NotifyExternalUpload clears both so a refresh
+// can surface the new object.
+func TestNotifyExternalUploadInvalidatesStaleListing(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	// Pretend the object was previously deleted via the mount (tombstone set),
+	// then re-uploaded out-of-band: the tombstone must be cleared.
+	access.cache.markDeleted("docs/report.txt", false)
+	// Seed a stale cached listing that does not yet contain the new file.
+	access.cache.storeList("docs", []s3ops.ObjectInfo{{Key: "docs/old.txt", Size: 1}})
+
+	cfg := externalInvalidationConfig()
+	registerTestSession(t, cfg, "test-bucket", access)
+
+	NotifyExternalUpload(cfg, "test-bucket", "docs/report.txt", false)
+
+	if access.cache.isMarkedDeleted("docs/report.txt") {
+		t.Fatal("expected NotifyExternalUpload to clear the stale delete tombstone")
+	}
+	if _, ok := access.cache.cachedList("docs"); ok {
+		t.Fatal("expected NotifyExternalUpload to drop the stale docs listing cache")
+	}
+}
+
+// TestNotifyExternalRenameMovesEntry verifies the combined delete+upload
+// invalidation: the old path is tombstoned and the new path's stale state is
+// cleared.
+func TestNotifyExternalRenameMovesEntry(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	access.cache.markDeleted("moved/destination.txt", false)
+	access.cache.storeList("", []s3ops.ObjectInfo{{Key: "source.txt", Size: 3}})
+
+	cfg := externalInvalidationConfig()
+	registerTestSession(t, cfg, "test-bucket", access)
+
+	NotifyExternalRename(cfg, "test-bucket", "source.txt", "moved/destination.txt", false)
+
+	if !access.cache.isMarkedDeleted("source.txt") {
+		t.Fatal("expected source path to be marked deleted after rename")
+	}
+	if access.cache.isMarkedDeleted("moved/destination.txt") {
+		t.Fatal("expected destination tombstone to be cleared after rename")
+	}
+}
+
+// TestNotifyExternalUploadAllowsImmediateReList confirms that after an external
+// upload invalidation, a listDirectory fetch surfaces the new remote entry
+// because the listing cache was dropped.
+func TestNotifyExternalUploadAllowsImmediateReList(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	// Seed a stale listing that omits the freshly uploaded file.
+	access.cache.storeList("", []s3ops.ObjectInfo{{Key: "old.txt", Size: 1}})
+
+	cfg := externalInvalidationConfig()
+	registerTestSession(t, cfg, "test-bucket", access)
+
+	NotifyExternalUpload(cfg, "test-bucket", "new.txt", false)
+
+	items, err := access.listDirectory(context.Background(), "")
+	if err != nil {
+		t.Fatalf("listDirectory: %v", err)
+	}
+	// The test backend returns an empty page, so after invalidation the stale
+	// old.txt entry must be gone — proving the cache was dropped.
+	for _, item := range items {
+		if item.Key == "old.txt" {
+			t.Fatalf("expected stale old.txt to be absent after upload invalidation, got %+v", items)
+		}
+	}
+	// Sanity: the TTL-backed cache should have been repopulated empty.
+	if refreshed, ok := access.cache.cachedList(""); !ok || len(refreshed) != 0 {
+		t.Fatalf("expected empty refreshed root listing, got ok=%t items=%+v", ok, refreshed)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	storageconfig "remote-storage/go/config"
 	bucketmount "remote-storage/go/mount"
@@ -269,6 +270,9 @@ func createDirectory(args json.RawMessage) (any, error) {
 	); err != nil {
 		return nil, err
 	}
+	// Sync mount caches so the new directory is visible without a TTL wait.
+	newDir := joinChildPath(input.Prefix, input.Name)
+	bucketmount.NotifyExternalUpload(input.Config, input.Bucket, newDir, true)
 	return map[string]any{"ok": true}, nil
 }
 
@@ -286,6 +290,9 @@ func deleteObject(args json.RawMessage) (any, error) {
 	); err != nil {
 		return nil, err
 	}
+	// Sync mounted session caches so the mount point and file manager both drop
+	// the entry immediately instead of serving a stale listCache/localEntries view.
+	bucketmount.NotifyExternalDelete(input.Config, input.Bucket, input.Key, input.IsDirectory)
 	return map[string]any{"ok": true}, nil
 }
 
@@ -303,6 +310,9 @@ func renameObject(args json.RawMessage) (any, error) {
 	); err != nil {
 		return nil, err
 	}
+	// Keep mount caches in sync: the old path is gone and the new path now exists.
+	newPath := joinChildPath(parentDirectoryOf(input.Key), input.NewName)
+	bucketmount.NotifyExternalRename(input.Config, input.Bucket, input.Key, newPath, input.IsDirectory)
 	return map[string]any{"ok": true}, nil
 }
 
@@ -320,6 +330,8 @@ func uploadFile(args json.RawMessage) (any, error) {
 	); err != nil {
 		return nil, err
 	}
+	// Sync mount caches so the uploaded object is visible without a TTL wait.
+	bucketmount.NotifyExternalUpload(input.Config, input.Bucket, input.Key, false)
 	return map[string]any{"ok": true}, nil
 }
 
@@ -338,7 +350,13 @@ func uploadDirectory(args json.RawMessage) (any, error) {
 			input.LocalPath,
 			input.TaskID,
 		)
+		// Directory upload is asynchronous; invalidate the target directory and its
+		// parent listing once the bulk upload finishes so the mount view catches up.
+		bucketmount.NotifyExternalUpload(input.Config, input.Bucket, input.Key, true)
 	}()
+	// Pre-invalidate the parent so the new directory appears on a manual refresh
+	// even while the upload is still streaming.
+	bucketmount.NotifyExternalUpload(input.Config, input.Bucket, parentDirectoryOf(input.Key), false)
 	return map[string]any{"ok": true}, nil
 }
 
@@ -386,4 +404,31 @@ func triggerTransfer(args json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("missing transfer task id")
 	}
 	return map[string]any{"ok": bucketmount.TriggerQueuedTransfer(input.TaskID)}, nil
+}
+
+// parentDirectoryOf returns the prefix portion of a slash-joined object key,
+// e.g. "photos/a.jpg" -> "photos". Used when computing the parent path of an
+// out-of-mount mutation target so its listing cache can be invalidated.
+func parentDirectoryOf(key string) string {
+	trimmed := strings.Trim(strings.TrimSpace(key), "/")
+	idx := strings.LastIndex(trimmed, "/")
+	if idx < 0 {
+		return ""
+	}
+	return trimmed[:idx]
+}
+
+// joinChildPath joins a parent prefix with a single relative name (the new name
+// for a rename), mirroring how the mount layer composes virtual paths.
+func joinChildPath(parent, name string) string {
+	cleanParent := strings.Trim(strings.TrimSpace(parent), "/")
+	cleanName := strings.Trim(strings.TrimSpace(name), "/")
+	switch {
+	case cleanParent == "":
+		return cleanName
+	case cleanName == "":
+		return cleanParent
+	default:
+		return cleanParent + "/" + cleanName
+	}
 }

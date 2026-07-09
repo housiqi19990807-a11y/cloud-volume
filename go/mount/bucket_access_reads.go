@@ -227,3 +227,30 @@ func (a *bucketAccess) readRemoteRange(
 func (a *bucketAccess) InvalidateListCache(prefix string) {
 	a.cache.invalidateListCache(prefix)
 }
+
+// MarkExternalDelete records that an out-of-mount caller deleted the given
+// virtual path. It reuses the same tombstone + local-staging cleanup that a
+// mount-side delete performs, then also drops the object metadata cache so a
+// subsequent stat/list cannot resurrect the removed entry.
+func (a *bucketAccess) MarkExternalDelete(virtualPath string, isDir bool) {
+	a.cache.markDeleted(virtualPath, isDir)
+	a.cache.invalidatePath(virtualPath)
+}
+
+// InvalidateExternalUpload records that an out-of-mount caller created or
+// overwrote the given virtual path (upload/copy/create directory). It clears
+// any stale local staging entries and tombstones for the path and invalidates
+// the path plus its parent listings so the new entry becomes visible on the
+// next read without waiting for the list TTL.
+func (a *bucketAccess) InvalidateExternalUpload(virtualPath string, isDir bool) {
+	a.cache.removeLocalPath(virtualPath, isDir)
+	a.cache.invalidatePath(virtualPath)
+	a.cache.invalidatePath(parentVirtualPrefix(virtualPath))
+}
+
+// InvalidateExternalRename covers rename/move: the source path is treated as
+// deleted while the destination is treated as freshly uploaded.
+func (a *bucketAccess) InvalidateExternalRename(oldPath, newPath string, isDir bool) {
+	a.MarkExternalDelete(oldPath, isDir)
+	a.InvalidateExternalUpload(newPath, isDir)
+}

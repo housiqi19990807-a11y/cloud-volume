@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	storageconfig "remote-storage/go/config"
+	bucketmount "remote-storage/go/mount"
 	storageops "remote-storage/go/storage"
 )
 
@@ -33,6 +34,8 @@ func copyObject(args json.RawMessage) (any, error) {
 	); err != nil {
 		return nil, err
 	}
+	// Sync mount caches so the new copy at the target key becomes visible.
+	bucketmount.NotifyExternalUpload(input.Config, input.Bucket, input.TargetKey, input.IsDirectory)
 	return map[string]any{"ok": true}, nil
 }
 
@@ -51,5 +54,7 @@ func moveObject(args json.RawMessage) (any, error) {
 	); err != nil {
 		return nil, err
 	}
+	// Sync mount caches: source disappears and target appears.
+	bucketmount.NotifyExternalRename(input.Config, input.Bucket, input.SourceKey, input.TargetKey, input.IsDirectory)
 	return map[string]any{"ok": true}, nil
 }

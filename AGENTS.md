@@ -258,6 +258,31 @@ Shared upload/download queue backing both manual file operations and sync-genera
 - `lib/state/transfer_queue_*.dart` — Split concerns: metrics, sync, local progress, foreground, storage, directory children.
 - `lib/pages/transfers_page.dart` — Transfers page showing the full queue.
 
+### Feature: Mount Cache Sync from External Mutations (挂载缓存外部失效)
+
+文件管理界面的删除/重命名/移动/复制/建目录/上传通过 bridge/webapi 直接改远端对象，绕过 `go/mount`。为了让挂载点（Finder/WebDAV/FUSE）和文件管理列表不显示幽灵文件、不卡"删除中"，所有外部 mutation 在成功后必须同步失效挂载 session 的 `bucketCache`。
+
+#### Key files
+
+- `go/mount/external_invalidation.go` — 导出 API `NotifyExternalDelete`/`NotifyExternalUpload`/`NotifyExternalRename`，委托 `globalManager.notifyExternalMutation(cfg, bucket, callback)`。session 不存在或 cfg 不匹配时 callback 不执行，无挂载场景零开销。
+- `go/mount/bucket_access_reads.go` — `bucketAccess.MarkExternalDelete`（`markDeleted` + `invalidatePath`，放 tombstone）、`InvalidateExternalUpload`（`removeLocalPath` + `invalidatePath` + 父目录，清 tombstone/staging）、`InvalidateExternalRename`（= delete old + upload new）。
+- `bridge/dispatch.go` — `deleteObject`/`renameObject`/`createDirectory`/`uploadFile`/`uploadDirectory` 成功分支调 `bucketmount.NotifyExternal*`；`parentDirectoryOf`/`joinChildPath` 辅助计算路径。
+- `bridge/dispatch_object_transfer.go` — `copyObject` 调 `NotifyExternalUpload(TargetKey)`；`moveObject` 调 `NotifyExternalRename(SourceKey, TargetKey)`。
+- `go/webapi/invoke.go` — webapi 同名 mutation 同步接入（`delete_object`/`rename_object`/`copy_object`/`move_object`/`create_directory`），仅在 `err == nil` 时调用。
+- `go/mount/external_invalidation_test.go` — 覆盖 delete/upload/rename 对 `listCache`/`objectCache`/`localEntries`/`deletedPaths` 的失效，以及 cfg 不匹配/无 session 时的 no-op。
+
+#### Gotchas
+
+- `InvalidateListCacheForPrefix`（仅清 `listCache`）不足以反映外部变更——`mergeLocalFiles` 会用过期 `localEntries` 把幽灵重新塞回列表，`hiddenByDeleteLocked` 也会用过期 tombstone 隐藏本应显示的对象。外部 mutation 必须用 `NotifyExternal*` 这组完整语义（同时清 `objectCache`/`localFiles`/`localEntries`/`deletedPaths`）。
+- `_deletingObjectKeys.removeWhere((key) => !visibleKeys.contains(key))` 依赖刷新后的列表不再含被删 key。只有挂载缓存被正确失效后，`ListMountedObjectPage` 才会重新 `fetchDirectory` 拿到不含该 key 的列表，从而清掉"删除中"标记。
+- `uploadDirectory` 是 `go func()` 异步：启动时先 `NotifyExternalUpload(parentDirectoryOf(Key))` 让父目录可见，goroutine 完成后再 `NotifyExternalUpload(Key, isDir=true)` 刷新目录内容。
+
+#### Data flow
+
+1. 界面操作 → bridge `delete_object` 等 → `storageops.ForConfig(cfg).XxxObject(...)` 改远端。
+2. 成功后 bridge 调 `bucketmount.NotifyExternal*(cfg, bucket, path, isDir)` → `globalManager.notifyExternalMutation` → 匹配 session → `bucketAccess.MarkExternalDelete/InvalidateExternalUpload/InvalidateExternalRename`。
+3. 下一次 `list_object_page(forceRefresh)` 或挂载点 `listDirectory` 重新 `fetchDirectory`，列表不含被删 key → 界面清"删除中"标记、挂载点幽灵消失。
+
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)
 
 点击/双击文件打开走的是 `FileAccessService._ensureCachedObjectRequest`：`headObject` 拿远端 size/mtime → `FileCacheStore.findUsableCachePath` 通过 `RemoteStorageGateway.findCacheIndexRecord` 调 Go bridge 查询 bbolt 缓存索引 → 命中则直接用缓存文件，未命中则建 `download` 任务拉到 `<cacheDir>/files/<bucket>/<key>` 并写缓存记录。缓存命中的硬约束：记录的 `localPath` 必须 `_isInsideRoot` 缓存目录内，且 size/mtime 与远端匹配（`_matchesRemoteObject`）。

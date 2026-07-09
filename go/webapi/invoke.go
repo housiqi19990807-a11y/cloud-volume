@@ -198,6 +198,11 @@ func (s *Server) invokeMethod(
 		return result, http.StatusOK, err
 	case "create_directory":
 		err := storageops.ForConfig(config).CreateDirectory(ctx, input.Bucket, input.Prefix, input.Name)
+		if err == nil {
+			// Keep mounted session caches in sync with the out-of-mount mutation.
+			newDir := joinWebapiChildPath(input.Prefix, input.Name)
+			bucketmount.NotifyExternalUpload(config, input.Bucket, newDir, true)
+		}
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "delete_object":
 		err := storageops.ForConfig(config).DeleteObject(
@@ -207,6 +212,9 @@ func (s *Server) invokeMethod(
 			input.IsDirectory,
 			input.TaskID,
 		)
+		if err == nil {
+			bucketmount.NotifyExternalDelete(config, input.Bucket, input.Key, input.IsDirectory)
+		}
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "rename_object":
 		err := storageops.ForConfig(config).RenameObject(
@@ -216,6 +224,10 @@ func (s *Server) invokeMethod(
 			input.IsDirectory,
 			input.NewName,
 		)
+		if err == nil {
+			newPath := joinWebapiChildPath(webapiParentDirectoryOf(input.Key), input.NewName)
+			bucketmount.NotifyExternalRename(config, input.Bucket, input.Key, newPath, input.IsDirectory)
+		}
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "copy_object":
 		err := storageops.ForConfig(config).CopyObject(
@@ -226,6 +238,9 @@ func (s *Server) invokeMethod(
 			input.IsDirectory,
 			input.TaskID,
 		)
+		if err == nil {
+			bucketmount.NotifyExternalUpload(config, input.Bucket, input.TargetKey, input.IsDirectory)
+		}
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "move_object":
 		err := storageops.ForConfig(config).MoveObject(
@@ -236,6 +251,9 @@ func (s *Server) invokeMethod(
 			input.IsDirectory,
 			input.TaskID,
 		)
+		if err == nil {
+			bucketmount.NotifyExternalRename(config, input.Bucket, input.SourceKey, input.TargetKey, input.IsDirectory)
+		}
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "list_trash_page":
 		result, err := storageops.ForConfig(config).ListTrashPage(
@@ -379,4 +397,30 @@ func decodeBody(body io.ReadCloser, target any) error {
 		return fmt.Errorf("invalid request payload")
 	}
 	return nil
+}
+
+// webapiParentDirectoryOf returns the prefix portion of a slash-joined object
+// key, used when computing the parent path of an out-of-mount mutation target.
+func webapiParentDirectoryOf(key string) string {
+	trimmed := strings.Trim(strings.TrimSpace(key), "/")
+	idx := strings.LastIndex(trimmed, "/")
+	if idx < 0 {
+		return ""
+	}
+	return trimmed[:idx]
+}
+
+// joinWebapiChildPath joins a parent prefix with a single relative name,
+// mirroring how the mount layer composes virtual paths for rename targets.
+func joinWebapiChildPath(parent, name string) string {
+	cleanParent := strings.Trim(strings.TrimSpace(parent), "/")
+	cleanName := strings.Trim(strings.TrimSpace(name), "/")
+	switch {
+	case cleanParent == "":
+		return cleanName
+	case cleanName == "":
+		return cleanParent
+	default:
+		return cleanParent + "/" + cleanName
+	}
 }
