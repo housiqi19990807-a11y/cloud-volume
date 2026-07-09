@@ -49,6 +49,26 @@ func main() {
 		fail("更新包不存在", err)
 	}
 
+	// If the install directory is under Program Files or otherwise restricted,
+	// the updater needs admin rights to overwrite files. Detect this by testing
+	// writability of the install dir; if not writable and not already elevated,
+	// re-launch ourselves with the "runas" verb (UAC prompt) and exit.
+	if !isElevated() {
+		testFile := filepath.Join(*installDir, ".yunjuan-update-test")
+		if f, err := os.Create(testFile); err != nil {
+			logf("install dir not writable, relaunching elevated: %v", err)
+			if relaunchElevated(*zipPath, *installDir, *oldPID, *exeName) {
+				logf("elevated relaunch initiated, exiting current process")
+				os.Exit(0)
+			}
+			logf("ERROR: elevated relaunch failed")
+			fail("需要管理员权限来更新，请允许 UAC 提示", nil)
+		} else {
+			f.Close()
+			os.Remove(testFile)
+		}
+	}
+
 	// Run the update with a Win32 progress window on Windows; on other
 	// platforms just run headless (the updater is Windows-only in practice).
 	if runtime.GOOS == "windows" {

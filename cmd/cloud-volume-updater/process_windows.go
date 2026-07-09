@@ -2,11 +2,20 @@
 // Windows-specific process and file-lock helpers for the standalone updater.
 package main
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
 	"time"
+	"unsafe"
+)
+
+var (
+	procGetTokenInformation = advapi32.NewProc("GetTokenInformation")
+	procShellExecute        = shell32.NewProc("ShellExecuteW")
+	advapi32                = syscall.NewLazyDLL("advapi32.dll")
+	shell32                 = syscall.NewLazyDLL("shell32.dll")
 )
 // waitForProcess blocks until the process with the given PID exits or the
 // timeout elapses.  On Windows we open a handle with SYNCHRONIZE and wait.
@@ -131,4 +140,52 @@ func isFileWritable(path string) bool {
 	}
 	syscall.CloseHandle(h)
 	return true
+}
+
+// isElevated returns true when the current process has an admin token.
+func isElevated() bool {
+	var token syscall.Token
+	h, err := syscall.GetCurrentProcess()
+	if err != nil {
+		return false
+	}
+	defer syscall.CloseHandle(h)
+	if err := syscall.OpenProcessToken(h, syscall.TOKEN_QUERY, &token); err != nil {
+		return false
+	}
+	defer token.Close()
+	var elevated uint32
+	var returned uint32
+	size := uint32(unsafe.Sizeof(elevated))
+	ret, _, _ := procGetTokenInformation.Call(
+		uintptr(token),
+		20, // TokenElevation
+		uintptr(unsafe.Pointer(&elevated)),
+		uintptr(size),
+		uintptr(unsafe.Pointer(&returned)),
+	)
+	return ret != 0 && elevated != 0
+}
+
+// relaunchElevated re-launches the updater with the same args via ShellExecuteW
+// using the "runas" verb (triggers UAC). Returns true if re-launch started.
+func relaunchElevated(zipPath, installDir string, oldPID int, exeName string) bool {
+	self, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	params := fmt.Sprintf(`-zip "%s" -install-dir "%s" -pid %d -exe-name "%s"`,
+		zipPath, installDir, oldPID, exeName)
+	op, _ := syscall.UTF16PtrFromString("runas")
+	file, _ := syscall.UTF16PtrFromString(self)
+	paramsW, _ := syscall.UTF16PtrFromString(params)
+	ret, _, _ := procShellExecute.Call(
+		0,
+		uintptr(unsafe.Pointer(op)),
+		uintptr(unsafe.Pointer(file)),
+		uintptr(unsafe.Pointer(paramsW)),
+		0,
+		1, // SW_SHOWNORMAL
+	)
+	return int(ret) > 32
 }

@@ -23,3 +23,10 @@ func waitForNewApp(exePath string, oldPID int, timeout time.Duration) int {
 	time.Sleep(time.Second)
 	return 0
 }
+
+// Stubs for non-Windows so the updater cross-compiles.
+func isElevated() bool { return true }
+
+func relaunchElevated(zipPath, installDir string, oldPID int, exeName string) bool {
+	return false
+}
