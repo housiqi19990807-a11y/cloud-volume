@@ -1,4 +1,4 @@
-// 文件管理操作栏：集中展示搜索和常用对象操作。
+// 文件管理操作栏：搜索改为悬浮弹出式，常用对象操作平铺在右侧。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -49,47 +49,35 @@ class FileManagerActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        if (searchController != null) ...[
-          SizedBox(
-            width: 320,
-            child: ShadInput(
-              controller: searchController,
-              enabled: searchEnabled,
-              placeholder: Text(searchPlaceholder),
-            ),
-          ),
-          const SizedBox(width: 12),
-        ],
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              reverse: true,
-              child: _ActionButtons(
-                theme: theme,
-                isGrid: isGrid,
-                onToggleView: onToggleView,
-                selectedCount: selectedCount,
-                batchDownloadEnabled: batchDownloadEnabled,
-                showingTrash: showingTrash,
-                onCreateDirectory: onCreateDirectory,
-                onUpload: onUpload,
-                onOpenTrash: onOpenTrash,
-                onCloseTrash: onCloseTrash,
-                onClearTrash: onClearTrash,
-                trashOpenLabel: trashOpenLabel,
-                trashCloseLabel: trashCloseLabel,
-                onBatchDownload: onBatchDownload,
-                onBatchDelete: onBatchDelete,
-                onClearSelection: onClearSelection,
-              ),
-            ),
-          ),
+    // 搜索不再是内联输入框，而是右侧操作区里的搜索图标按钮（弹出悬浮框），
+    // 避免固定 320px 搜索框在窄窗口挤压操作按钮。
+    return Align(
+      alignment: Alignment.centerRight,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        reverse: true,
+        child: _ActionButtons(
+          theme: theme,
+          isGrid: isGrid,
+          onToggleView: onToggleView,
+          searchController: searchController,
+          searchPlaceholder: searchPlaceholder,
+          searchEnabled: searchEnabled,
+          selectedCount: selectedCount,
+          batchDownloadEnabled: batchDownloadEnabled,
+          showingTrash: showingTrash,
+          onCreateDirectory: onCreateDirectory,
+          onUpload: onUpload,
+          onOpenTrash: onOpenTrash,
+          onCloseTrash: onCloseTrash,
+          onClearTrash: onClearTrash,
+          trashOpenLabel: trashOpenLabel,
+          trashCloseLabel: trashCloseLabel,
+          onBatchDownload: onBatchDownload,
+          onBatchDelete: onBatchDelete,
+          onClearSelection: onClearSelection,
         ),
-      ],
+      ),
     );
   }
 }
@@ -99,6 +87,9 @@ class _ActionButtons extends StatelessWidget {
     required this.theme,
     required this.isGrid,
     required this.onToggleView,
+    required this.searchController,
+    required this.searchPlaceholder,
+    required this.searchEnabled,
     required this.selectedCount,
     required this.batchDownloadEnabled,
     required this.showingTrash,
@@ -117,6 +108,9 @@ class _ActionButtons extends StatelessWidget {
   final ShadThemeData theme;
   final bool isGrid;
   final VoidCallback onToggleView;
+  final TextEditingController? searchController;
+  final String searchPlaceholder;
+  final bool searchEnabled;
   final int selectedCount;
   final bool batchDownloadEnabled;
   final bool showingTrash;
@@ -163,6 +157,15 @@ class _ActionButtons extends StatelessWidget {
             onPressed: onClearSelection,
           ),
         ] else ...[
+          if (searchController != null) ...[
+            _SearchPopoverButton(
+              theme: theme,
+              searchController: searchController!,
+              placeholder: searchPlaceholder,
+              enabled: searchEnabled,
+            ),
+            const SizedBox(width: 6),
+          ],
           _iconButton(
             icon: isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
             color: primary,
@@ -257,6 +260,114 @@ class _ActionButtons extends StatelessWidget {
           const SizedBox(width: 5),
           Text(label),
         ],
+      ),
+    );
+  }
+}
+
+/// 搜索按钮：点击弹出悬浮搜索框，绑定外部 [searchController] 做即时过滤。
+/// 有搜索词时图标高亮（primary 色），无内容时用默认前景色。
+class _SearchPopoverButton extends StatefulWidget {
+  const _SearchPopoverButton({
+    required this.theme,
+    required this.searchController,
+    required this.placeholder,
+    required this.enabled,
+  });
+
+  final ShadThemeData theme;
+  final TextEditingController searchController;
+  final String placeholder;
+  final bool enabled;
+
+  @override
+  State<_SearchPopoverButton> createState() => _SearchPopoverButtonState();
+}
+
+class _SearchPopoverButtonState extends State<_SearchPopoverButton> {
+  late final ShadPopoverController _controller;
+  late final FocusNode _focusNode;
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ShadPopoverController();
+    _focusNode = FocusNode();
+    _hasText = widget.searchController.text.isNotEmpty;
+    widget.searchController.addListener(_onSearchChanged);
+    // popover 打开时把焦点放到搜索框，关闭时清空焦点。
+    _controller.addListener(_onPopoverChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.searchController.removeListener(_onSearchChanged);
+    _controller.removeListener(_onPopoverChanged);
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final has = widget.searchController.text.isNotEmpty;
+    if (has != _hasText) {
+      setState(() => _hasText = has);
+    }
+  }
+
+  void _onPopoverChanged() {
+    if (_controller.isOpen) {
+      // 等一帧让 popover 内容渲染完，再抢焦点。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNode.requestFocus();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final iconColor = _hasText
+        ? theme.colorScheme.primary
+        : theme.colorScheme.foreground;
+    return ShadPopover(
+      controller: _controller,
+      closeOnTapOutside: true,
+      reverseDuration: Duration.zero,
+      popover: (context) => _buildSearchField(theme),
+      child: ShadButton.ghost(
+        size: ShadButtonSize.sm,
+        onPressed: widget.enabled
+            ? () => _controller.isOpen ? _controller.hide() : _controller.show()
+            : null,
+        child: Icon(LucideIcons.search, size: 14, color: iconColor),
+      ),
+    );
+  }
+
+  Widget _buildSearchField(ShadThemeData theme) {
+    return SizedBox(
+      width: 280,
+      child: ShadInput(
+        controller: widget.searchController,
+        focusNode: _focusNode,
+        enabled: widget.enabled,
+        placeholder: Text(widget.placeholder),
+        trailing: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: widget.searchController,
+          builder: (context, value, _) {
+            if (value.text.isEmpty) return const SizedBox.shrink();
+            return GestureDetector(
+              onTap: () => widget.searchController.clear(),
+              child: Icon(
+                LucideIcons.x,
+                size: 14,
+                color: theme.colorScheme.mutedForeground,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
