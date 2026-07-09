@@ -331,6 +331,8 @@ class _SearchPopoverButtonState extends State<_SearchPopoverButton> {
       controller: _controller,
       closeOnTapOutside: true,
       reverseDuration: Duration.zero,
+      // 搜索框从按钮右侧弹出，而非下方，避免悬浮感太独立。
+      anchor: const ShadAnchor(offset: Offset(4, 0)),
       popover: (context) => _buildSearchField(theme),
       child: ShadButton.ghost(
         size: ShadButtonSize.sm,
