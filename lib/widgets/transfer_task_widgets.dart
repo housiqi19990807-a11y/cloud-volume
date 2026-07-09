@@ -344,6 +344,8 @@ class TransferTaskSelectionActions extends StatelessWidget {
           ),
       ],
       // 次操作：宽度不足时收进「…」菜单。
+      // 多选模式下不显示「清空已完成」——它属于非多选操作，多选时显示会与
+      // 批量操作挤在一起导致换行。
       secondary: [
         if (hasSelection)
           SecondaryAction(
@@ -372,7 +374,8 @@ class TransferTaskSelectionActions extends StatelessWidget {
               child: const Text('清空选择'),
             ),
           ),
-        if (finishedCount > 0)
+        // 仅在非多选模式下显示「清空已完成」。
+        if (!hasSelection && finishedCount > 0)
           SecondaryAction(
             label: '清空已完成',
             onPressed: runningBatchAction ? null : onClearFinished,
