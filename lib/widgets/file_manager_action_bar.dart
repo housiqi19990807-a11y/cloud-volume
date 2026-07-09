@@ -49,35 +49,46 @@ class FileManagerActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 搜索不再是内联输入框，而是右侧操作区里的搜索图标按钮（弹出悬浮框），
-    // 避免固定 320px 搜索框在窄窗口挤压操作按钮。
-    return Align(
-      alignment: Alignment.centerRight,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        reverse: true,
-        child: _ActionButtons(
-          theme: theme,
-          isGrid: isGrid,
-          onToggleView: onToggleView,
-          searchController: searchController,
-          searchPlaceholder: searchPlaceholder,
-          searchEnabled: searchEnabled,
-          selectedCount: selectedCount,
-          batchDownloadEnabled: batchDownloadEnabled,
-          showingTrash: showingTrash,
-          onCreateDirectory: onCreateDirectory,
-          onUpload: onUpload,
-          onOpenTrash: onOpenTrash,
-          onCloseTrash: onCloseTrash,
-          onClearTrash: onClearTrash,
-          trashOpenLabel: trashOpenLabel,
-          trashCloseLabel: trashCloseLabel,
-          onBatchDownload: onBatchDownload,
-          onBatchDelete: onBatchDelete,
-          onClearSelection: onClearSelection,
+    // 搜索按钮固定在最左侧（左操作区），功能按钮在右侧右对齐。
+    return Row(
+      children: [
+        if (searchController != null) ...[
+          _SearchPopoverButton(
+            theme: theme,
+            searchController: searchController!,
+            placeholder: searchPlaceholder,
+            enabled: searchEnabled,
+          ),
+          const SizedBox(width: 12),
+        ],
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: _ActionButtons(
+                theme: theme,
+                isGrid: isGrid,
+                onToggleView: onToggleView,
+                selectedCount: selectedCount,
+                batchDownloadEnabled: batchDownloadEnabled,
+                showingTrash: showingTrash,
+                onCreateDirectory: onCreateDirectory,
+                onUpload: onUpload,
+                onOpenTrash: onOpenTrash,
+                onCloseTrash: onCloseTrash,
+                onClearTrash: onClearTrash,
+                trashOpenLabel: trashOpenLabel,
+                trashCloseLabel: trashCloseLabel,
+                onBatchDownload: onBatchDownload,
+                onBatchDelete: onBatchDelete,
+                onClearSelection: onClearSelection,
+              ),
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -87,9 +98,6 @@ class _ActionButtons extends StatelessWidget {
     required this.theme,
     required this.isGrid,
     required this.onToggleView,
-    required this.searchController,
-    required this.searchPlaceholder,
-    required this.searchEnabled,
     required this.selectedCount,
     required this.batchDownloadEnabled,
     required this.showingTrash,
@@ -108,9 +116,6 @@ class _ActionButtons extends StatelessWidget {
   final ShadThemeData theme;
   final bool isGrid;
   final VoidCallback onToggleView;
-  final TextEditingController? searchController;
-  final String searchPlaceholder;
-  final bool searchEnabled;
   final int selectedCount;
   final bool batchDownloadEnabled;
   final bool showingTrash;
@@ -157,15 +162,6 @@ class _ActionButtons extends StatelessWidget {
             onPressed: onClearSelection,
           ),
         ] else ...[
-          if (searchController != null) ...[
-            _SearchPopoverButton(
-              theme: theme,
-              searchController: searchController!,
-              placeholder: searchPlaceholder,
-              enabled: searchEnabled,
-            ),
-            const SizedBox(width: 6),
-          ],
           _iconButton(
             icon: isGrid ? LucideIcons.list : LucideIcons.layoutGrid,
             color: primary,
