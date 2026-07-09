@@ -86,7 +86,13 @@ class _FileListTileState extends State<FileListTile> {
     );
 
     return MouseRegion(
-      cursor: interactive && _hovered
+      // Cursor is declared statically per interactivity instead of being driven
+      // by the _hovered state field. A state-driven cursor (click only while
+      // hovered) can get stuck on the pointing hand when the row is rebuilt or
+      // unmounted while hovered, because onExit may not fire — the field then
+      // stays true and the hand never clears. A constant cursor per row kind
+      // has no state to get stuck.
+      cursor: interactive
           ? SystemMouseCursors.click
           : SystemMouseCursors.basic,
       onEnter: interactive ? (_) => setState(() => _hovered = true) : null,

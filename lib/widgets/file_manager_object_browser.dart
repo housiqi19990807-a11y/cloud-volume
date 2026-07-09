@@ -1,4 +1,9 @@
 // 文件对象区：负责列表/网格渲染、非根目录的 ".." 返回项，以及对象交互分发。
+//
+// cursor 约定：本浏览器及外层绝不在文件行/网格项之外再包一层设
+// SystemMouseCursors.click 的 MouseRegion。行级 cursor 由 FileListTile /
+// FileGridItem 自身拥有（见 file_list_tile.dart 的 cursor 注释）。一旦外层也
+// 设 click，hover 离开行后整个浏览器区域都会停在手指状态。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/s3_objects.dart';
