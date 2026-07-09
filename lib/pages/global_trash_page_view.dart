@@ -40,27 +40,12 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '回收站',
-                    style: theme.textTheme.h3.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 22,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '集中管理已删除的文件与目录。',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.colorScheme.mutedForeground,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+              child: Text(
+                '回收站',
+                style: theme.textTheme.h3.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                ),
               ),
             ),
             const SizedBox(width: 16),

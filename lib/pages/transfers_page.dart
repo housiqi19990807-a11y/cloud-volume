@@ -277,27 +277,12 @@ class _TransfersPageState extends State<TransfersPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '任务队列',
-                    style: theme.textTheme.h3.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 22,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '查看上传、下载、复制、移动、删除，以及等待同步到远端的挂载写回任务。',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.colorScheme.mutedForeground,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+              child: Text(
+                '任务队列',
+                style: theme.textTheme.h3.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 22,
+                ),
               ),
             ),
             if (hasHeaderActions) ...[

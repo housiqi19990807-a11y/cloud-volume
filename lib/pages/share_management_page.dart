@@ -272,27 +272,12 @@ class _ShareManagementPageState extends State<ShareManagementPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '分享管理',
-                      style: theme.textTheme.h3.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 22,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '集中管理已经创建的分享记录，链接内容在详情中查看。',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.colorScheme.mutedForeground,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  '分享管理',
+                  style: theme.textTheme.h3.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 22,
+                  ),
                 ),
               ),
               const SizedBox(width: 16),

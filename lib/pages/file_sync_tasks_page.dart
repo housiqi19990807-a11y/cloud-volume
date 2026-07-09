@@ -87,27 +87,12 @@ class _FileSyncTasksPageState extends State<FileSyncTasksPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '文件同步任务',
-                        style: theme.textTheme.h3.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '管理同步配置与状态；进行中的同步操作在配置卡片内显示，完整任务请前往「传输」。',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: theme.colorScheme.mutedForeground,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    '文件同步任务',
+                    style: theme.textTheme.h3.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 22,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
