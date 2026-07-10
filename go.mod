@@ -10,11 +10,12 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/google/uuid v1.6.0
 	github.com/hanwen/go-fuse/v2 v2.10.1
-	github.com/lfhy/xpan v0.1.5
+	github.com/lfhy/xpan v0.1.6
 	github.com/minio/minio-go/v7 v7.0.95
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/peterh/liner v1.2.2
+	go.etcd.io/bbolt v1.4.2
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.45.0
@@ -44,7 +45,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
-	go.etcd.io/bbolt v1.4.2 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
