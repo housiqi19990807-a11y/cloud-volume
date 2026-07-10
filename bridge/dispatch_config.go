@@ -56,6 +56,15 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	if err != nil {
 		return storageconfig.BootstrapState{}, err
 	}
+	globalProxy, err := storageconfig.LoadGlobalProxy()
+	if err == nil {
+		publicConfig.ProxyMode = globalProxy.ProxyMode
+		publicConfig.ProxyType = globalProxy.ProxyType
+		publicConfig.ProxyHost = globalProxy.ProxyHost
+		publicConfig.ProxyPort = globalProxy.ProxyPort
+		publicConfig.ProxyUsername = globalProxy.ProxyUsername
+		publicConfig.ProxyPassword = globalProxy.ProxyPassword
+	}
 
 	return storageconfig.BootstrapState{
 		ConfigPath: "bbolt",
@@ -85,37 +94,32 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 	return loadBootstrapState()
 }
 
-// updateProxySettings patches ONLY the proxy fields on every existing profile
-// without touching any other config (endpoint, credentials, etc.). This avoids
-// the risk of overwriting account credentials when the user changes proxy
-// settings from the UI.
+// updateProxySettings saves the global proxy independently from account
+// profiles. Accounts with ProxyMode "inherit" automatically use these values;
+// explicit account modes (system/direct/custom) are unaffected.
 func updateProxySettings(args json.RawMessage) (bool, error) {
 	var input updateProxySettingsArgs
 	if err := decodeArgs(args, &input); err != nil {
 		return false, err
 	}
-	profiles, err := storageconfig.ListProfiles()
+	cfg := storageconfig.RemoteStorageConfig{
+		ProxyMode:     input.ProxyMode,
+		ProxyType:     input.ProxyType,
+		ProxyHost:     input.ProxyHost,
+		ProxyPort:     input.ProxyPort,
+		ProxyUsername: input.ProxyUsername,
+		ProxyPassword: input.ProxyPassword,
+	}
+	if err := storageconfig.SaveGlobalProxy(cfg); err != nil {
+		return false, err
+	}
+	// Apply the global proxy to the Baidu Pan SDK fallback client. Per-account
+	// clients are built independently by baiduPanHTTPClientForConfig.
+	globalCfg, err := storageconfig.LoadGlobalProxy()
 	if err != nil {
 		return false, err
 	}
-	for _, p := range profiles {
-		cfg, err := storageconfig.LoadProfile(p.Name)
-		if err != nil {
-			continue
-		}
-		cfg.ProxyMode = input.ProxyMode
-		cfg.ProxyType = input.ProxyType
-		cfg.ProxyHost = input.ProxyHost
-		cfg.ProxyPort = input.ProxyPort
-		cfg.ProxyUsername = input.ProxyUsername
-		cfg.ProxyPassword = input.ProxyPassword
-		if err := storageconfig.SaveProfile(p.Name, cfg); err != nil {
-			return false, err
-		}
-	}
-	// Apply proxy settings to the Baidu Pan SDK.
-	normCfg, _ := storageconfig.LoadProfile("default")
-	storageops.ApplyBaiduPanProxy(normCfg)
+	storageops.ApplyBaiduPanProxy(globalCfg)
 	return true, nil
 }
 
@@ -215,7 +219,7 @@ func openCacheDirectory(args json.RawMessage) (any, error) {
 func cleanCache(args json.RawMessage) (any, error) {
 	var input struct {
 		Config   storageconfig.RemoteStorageConfig `json:"config"`
-		ClearAll bool                               `json:"clearAll"`
+		ClearAll bool                              `json:"clearAll"`
 	}
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err

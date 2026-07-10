@@ -18,6 +18,26 @@ func durationFromSeconds(s int) time.Duration {
 	return time.Duration(s) * time.Second
 }
 
+// ResolveProxyConfig merges a per-account config with the global default.
+// When cfg.ProxyMode is "inherit" (or empty), the proxy fields from globalCfg
+// are used. Otherwise the per-account proxy fields take effect as-is.
+// This is the core resolver that makes "follow global" the default behaviour
+// for accounts that do not configure their own proxy.
+func ResolveProxyConfig(cfg, globalCfg RemoteStorageConfig) RemoteStorageConfig {
+	mode := strings.TrimSpace(cfg.ProxyMode)
+	if mode == ProxyModeInherit {
+		resolved := cfg
+		resolved.ProxyMode = globalCfg.ProxyMode
+		resolved.ProxyType = globalCfg.ProxyType
+		resolved.ProxyHost = globalCfg.ProxyHost
+		resolved.ProxyPort = globalCfg.ProxyPort
+		resolved.ProxyUsername = globalCfg.ProxyUsername
+		resolved.ProxyPassword = globalCfg.ProxyPassword
+		return resolved
+	}
+	return cfg
+}
+
 // ProxyTransport returns an http.RoundTripper honouring the ProxyMode setting.
 //
 //   - system: reads HTTP_PROXY / HTTPS_PROXY / NO_PROXY environment variables.

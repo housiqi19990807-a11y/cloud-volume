@@ -38,8 +38,10 @@ func init() {
 	xpanhttp.SetRateLimitEnabled(false)
 }
 
-// ApplyBaiduPanProxy replaces the SDK's HTTP client with one that uses the
-// configured proxy transport. Call after loading user config at runtime.
+// ApplyBaiduPanProxy replaces the SDK's global HTTP client with one that uses
+// the global proxy transport. Per-account proxy is handled per-Client via
+// baiduPanHTTPClientForConfig; this sets the fallback for code paths that have
+// not been migrated to per-Client usage.
 func ApplyBaiduPanProxy(cfg storageconfig.RemoteStorageConfig) {
 	xpanhttp.SetClient(newBaiduPanRetryHTTPClientWithClient(
 		storageconfig.ProxyHTTPClient(cfg, 0),
@@ -84,7 +86,16 @@ func withBaiduPanClient[T any](
 	state := baiduPanStateForConfig(cfg)
 	baiduPanSDKMu.Unlock()
 
-	client := baiduPanClientForState(state)
+	// Build a per-account HTTP client carrying its own proxy transport and
+	// credentials. For inherit-mode accounts this resolves to the global proxy.
+	httpClient := baiduPanHTTPClientForConfig(cfg, state)
+	client := xpanclient.NewWithClient(httpClient, &xpanauth.AuthEnv{
+		ClientId:     baiduPanClientID,
+		ClientSecret: baiduPanClientSecret,
+		AccessToken:  state.accessToken,
+		RefreshToken: state.refreshToken,
+	})
+
 	result, err := fn(client)
 	if err == nil || !shouldRefreshBaiduPanToken(err) || state.refreshToken == "" {
 		return result, err
@@ -98,7 +109,16 @@ func withBaiduPanClient[T any](
 	rememberBaiduPanState(baiduPanSessionKeys(cfg, state), refreshed)
 	persistBaiduPanState(cfg, refreshed)
 	baiduPanSDKMu.Unlock()
-	return fn(baiduPanClientForState(refreshed))
+
+	// Rebuild client with refreshed token.
+	refreshedHTTPClient := baiduPanHTTPClientForConfig(cfg, refreshed)
+	refreshedClient := xpanclient.NewWithClient(refreshedHTTPClient, &xpanauth.AuthEnv{
+		ClientId:     baiduPanClientID,
+		ClientSecret: baiduPanClientSecret,
+		AccessToken:  refreshed.accessToken,
+		RefreshToken: refreshed.refreshToken,
+	})
+	return fn(refreshedClient)
 }
 
 func baiduPanStateForConfig(cfg storageconfig.RemoteStorageConfig) baiduPanAuthState {
@@ -129,6 +149,26 @@ func baiduPanClientForState(state baiduPanAuthState) *xpanclient.Client {
 		AccessToken:  state.accessToken,
 		RefreshToken: state.refreshToken,
 	})
+}
+
+// baiduPanHTTPClientForConfig builds a per-account retry+proxy HTTP client.
+// The proxy is resolved through ResolveProxyConfig so accounts with
+// ProxyModeInherit fall back to the global proxy.
+func baiduPanHTTPClientForConfig(cfg storageconfig.RemoteStorageConfig, state baiduPanAuthState) *baiduPanRetryHTTPClient {
+	globalProxy, err := storageconfig.LoadGlobalProxy()
+	if err == nil {
+		cfg = storageconfig.ResolveProxyConfig(cfg, globalProxy)
+	}
+	creds := &xpantypes.Credentials{
+		ClientId:     baiduPanClientID,
+		ClientSecret: baiduPanClientSecret,
+		AccessToken:  state.accessToken,
+		RefreshToken: state.refreshToken,
+	}
+	return newBaiduPanRetryHTTPClientWithCreds(
+		storageconfig.ProxyHTTPClient(cfg, 0),
+		creds,
+	)
 }
 
 func refreshBaiduPanStateLocked(

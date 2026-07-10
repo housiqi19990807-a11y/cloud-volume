@@ -67,6 +67,10 @@ func SupportsMountPrefetch(backend Backend) bool {
 }
 
 func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {
+	globalProxy, err := storageconfig.LoadGlobalProxy()
+	if err == nil {
+		cfg = storageconfig.ResolveProxyConfig(cfg, globalProxy)
+	}
 	normalized := cfg.Normalized()
 	if normalized.StorageType == storageconfig.StorageTypeWebDAV {
 		return NewWebDAVBackend(normalized)

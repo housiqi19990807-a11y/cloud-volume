@@ -41,11 +41,11 @@ type RemoteStorageConfig struct {
 
 	// Global proxy settings apply to all outbound HTTP/S3/WebDAV traffic.
 	ProxyMode     string `json:"proxyMode" toml:"proxy_mode"`         // "system" (default), "direct", "custom"
-	ProxyType     string `json:"proxyType" toml:"proxy_type"`           // "http" or "socks5"
-	ProxyHost     string `json:"proxyHost" toml:"proxy_host"`           // e.g. "127.0.0.1"
-	ProxyPort     string `json:"proxyPort" toml:"proxy_port"`           // e.g. "7890"
-	ProxyUsername string `json:"proxyUsername" toml:"proxy_username"`   // optional auth
-	ProxyPassword string `json:"proxyPassword" toml:"proxy_password"`   // optional auth
+	ProxyType     string `json:"proxyType" toml:"proxy_type"`         // "http" or "socks5"
+	ProxyHost     string `json:"proxyHost" toml:"proxy_host"`         // e.g. "127.0.0.1"
+	ProxyPort     string `json:"proxyPort" toml:"proxy_port"`         // e.g. "7890"
+	ProxyUsername string `json:"proxyUsername" toml:"proxy_username"` // optional auth
+	ProxyPassword string `json:"proxyPassword" toml:"proxy_password"` // optional auth
 }
 
 type BucketSettings struct {
@@ -71,9 +71,10 @@ const (
 	maxCacheMaxSizeMB                  = 8 * 1024 * 1024 // 8 TiB upper bound keeps the field sane while still allowing large tiers
 	maxCacheMaxAgeDays                 = 3650
 
-	ProxyModeSystem = "system" // follow system environment variables (HTTP_PROXY etc.)
-	ProxyModeDirect = "direct" // no proxy, ignore all environment variables
-	ProxyModeCustom = "custom" // use the user-supplied proxy settings
+	ProxyModeSystem  = "system"  // follow system environment variables (HTTP_PROXY etc.)
+	ProxyModeDirect  = "direct"  // no proxy, ignore all environment variables
+	ProxyModeCustom  = "custom"  // use the user-supplied proxy settings
+	ProxyModeInherit = "inherit" // defer to the global / default proxy config
 
 	ProxyTypeHTTP   = "http"
 	ProxyTypeSocks5 = "socks5"
@@ -104,7 +105,7 @@ func DefaultConfig() RemoteStorageConfig {
 		CacheAutoCleanupEnabled:     false,
 		CacheMaxSizeMB:              0,
 		CacheMaxAgeDays:             0,
-		ProxyMode:                   ProxyModeSystem,
+		ProxyMode:                   ProxyModeInherit,
 		ProxyType:                   ProxyTypeHTTP,
 	}
 }
@@ -141,12 +142,12 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		CacheAutoCleanupEnabled:     c.CacheAutoCleanupEnabled,
 		CacheMaxSizeMB:              normalizeCacheMaxSizeMB(c.CacheMaxSizeMB),
 		CacheMaxAgeDays:             normalizeCacheMaxAgeDays(c.CacheMaxAgeDays),
-		ProxyMode:                    normalizeProxyMode(c.ProxyMode),
-		ProxyType:                    normalizeProxyType(c.ProxyType),
-		ProxyHost:                    strings.TrimSpace(c.ProxyHost),
-		ProxyPort:                    strings.TrimSpace(c.ProxyPort),
-		ProxyUsername:                strings.TrimSpace(c.ProxyUsername),
-		ProxyPassword:                c.ProxyPassword,
+		ProxyMode:                   normalizeProxyMode(c.ProxyMode),
+		ProxyType:                   normalizeProxyType(c.ProxyType),
+		ProxyHost:                   strings.TrimSpace(c.ProxyHost),
+		ProxyPort:                   strings.TrimSpace(c.ProxyPort),
+		ProxyUsername:               strings.TrimSpace(c.ProxyUsername),
+		ProxyPassword:               c.ProxyPassword,
 	}
 }
 
@@ -466,7 +467,7 @@ func normalizeCacheMaxAgeDays(value int) int {
 // normalizeProxyMode validates the proxy mode field, defaulting to system.
 func normalizeProxyMode(mode string) string {
 	switch strings.TrimSpace(mode) {
-	case ProxyModeSystem, ProxyModeDirect, ProxyModeCustom:
+	case ProxyModeSystem, ProxyModeDirect, ProxyModeCustom, ProxyModeInherit:
 		return strings.TrimSpace(mode)
 	default:
 		return ProxyModeSystem

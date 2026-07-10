@@ -10,7 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	xpantypes "github.com/lfhy/xpan/types"
 )
+
+// xpanCredentials is a thin alias so baiduPanRetryHTTPClient can implement the
+// SDK's credentialedClient interface (http.CredsFromClient) without an import
+// cycle — the field stores a *types.Credentials directly.
+type xpanCredentials = xpantypes.Credentials
 
 const baiduPanThrottleRetryCount = 5
 
@@ -24,6 +31,7 @@ var baiduPanThrottleRetryDelays = []time.Duration{
 
 type baiduPanRetryHTTPClient struct {
 	client *http.Client
+	creds  *xpanCredentials
 }
 
 func newBaiduPanRetryHTTPClient() *baiduPanRetryHTTPClient {
@@ -35,9 +43,21 @@ func newBaiduPanRetryHTTPClientWithClient(client *http.Client) *baiduPanRetryHTT
 	return &baiduPanRetryHTTPClient{client: client}
 }
 
+// newBaiduPanRetryHTTPClientWithCreds wraps a custom HTTP client and binds
+// per-account credentials so the SDK resolves tokens/placeholders correctly.
+func newBaiduPanRetryHTTPClientWithCreds(client *http.Client, creds *xpanCredentials) *baiduPanRetryHTTPClient {
+	return &baiduPanRetryHTTPClient{client: client, creds: creds}
+}
+
 // SetHTTPClient replaces the underlying client (used to inject a proxy-aware transport).
 func (c *baiduPanRetryHTTPClient) SetHTTPClient(client *http.Client) {
 	c.client = client
+}
+
+// Credentials exposes the per-account credentials so the xpan SDK can resolve
+// $-placeholder values and access tokens without touching global state.
+func (c *baiduPanRetryHTTPClient) Credentials() *xpanCredentials {
+	return c.creds
 }
 
 func (c *baiduPanRetryHTTPClient) Do(req *http.Request) (*http.Response, error) {

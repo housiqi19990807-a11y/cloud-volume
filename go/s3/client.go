@@ -32,11 +32,10 @@ func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
 	}
 
 	// Only override the HTTP client when the user explicitly chooses direct or
-	// custom proxy. In system mode (default) we let the AWS SDK use its own
-	// default client, which already respects HTTP_PROXY / HTTPS_PROXY / NO_PROXY
-	// via Go's net/http defaults. Forcing a fresh http.Transport in system mode
-	// can inadvertently route requests through a proxy the user didn't intend
-	// (e.g. a system-wide proxy that the S3 endpoint should bypass).
+	// custom proxy. In system mode (default) and inherit mode (which is resolved
+	// to a concrete mode by ResolveProxyConfig before reaching here) we let the
+	// AWS SDK use its own default client, which already respects
+	// HTTP_PROXY / HTTPS_PROXY / NO_PROXY via Go's net/http defaults.
 	if cfg.ProxyMode == storageconfig.ProxyModeDirect ||
 		cfg.ProxyMode == storageconfig.ProxyModeCustom {
 		opts.HTTPClient = storageconfig.ProxyHTTPClient(cfg, 0)
