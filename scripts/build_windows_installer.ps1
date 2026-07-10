@@ -1,10 +1,12 @@
-# Build a Windows installer (.exe) from the Flutter release bundle using Inno Setup.
+# Build the Flutter Windows release bundle AND package it as an installer (.exe)
+# using Inno Setup, all in one step.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_installer.ps1
 #   powershell -ExecutionPolicy Bypass -File .\scripts\build_windows_installer.ps1 -Version 1.2.3
 #
-# Requires Inno Setup 6 (install via scripts\setup_windows_dev.ps1 or from jrsoftware.org).
+# Requires Inno Setup 6 and the CGO/Flutter toolchain
+# (install both via scripts\setup_windows_dev.bat).
 param(
   [string]$Version,
   [switch]$SkipBuild
@@ -17,7 +19,24 @@ $releaseDir = Join-Path $repoRoot 'build\windows\x64\runner\Release'
 $outputDir = Join-Path $repoRoot 'dist\release'
 $issPath = Join-Path $repoRoot 'scripts\windows_installer.iss'
 
-# Resolve ISCC.exe
+# Step 1: Build the Flutter release bundle (unless -SkipBuild).
+if (-not $SkipBuild) {
+  Write-Host '=== Step 1: Building Flutter release bundle ===' -ForegroundColor Cyan
+  $runScript = Join-Path $PSScriptRoot 'run_windows.ps1'
+  $runArgs = @('-Build', '-SkipPubGet')
+  if ($Version) { $runArgs += @('-Version', $Version) }
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $runScript @runArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "Flutter build failed with exit code $LASTEXITCODE."
+  }
+}
+
+# Step 2: Verify the release bundle exists.
+if (-not (Test-Path "$releaseDir\cloud-volume.exe")) {
+  throw "cloud-volume.exe not found in $releaseDir. Run without -SkipBuild."
+}
+
+# Step 3: Resolve ISCC.exe.
 $iscc = $null
 foreach ($candidate in @(
   (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
@@ -26,33 +45,21 @@ foreach ($candidate in @(
   if (Test-Path $candidate) { $iscc = $candidate; break }
 }
 if (-not $iscc) {
-  throw 'Inno Setup 6 not found. Run scripts\setup_windows_dev.ps1 or install from https://jrsoftware.org/isdl.php'
+  throw 'Inno Setup 6 not found. Run scripts\setup_windows_dev.bat or install from https://jrsoftware.org/isdl.php'
 }
 
-if (-not (Test-Path $releaseDir)) {
-  throw "Release directory not found: $releaseDir. Run scripts\build_windows.bat first."
-}
-if (-not (Test-Path "$releaseDir\cloud-volume.exe")) {
-  throw "cloud-volume.exe not found in $releaseDir. Run scripts\build_windows.bat first."
-}
-
-# Resolve version label
+# Step 4: Resolve version label.
 if (-not $Version) {
   $Version = (& git -C $repoRoot describe --tags --always --dirty 2>$null)
   if (-not $Version) { $Version = '0.0.0' }
 }
-Write-Host "Building installer version: $Version"
+Write-Host "=== Step 2: Packaging installer version: $Version ===" -ForegroundColor Cyan
 
-# Ensure output dir exists
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
-# Build the installer via ISCC.
-# AppName/AppPublisher/AppInstallDirName are NOT passed as /D defines because
-# PowerShell transmits arguments to external processes using the system ANSI
-# code page (GBK), which corrupts Chinese characters. The .iss file has UTF-8
-# BOM so ISCC reads its built-in Chinese defaults correctly.
+# Step 5: Run ISCC. AppName/AppPublisher use .iss UTF-8 BOM defaults (not passed
+# here because PowerShell corrupts Chinese when transmitting args to ISCC).
 $installerBase = "yunjuan-windows-amd64-installer"
-Write-Host "Running Inno Setup compiler..."
 & $iscc /Qp `
   "/DAppVersion=$Version" `
   "/DSourceDir=$releaseDir" `
