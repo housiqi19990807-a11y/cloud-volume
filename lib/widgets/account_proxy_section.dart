@@ -51,37 +51,24 @@ class _AccountProxySectionState extends State<AccountProxySection> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.colorScheme.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            '代理设置',
-            style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        CloudStorageLabeledField(label: '代理设置', child: _buildModeSelect()),
+        const SizedBox(height: 4),
+        Text(
+          '默认跟随设置中的全局代理；也可为此账号单独指定。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.5,
+            color: theme.colorScheme.mutedForeground,
           ),
-          const SizedBox(height: 4),
-          Text(
-            '默认跟随设置中的全局代理；也可为此账号单独指定。',
-            style: TextStyle(
-              fontSize: 12,
-              height: 1.5,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _buildModeSelect(),
-          if (_mode == kAccountProxyModeCustom) ...[
-            const SizedBox(height: 12),
-            _buildCustomFields(theme),
-          ],
+        ),
+        if (_mode == kAccountProxyModeCustom) ...[
+          const SizedBox(height: 14),
+          _buildCustomFields(theme),
         ],
-      ),
+      ],
     );
   }
 
