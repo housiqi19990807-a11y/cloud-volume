@@ -1,5 +1,5 @@
 # Bootstraps a Windows desktop development environment for this repository.
-# It installs or verifies Flutter, Go, Visual Studio C++ tools, and MSYS2 UCRT64.
+# It installs or verifies Flutter, Go, Visual Studio C++ tools, MSYS2 UCRT64, and Inno Setup 6.
 param(
   [string]$FlutterRoot = (Join-Path $HOME 'dev\flutter'),
   [string]$MsysRoot = 'C:\msys64',
@@ -471,6 +471,32 @@ function Test-ProjectBuildInputs {
   }
 }
 
+function Ensure-InnoSetup {
+  Write-Section 'Inno Setup 6 (for Windows installer packaging)'
+  $iscc = Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'
+  if (-not (Test-Path $iscc)) {
+    $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+  }
+  if (Test-Path $iscc) {
+    Write-Skip "Inno Setup already installed at $iscc"
+    return
+  }
+
+  # Download and install silently. The redirect URL always points to the
+  # latest stable release.
+  $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\innosetup.exe'
+  Save-Download -Url 'https://jrsoftware.org/download.php/is.exe' -Destination $installer
+  Write-Host 'Installing Inno Setup 6...'
+  $exitCode = (Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-' -Wait -PassThru).ExitCode
+  if ($exitCode -ne 0) {
+    throw "Inno Setup installer exited with code $exitCode."
+  }
+  if (-not (Test-Path $iscc)) {
+    throw 'Inno Setup ISCC.exe was not found after installation.'
+  }
+  Write-Host "Installed ISCC.exe at $iscc"
+}
+
 if ($env:OS -ne 'Windows_NT') {
   throw 'This script must be run on Windows.'
 }
@@ -485,6 +511,7 @@ Ensure-VisualStudioBuildTools
 Ensure-WindowsSymlinkSupport
 Ensure-Msys2
 Ensure-Flutter
+Ensure-InnoSetup
 
 if (-not $SkipDoctor) {
   Write-Section 'Flutter doctor'
