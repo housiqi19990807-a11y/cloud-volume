@@ -311,7 +311,6 @@ build_windows_installer() {
 
   powershell.exe -NoProfile -Command \
     "& '$compiler_win' /Qp \
-      # AppName/AppPublisher/AppInstallDirName use .iss defaults (UTF-8 BOM)
       /DAppVersion='$VERSION' \
       /DSourceDir='$source_dir_win' \
       /DOutputDir='$output_dir_win' \
