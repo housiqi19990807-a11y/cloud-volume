@@ -34,6 +34,7 @@ var (
 	procDispatchMessage = user32.NewProc("DispatchMessageW")
 	procPostQuitMessage = user32.NewProc("PostQuitMessage")
 	procInvalidateRect  = user32.NewProc("InvalidateRect")
+	procPostMessage    = user32.NewProc("PostMessageW")
 	procShowWindow      = user32.NewProc("ShowWindow")
 	procUpdateWindow    = user32.NewProc("UpdateWindow")
 	procDestroyWindow   = user32.NewProc("DestroyWindow")
@@ -53,6 +54,7 @@ var (
 
 // Window messages and Win32 style constants.
 const (
+	WM_APP       = 0x8000
 	WM_DESTROY = 0x0002
 	WM_PAINT   = 0x000F
 	WM_CLOSE   = 0x0010
@@ -198,10 +200,13 @@ func createFont(faceName string, pointSize int32, bold bool) uintptr {
 	return r
 }
 
-// invalidate triggers a full repaint of the window.
+// invalidate triggers a full repaint of the window. Called from the update
+// goroutine (different thread from the window's message pump). PostMessage is
+// always thread-safe in Win32 and wakes GetMessage if it's blocking.
 func invalidate() {
 	if globalHwnd != 0 {
 		procInvalidateRect.Call(globalHwnd, 0, 1)
+		procPostMessage.Call(globalHwnd, WM_APP, 0, 0)
 	}
 }
 
@@ -249,6 +254,9 @@ func createUpdaterWindow() uintptr {
 // windowProc is the window procedure for the updater window.
 func windowProc(hwnd, msg, wParam, lParam uintptr) uintptr {
 	switch msg {
+	case WM_APP: // Wakeup from invalidate(), force repaint
+		procInvalidateRect.Call(hwnd, 0, 1)
+		return 0
 	case WM_PAINT:
 		onPaint(hwnd)
 		return 0
@@ -369,8 +377,6 @@ func pumpMessages() {
 		stateMu.Unlock()
 		if done && !exitScheduled {
 			exitScheduled = true
-			// On error, hold the window longer so the user can read the message.
-			// On success, 2s is enough since the new app is already visible.
 			stateMu.Lock()
 			hadErr := updateErr != nil
 			stateMu.Unlock()
@@ -378,9 +384,12 @@ func pumpMessages() {
 			if hadErr {
 				delay = 15 * time.Second
 			}
+			// Post WM_CLOSE from the timer goroutine (thread-safe), then the
+			// window proc calls DestroyWindow on its own thread, which posts
+			// WM_QUIT and breaks the message loop.
 			go func() {
 				time.Sleep(delay)
-				procDestroyWindow.Call(globalHwnd)
+				procPostMessage.Call(globalHwnd, WM_CLOSE, 0, 0)
 			}()
 		}
 	}

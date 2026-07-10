@@ -241,7 +241,7 @@ try {
     $updaterExe = Join-Path $releaseDir 'cloud-volume-updater.exe'
     Write-Host 'Building standalone updater...'
     Invoke-NativeCommand -Name 'go build updater' -Command {
-      & go build -o $updaterExe ./cmd/cloud-volume-updater
+      & go build -ldflags "-H windowsgui" -o $updaterExe ./cmd/cloud-volume-updater
     }
  } else {
    Invoke-NativeCommand -Name 'flutter run windows' -Command {
