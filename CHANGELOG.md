@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 账号代理：每个账号渠道现在可以单独配置代理（跟随全局 / 跟随系统 / 直连 / 自定义 HTTP 或 SOCKS5），不配置时默认跟随设置中的全局代理。全局代理改为独立存储（bbolt `meta` bucket），不再覆盖各账号自身的代理字段。百度网盘 SDK 升级到 xpan v0.2.0，支持 per-account HTTP client 和凭据隔离，多个百度账号可各自走不同代理。
+
 - Windows 打包：新增 scripts/build_windows_installer.bat 和 uild_windows_installer.ps1，双击即可从 release 目录打包出 yunjuan-windows-amd64-installer.exe。setup_windows_dev.ps1 也新增了 Inno Setup 6 自动安装步骤。
 - 页面头部布局：修复任务队列、分享管理、回收站等页面选中多项后右侧操作按钮挤压标题，导致副标题错位断行（如「回任务。」）的问题。新增通用 `PageHeaderActions` 组件，宽度不足时把次要操作收进「…」更多操作下拉菜单（复用 `ShadContextMenu` 模式），标题列改用 `Flexible` 并给副标题加 `maxLines` 兜底。所有列表页头部统一这一响应式折叠逻辑。
 

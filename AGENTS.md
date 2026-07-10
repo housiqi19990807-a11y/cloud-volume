@@ -73,6 +73,8 @@ The idle cursor should be `SystemMouseCursors.basic` (basic arrow), switching to
 
 > **Purpose:** This section captures the structure and responsibility of key features so new sessions do not have to re-explore the codebase. It must be kept up to date.
 >
+> **Explore rule (binding):** After any codebase exploration (including Explore-agent work), write the reusable findings into the relevant Code Map entry before ending the turn. Do not leave discoveries only in the conversation. This applies even when no implementation is made.
+>
 > **Maintenance rules (binding):**
 >
 > 1. **Feature work:** Every time a new feature is added or an existing feature's file set changes, update the relevant Code Map entry here in the same change set (before committing). List the files that participate in the feature, their responsibility, and the data flow between them.
@@ -494,3 +496,36 @@ All list-style pages (任务队列 / 分享管理 / 回收站 / 文件同步 / �
 - The title column must be `Flexible(flex: 1, fit: FlexFit.tight)`, not `Expanded`, so the right-side `PageHeaderActions` `Wrap` is measured by `LayoutBuilder` against the real remaining width; with `Expanded` the title took all space and the actions never saw a width constraint.
 - `_OverflowMenuButton` must be a `StatefulWidget` owning the `ShadContextMenuController` and `_menuAnchorOffset`; the `onPressed` of `ShadButton.outline` computes the anchor via the button's `GlobalKey` + `localToGlobal` before `_controller.show()`.
 - Single-button headers (文件同步 新建配置, 账号管理 新增账号) intentionally do NOT use `PageHeaderActions` — they can't overflow, but the `Flexible` title column + subtitle `maxLines` floor still applies for consistency.
+
+
+### Feature: Per-Account Proxy (账号独立代理)
+
+Each storage account can choose its own outbound proxy policy. The default is `inherit` (跟随全局); explicit alternatives are `system`, `direct` (no proxy), or `custom` HTTP/SOCKS5 with optional authentication. The global proxy is persisted independently in the bbolt `meta` bucket and acts only as the fallback for inheriting accounts.
+
+#### Key files
+
+- `go/config/config.go` — Defines `ProxyModeInherit` and normalizes all four account modes. New account configs default to `inherit`.
+- `go/config/global_proxy.go` — Persists the global proxy subset under bbolt `meta/global_proxy` via `LoadGlobalProxy` / `SaveGlobalProxy`. Global mode cannot itself be `inherit`; it normalizes that value to `system`.
+- `go/config/proxy.go` — `ResolveProxyConfig(account, global)` copies global proxy fields only when the account mode is `inherit`; explicit system/direct/custom accounts are untouched.
+- `go/storage/types.go` — `ForConfig` loads the global proxy, resolves inheritance, then constructs S3/WebDAV/Baidu backends from the effective config.
+- `go/storage/baidu_pan_sdk.go` / `baidu_pan_retry_http.go` — Builds a per-account xpan HTTP client carrying both the effective proxy transport and per-account OAuth credentials. The global xpan client remains only as a fallback for legacy code paths.
+- `bridge/dispatch_config.go` — `update_proxy_settings` writes only the independent global proxy record; it no longer overwrites every profile. Bootstrap returns global proxy fields to the Settings page.
+- `lib/widgets/account_proxy_section.dart` — Account-editor proxy UI: 跟随全局 / 跟随系统 / 直连 / 自定义; custom expands HTTP/SOCKS5 host/port/auth fields.
+- `lib/widgets/cloud_storage_account_dialog.dart` — Embeds `AccountProxySection` for S3/WebDAV/Baidu accounts and submits proxy values with the account draft.
+- `lib/models/cloud_storage_account_draft.dart` / `lib/utils/account_config_builder.dart` / `lib/models/remote_storage_config.dart` — Carries and serializes per-account proxy values; new accounts default to `inherit`.
+- `lib/widgets/settings_proxy_section.dart` — Global proxy UI; copy explains that accounts may override it.
+- `github.com/lfhy/xpan v0.2.0` (local repo `../xpan`) — Adds per-call HTTP clients and per-`Client` credentials so concurrent Baidu accounts no longer race on global tokens. The SDK work is split into commits `6b64c93` (per-call client) and `4ab8c36` (multi-account credentials), tagged `v0.2.0`.
+
+#### Data flow
+
+1. Settings global proxy -> `update_proxy_settings` -> `config.SaveGlobalProxy` (`meta/global_proxy`).
+2. Account editor saves `proxyMode` plus custom fields in that profile.
+3. Storage operation -> `storage.ForConfig` -> `LoadGlobalProxy` -> `ResolveProxyConfig`.
+4. Explicit account modes use their own transport; `inherit` accounts receive the global proxy fields.
+5. Baidu operations create `xpanclient.NewWithClient` with a retry client that exposes the account credentials and uses the resolved proxy transport.
+
+#### Gotchas
+
+- Do not reintroduce the old behavior where `updateProxySettings` loops over profiles; that destroys per-account overrides.
+- `direct` is a valid per-account override and means no proxy even when the global proxy is custom.
+- The temporary local `replace github.com/lfhy/xpan => ../xpan` is only for validation before v0.2.0 is pushed. Remove it after the tag is published and run `go mod tidy`.
