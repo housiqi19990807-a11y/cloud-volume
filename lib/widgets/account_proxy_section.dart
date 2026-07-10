@@ -78,8 +78,8 @@ class _AccountProxySectionState extends State<AccountProxySection> {
       initialValue: _mode,
       selectedOptionBuilder: (context, value) => Text(_modeLabel(value)),
       options: const [
-        ShadOption(value: kAccountProxyModeInherit, child: Text('跟随全局')),
-        ShadOption(value: kAccountProxyModeSystem, child: Text('跟随系统')),
+        ShadOption(value: kAccountProxyModeInherit, child: Text('使用全局设置')),
+        ShadOption(value: kAccountProxyModeSystem, child: Text('使用系统代理')),
         ShadOption(value: kAccountProxyModeDirect, child: Text('直连（不使用代理）')),
         ShadOption(value: kAccountProxyModeCustom, child: Text('自定义代理')),
       ],
@@ -211,13 +211,13 @@ class _AccountProxySectionState extends State<AccountProxySection> {
   String _modeLabel(String value) {
     switch (value) {
       case kAccountProxyModeSystem:
-        return '跟随系统';
+        return '使用系统代理';
       case kAccountProxyModeDirect:
         return '直连（不使用代理）';
       case kAccountProxyModeCustom:
         return '自定义代理';
       default:
-        return '跟随全局';
+        return '使用全局设置';
     }
   }
 }
