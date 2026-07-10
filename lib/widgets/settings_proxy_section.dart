@@ -35,7 +35,8 @@ class SettingsProxySection extends StatefulWidget {
     String proxyPort,
     String proxyUsername,
     String proxyPassword,
-  ) onSaveProxy;
+  )
+  onSaveProxy;
 
   @override
   State<SettingsProxySection> createState() => _SettingsProxySectionState();
@@ -57,8 +58,12 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
     _applyConfig(widget.config);
     _hostController = TextEditingController(text: widget.config.proxyHost);
     _portController = TextEditingController(text: widget.config.proxyPort);
-    _usernameController = TextEditingController(text: widget.config.proxyUsername);
-    _passwordController = TextEditingController(text: widget.config.proxyPassword);
+    _usernameController = TextEditingController(
+      text: widget.config.proxyUsername,
+    );
+    _passwordController = TextEditingController(
+      text: widget.config.proxyPassword,
+    );
   }
 
   @override
@@ -98,7 +103,7 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '代理设置影响应用所有网络请求（S3、WebDAV、百度网盘、GitHub 更新检查）。',
+          '全局代理作为各账号的默认值；每个账号也可在账号管理中单独选择跟随系统、直连或自定义代理。',
           style: TextStyle(
             fontSize: 12,
             height: 1.6,
@@ -129,10 +134,7 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
             Text(_labelForMode(selected)),
         options: _kProxyModeOptions
             .map(
-              (o) => ShadOption<String>(
-                value: o.value,
-                child: Text(o.label),
-              ),
+              (o) => ShadOption<String>(value: o.value, child: Text(o.label)),
             )
             .toList(growable: false),
         onChanged: _saving
@@ -240,7 +242,10 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 11.5, color: theme.colorScheme.mutedForeground),
+          style: TextStyle(
+            fontSize: 11.5,
+            color: theme.colorScheme.mutedForeground,
+          ),
         ),
         const SizedBox(height: 4),
         ShadInput(
@@ -258,7 +263,10 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
       children: [
         Text(
           '密码（可选）',
-          style: TextStyle(fontSize: 11.5, color: theme.colorScheme.mutedForeground),
+          style: TextStyle(
+            fontSize: 11.5,
+            color: theme.colorScheme.mutedForeground,
+          ),
         ),
         const SizedBox(height: 4),
         Row(
@@ -267,13 +275,17 @@ class _SettingsProxySectionState extends State<SettingsProxySection> {
               child: ShadInput(
                 controller: _passwordController,
                 placeholder: const Text('password'),
-                style: TextStyle(fontSize: 13, color: theme.colorScheme.foreground),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: theme.colorScheme.foreground,
+                ),
                 obscureText: _obscurePassword,
               ),
             ),
             const SizedBox(width: 4),
             ShadButton.outline(
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
               width: 36,
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 0),

@@ -16,6 +16,12 @@ class CloudStorageAccountDraft {
     required this.usePathStyle,
     required this.webdavUsername,
     required this.webdavPassword,
+    this.proxyMode = 'inherit',
+    this.proxyType = 'http',
+    this.proxyHost = '',
+    this.proxyPort = '',
+    this.proxyUsername = '',
+    this.proxyPassword = '',
   });
 
   final StorageType storageType;
@@ -28,4 +34,10 @@ class CloudStorageAccountDraft {
   final bool usePathStyle;
   final String webdavUsername;
   final String webdavPassword;
+  final String proxyMode;
+  final String proxyType;
+  final String proxyHost;
+  final String proxyPort;
+  final String proxyUsername;
+  final String proxyPassword;
 }

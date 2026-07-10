@@ -18,8 +18,8 @@ RemoteStorageConfig buildAccountConfig(
   final fallback = isWebdav
       ? draft.webdavUsername.trim()
       : isBaidu
-          ? name
-          : draft.accessKey.trim();
+      ? name
+      : draft.accessKey.trim();
   final label = name.isEmpty ? fallback : name;
 
   final mappedBucketName = draft.mappedBucketName.trim().isEmpty
@@ -35,8 +35,8 @@ RemoteStorageConfig buildAccountConfig(
     hasSecretKey = baidu?.hasSecretAccessKey ?? false;
   } else {
     secretKey = draft.secretKey;
-    hasSecretKey = secretKey.trim().isNotEmpty ||
-        (existing?.hasSecretAccessKey ?? false);
+    hasSecretKey =
+        secretKey.trim().isNotEmpty || (existing?.hasSecretAccessKey ?? false);
   }
 
   String webdavPassword;
@@ -45,7 +45,8 @@ RemoteStorageConfig buildAccountConfig(
   if (isWebdav) {
     webdavUsername = draft.webdavUsername;
     webdavPassword = draft.webdavPassword;
-    hasWebdavPassword = webdavPassword.trim().isNotEmpty ||
+    hasWebdavPassword =
+        webdavPassword.trim().isNotEmpty ||
         (existing?.hasWebdavPassword ?? false);
   } else if (isBaidu) {
     webdavUsername = '';
@@ -54,7 +55,8 @@ RemoteStorageConfig buildAccountConfig(
   } else {
     webdavUsername = draft.accessKey;
     webdavPassword = draft.secretKey;
-    hasWebdavPassword = draft.secretKey.trim().isNotEmpty ||
+    hasWebdavPassword =
+        draft.secretKey.trim().isNotEmpty ||
         (existing?.hasSecretAccessKey ?? false);
   }
 
@@ -76,5 +78,11 @@ RemoteStorageConfig buildAccountConfig(
     webdavUsername: webdavUsername,
     webdavPassword: webdavPassword,
     hasWebdavPassword: hasWebdavPassword,
+    proxyMode: draft.proxyMode,
+    proxyType: draft.proxyType,
+    proxyHost: draft.proxyHost,
+    proxyPort: draft.proxyPort,
+    proxyUsername: draft.proxyUsername,
+    proxyPassword: draft.proxyPassword,
   );
 }

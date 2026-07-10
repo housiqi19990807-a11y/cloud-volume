@@ -7,6 +7,7 @@ import 'package:remote_storage/models/cloud_storage_account_draft.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/utils/account_config_builder.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
+import 'package:remote_storage/widgets/account_proxy_section.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -32,7 +33,7 @@ class CloudStorageAccountDialog extends StatefulWidget {
   final Future<bool> Function(RemoteStorageConfig config) onSave;
   final Future<String> Function() onStartBaiduPanAuthorization;
   final Future<RemoteStorageConfig> Function(String displayName, String code)
-      onAuthorizeBaiduPan;
+  onAuthorizeBaiduPan;
   final RemoteStorageConfig? initialConfig;
   final bool editing;
 
@@ -61,7 +62,13 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   final _webdavUsernameController = TextEditingController();
   final _webdavPasswordController = TextEditingController();
   final _baiduAuthCodeController = TextEditingController();
+  final _proxyHostController = TextEditingController();
+  final _proxyPortController = TextEditingController();
+  final _proxyUsernameController = TextEditingController();
+  final _proxyPasswordController = TextEditingController();
   RemoteStorageConfig? _authorizedBaiduConfig;
+  String _proxyMode = kAccountProxyModeInherit;
+  String _proxyType = 'http';
   String _baiduAuthUrl = '';
   String? _baiduAuthErrorText;
   bool _openingBaiduAuthPage = false;
@@ -82,6 +89,12 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _accessKeyController.text = config.accessKeyId;
     _webdavUsernameController.text = config.webdavUsername;
     _usePathStyle = config.usePathStyle;
+    _proxyMode = config.proxyMode;
+    _proxyType = config.proxyType;
+    _proxyHostController.text = config.proxyHost;
+    _proxyPortController.text = config.proxyPort;
+    _proxyUsernameController.text = config.proxyUsername;
+    _proxyPasswordController.text = config.proxyPassword;
     if (config.storageType == StorageType.baiduPan) {
       _authorizedBaiduConfig = config;
     }
@@ -98,6 +111,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _webdavUsernameController.dispose();
     _webdavPasswordController.dispose();
     _baiduAuthCodeController.dispose();
+    _proxyHostController.dispose();
+    _proxyPortController.dispose();
+    _proxyUsernameController.dispose();
+    _proxyPasswordController.dispose();
     super.dispose();
   }
 
@@ -139,8 +156,8 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
               isBaiduPan
                   ? '例如：我的百度网盘'
                   : isWebDav
-                      ? '例如：IHEP WebDAV'
-                      : '例如：对象存储账号',
+                  ? '例如：IHEP WebDAV'
+                  : '例如：对象存储账号',
             ),
             onChanged: (_) => _syncMappedBucketName(),
           ),
@@ -160,6 +177,17 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         if (isBaiduPan) ..._baiduPanFields(),
         if (!isBaiduPan && !isWebDav) ..._s3Fields(),
         if (!isBaiduPan && isWebDav) ..._webdavFields(),
+        const SizedBox(height: 18),
+        AccountProxySection(
+          initialMode: _proxyMode,
+          initialType: _proxyType,
+          hostController: _proxyHostController,
+          portController: _proxyPortController,
+          usernameController: _proxyUsernameController,
+          passwordController: _proxyPasswordController,
+          onModeChanged: (value) => _proxyMode = value,
+          onTypeChanged: (value) => _proxyType = value,
+        ),
         const SizedBox(height: 18),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -267,7 +295,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         accountLabel: label,
         authorized:
             _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty == true &&
-                _authorizedBaiduConfig?.hasSecretAccessKey == true,
+            _authorizedBaiduConfig?.hasSecretAccessKey == true,
         codeController: _baiduAuthCodeController,
         authUrl: _baiduAuthUrl,
         openingBrowser: _openingBaiduAuthPage,
@@ -292,6 +320,12 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         usePathStyle: _usePathStyle,
         webdavUsername: _webdavUsernameController.text,
         webdavPassword: _webdavPasswordController.text,
+        proxyMode: _proxyMode,
+        proxyType: _proxyType,
+        proxyHost: _proxyHostController.text.trim(),
+        proxyPort: _proxyPortController.text.trim(),
+        proxyUsername: _proxyUsernameController.text.trim(),
+        proxyPassword: _proxyPasswordController.text,
       ),
       existing: widget.initialConfig,
       authorizedBaiduConfig: _authorizedBaiduConfig,

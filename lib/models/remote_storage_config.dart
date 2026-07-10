@@ -163,19 +163,19 @@ class RemoteStorageConfig {
       writebackQuietSeconds: 10,
       mountMetadataCacheSeconds: 60,
       usePathStyle: true,
-        windowsMountMode: WindowsMountMode.cloudFilesCached,
-        windowsThisPcEntryEnabled: false,
-        windowsWritebackConcurrency: 4,
-        cacheAutoCleanupEnabled: false,
-        cacheMaxSizeMb: 0,
-        cacheMaxAgeDays: 0,
-        proxyMode: 'system',
-        proxyType: 'http',
-        proxyHost: '',
-        proxyPort: '',
-        proxyUsername: '',
-        proxyPassword: '',
-      );
+      windowsMountMode: WindowsMountMode.cloudFilesCached,
+      windowsThisPcEntryEnabled: false,
+      windowsWritebackConcurrency: 4,
+      cacheAutoCleanupEnabled: false,
+      cacheMaxSizeMb: 0,
+      cacheMaxAgeDays: 0,
+      proxyMode: 'inherit',
+      proxyType: 'http',
+      proxyHost: '',
+      proxyPort: '',
+      proxyUsername: '',
+      proxyPassword: '',
+    );
   }
 
   factory RemoteStorageConfig.fromJson(Map<String, dynamic> json) {
@@ -297,12 +297,15 @@ class RemoteStorageConfig {
             json['cacheMaxAgeDays'] ?? json['cache_max_age_days'],
           ) ??
           0,
-      proxyMode: (json['proxyMode'] ?? json['proxy_mode'] ?? 'system').toString(),
+      proxyMode: (json['proxyMode'] ?? json['proxy_mode'] ?? 'inherit')
+          .toString(),
       proxyType: (json['proxyType'] ?? json['proxy_type'] ?? 'http').toString(),
       proxyHost: (json['proxyHost'] ?? json['proxy_host'] ?? '').toString(),
       proxyPort: (json['proxyPort'] ?? json['proxy_port'] ?? '').toString(),
-      proxyUsername: (json['proxyUsername'] ?? json['proxy_username'] ?? '').toString(),
-      proxyPassword: (json['proxyPassword'] ?? json['proxy_password'] ?? '').toString(),
+      proxyUsername: (json['proxyUsername'] ?? json['proxy_username'] ?? '')
+          .toString(),
+      proxyPassword: (json['proxyPassword'] ?? json['proxy_password'] ?? '')
+          .toString(),
     );
   }
 
