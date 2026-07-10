@@ -1,4 +1,4 @@
-; Inno Setup template for packaging the Flutter Windows release bundle.
+﻿; Inno Setup template for packaging the Flutter Windows release bundle.
 
 #ifndef AppName
   #define AppName "云卷"

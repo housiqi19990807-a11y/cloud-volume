@@ -311,10 +311,8 @@ build_windows_installer() {
 
   powershell.exe -NoProfile -Command \
     "& '$compiler_win' /Qp \
-      /DAppName='$APP_NAME' \
+      # AppName/AppPublisher/AppInstallDirName use .iss defaults (UTF-8 BOM)
       /DAppVersion='$VERSION' \
-      /DAppPublisher='云卷' \
-      /DAppInstallDirName='Cloud Volume' \
       /DSourceDir='$source_dir_win' \
       /DOutputDir='$output_dir_win' \
       /DOutputBaseFilename='$installer_base' \

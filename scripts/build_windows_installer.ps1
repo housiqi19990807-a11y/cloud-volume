@@ -46,14 +46,15 @@ Write-Host "Building installer version: $Version"
 # Ensure output dir exists
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
-# Build the installer via ISCC with the same /D defines as build_desktop_packages.sh
+# Build the installer via ISCC.
+# AppName/AppPublisher/AppInstallDirName are NOT passed as /D defines because
+# PowerShell transmits arguments to external processes using the system ANSI
+# code page (GBK), which corrupts Chinese characters. The .iss file has UTF-8
+# BOM so ISCC reads its built-in Chinese defaults correctly.
 $installerBase = "yunjuan-windows-amd64-installer"
 Write-Host "Running Inno Setup compiler..."
 & $iscc /Qp `
-  "/DAppName=云卷" `
   "/DAppVersion=$Version" `
-  "/DAppPublisher=云卷" `
-  "/DAppInstallDirName=Cloud Volume" `
   "/DSourceDir=$releaseDir" `
   "/DOutputDir=$outputDir" `
   "/DOutputBaseFilename=$installerBase" `
