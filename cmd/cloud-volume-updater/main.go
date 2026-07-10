@@ -287,3 +287,11 @@ func copyFileOnce(src, dst string, mode os.FileMode) error {
 	}
 	return out.Close()
 }
+
+// fail logs a fatal error and exits. Used by the pre-window argument checks
+// and the non-Windows headless path.
+func fail(msg string, err error) {
+	logf("FATAL: %s: %v", msg, err)
+	fmt.Fprintf(os.Stderr, "%s: %v\n", msg, err)
+	os.Exit(1)
+}
