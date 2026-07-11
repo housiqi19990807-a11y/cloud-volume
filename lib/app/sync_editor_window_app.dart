@@ -26,6 +26,9 @@ class SyncEditorWindowApp extends StatelessWidget {
     return DesktopModalSubWindowApp<_SyncBootstrapResult>(
       title: isEdit ? '编辑同步配置' : '新建同步配置',
       creatorWindowId: args.creatorWindowId,
+      // FileSyncProfileEditor uses Expanded + internal scroll; outer scroll
+      // would give unbounded height and crash with RenderFlex flex children.
+      scrollable: false,
       bootstrap: () async {
         DesktopWindowMethodHost.ensureInstalled();
         final api = await defaultRemoteStorageApiFactory();
@@ -50,10 +53,11 @@ class SyncEditorWindowApp extends StatelessWidget {
         });
         return _SyncBootstrapResult(api: api, buckets: entries);
       },
-      contentBuilder: (context, data) => _SyncEditorContent(
+      contentBuilder: (context, data, close) => _SyncEditorContent(
         args: args,
         api: data.api,
         buckets: data.buckets,
+        close: close,
       ),
     );
   }
@@ -85,11 +89,13 @@ class _SyncEditorContent extends StatefulWidget {
     required this.args,
     required this.api,
     required this.buckets,
+    required this.close,
   });
 
   final SyncEditorWindowArgs args;
   final RemoteStorageGateway api;
   final List<FileManagerBucketEntry> buckets;
+  final Future<void> Function() close;
 
   @override
   State<_SyncEditorContent> createState() => _SyncEditorContentState();
@@ -120,7 +126,9 @@ class _SyncEditorContentState extends State<_SyncEditorContent> {
       buckets: widget.buckets,
       initial: widget.args.initialProfile,
       onSave: _onSave,
-      onSaved: () {},
+      onSaved: () {
+        widget.close();
+      },
       asDialog: false,
       creatorWindowId: widget.args.creatorWindowId,
       anchorFrameLeft: widget.args.creatorFrameLeft,

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Account editor sub-window resizes to measured form content (no step-0 empty bottom / step-1 inner scroll when screen allows).
+
 - 账号新增引导：新增账号改为两步式引导——先选择接入协议（S3 对象存储 / WebDAV / 百度网盘），再填写对应的连接信息。协议选择改为卡片式布局（图标 + 名称 + 说明），选中后点击「下一步」进入字段配置。编辑模式跳过协议选择，直接进入连接信息。子窗口尺寸随步骤自动调整。
 - 账号代理：每个账号渠道现在可以单独配置代理（跟随全局 / 跟随系统 / 直连 / 自定义 HTTP 或 SOCKS5），不配置时默认跟随设置中的全局代理。全局代理改为独立存储（bbolt `meta` bucket），不再覆盖各账号自身的代理字段。百度网盘 SDK 升级到 xpan v0.2.0，支持 per-account HTTP client 和凭据隔离，多个百度账号可各自走不同代理。
 

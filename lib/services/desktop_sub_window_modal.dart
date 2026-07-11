@@ -143,6 +143,106 @@ Future<void> resizeKeepingWindowCenter(Size size) async {
   );
 }
 
+/// Chrome constants matching [DesktopModalSubWindowApp] / [DesktopModalShell].
+const double kDesktopModalShellTitleBarHeight = 44;
+const EdgeInsets kDesktopModalContentPadding =
+    EdgeInsets.fromLTRB(24, 16, 24, 24);
+
+/// Resizes the current modal sub-window so [contentSize] (the body widget,
+/// not including title bar / content padding) fits without empty bottom space
+/// or an inner scroll, when the screen allows.
+///
+/// Use with shrink-wrapped form content (`MainAxisSize.min`) measured via
+/// [MeasureSize]. Fill-height editors (sync / directory picker) must not use
+/// this — they own their own flex layout and discrete step sizes.
+///
+/// Prefer passing [creatorFrame*] / [creatorWindowId] so the window is
+/// re-centered on the parent after resize. Using only
+/// [resizeKeepingWindowCenter] anchors to whatever bounds the child currently
+/// has — if the first layout ran before parent centering settled, the dialog
+/// drifts to a wrong screen position.
+Future<void> fitModalSubWindowToContentSize(
+  Size contentSize, {
+  EdgeInsets contentPadding = kDesktopModalContentPadding,
+  double titleBarHeight = kDesktopModalShellTitleBarHeight,
+  Size minSize = const Size(400, 280),
+  Size maxSize = const Size(720, 920),
+  double sizeEpsilon = 1.5,
+  /// Extra height for button row / anti-clipping after Material density.
+  double heightFudge = 8,
+  double? creatorFrameLeft,
+  double? creatorFrameTop,
+  double? creatorFrameWidth,
+  double? creatorFrameHeight,
+  String? creatorWindowId,
+}) async {
+  if (contentSize.width <= 0 || contentSize.height <= 0) return;
+
+  var maxW = maxSize.width;
+  var maxH = maxSize.height;
+  try {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final screen = view.physicalSize / view.devicePixelRatio;
+    // Leave a little margin so the window never fills the whole display.
+    maxW = (screen.width * 0.92).clamp(minSize.width, maxSize.width);
+    maxH = (screen.height * 0.90).clamp(minSize.height, maxSize.height);
+  } catch (_) {}
+
+  final target = Size(
+    (contentSize.width + contentPadding.horizontal).clamp(minSize.width, maxW),
+    (contentSize.height +
+            contentPadding.vertical +
+            titleBarHeight +
+            heightFudge)
+        .clamp(minSize.height, maxH),
+  );
+
+  final bounds = await windowManager.getBounds();
+  final sizeUnchanged =
+      (bounds.width - target.width).abs() < sizeEpsilon &&
+      (bounds.height - target.height).abs() < sizeEpsilon;
+
+  final frameLeft = creatorFrameLeft;
+  final frameTop = creatorFrameTop;
+  final frameWidth = creatorFrameWidth;
+  final frameHeight = creatorFrameHeight;
+  final hasCreatorFrame = frameLeft != null &&
+      frameTop != null &&
+      frameWidth != null &&
+      frameHeight != null &&
+      frameWidth > 0 &&
+      frameHeight > 0;
+
+  var needsRecenter = false;
+  if (hasCreatorFrame) {
+    final expectedLeft = frameLeft + (frameWidth - target.width) / 2;
+    final expectedTop = frameTop + (frameHeight - target.height) / 2;
+    needsRecenter = (bounds.left - expectedLeft).abs() > 4 ||
+        (bounds.top - expectedTop).abs() > 4;
+  }
+
+  if (sizeUnchanged && !needsRecenter) {
+    return;
+  }
+
+  // Allow shrinking below the initial configureDesktopModalSubWindow minimum.
+  await windowManager.setMinimumSize(minSize);
+
+  if (hasCreatorFrame ||
+      (creatorWindowId != null && creatorWindowId.isNotEmpty)) {
+    await positionChildCenteredFromFrame(
+      size: target,
+      creatorFrameLeft: creatorFrameLeft,
+      creatorFrameTop: creatorFrameTop,
+      creatorFrameWidth: creatorFrameWidth,
+      creatorFrameHeight: creatorFrameHeight,
+      creatorWindowId: creatorWindowId,
+    );
+  } else {
+    await resizeKeepingWindowCenter(target);
+  }
+}
+
 Future<void> applyModalChildWindowChrome() async {
   await windowManager.setMovable(false);
   if (await windowManager.isFocused()) {

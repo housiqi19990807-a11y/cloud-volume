@@ -33,7 +33,10 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
     await DesktopWindowMethodHost.ensureInstalled();
     await configureDesktopModalSubWindow(
       title: editorArgs.editing ? '编辑账号' : '新增账号',
+      // Initial guess only; CloudStorageAccountDialog measures content and
+      // calls fitModalSubWindowToContentSize to remove empty space / scroll.
       size: _accountEditorWindowSize(editorArgs),
+      minimumSize: const Size(400, 280),
       creatorFrameLeft: editorArgs.creatorFrameLeft,
       creatorFrameTop: editorArgs.creatorFrameTop,
       creatorFrameWidth: editorArgs.creatorFrameWidth,
@@ -101,12 +104,16 @@ Future<void> _configurePreviewWindow(String title) async {
   });
 }
 
+  /// Seed size before the first content measure. Prefer slightly compact for
+  /// new-account step 0; edit mode seeds by protocol. Final size is content-fit.
   Size _accountEditorWindowSize(AccountEditorWindowArgs args) {
-    if (!args.editing) return const Size(520, 420);
+    // 480 content + 48 horizontal padding from DesktopModalSubWindowApp.
+    // Seed a bit tall so first-frame buttons are not clipped before measure.
+    if (!args.editing) return const Size(528, 380);
     final storageType = args.initialConfig?.storageType;
     return switch (storageType) {
-      StorageType.baiduPan => const Size(520, 520),
-      StorageType.webdav => const Size(520, 600),
-      _ => const Size(520, 700),
+      StorageType.baiduPan => const Size(528, 560),
+      StorageType.webdav => const Size(528, 640),
+      _ => const Size(528, 760),
     };
   }

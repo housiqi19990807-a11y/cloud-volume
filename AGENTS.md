@@ -227,40 +227,47 @@ If a path is absent on both sides but still in index → `skip` (`stale_index`).
 
 ### Feature: Account Management (账号管理)
 
-Lists configured storage accounts and lets users add, edit, or remove them. On desktop, the add/edit form now opens as a **detached OS sub-window** instead of an in-page `ShadDialog`, matching the file-sync editor pattern. On Web, or when the sub-window cannot be created, it falls back to the original `ShadDialog`.
+Lists configured storage accounts and lets users add, edit, or remove them. On desktop, the add/edit form opens as a **detached OS sub-window** instead of an in-page `ShadDialog`. On Web, or when the sub-window cannot be created, it falls back to the original `ShadDialog`.
 
-**Two-step wizard (2026-07-10):** New accounts use a 2-step guided flow modeled after `FileSyncProfileEditor`:
-- **Step 1「选择协议」:** Large selectable cards for S3 / WebDAV / 百度网盘 (icon + name + description). Selecting a card updates `_storageType` without navigating.
-- **Step 2「连接信息」:** Name field + protocol-specific connection fields + `AccountProxySection`. The sub-window resizes via `resizeKeepingWindowCenter` when navigating between steps.
-- **Edit mode** skips step 1 (`_step` initialized to `1` in `initState`).
-- Step navigation (`_next` / `_back` / `_goToStep`), step indicator (`_buildStepIndicator` / `_buildStepTab`), and nav buttons (`_buildNavButtons`) are identical in pattern to the sync editor.
-- Sub-window sizes: step 0 = `520×360`; step 1 varies by protocol: S3 = `520×640`, WebDAV = `520×540`, Baidu = `520×420`.
+**Two-step wizard (current, 2026-07-11):** New accounts use a 2-step guided flow:
+- **Step 0「选择协议」:** Large selectable cards for S3 / WebDAV / 百度网盘. Selecting a card updates `_storageType` without navigating.
+- **Step 1「连接信息」:** Name field + protocol-specific connection fields + `AccountProxySection`.
+- **Edit mode** does **not** use the wizard; it renders a single-screen connection form (`_buildEditContent`) with Cancel/Save only.
+- Step navigation is only `_next` / `_back` (no step tabs / `_goToStep` on account editor).
 
-**Sub-window architecture (2026-07-02):** The add/edit form uses the same `desktop_multi_window` plumbing as the sync editor and remote directory picker:
+**Window sizing policy (current, supersedes earlier per-step resize docs):**
+- Account editor **does not** call `resizeKeepingWindowCenter` anymore (removed in `a4197b1d`).
+- Initial OS window size is fixed at spawn by `app_entry_io._accountEditorWindowSize`:
+  - New account seed: `528×340` (step 0); final size is content-measured after first layout.
+  - Edit mode by protocol: Baidu `520×520`, WebDAV `520×600`, S3/default `520×700`.
+- Minimum size comes from `configureDesktopModalSubWindow` default `480×400`.
+- Open services (`AccountEditorWindowService`) only create the window + pass creator frame; they do **not** set size.
+- Shell `AccountEditorWindowApp` uses `DesktopModalSubWindowApp(scrollable: true)` only as overflow safety when content exceeds the screen clamp. Normal steps measure content and resize the OS window via `fitModalSubWindowToContentSize`.
+- Dialog sub-window content returns `SizedBox(width: 480)` + `Column(mainAxisSize: min)` — it shrink-wraps height; the fixed OS window height is what creates bottom gap or forces scroll.
+- Historical note: `4ce325f9` / `4483c276` used hand-tuned per-step `resizeKeepingWindowCenter` sizes (fragile). `a4197b1d` temporarily used fixed window + scroll. Current approach measures shrink-wrapped form content (`MeasureSize`) and resizes with `fitModalSubWindowToContentSize`. Sync editor still uses discrete step sizes + `resizeKeepingWindowCenter`.
+
+**Sub-window architecture:**
 - `lib/models/account_editor_window_args.dart` — Args model with `initialConfigJson` (edit mode), `profileName`, `editing`, and `creatorFrame*`. JSON is the only data that crosses the multi-window boundary.
-- `lib/app/account_editor_window_app.dart` — Sub-window root is `ShadApp` + `buildAppTheme`. Body: bootstraps its own `RemoteStorageGateway`, custom title bar, and `CloudStorageAccountDialog(asDialog: false)`. On save it calls `api.saveProfile`, shows a toast, sends `account_editor_saved` to the creator window, and closes itself.
-- `lib/services/account_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Conditional service: desktop uses `WindowController.create()` and registers a `VoidCallback` with `DesktopWindowMethodHost`; Web returns `false` so callers fall back to `showShadDialog`.
-- `lib/app/app_entry_io.dart` — Dispatch: checks `AccountEditorWindowArgs.matches(arguments)` and launches `AccountEditorWindowApp`. New-account initial window size is `520×360` (step 0 protocol picker); edit-mode size varies by protocol (`_accountEditorWindowSize`). Minimum `480×400`.
-- `lib/services/desktop_window_method_host.dart` — Main engine multiplexes `account_editor_saved` to the registered callback so the parent window can refresh its account list after the sub-window saves.
-- `lib/services/desktop_sub_window_modal.dart` — `account_editor` is included in `_isModalSubWindowArguments` so the modal overlay and always-on-top behavior apply consistently. Also exports `resizeKeepingWindowCenter` used by step navigation.
-- `lib/services/desktop_overlay.dart` — `AccountEditorWindowService.isSupported` is included in the `showDesktopOverlayOrDialog` helper check.
-- `lib/widgets/cloud_storage_account_dialog.dart` — The dialog widget is a **2-step wizard** (protocol picker → connection fields). Dual-mode: `asDialog: true` wraps in `ShadDialog` (Web / fallback); `asDialog: false` returns bare content for the detached sub-window. Owns step state, navigation, sub-window resize, submit, and Baidu OAuth helpers. Protocol-specific field builders (`_s3Fields` / `_webdavFields` / `_baiduPanFields`) and step body functions live in the part file.
-- `lib/widgets/cloud_storage_account_dialog_steps.dart` — Part file. `stepProtocolPicker` renders the protocol selection cards (`StorageProtocolCard`). `stepConnectionFields` renders name + protocol fields + proxy section. `_s3Fields` / `_webdavFields` / `_baiduPanFields` are top-level functions receiving `_CloudStorageAccountDialogState`. `_S3AdvancedOptions` (path-style toggle) also lives here.
-- `lib/models/cloud_storage_account_draft.dart` — Plain form draft model, moved out of the dialog to avoid import cycles with the config builder.
-- `lib/utils/account_config_builder.dart` — Builds a `RemoteStorageConfig` from the draft, preserving existing secrets when the user leaves password fields blank in edit mode.
-- `lib/utils/account_profile_name.dart` — Shared profile-key generator used by both the in-page dialog path and the detached sub-window path.
-- `lib/pages/cloud_storage_page.dart` — Entry point. `_showAddAccountDialog` / `_showEditAccountDialog` first try `AccountEditorWindowService.openEditor`; on `false` they fall back to `showShadDialog`. Edit mode loads the existing config with `api.loadProfile` before passing it to the sub-window or dialog.
+- `lib/app/account_editor_window_app.dart` — `DesktopModalSubWindowApp` with `scrollable: true`; content is `CloudStorageAccountDialog(asDialog: false)`. Save notifies parent via `account_editor_saved`, then `close()`.
+- `lib/services/account_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Desktop `WindowController.create()` + parent overlay; Web returns `false` for dialog fallback.
+- `lib/app/app_entry_io.dart` — Matches `AccountEditorWindowArgs` and calls `configureDesktopModalSubWindow(size: _accountEditorWindowSize(...))`.
+- `lib/app/desktop_modal_window_config.dart` — Shared `configureDesktopModalSubWindow` (`WindowOptions` size/minSize + modal chrome + center on creator frame).
+- `lib/services/desktop_sub_window_modal.dart` — Modal child chrome + `resizeKeepingWindowCenter` (still used by **sync** editor step changes, not account editor).
+- `lib/services/desktop_window_method_host.dart` — Multiplexes `account_editor_saved` to the parent refresh callback.
+- `lib/widgets/cloud_storage_account_dialog.dart` — Wizard/edit UI; dual-mode `asDialog`. No window resize logic.
+- `lib/widgets/cloud_storage_account_dialog_steps.dart` — `stepProtocolPicker` / `stepConnectionFields` + protocol field builders.
+- `lib/models/cloud_storage_account_draft.dart` / `lib/utils/account_config_builder.dart` / `lib/utils/account_profile_name.dart` — Draft, config build, profile key.
+- `lib/pages/cloud_storage_page.dart` — Entry: try sub-window, else `showShadDialog`.
 
 #### Data flow
 1. User clicks "新增账号" or row "编辑" in `CloudStoragePage`.
-2. `AccountEditorWindowService.openEditor` acquires the parent modal overlay, registers `widget.onRefresh` as the `account_editor_saved` callback, and spawns the sub-window.
-3. The sub-window bootstraps its own bridge, renders `CloudStorageAccountDialog(asDialog: false)`. New accounts start at step 0 (protocol picker); editing starts at step 1 (connection fields).
-4. User selects a protocol card → clicks "下一步" → step 1 renders the protocol-specific fields. Sub-window resizes via `resizeKeepingWindowCenter`.
-5. User fills the form and submits; the dialog builds a `RemoteStorageConfig` via `buildAccountConfig` and calls the sub-window `_onSave`.
-5. `_onSave` generates the profile key (or reuses the existing one) and calls `api.saveProfile`.
-6. On success, the dialog invokes `onSaved`, which sends `account_editor_saved` to the creator window, then closes the sub-window.
-7. The main engine receives `account_editor_saved`, calls the registered callback (`widget.onRefresh`), and the account list refreshes.
-8. If the sub-window path is unsupported, the flow falls back to `showShadDialog` with `CloudStorageAccountDialog(asDialog: true)`, saving directly in the page callback.
+2. `AccountEditorWindowService.openEditor` acquires parent modal overlay, registers `account_editor_saved` callback, spawns sub-window (no size args).
+3. Child engine `app_entry_io` configures a seed window size, then runs `AccountEditorWindowApp`.
+4. New accounts start at step 0; edit mode shows single-screen fields. After layout, `CloudStorageAccountDialog` measures content and resizes the window; step/protocol/proxy changes re-measure and re-fit.
+5. Submit builds `RemoteStorageConfig` via `buildAccountConfig` and calls sub-window `_onSave` → `api.saveProfile`.
+6. On success, `onSaved` sends `account_editor_saved` to creator, then closes the sub-window.
+7. Main engine refreshes account list via registered callback.
+8. Unsupported path falls back to `showShadDialog` + `CloudStorageAccountDialog(asDialog: true)`.
 
 ### Feature: Transfer Queue (通用传输队列)
 
@@ -494,19 +501,38 @@ Three modal sub-windows (account editor, sync editor, directory picker) share a 
 #### Shared components
 
 - `lib/widgets/desktop_modal_shell.dart` — `DesktopModalShell` (StatelessWidget): 44px title bar with title + close button. Replaces `_AccountEditorTitleBar` / `_SyncEditorTitleBar` / `_PickerTitleBar`.
-- `lib/app/desktop_modal_sub_window_app.dart` — `DesktopModalSubWindowApp<T>` (StatelessWidget): generic sub-window root. Encapsulates `ShadApp` + theme, `_ModalSubWindowLifecycle` (overlay release on dispose/close), `DesktopModalParentFocusRelay` (optional via `useParentFocusRelay`), `DesktopModalWindowFocusGate`, `DesktopModalScrim`, `DesktopModalShell`, and bootstrap-driven loading/error/content body. The close sequence (`unregisterChildWindow` → `notifyCreatorModalOverlayRelease` → `clearModalChildWindowChrome` → `windowManager.close`) is a shared `_closeModalSubWindow` function. Features supply `bootstrap: Future<T> Function()` and `contentBuilder: Widget Function(BuildContext, T)`.
+- `lib/app/desktop_modal_sub_window_app.dart` — `DesktopModalSubWindowApp<T>` (StatelessWidget): generic sub-window root. Encapsulates `ShadApp` + theme, `_ModalSubWindowLifecycle` (overlay release on dispose/close), `DesktopModalParentFocusRelay` (optional via `useParentFocusRelay`), `DesktopModalWindowFocusGate`, `DesktopModalScrim`, `DesktopModalShell`, and bootstrap-driven loading/error/content body. Features supply `bootstrap: Future<T> Function()` and `contentBuilder: Widget Function(BuildContext, T, Future<void> Function() close)`. The third `close` arg is the public close sequence `closeDesktopModalSubWindow(...)` (formerly private `_closeModalSubWindow`): optional `onClose` → unregister child → notify creator overlay release → clear chrome → `windowManager.close()`. **`scrollable` (default true):** when true, body is `Padding` + `SingleChildScrollView` (form-like content such as the account editor). When false, body is only `Padding` so content receives finite height from the shell `Expanded` — required for widgets that use `Expanded` / fill-height lists (`FileSyncProfileEditor`, `RemoteDirectoryPickerDialog`). Never wrap those fill-height editors in an outer scroll view.
 - `lib/app/desktop_modal_window_config.dart` — `configureDesktopModalSubWindow()`: unified `WindowOptions` + `waitUntilReadyToShow` + `applyModalChildWindowChrome` + `setTitle` + `show` + `positionChildCenteredFromFrame` + `focus`. Replaces per-window `_configure*Window` functions.
 
 #### Migrated windows
 
-- `lib/app/account_editor_window_app.dart` — Now `DesktopModalSubWindowApp<RemoteStorageGateway>` with `bootstrap` → `defaultRemoteStorageApiFactory()`, `contentBuilder` → `_AccountEditorContent` holding save + Baidu OAuth callbacks. Deleted: `_AccountEditorTitleBar`, `_closeAccountEditorWindow`, `AccountEditorWindowLifecycle`, `DesktopModalParentFocusRelay`/`DesktopModalWindowFocusGate`/`DesktopModalScrim` wiring.
-- `lib/app/sync_editor_window_app.dart` — Now `DesktopModalSubWindowApp<_SyncBootstrapResult>` with `bootstrap` → load profiles + bucket list, `contentBuilder` → `_SyncEditorContent` holding save callback + `SyncProfileNotifier` lifecycle. Deleted: `_SyncEditorTitleBar`, `_closeSyncEditorWindow`, `SyncEditorWindowLifecycle`.
-- `lib/app/remote_directory_picker_window_app.dart` — Now `DesktopModalSubWindowApp<RemoteStorageGateway>` with `useParentFocusRelay: false`. Uses `onClose` callback to send the picker result to the creator before the generic shell closes. Deleted: `_PickerTitleBar`, inline `_finish` close logic, `_RemoteDirectoryPickerBody`.
+- `lib/app/account_editor_window_app.dart` — `DesktopModalSubWindowApp<RemoteStorageGateway>` with `scrollable: true` (overflow safety only when content exceeds screen clamp), `bootstrap` → `defaultRemoteStorageApiFactory()`, `contentBuilder` → `_AccountEditorContent` (save + Baidu OAuth). `onSaved` notifies parent then `close()`; `onCancel` calls `close()`. Content-fit resize lives in `CloudStorageAccountDialog` (`MeasureSize` + `fitModalSubWindowToContentSize`).
+- `lib/widgets/measure_size.dart` — `MeasureSize` RenderObject reports child size changes (including descendant-only rebuilds such as proxy custom fields).
+- `lib/services/desktop_sub_window_modal.dart` — `fitModalSubWindowToContentSize` converts measured body size + title bar (44) + content padding into a centered OS window size, clamped to min/max and ~90% of screen.
+- `lib/app/sync_editor_window_app.dart` — `DesktopModalSubWindowApp<_SyncBootstrapResult>` with **`scrollable: false`** (editor owns step indicator + internal scroll + pinned nav via `Expanded`). `bootstrap` → load profiles + buckets; `contentBuilder` → `_SyncEditorContent`; `onSaved` → `close()`. Deleted: `_SyncEditorTitleBar`, `_closeSyncEditorWindow`, `SyncEditorWindowLifecycle`.
+- `lib/app/remote_directory_picker_window_app.dart` — `DesktopModalSubWindowApp<RemoteStorageGateway>` with **`scrollable: false`**, `useParentFocusRelay: false`. `onConfirm` stashes result then `close()`; `onCancel` clears result then `close()`; title-bar X still runs shell `onClose` → `_sendResult` (null if no selection). Deleted: `_PickerTitleBar`, inline `_finish`, `_RemoteDirectoryPickerBody`.
 - `lib/app/app_entry_io.dart` — All three modal windows now configured via `configureDesktopModalSubWindow()`. Deleted: `_configureSyncEditorWindow`, `_configureAccountEditorWindow`, `_configureRemoteDirectoryPickerWindow`. `_configurePreviewWindow` remains (non-modal, center:true, no chrome).
+
+#### Initial window sizes (current)
+
+- Account editor: `_accountEditorWindowSize` in `app_entry_io.dart` seeds only — new `528×340`; edit Baidu `528×520` / WebDAV `528×600` / S3 `528×700`, min `400×280`. Runtime size comes from content measure.
+- Sync editor: fixed initial `560×480` (min `520×400`) in `app_entry_io.dart`; step changes inside `FileSyncProfileEditor` call `resizeKeepingWindowCenter` to `560×480` (step 0) / `640×660` (step 1).
+- Remote directory picker: fixed `720×560` (min `560×440`); dialog fills height with `Expanded` list (`scrollable: false` shell).
+
 
 #### Not migrated
 
 - `FilePreviewWindowApp` — non-modal standalone window (no scrim, no overlay release, draggable title bar). Mode is fundamentally different; stays independent.
+
+#### Gotchas
+
+- Never set `scrollable: true` for content that uses `Expanded`, `height: double.infinity`, or an internal scroll region (`FileSyncProfileEditor._buildSubWindowLayout`, `RemoteDirectoryPickerDialog`). The outer `SingleChildScrollView` makes height unbounded and crashes with `RenderFlex children have non-zero flex but incoming height constraints are unbounded`.
+- Content must call the injected `close` from save/cancel/confirm paths. Title-bar X already calls shell `onClose` → `closeDesktopModalSubWindow`; empty `onCancel` / `onSaved` callbacks leave the window open after the migration.
+- Do not nest `ShadDialog` in modal sub-windows (`asDialog: false`). File preview is not this shell — leave it alone.
+- Account editor uses **content-measured** resize (`MeasureSize` + `fitModalSubWindowToContentSize`), not hand-tuned per-step heights. Only shrink-wrapped (`MainAxisSize.min`) form content may use it. Sync editor / directory picker keep discrete or fill-height layouts and must not call content-fit.
+- Content-fit must add shell chrome: title bar 44px + content padding `LTRB(24,16,24,24)` (+ small height fudge). Measuring only the form body and applying that as the OS window size leaves chrome cut off or reintroduces scroll/whitespace.
+- `MeasureSize` must report the **child's unconstrained height** (layout with `maxHeight: infinity`), not the short size forced by the parent `Expanded`/seed window. Reporting the clamped parent size under-measures and clips the button row.
+- After content-fit resize, re-center with `positionChildCenteredFromFrame` using the creator frame from window args. Do not only call `resizeKeepingWindowCenter` on first show — the child may still be at a default OS origin and will jump/off-center.
 
 ### Feature: Responsive Page Header Actions (页面头部响应式操作区)
 

@@ -24,9 +24,14 @@ import 'package:window_manager/window_manager.dart';
 ///
 /// [bootstrap] loads whatever the content needs (e.g. RemoteStorageGateway,
 /// bucket list) and returns a value of type [T]. [contentBuilder] turns that
-/// value into the body widget. [onClose] runs before the window closes, for
-/// features that need to send a result back to the creator (e.g. the directory
-/// picker); pass `null` for fire-and-forget windows.
+/// value into the body widget and receives a [close] callback to shut the
+/// window (after optional [onClose]).
+///
+/// [scrollable] wraps content in [SingleChildScrollView] when true (good for
+/// form-like content such as the account editor). Set false when the content
+/// manages its own layout with [Expanded] / fill-height widgets (sync editor,
+/// directory picker) — an outer scroll view would give unbounded height and
+/// break those flex children.
 ///
 /// [useParentFocusRelay] controls whether [DesktopModalParentFocusRelay] wraps
 /// the content — account/sync editors use it, the picker does not.
@@ -37,6 +42,7 @@ class DesktopModalSubWindowApp<T> extends StatelessWidget {
     required this.bootstrap,
     required this.contentBuilder,
     this.contentPadding = const EdgeInsets.fromLTRB(24, 16, 24, 24),
+    this.scrollable = true,
     this.useParentFocusRelay = true,
     this.onClose,
     super.key,
@@ -45,8 +51,15 @@ class DesktopModalSubWindowApp<T> extends StatelessWidget {
   final String title;
   final String creatorWindowId;
   final Future<T> Function() bootstrap;
-  final Widget Function(BuildContext context, T data) contentBuilder;
+  final Widget Function(
+    BuildContext context,
+    T data,
+    Future<void> Function() close,
+  ) contentBuilder;
   final EdgeInsets contentPadding;
+
+  /// When true, content is wrapped in [SingleChildScrollView]. Default true.
+  final bool scrollable;
   final bool useParentFocusRelay;
 
   /// Called after the user clicks close / window close event, before the
@@ -73,6 +86,7 @@ class DesktopModalSubWindowApp<T> extends StatelessWidget {
                   bootstrap: bootstrap,
                   contentBuilder: contentBuilder,
                   contentPadding: contentPadding,
+                  scrollable: scrollable,
                   onClose: onClose,
                 ),
                 const DesktopModalScrim(),
@@ -101,14 +115,20 @@ class _ModalSubWindowBody<T> extends StatefulWidget {
     required this.bootstrap,
     required this.contentBuilder,
     required this.contentPadding,
+    required this.scrollable,
     required this.onClose,
   });
 
   final String title;
   final String creatorWindowId;
   final Future<T> Function() bootstrap;
-  final Widget Function(BuildContext context, T data) contentBuilder;
+  final Widget Function(
+    BuildContext context,
+    T data,
+    Future<void> Function() close,
+  ) contentBuilder;
   final EdgeInsets contentPadding;
+  final bool scrollable;
   final Future<void> Function()? onClose;
 
   @override
@@ -119,6 +139,11 @@ class _ModalSubWindowBodyState<T> extends State<_ModalSubWindowBody<T>> {
   T? _data;
   bool _loading = true;
   String? _error;
+
+  Future<void> _close() => closeDesktopModalSubWindow(
+        creatorWindowId: widget.creatorWindowId,
+        onClose: widget.onClose,
+      );
 
   @override
   void initState() {
@@ -154,10 +179,9 @@ class _ModalSubWindowBodyState<T> extends State<_ModalSubWindowBody<T>> {
         children: [
           DesktopModalShell(
             title: widget.title,
-            onClose: () => _closeModalSubWindow(
-              creatorWindowId: widget.creatorWindowId,
-              onClose: widget.onClose,
-            ),
+            onClose: () {
+              _close();
+            },
           ),
           Expanded(child: _buildBody(theme)),
         ],
@@ -182,11 +206,19 @@ class _ModalSubWindowBodyState<T> extends State<_ModalSubWindowBody<T>> {
         ),
       );
     }
+    final content = widget.contentBuilder(context, _data as T, _close);
+    // scrollable: form-like content (account editor) can grow past the window.
+    // Non-scrollable: content owns Expanded/fill-height layout and needs a
+    // finite height from this Expanded parent (sync editor, directory picker).
+    if (widget.scrollable) {
+      return Padding(
+        padding: widget.contentPadding,
+        child: SingleChildScrollView(child: content),
+      );
+    }
     return Padding(
       padding: widget.contentPadding,
-      child: SingleChildScrollView(
-        child: widget.contentBuilder(context, _data as T),
-      ),
+      child: content,
     );
   }
 }
@@ -252,7 +284,7 @@ class _ModalSubWindowLifecycleState extends State<_ModalSubWindowLifecycle>
 
 /// Runs the full modal-sub-window close sequence: optional [onClose] callback
 /// (for sending results), then overlay release + chrome clear + window close.
-Future<void> _closeModalSubWindow({
+Future<void> closeDesktopModalSubWindow({
   required String creatorWindowId,
   Future<void> Function()? onClose,
 }) async {

@@ -24,13 +24,16 @@ class AccountEditorWindowApp extends StatelessWidget {
     return DesktopModalSubWindowApp<RemoteStorageGateway>(
       title: args.editing ? '编辑账号' : '新增账号',
       creatorWindowId: args.creatorWindowId,
+      // Form content; outer SingleChildScrollView is fine.
+      scrollable: true,
       bootstrap: () async {
         DesktopWindowMethodHost.ensureInstalled();
         return defaultRemoteStorageApiFactory();
       },
-      contentBuilder: (context, api) => _AccountEditorContent(
+      contentBuilder: (context, api, close) => _AccountEditorContent(
         api: api,
         args: args,
+        close: close,
       ),
     );
   }
@@ -39,10 +42,15 @@ class AccountEditorWindowApp extends StatelessWidget {
 /// Holds the save + Baidu OAuth callbacks that [CloudStorageAccountDialog]
 /// needs. Lives inside the generic shell's scroll view.
 class _AccountEditorContent extends StatefulWidget {
-  const _AccountEditorContent({required this.api, required this.args});
+  const _AccountEditorContent({
+    required this.api,
+    required this.args,
+    required this.close,
+  });
 
   final RemoteStorageGateway api;
   final AccountEditorWindowArgs args;
+  final Future<void> Function() close;
 
   @override
   State<_AccountEditorContent> createState() => _AccountEditorContentState();
@@ -91,6 +99,7 @@ class _AccountEditorContentState extends State<_AccountEditorContent> {
 
   Future<void> _onSaved() async {
     await _notifyParentSaved();
+    await widget.close();
   }
 
   Future<void> _notifyParentSaved() async {
@@ -112,9 +121,16 @@ class _AccountEditorContentState extends State<_AccountEditorContent> {
       initialConfig: widget.args.initialConfig,
       editing: widget.args.editing,
       asDialog: false,
+      creatorWindowId: widget.args.creatorWindowId,
+      creatorFrameLeft: widget.args.creatorFrameLeft,
+      creatorFrameTop: widget.args.creatorFrameTop,
+      creatorFrameWidth: widget.args.creatorFrameWidth,
+      creatorFrameHeight: widget.args.creatorFrameHeight,
       onSave: _onSave,
       onSaved: _onSaved,
-      onCancel: () {},
+      onCancel: () {
+        widget.close();
+      },
       onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
       onAuthorizeBaiduPan: _authorizeBaiduPan,
     );

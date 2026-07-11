@@ -21,9 +21,16 @@ class RemoteDirectoryPickerWindowApp extends StatelessWidget {
       title: '选择远端目录',
       creatorWindowId: args.creatorWindowId,
       useParentFocusRelay: false,
+      // Picker uses Expanded + ListView; outer scroll would break flex layout.
+      scrollable: false,
       bootstrap: () => defaultRemoteStorageApiFactory(),
+      // Title-bar close / cancel with no selection → null result.
       onClose: () => _sendResult(args, _pendingResult),
-      contentBuilder: (context, api) => _PickerContent(args: args, api: api),
+      contentBuilder: (context, api, close) => _PickerContent(
+        args: args,
+        api: api,
+        close: close,
+      ),
     );
   }
 }
@@ -32,13 +39,18 @@ class RemoteDirectoryPickerWindowApp extends StatelessWidget {
 /// Set by [_PickerContent]'s onConfirm; read by the onClose callback above.
 RemoteDirectoryResult? _pendingResult;
 
-/// Holds the picker dialog. onConfirm stashes the result so the generic
-/// shell's onClose can send it to the creator window before closing.
+/// Holds the picker dialog. onConfirm/onCancel stash the result (or clear it)
+/// then call [close], which runs the shell's onClose → close sequence.
 class _PickerContent extends StatelessWidget {
-  const _PickerContent({required this.args, required this.api});
+  const _PickerContent({
+    required this.args,
+    required this.api,
+    required this.close,
+  });
 
   final RemoteDirectoryPickerWindowArgs args;
   final RemoteStorageGateway api;
+  final Future<void> Function() close;
 
   RemoteDirectoryResult? get _initial {
     if (args.initialBucket == null) return null;
@@ -62,8 +74,14 @@ class _PickerContent extends StatelessWidget {
       buckets: args.buckets,
       initial: _initial,
       asDialog: false,
-      onCancel: () {},
-      onConfirm: (result) => _pendingResult = result,
+      onCancel: () {
+        _pendingResult = null;
+        close();
+      },
+      onConfirm: (result) {
+        _pendingResult = result;
+        close();
+      },
     );
   }
 }

@@ -1,16 +1,18 @@
 // 新增/编辑账号弹窗：两步式引导（选择接入协议 → 配置连接信息）。
-// 子窗口模式（asDialog: false）返回裸内容；Web 回退仍用 ShadDialog。
-// 编辑模式不走向导，直接展示单屏连接信息表单。
+// 子窗口模式（asDialog: false）返回裸内容并用 MeasureSize 按内容自适应窗口尺寸；
+// Web 回退仍用 ShadDialog。编辑模式不走向导，直接展示单屏连接信息表单。
 // 字段构建与协议选择卡片在 part 文件 cloud_storage_account_dialog_steps.dart 中。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/cloud_storage_account_draft.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/utils/account_config_builder.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/account_proxy_section.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
+import 'package:remote_storage/widgets/measure_size.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 export 'package:remote_storage/models/cloud_storage_account_draft.dart';
@@ -31,6 +33,11 @@ class CloudStorageAccountDialog extends StatefulWidget {
     this.asDialog = true,
     this.onSaved,
     this.onCancel,
+    this.creatorWindowId,
+    this.creatorFrameLeft,
+    this.creatorFrameTop,
+    this.creatorFrameWidth,
+    this.creatorFrameHeight,
   });
 
   final Future<bool> Function(RemoteStorageConfig config) onSave;
@@ -48,6 +55,13 @@ class CloudStorageAccountDialog extends StatefulWidget {
 
   /// 子窗口模式取消时回调。
   final VoidCallback? onCancel;
+
+  /// Parent frame for re-centering after content-fit resize (sub-window only).
+  final String? creatorWindowId;
+  final double? creatorFrameLeft;
+  final double? creatorFrameTop;
+  final double? creatorFrameWidth;
+  final double? creatorFrameHeight;
 
   @override
   State<CloudStorageAccountDialog> createState() =>
@@ -129,6 +143,59 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     super.dispose();
   }
 
+  // -- Sub-window content-fit -------------------------------------------------
+
+  /// Content width for the sub-window form body (shell adds horizontal padding).
+  static const double _contentWidth = 480;
+
+  Size? _latestContentSize;
+  int _fitGeneration = 0;
+  bool _fitInFlight = false;
+
+  void _onContentSize(Size contentSize) {
+    if (widget.asDialog) return;
+    if (contentSize.width <= 0 || contentSize.height <= 0) return;
+    _latestContentSize = contentSize;
+    _fitGeneration++;
+    _drainContentFit();
+  }
+
+  Future<void> _drainContentFit() async {
+    if (_fitInFlight || widget.asDialog) return;
+    _fitInFlight = true;
+    try {
+      while (mounted && !widget.asDialog) {
+        final gen = _fitGeneration;
+        final size = _latestContentSize;
+        if (size == null) break;
+        try {
+          await fitModalSubWindowToContentSize(
+            size,
+            creatorWindowId: widget.creatorWindowId,
+            creatorFrameLeft: widget.creatorFrameLeft,
+            creatorFrameTop: widget.creatorFrameTop,
+            creatorFrameWidth: widget.creatorFrameWidth,
+            creatorFrameHeight: widget.creatorFrameHeight,
+          );
+        } catch (_) {}
+        if (gen == _fitGeneration) break;
+      }
+    } finally {
+      _fitInFlight = false;
+    }
+  }
+
+  Widget _wrapMeasured(Widget child) {
+    if (widget.asDialog) return child;
+    // Measure unconstrained content height at fixed form width; shell padding
+    // and title bar are added inside fitModalSubWindowToContentSize.
+    return MeasureSize(
+      onChange: _onContentSize,
+      contentWidth: _contentWidth,
+      child: child,
+    );
+  }
+
   // -- Step navigation --------------------------------------------------------
 
   void _next() {
@@ -158,7 +225,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     // Editing: single-screen form, no wizard chrome.
     if (widget.editing) {
       final content = _buildEditContent(theme);
-      if (!widget.asDialog) return content;
+      if (!widget.asDialog) return _wrapMeasured(content);
       return ShadDialog(
         title: const Text('编辑账号'),
         description: const Text(
@@ -169,13 +236,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         child: content,
       );
     }
-    // New account: 2-step wizard. Sub-window uses a fixed-size container
-    // (no per-step resize) — content scrolls if it overflows.
+    // New account: 2-step wizard. Sub-window measures shrink-wrapped content
+    // and resizes the OS window to fit (no empty bottom / no inner scroll).
     if (!widget.asDialog) {
-      return SizedBox(
-        width: 480,
-        child: _buildWizardContent(theme),
-      );
+      return _wrapMeasured(_buildWizardContent(theme));
     }
     return ShadDialog(
       title: const Text('新增账号'),
@@ -211,27 +275,24 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   /// Editing mode: just the connection fields + nav buttons.
   Widget _buildEditContent(ShadThemeData theme) {
-    return SizedBox(
-      width: 480,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          stepConnectionFields(theme: theme, self: this),
-          if (_errorText != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _errorText!,
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.colorScheme.destructive,
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        stepConnectionFields(theme: theme, self: this),
+        if (_errorText != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
             ),
-          ],
-          const SizedBox(height: 20),
-          _buildEditNavButtons(theme),
+          ),
         ],
-      ),
+        const SizedBox(height: 20),
+        _buildEditNavButtons(theme),
+      ],
     );
   }
 
