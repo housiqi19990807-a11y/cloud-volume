@@ -86,12 +86,8 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   bool _saving = false;
   String? _errorText;
 
-  // Sub-window sizes per step; the window resizes when navigating between
-  // steps, matching the sync editor pattern. No step indicator is shown.
-  static const _sizeStep0 = Size(520, 500);
-  static const _sizeStep1S3 = Size(520, 640);
-  static const _sizeStep1WebDAV = Size(520, 540);
-  static const _sizeStep1Baidu = Size(520, 420);
+  // Fixed window width; height is computed per step to fit content exactly.
+  static const _windowWidth = 520.0;
 
   /// Exposed for part-file step functions to trigger rebuilds.
   void markDirty(VoidCallback fn) => setState(fn);
@@ -164,11 +160,11 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   }
 
   Size _sizeForStep(int step) {
-    if (step == 0) return _sizeStep0;
+    if (step == 0) return const Size(_windowWidth, 380);
     return switch (_storageType) {
-      StorageType.webdav => _sizeStep1WebDAV,
-      StorageType.baiduPan => _sizeStep1Baidu,
-      _ => _sizeStep1S3,
+      StorageType.webdav => const Size(_windowWidth, 560),
+      StorageType.baiduPan => const Size(_windowWidth, 440),
+      _ => const Size(_windowWidth, 680),
     };
   }
 
@@ -236,16 +232,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   Widget _buildSubWindowLayout(ShadThemeData theme) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: SingleChildScrollView(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: _buildStepBody(theme),
-            ),
-          ),
-        ),
+        _buildStepBody(theme),
         if (_errorText != null) ...[
           const SizedBox(height: 8),
           Text(

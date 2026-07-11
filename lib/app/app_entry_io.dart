@@ -155,12 +155,12 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
 
   Size _accountEditorWindowSize(AccountEditorWindowArgs args) {
     // New account starts at step 0 (protocol picker).
-    if (!args.editing) return const Size(520, 500);
-    // Editing starts at step 1 (connection fields) — size by protocol.
+    if (!args.editing) return const Size(520, 380);
+    // Editing: size by protocol to fit fields without scrolling.
     final storageType = args.initialConfig?.storageType;
     return switch (storageType) {
-      StorageType.baiduPan => const Size(520, 420),
-      StorageType.webdav => const Size(520, 540),
-      _ => const Size(520, 640),
+      StorageType.baiduPan => const Size(520, 440),
+      StorageType.webdav => const Size(520, 560),
+      _ => const Size(520, 680),
     };
   }
