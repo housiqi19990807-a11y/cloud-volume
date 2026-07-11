@@ -85,9 +85,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   int _step = 0;
   bool _saving = false;
   String? _errorText;
-  static const _stepLabels = ['选择协议', '连接信息'];
 
-  // Sub-window sizes per step; step 1 varies by protocol field count.
+  // Sub-window sizes per step; the window resizes when navigating between
+  // steps, matching the sync editor pattern. No step indicator is shown.
   static const _sizeStep0 = Size(520, 500);
   static const _sizeStep1S3 = Size(520, 640);
   static const _sizeStep1WebDAV = Size(520, 540);
@@ -155,7 +155,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   void _back() => _goToStep(_step - 1);
 
   void _goToStep(int index) {
-    if (index < 0 || index >= _stepLabels.length || index == _step) return;
+    if (index < 0 || index > 1 || index == _step) return;
     setState(() {
       _errorText = null;
       _step = index;
@@ -199,7 +199,8 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         child: content,
       );
     }
-    // New account: 2-step wizard.
+    // New account: 2-step wizard, no top step indicator (sub-window resizes
+    // per step, matching the sync editor pattern).
     if (!widget.asDialog) return _buildSubWindowLayout(theme);
     return ShadDialog(
       title: const Text('新增账号'),
@@ -210,7 +211,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     );
   }
 
-  /// Editing mode: just the connection fields + nav buttons, no step indicator.
+  /// Editing mode: just the connection fields + nav buttons.
   Widget _buildEditContent(ShadThemeData theme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -237,8 +238,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStepIndicator(theme),
-        const SizedBox(height: 16),
         Expanded(
           child: SingleChildScrollView(
             child: Align(
@@ -268,8 +267,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStepIndicator(theme),
-        const SizedBox(height: 20),
         _buildStepBody(theme),
         if (_errorText != null) ...[
           const SizedBox(height: 12),
@@ -292,79 +289,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       0 => stepProtocolPicker(theme: theme, self: this),
       _ => stepConnectionFields(theme: theme, self: this),
     };
-  }
-
-  Widget _buildStepIndicator(ShadThemeData theme) {
-    return Row(
-      children: List.generate(_stepLabels.length, (i) {
-        final isActive = i == _step;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(
-              right: i < _stepLabels.length - 1 ? 8 : 0,
-            ),
-            child: _buildStepTab(theme, i, isActive),
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildStepTab(ShadThemeData theme, int index, bool isActive) {
-    final borderColor = isActive
-        ? theme.colorScheme.primary
-        : theme.colorScheme.border.withValues(alpha: 0.7);
-    final bg = isActive
-        ? theme.colorScheme.primary.withValues(alpha: 0.08)
-        : theme.colorScheme.secondary;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _goToStep(index),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: borderColor,
-              width: isActive ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '${index + 1}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isActive
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.mutedForeground,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  _stepLabels[index],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                    color: isActive
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.foreground,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildNavButtons(ShadThemeData theme) {
@@ -410,7 +334,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     );
   }
 
-  /// Editing mode nav buttons: just Cancel + Save, no step navigation.
+  /// Editing mode nav buttons: just Cancel + Save.
   Widget _buildEditNavButtons(ShadThemeData theme) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
