@@ -114,9 +114,9 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     final names = accounts.map((profile) => profile.name).toList(growable: false);
     setState(() => _accounts = accounts);
     try {
+      // Order is already persisted; avoid bootstrap/onRefresh which used to
+      // flash the whole app shell while FutureBuilder reloaded.
       await widget.api.reorderProfiles(names);
-      if (!mounted) return;
-      widget.onRefresh();
     } catch (error) {
       if (!mounted) return;
       setState(() => _accounts = previous);

@@ -1,5 +1,7 @@
 // 启动引导页：判断是否已有配置，决定跳转配置页还是主界面。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -26,7 +28,9 @@ class AppBootstrapPage extends StatefulWidget {
 }
 
 class _AppBootstrapPageState extends State<AppBootstrapPage> {
-  late Future<_BootstrapSession> _sessionFuture;
+  _BootstrapSession? _session;
+  Object? _loadError;
+  bool _loading = true;
   bool _showSetupAnyway = false;
   SidebarItem _selectedSidebarItem = SidebarItem.fileManager;
 
@@ -35,80 +39,116 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
     super.initState();
     DesktopWindowMethodHost.ensureInstalled();
     reconcileModalOverlayWithOpenChildren();
-    _sessionFuture = _loadSession();
+    unawaited(_loadSession(showLoadingShell: true));
   }
 
-  Future<_BootstrapSession> _loadSession() async {
-    final api = await widget.apiFactory();
-    await AppLog.bind(api);
-    final auth = await api.loadAuthSession();
-    final state = await api.loadBootstrapState();
-    return _BootstrapSession(api: api, state: state, auth: auth);
+  Future<void> _loadSession({required bool showLoadingShell}) async {
+    if (showLoadingShell) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    } else {
+      setState(() {
+        _showSetupAnyway = false;
+        _loadError = null;
+      });
+    }
+
+    try {
+      final previous = _session;
+      final _BootstrapSession session;
+      if (previous == null) {
+        final api = await widget.apiFactory();
+        await AppLog.bind(api);
+        final auth = await api.loadAuthSession();
+        final state = await api.loadBootstrapState();
+        session = _BootstrapSession(api: api, state: state, auth: auth);
+      } else {
+        // Soft refresh reuses the connected API so account reorder / settings
+        // saves only replace bootstrap data without unmounting the main shell.
+        final auth = await previous.api.loadAuthSession();
+        final state = await previous.api.loadBootstrapState();
+        session = _BootstrapSession(
+          api: previous.api,
+          state: state,
+          auth: auth,
+        );
+      }
+      if (!mounted) return;
+      setState(() {
+        _session = session;
+        _loading = false;
+        _loadError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      // First launch still needs the error shell; later soft reloads keep the
+      // current page so drag-reorder and settings saves do not flash.
+      if (_session == null) {
+        setState(() {
+          _loading = false;
+          _loadError = error;
+        });
+      }
+    }
   }
 
   void _reload() {
-    setState(() {
-      _showSetupAnyway = false;
-      _sessionFuture = _loadSession();
-    });
+    unawaited(_loadSession(showLoadingShell: _session == null));
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_BootstrapSession>(
-      future: _sessionFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const _BootstrapMessageView(
-            title: '正在检查配置',
-            description: '正在读取默认配置文件并准备远程存储环境。',
-            loading: true,
-          );
-        }
+    if (_loading && _session == null) {
+      return const _BootstrapMessageView(
+        title: '正在检查配置',
+        description: '正在读取默认配置文件并准备远程存储环境。',
+        loading: true,
+      );
+    }
 
-        if (snapshot.hasError) {
-          return _BootstrapMessageView(
-            title: '启动失败',
-            description: describeBridgeError(snapshot.error!),
-            actionLabel: '重试',
-            onAction: _reload,
-          );
-        }
+    if (_loadError != null && _session == null) {
+      return _BootstrapMessageView(
+        title: '启动失败',
+        description: describeBridgeError(_loadError!),
+        actionLabel: '重试',
+        onAction: _reload,
+      );
+    }
 
-        final session = snapshot.data!;
-        CacheMaintenanceService.instance.configure(
-          session.api,
-          session.state.config,
-        );
-        final shouldShowSetup = _showSetupAnyway || !session.state.configured;
-        if (shouldShowSetup) {
-          return ConfigSetupPage(
-            api: session.api,
-            initialState: session.state,
-            onSaved: _reload,
-          );
-        }
+    final session = _session!;
+    CacheMaintenanceService.instance.configure(
+      session.api,
+      session.state.config,
+    );
+    final shouldShowSetup = _showSetupAnyway || !session.state.configured;
+    if (shouldShowSetup) {
+      return ConfigSetupPage(
+        api: session.api,
+        initialState: session.state,
+        onSaved: _reload,
+      );
+    }
 
-        if (session.api.capabilities.supportsSessionLogin &&
-            session.auth.loginRequired &&
-            !session.auth.authenticated) {
-          return LoginPage(
-            api: session.api,
-            configPath: session.state.configPath,
-            onLoggedIn: _reload,
-          );
-        }
+    if (session.api.capabilities.supportsSessionLogin &&
+        session.auth.loginRequired &&
+        !session.auth.authenticated) {
+      return LoginPage(
+        api: session.api,
+        configPath: session.state.configPath,
+        onLoggedIn: _reload,
+      );
+    }
 
-        return MainLayoutPage(
-          state: session.state,
-          api: session.api,
-          selectedItem: _selectedSidebarItem,
-          onSelectedItemChanged: (item) =>
-              setState(() => _selectedSidebarItem = item),
-          onEditConfig: () => setState(() => _showSetupAnyway = true),
-          onRefresh: _reload,
-        );
-      },
+    return MainLayoutPage(
+      state: session.state,
+      api: session.api,
+      selectedItem: _selectedSidebarItem,
+      onSelectedItemChanged: (item) =>
+          setState(() => _selectedSidebarItem = item),
+      onEditConfig: () => setState(() => _showSetupAnyway = true),
+      onRefresh: _reload,
     );
   }
 }
@@ -191,3 +231,4 @@ class _BootstrapMessageView extends StatelessWidget {
     );
   }
 }
+

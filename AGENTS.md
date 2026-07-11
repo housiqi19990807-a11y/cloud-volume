@@ -342,6 +342,7 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
 - Bridge/webapi methods: `reorder_profiles` `{names}`, `reorder_buckets` `{ids}`, `list_bucket_order`.
 - Flutter gateway: `reorderProfiles` / `reorderBuckets` / `listBucketOrder`.
 - Account list UI: `CloudStorageAccountList` list mode `ReorderableListView` + `CloudStoragePage._reorderAccounts` (optimistic local order).
+- Bootstrap soft refresh: `lib/pages/app_bootstrap_page.dart` keeps `_session` mounted and reloads bootstrap state in place; reorder no longer triggers full-screen loading shell.
 - Bucket list UI: `FileManagerBucketBrowser` list mode reorder + `file_manager_page_bucket_view._reorderBuckets`; load path `file_manager_page_sources._loadBucketEntries` applies `listBucketOrder` (fallback: profile order then bucket name).
 - Grid view / search / trash home do not enable drag reorder.
 - Save profile appends new names to existing `profile_order`; delete profile strips profile + its `profile::` bucket ids; reset clears both orders.
