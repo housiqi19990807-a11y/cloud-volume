@@ -290,6 +290,25 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> reorderProfiles(List<String> names) async {
+    await _invoke('reorder_profiles', <String, dynamic>{'names': names});
+  }
+
+  @override
+  Future<void> reorderBuckets(List<String> ids) async {
+    await _invoke('reorder_buckets', <String, dynamic>{'ids': ids});
+  }
+
+  @override
+  Future<List<String>> listBucketOrder() async {
+    final result = await _invoke('list_bucket_order');
+    if (result is List) {
+      return result.map((e) => e.toString()).toList();
+    }
+    return const <String>[];
+  }
+
+  @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
     final result = await _invoke('list_buckets');
     return _parseList(result, (m) => BucketInfo.fromJson(m));

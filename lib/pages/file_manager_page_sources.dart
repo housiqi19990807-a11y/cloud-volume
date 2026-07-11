@@ -19,10 +19,36 @@ extension _FileManagerPageSources on _FileManagerPageState {
         );
       }
     }
+    final order = await widget.api.listBucketOrder();
+    if (order.isNotEmpty) {
+      final byId = {for (final entry in entries) entry.id: entry};
+      final ordered = <FileManagerBucketEntry>[];
+      final seen = <String>{};
+      for (final id in order) {
+        final entry = byId[id];
+        if (entry == null || !seen.add(id)) {
+          continue;
+        }
+        ordered.add(entry);
+      }
+      for (final entry in entries) {
+        if (seen.add(entry.id)) {
+          ordered.add(entry);
+        }
+      }
+      return ordered;
+    }
+    // Default: account list order (sources already follow profile order), then
+    // bucket name within each account.
     entries.sort((left, right) {
-      final sourceCompare = left.sourceLabel.compareTo(right.sourceLabel);
-      if (sourceCompare != 0) {
-        return sourceCompare;
+      final leftSource = sources.indexWhere(
+        (source) => source.profileName == left.profileName,
+      );
+      final rightSource = sources.indexWhere(
+        (source) => source.profileName == right.profileName,
+      );
+      if (leftSource != rightSource) {
+        return leftSource.compareTo(rightSource);
       }
       return left.bucket.name.compareTo(right.bucket.name);
     });

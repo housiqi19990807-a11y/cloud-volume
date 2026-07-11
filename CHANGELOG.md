@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- 账号管理 / 文件管理：列表视图支持拖拽排序。账号顺序与桶顺序写入 bbolt `meta`（`profile_order` / `bucket_order`），重启后保持；卡片视图仍不支持拖拽。搜索中或回收站首页的桶列表禁用排序。
+
 - 模态 UI：默认统一为应用内拟态框（`showAppModal` / `showAppConfirmModal`）。账号新增/编辑、同步配置、远端目录选择不再默认打开 OS 子窗口；`desktop_multi_window` 子窗口仅 Debug + `--dart-define=USE_MODAL_SUB_WINDOWS=true` 可用。业务侧禁止直接 `showShadDialog`。
 
 

@@ -52,6 +52,36 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
           : null,
       bucketTrashEnabled: _bucketTrashEnabled,
       webDavActionLabel: 'WebDAV',
+      onReorder: (_isTrashHome || _isGrid || _hasSearchQuery)
+          ? null
+          : _reorderBuckets,
     );
   }
+
+  Future<void> _reorderBuckets(int oldIndex, int newIndex) async {
+    final current = List<FileManagerBucketEntry>.from(_buckets ?? const []);
+    if (oldIndex < 0 || oldIndex >= current.length) {
+      return;
+    }
+    var targetIndex = newIndex;
+    if (targetIndex > oldIndex) {
+      targetIndex -= 1;
+    }
+    if (targetIndex < 0 || targetIndex >= current.length) {
+      return;
+    }
+    final moved = current.removeAt(oldIndex);
+    current.insert(targetIndex, moved);
+    setState(() => _buckets = current);
+    try {
+      await widget.api.reorderBuckets(
+        current.map((entry) => entry.id).toList(growable: false),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppErrorToast(context, message: error.toString());
+      unawaited(_loadBuckets());
+    }
+  }
 }
+

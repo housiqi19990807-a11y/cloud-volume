@@ -253,6 +253,25 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> reorderProfiles(List<String> names) async {
+    await runBridgeCall('reorder_profiles', <String, dynamic>{'names': names});
+  }
+
+  @override
+  Future<void> reorderBuckets(List<String> ids) async {
+    await runBridgeCall('reorder_buckets', <String, dynamic>{'ids': ids});
+  }
+
+  @override
+  Future<List<String>> listBucketOrder() async {
+    final result = await runBridgeCall('list_bucket_order');
+    if (result is List) {
+      return result.map((e) => e.toString()).toList();
+    }
+    return const <String>[];
+  }
+
+  @override
   List<T> parseBridgeList<T>(
     dynamic result,
     T Function(Map<String, dynamic>) fromJson,

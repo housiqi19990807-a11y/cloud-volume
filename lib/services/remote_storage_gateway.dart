@@ -99,6 +99,9 @@ abstract class RemoteStorageGateway {
   Future<void> deleteProfile(String name);
   Future<BootstrapState> resetUserConfig();
   Future<BootstrapState> setActiveProfile(String name);
+  Future<void> reorderProfiles(List<String> names);
+  Future<void> reorderBuckets(List<String> ids);
+  Future<List<String>> listBucketOrder();
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config);
   Future<List<ObjectInfo>> listObjects(
     RemoteStorageConfig config,

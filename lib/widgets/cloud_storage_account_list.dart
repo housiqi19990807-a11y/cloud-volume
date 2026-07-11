@@ -17,6 +17,7 @@ class CloudStorageAccountList extends StatelessWidget {
     required this.busy,
     required this.onEdit,
     required this.onDelete,
+    this.onReorder,
   });
 
   final List<ProfileInfo> accounts;
@@ -24,6 +25,7 @@ class CloudStorageAccountList extends StatelessWidget {
   final bool busy;
   final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onDelete;
+  final void Function(int oldIndex, int newIndex)? onReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -68,37 +70,87 @@ class CloudStorageAccountList extends StatelessWidget {
 
   Widget _buildTable(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final canReorder = onReorder != null && accounts.length > 1;
     return ShadCard(
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
           _AccountTableHeader(theme: theme),
           Expanded(
-            child: ListView.builder(
-              itemCount: accounts.length,
-              itemBuilder: (context, index) {
-                final profile = accounts[index];
-                return FileListTile(
-                  leading: _AccountIcon(profile: profile),
-                  title: _profileTitle(profile),
-                  subtitleLabel: profile.endpoint,
-                  sizeLabel: _storageLabel(profile),
-                  sizeColumnWidthOverride: _typeColumnWidth,
-                  trailing: _AccountActions(
-                    profile: profile,
-                    busy: busy,
-                    onEdit: onEdit,
-                    onDelete: onDelete,
+            child: canReorder
+                ? ReorderableListView.builder(
+                    buildDefaultDragHandles: false,
+                    itemCount: accounts.length,
+                    onReorder: onReorder!,
+                    proxyDecorator: (child, index, animation) {
+                      return Material(
+                        elevation: 1.5,
+                        color: Colors.transparent,
+                        child: child,
+                      );
+                    },
+                    itemBuilder: (context, index) {
+                      final profile = accounts[index];
+                      return ReorderableDragStartListener(
+                        key: ValueKey('account-${profile.name}'),
+                        index: index,
+                        child: _buildAccountRow(
+                          profile: profile,
+                          index: index,
+                          showDragHandle: true,
+                        ),
+                      );
+                    },
+                  )
+                : ListView.builder(
+                    itemCount: accounts.length,
+                    itemBuilder: (context, index) {
+                      final profile = accounts[index];
+                      return KeyedSubtree(
+                        key: ValueKey('account-${profile.name}'),
+                        child: _buildAccountRow(
+                          profile: profile,
+                          index: index,
+                          showDragHandle: false,
+                        ),
+                      );
+                    },
                   ),
-                  onTap: () {},
-                  showDivider: index != accounts.length - 1,
-                  deleting: busy,
-                );
-              },
-            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAccountRow({
+    required ProfileInfo profile,
+    required int index,
+    required bool showDragHandle,
+  }) {
+    return FileListTile(
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showDragHandle) ...[
+            const _ListDragHandle(),
+            const SizedBox(width: 6),
+          ],
+          _AccountIcon(profile: profile),
+        ],
+      ),
+      title: _profileTitle(profile),
+      subtitleLabel: profile.endpoint,
+      sizeLabel: _storageLabel(profile),
+      sizeColumnWidthOverride: _typeColumnWidth,
+      trailing: _AccountActions(
+        profile: profile,
+        busy: busy,
+        onEdit: onEdit,
+        onDelete: onDelete,
+      ),
+      onTap: () {},
+      showDivider: index != accounts.length - 1,
+      deleting: busy,
     );
   }
 
@@ -324,6 +376,20 @@ class _AccountIcon extends StatelessWidget {
         size: 18,
         color: theme.colorScheme.primary,
       ),
+    );
+  }
+}
+
+class _ListDragHandle extends StatelessWidget {
+  const _ListDragHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Icon(
+      LucideIcons.gripVertical,
+      size: 14,
+      color: theme.colorScheme.mutedForeground,
     );
   }
 }

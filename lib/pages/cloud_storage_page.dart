@@ -32,6 +32,22 @@ class CloudStoragePage extends StatefulWidget {
 class _CloudStoragePageState extends State<CloudStoragePage> {
   bool _isGrid = false;
   bool _busy = false;
+  late List<ProfileInfo> _accounts;
+
+  @override
+  void initState() {
+    super.initState();
+    _accounts = List<ProfileInfo>.from(widget.state.profiles);
+  }
+
+  @override
+  void didUpdateWidget(covariant CloudStoragePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.state.profiles, widget.state.profiles) ||
+        oldWidget.state.profiles != widget.state.profiles) {
+      _accounts = List<ProfileInfo>.from(widget.state.profiles);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,11 +69,12 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
           const SizedBox(height: 12),
           Expanded(
             child: CloudStorageAccountList(
-              accounts: widget.state.profiles,
+              accounts: _accounts,
               isGrid: _isGrid,
               busy: _busy,
               onEdit: _showEditAccountDialog,
               onDelete: _delete,
+              onReorder: _isGrid ? null : _reorderAccounts,
             ),
           ),
         ],
@@ -76,6 +93,34 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       if (mounted) showAppErrorToast(context, message: error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reorderAccounts(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _accounts.length) {
+      return;
+    }
+    var targetIndex = newIndex;
+    if (targetIndex > oldIndex) {
+      targetIndex -= 1;
+    }
+    if (targetIndex < 0 || targetIndex >= _accounts.length) {
+      return;
+    }
+    final previous = List<ProfileInfo>.from(_accounts);
+    final accounts = List<ProfileInfo>.from(_accounts);
+    final moved = accounts.removeAt(oldIndex);
+    accounts.insert(targetIndex, moved);
+    final names = accounts.map((profile) => profile.name).toList(growable: false);
+    setState(() => _accounts = accounts);
+    try {
+      await widget.api.reorderProfiles(names);
+      if (!mounted) return;
+      widget.onRefresh();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _accounts = previous);
+      showAppErrorToast(context, message: error.toString());
     }
   }
 

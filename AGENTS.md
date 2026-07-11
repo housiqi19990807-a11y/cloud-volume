@@ -295,6 +295,93 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 2. **Default:** `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`; save via page `_saveNewAccount` / `_saveEditedAccount` → `api.saveProfile` → `onRefresh`.
 3. **Debug only:** if `AccountEditorWindowService.openEditor` is supported, spawn OS sub-window; save notifies creator via `account_editor_saved`, then closes the child.
 
+#### Go / bridge account storage (exploration 2026-07-11)
+
+Accounts are multi-profile configs, not a separate "account" table. There is **no persisted custom sort order** for accounts or for buckets today.
+
+**Key files**
+- `go/config/config.go` — `RemoteStorageConfig` (full account connection JSON), `BucketSettings`, `BootstrapState`.
+- `go/config/profile.go` — public profile API: `SaveProfile`, `LoadProfile`, `ListProfiles`, `DeleteProfile`, `SetActiveProfile`, `ResetAllProfiles`; summary DTO `ProfileInfo`.
+- `go/config/config_db.go` — bbolt persistence in `~/.cloud-volume/config.db`:
+  - bucket `profiles`: key = profile name, value = JSON `RemoteStorageConfig`
+  - bucket `meta`: key `active_profile` (active name), plus global proxy via `global_proxy.go`
+  - `listProfilesFromDB` sorts: active first, then name `"default"`, then alphabetical `Name`
+- `go/config/store.go` — `SaveProfileWithValidation` (first-run completeness check) then `saveProfileToDB`.
+- `go/config/global_proxy.go` — global proxy in `meta` (`global_proxy`), separate from account profiles.
+- `bridge/dispatch_config.go` — bridge handlers for bootstrap/profile/cache.
+- `bridge/dispatch.go` — method switch for config/profile/storage methods.
+- `go/s3/buckets.go` — live `ListBuckets` → `[]BucketInfo{Name}`; S3 provider order, no local reorder.
+- `go/storage/webdav_backend.go` / `go/storage/baidu_pan_backend.go` — single synthetic bucket (`MappedBucketLabel` / Baidu label).
+- Flutter aggregation sort (not Go): `lib/pages/file_manager_page_sources.dart` sorts combined buckets by `sourceLabel` then `bucket.name`.
+
+**JSON schemas (Go → Flutter)**
+- Account/profile full config (`RemoteStorageConfig`): `endpoint`, `storageType`, `providerType`, `displayName`, `mappedBucketName`, `region`, `bucket`, `accessKeyId`, `secretAccessKey`, `hasSecretAccessKey`, `webdavUsername`, `webdavPassword`, `hasWebdavPassword`, `rootPrefix`, `defaultDownloadDirectory`, `cacheDirectory`, `resolvedCacheDirectory`, `hideDotFiles`, `fileOpenMode`, `trashDirectoryName`, `trashRetentionDays`, `bucketSettings` (map), mount/cache/proxy fields. **No order/sort field.**
+- Per-bucket overrides (`BucketSettings`): `readOnly`, `trashEnabled?`, `trashDirectory`. Map key is bucket name; **map has no order**.
+- Profile summary (`ProfileInfo`): `name`, `displayName`, `storageType`, `providerType`, `endpoint`, `accessKeyId`, `active`. **No order field.**
+- Bootstrap (`BootstrapState`): `configPath`, `configured`, `config`, `profiles[]`.
+- Live bucket row (`BucketInfo`): only `name`.
+
+**Bridge APIs (account/profile)**
+- `load_bootstrap_state` / `migrate_default` → `BootstrapState`
+- `save_config` → validates + saves profile `"default"` + set active (legacy first-run path)
+- `list_profiles` → `[]ProfileInfo` (hardcoded sort above)
+- `load_profile` `{name}` → `RemoteStorageConfig`
+- `save_profile` `{name, config}` → `{ok:true}`
+- `delete_profile` `{name}` → `{ok:true}`
+- `set_active_profile` `{name}` → `BootstrapState`
+- `reset_user_config` `{confirm}` → empty profiles `BootstrapState`
+- `update_proxy_settings` → global proxy only
+- `list_buckets` `{config}` → live remote buckets (not stored)
+
+**Custom list order (implemented 2026-07-11)**
+- Meta keys in `config.db`:
+  - `profile_order` JSON `[]string` profile names
+  - `bucket_order` JSON `[]string` entry ids (`profileName::bucketName`)
+- Go helpers: `go/config/list_order.go` (`ReorderProfiles`, `ReorderBuckets`, `ListBucketOrder`, apply/append/remove helpers).
+- `listProfilesFromDB` uses `profile_order` when present; otherwise legacy sort (active → `default` → name).
+- Bridge/webapi methods: `reorder_profiles` `{names}`, `reorder_buckets` `{ids}`, `list_bucket_order`.
+- Flutter gateway: `reorderProfiles` / `reorderBuckets` / `listBucketOrder`.
+- Account list UI: `CloudStorageAccountList` list mode `ReorderableListView` + `CloudStoragePage._reorderAccounts` (optimistic local order).
+- Bucket list UI: `FileManagerBucketBrowser` list mode reorder + `file_manager_page_bucket_view._reorderBuckets`; load path `file_manager_page_sources._loadBucketEntries` applies `listBucketOrder` (fallback: profile order then bucket name).
+- Grid view / search / trash home do not enable drag reorder.
+- Save profile appends new names to existing `profile_order`; delete profile strips profile + its `profile::` bucket ids; reset clears both orders.
+
+#### Account list UI (exploration 2026-07-11)
+
+- `lib/pages/cloud_storage_page.dart` — Account management page. Passes `widget.state.profiles` into list; CRUD via `api.saveProfile` / `deleteProfile` / editor modal; `onRefresh` reloads bootstrap.
+- `lib/widgets/cloud_storage_account_list.dart` — Presentational list/grid only. Renders `List<ProfileInfo>` in given order:
+  - table: `ListView.builder` (~L77–96)
+  - grid: `GridView.builder` (~L47–64)
+  - row title: `displayName` else `name`; no client sort.
+- `lib/models/bootstrap_state.dart` — Dart `ProfileInfo` + `BootstrapState.profiles`.
+- `lib/pages/app_bootstrap_page.dart` — Loads `api.loadBootstrapState()`; `onRefresh` reloads session so account list order comes from bridge list sort.
+- `lib/pages/main_layout_page.dart` — Sidebar `storage` → `CloudStoragePage(state.profiles)`.
+- No dedicated account `ChangeNotifier`; account list state is bootstrap `profiles`.
+
+#### Bucket list UI (exploration 2026-07-11)
+
+- `lib/pages/file_manager_page.dart` — Owns `_buckets`; `_loadBuckets()` → `_loadBucketEntries()`.
+- `lib/pages/file_manager_page_sources.dart` — Multi-account aggregation:
+  1. for each `widget.profiles` → `loadProfile` + `listBuckets(config)`
+  2. wrap as `FileManagerBucketEntry` (`id = profileName::bucket.name`)
+  3. **client sort** `sourceLabel` then `bucket.name` (overwrites provider order)
+- `lib/pages/file_manager_page_bucket_view.dart` — Builds `FileManagerBucketBrowser` from `_filteredBuckets`.
+- `lib/pages/file_manager_page_state.dart` — `_filteredBuckets` filters by search only; preserves load order.
+- `lib/widgets/file_manager_bucket_browser.dart` — Presentational list/grid:
+  - list: `ListView.builder` (~L189+)
+  - grid: `GridView.count` (~L79+)
+- `lib/models/file_manager_bucket_entry.dart` / `lib/models/s3_objects.dart` (`BucketInfo`) — UI row models; no order field.
+- Same aggregation pattern also used by `file_sync_tasks_page_actions.dart` for remote picker buckets.
+
+#### Reorder patterns
+
+- Account/bucket **list** mode: Flutter `ReorderableListView.builder` + `ReorderableDragStartListener` (custom grip handle; no default trailing handles).
+- Canonical: `lib/widgets/cloud_storage_account_list.dart`, `lib/widgets/file_manager_bucket_browser.dart`.
+- Persistence via Go meta order APIs above; not local-only.
+- Other drag uses remain unrelated: `file_manager_drag_selection.dart` (marquee), local file drop upload.
+
+
+
 ### Feature: Transfer Queue (通用传输队列)
 
 Shared upload/download queue backing both manual file operations and sync-generated tasks. Sync tasks are identified by `rawType` starting with `sync_`.

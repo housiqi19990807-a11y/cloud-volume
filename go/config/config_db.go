@@ -190,7 +190,10 @@ func saveProfileToDB(name string, config RemoteStorageConfig) error {
 		if err != nil {
 			return fmt.Errorf("encode profile: %w", err)
 		}
-		return bucket.Put([]byte(cleanName), data)
+		if err := bucket.Put([]byte(cleanName), data); err != nil {
+			return err
+		}
+		return appendProfileToOrderIfNeeded(tx, cleanName)
 	})
 }
 
@@ -231,9 +234,10 @@ func listProfilesFromDB() ([]ProfileInfo, error) {
 	activeName := activeProfileNameFromDB(db)
 
 	var result []ProfileInfo
+	var order []string
 	err = db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(profilesBucketKey)
-		return bucket.ForEach(func(key, val []byte) error {
+		if err := bucket.ForEach(func(key, val []byte) error {
 			name := string(key)
 			var config RemoteStorageConfig
 			if err := json.Unmarshal(val, &config); err != nil {
@@ -250,7 +254,11 @@ func listProfilesFromDB() ([]ProfileInfo, error) {
 				Active:       name == activeName,
 			})
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
+		order = loadProfileOrder(tx)
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -258,15 +266,22 @@ func listProfilesFromDB() ([]ProfileInfo, error) {
 	if result == nil {
 		result = []ProfileInfo{}
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Active != result[j].Active {
-			return result[i].Active
-		}
-		if result[i].Name == defaultProfileName {
-			return true
-		}
-		return result[i].Name < result[j].Name
-	})
+	if len(order) > 0 {
+		result = applyNamedOrder(result, order, func(p ProfileInfo) string { return p.Name })
+	} else {
+		sort.Slice(result, func(i, j int) bool {
+			if result[i].Active != result[j].Active {
+				return result[i].Active
+			}
+			if result[i].Name == defaultProfileName {
+				return true
+			}
+			if result[j].Name == defaultProfileName {
+				return false
+			}
+			return result[i].Name < result[j].Name
+		})
+	}
 	return result, nil
 }
 
@@ -280,7 +295,13 @@ func deleteProfileFromDB(name string) error {
 	defer db.Close()
 	return db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(profilesBucketKey)
-		return bucket.Delete([]byte(cleanName))
+		if err := bucket.Delete([]byte(cleanName)); err != nil {
+			return err
+		}
+		if err := removeProfileFromOrder(tx, cleanName); err != nil {
+			return err
+		}
+		return removeBucketsForProfile(tx, cleanName)
 	})
 }
 
@@ -348,7 +369,10 @@ func resetAllProfilesInDB() error {
 			return err
 		}
 		metaBucket := tx.Bucket(metaBucketKey)
-		return metaBucket.Delete(activeProfileKey)
+		if err := metaBucket.Delete(activeProfileKey); err != nil {
+			return err
+		}
+		return clearListOrders(tx)
 	})
 }
 

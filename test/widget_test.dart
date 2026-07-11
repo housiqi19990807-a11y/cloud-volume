@@ -295,7 +295,17 @@ class _FakeApi implements RemoteStorageGateway {
     String nextToken,
     int pageSize, {
     bool forceRefresh = false,
-  }) async => const ObjectListPage(items: <ObjectInfo>[], nextToken: '');
+  }
+
+  @override
+  Future<void> reorderProfiles(List<String> names) async {}
+
+  @override
+  Future<void> reorderBuckets(List<String> ids) async {}
+
+  @override
+  Future<List<String>> listBucketOrder() async => const <String>[];
+) async => const ObjectListPage(items: <ObjectInfo>[], nextToken: '');
 
   @override
   Future<ObjectInfo> headObject(

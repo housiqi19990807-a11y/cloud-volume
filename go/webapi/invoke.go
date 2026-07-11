@@ -33,6 +33,8 @@ type invokeEnvelope struct {
 	DurationSec int                               `json:"durationSec"`
 	ID          string                            `json:"id"`
 	ClearAll    bool                              `json:"clearAll"`
+	Names       []string                          `json:"names"`
+	Ids         []string                          `json:"ids"`
 }
 
 func (s *Server) handleInvoke(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +162,19 @@ func (s *Server) invokeMethod(
 		}
 		state, err := setActiveWebProfile(input.Name)
 		return state, http.StatusOK, err
+	case "reorder_profiles":
+		if err := storageconfig.ReorderProfiles(input.Names); err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		return map[string]any{"ok": true}, http.StatusOK, nil
+	case "reorder_buckets":
+		if err := storageconfig.ReorderBuckets(input.Ids); err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		return map[string]any{"ok": true}, http.StatusOK, nil
+	case "list_bucket_order":
+		order, err := storageconfig.ListBucketOrder()
+		return order, http.StatusOK, err
 	}
 	config, err := requireConfiguredStorage()
 	if err != nil {

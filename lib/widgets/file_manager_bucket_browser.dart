@@ -41,6 +41,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
     this.onOpenWebDavBucket,
     this.bucketTrashEnabled,
     this.webDavActionLabel = 'WebDAV',
+    this.onReorder,
   });
 
   final List<FileManagerBucketEntry> buckets;
@@ -60,6 +61,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
   final ValueChanged<FileManagerBucketEntry>? onOpenWebDavBucket;
   final bool Function(FileManagerBucketEntry bucket)? bucketTrashEnabled;
   final String webDavActionLabel;
+  final void Function(int oldIndex, int newIndex)? onReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -186,54 +188,138 @@ class FileManagerBucketBrowser extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  itemCount: buckets.length,
-                  itemBuilder: (context, index) {
-                    final bucket = buckets[index];
-                    final trailing = (showSource || showActions)
-                        ? _BucketSourceAndActions(
-                            sourceLabel: bucket.sourceLabel,
-                            showSourceColumn: showSource,
-                            showActionColumn: showActions,
-                            actionColumnWidth: actionW,
-                            sourceColumnWidth: sourceW,
-                            child: _BucketMountActions(
-                              bucket: bucket,
-                              status: mountStatuses[bucket.id],
-                              busy: busyBuckets.contains(bucket.id),
-                              onMountBucket: onMountBucket,
-                              onUnmountBucket: onUnmountBucket,
-                              onOpenMountedBucket: onOpenMountedBucket,
-                              onConfigureBucket: onConfigureBucket,
-                              moreMenuItems: _buildBucketMenuItems(bucket),
-                            ),
-                          )
-                        : null;
-                    return _wrapBucketWithContextMenu(
-                      bucket,
-                      FileListTile(
-                        leading: WhiteSurFileIcon(
-                          assetPath:
-                              'assets/icons/whitesur/places/network-server-balanced.svg',
-                          size: listIconSize,
-                        ),
-                        title: bucket.bucket.name,
-                        subtitleLabel:
-                            showSource ? '' : bucket.sourceLabel,
-                        sizeLabel: '',
-                        sizeColumnWidthOverride: 0,
-                        onTap: () => _handleBucketTap(bucket),
-                        showDivider: index != buckets.length - 1,
-                        trailing: trailing,
-                      ),
-                    );
-                  },
+                child: _buildBucketRows(
+                  showSource: showSource,
+                  showActions: showActions,
+                  sourceW: sourceW,
+                  actionW: actionW,
                 ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildBucketRows({
+    required bool showSource,
+    required bool showActions,
+    required double sourceW,
+    required double actionW,
+  }) {
+    final canReorder = onReorder != null && buckets.length > 1;
+    if (canReorder) {
+      return ReorderableListView.builder(
+        buildDefaultDragHandles: false,
+        itemCount: buckets.length,
+        onReorder: onReorder!,
+        proxyDecorator: (child, index, animation) {
+          return Material(
+            elevation: 1.5,
+            color: Colors.transparent,
+            child: child,
+          );
+        },
+        itemBuilder: (context, index) {
+          final bucket = buckets[index];
+          return ReorderableDragStartListener(
+            key: ValueKey('bucket-${bucket.id}'),
+            index: index,
+            child: _buildBucketListRow(
+              context: context,
+              bucket: bucket,
+              index: index,
+              showSource: showSource,
+              showActions: showActions,
+              sourceW: sourceW,
+              actionW: actionW,
+              showDragHandle: true,
+            ),
+          );
+        },
+      );
+    }
+    return ListView.builder(
+      itemCount: buckets.length,
+      itemBuilder: (context, index) {
+        final bucket = buckets[index];
+        return KeyedSubtree(
+          key: ValueKey('bucket-${bucket.id}'),
+          child: _buildBucketListRow(
+            context: context,
+            bucket: bucket,
+            index: index,
+            showSource: showSource,
+            showActions: showActions,
+            sourceW: sourceW,
+            actionW: actionW,
+            showDragHandle: false,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBucketListRow({
+    required BuildContext context,
+    required FileManagerBucketEntry bucket,
+    required int index,
+    required bool showSource,
+    required bool showActions,
+    required double sourceW,
+    required double actionW,
+    required bool showDragHandle,
+  }) {
+    final theme = ShadTheme.of(context);
+    final trailing = (showSource || showActions)
+        ? _BucketSourceAndActions(
+            sourceLabel: bucket.sourceLabel,
+            showSourceColumn: showSource,
+            showActionColumn: showActions,
+            actionColumnWidth: actionW,
+            sourceColumnWidth: sourceW,
+            child: _BucketMountActions(
+              bucket: bucket,
+              status: mountStatuses[bucket.id],
+              busy: busyBuckets.contains(bucket.id),
+              onMountBucket: onMountBucket,
+              onUnmountBucket: onUnmountBucket,
+              onOpenMountedBucket: onOpenMountedBucket,
+              onConfigureBucket: onConfigureBucket,
+              moreMenuItems: _buildBucketMenuItems(bucket),
+            ),
+          )
+        : null;
+    return _wrapBucketWithContextMenu(
+      bucket,
+      FileListTile(
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showDragHandle) ...[
+              Icon(
+                LucideIcons.gripVertical,
+                size: 14,
+                color: theme.colorScheme.mutedForeground,
+              ),
+              const SizedBox(width: 6),
+            ],
+            WhiteSurFileIcon(
+              assetPath:
+                  'assets/icons/whitesur/places/network-server-balanced.svg',
+              size: listIconSize,
+            ),
+          ],
+        ),
+        title: bucket.bucket.name,
+        subtitleLabel: showSource ? '' : bucket.sourceLabel,
+        sizeLabel: '',
+        sizeColumnWidthOverride: 0,
+        onTap: () => _handleBucketTap(bucket),
+        showDivider: index != buckets.length - 1,
+        trailing: trailing,
+      ),
     );
   }
 

@@ -32,6 +32,14 @@ type updateProxySettingsArgs struct {
 	ProxyPassword string `json:"proxyPassword"`
 }
 
+type reorderProfilesArgs struct {
+	Names []string `json:"names"`
+}
+
+type reorderBucketsArgs struct {
+	Ids []string `json:"ids"`
+}
+
 func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	// Auto-migrate legacy config to profiles dir.
 	_ = storageconfig.MigrateDefault()
@@ -162,6 +170,36 @@ func deleteProfile(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+func reorderProfiles(args json.RawMessage) (any, error) {
+	var input reorderProfilesArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := storageconfig.ReorderProfiles(input.Names); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
+func reorderBuckets(args json.RawMessage) (any, error) {
+	var input reorderBucketsArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	if err := storageconfig.ReorderBuckets(input.Ids); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
+func listBucketOrder() (any, error) {
+	order, err := storageconfig.ListBucketOrder()
+	if err != nil {
+		return nil, err
+	}
+	return order, nil
 }
 
 // resetUserConfig wipes every stored account plus legacy default config

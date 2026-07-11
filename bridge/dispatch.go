@@ -44,6 +44,12 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return resetUserConfig(args)
 	case "set_active_profile":
 		return setActiveProfile(args)
+	case "reorder_profiles":
+		return reorderProfiles(args)
+	case "reorder_buckets":
+		return reorderBuckets(args)
+	case "list_bucket_order":
+		return listBucketOrder()
 	// Storage operations.
 	case "list_buckets":
 		return listBuckets(args)
