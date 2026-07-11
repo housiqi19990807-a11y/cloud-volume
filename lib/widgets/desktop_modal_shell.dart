@@ -42,12 +42,59 @@ class DesktopModalShell extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
-            tooltip: '关闭',
-            onPressed: onClose,
-            icon: const Icon(Icons.close, size: 18),
-          ),
+          // Custom close control: no Material IconButton ink splash.
+          _ModalShellCloseButton(onPressed: onClose),
         ],
+      ),
+    );
+  }
+}
+
+/// Hover-aware close button without Material ripple (matches main-window
+/// chrome controls more closely than [IconButton]).
+class _ModalShellCloseButton extends StatefulWidget {
+  const _ModalShellCloseButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  State<_ModalShellCloseButton> createState() => _ModalShellCloseButtonState();
+}
+
+class _ModalShellCloseButtonState extends State<_ModalShellCloseButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    // Soft destructive wash on hover only — no primary blue ink splash.
+    final background = _hovered
+        ? const Color(0xfffef3f2)
+        : Colors.transparent;
+    final foreground =
+        _hovered ? const Color(0xffb42318) : theme.colorScheme.mutedForeground;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Tooltip(
+        message: '关闭',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            width: 36,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.close, size: 18, color: foreground),
+          ),
+        ),
       ),
     );
   }
