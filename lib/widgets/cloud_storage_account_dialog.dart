@@ -1,6 +1,6 @@
 // 新增/编辑账号弹窗：两步式引导（选择接入协议 → 配置连接信息）。
 // 子窗口模式（asDialog: false）返回裸内容；Web 回退仍用 ShadDialog。
-// 编辑模式跳过步骤 1，直接进入连接信息。
+// 编辑模式不走向导，直接展示单屏连接信息表单。
 // 字段构建与协议选择卡片在 part 文件 cloud_storage_account_dialog_steps.dart 中。
 
 import 'package:flutter/material.dart';
@@ -11,9 +11,7 @@ import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/account_proxy_section.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
-import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:window_manager/window_manager.dart';
 
 export 'package:remote_storage/models/cloud_storage_account_draft.dart';
 
@@ -86,9 +84,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   bool _saving = false;
   String? _errorText;
 
-  // Fixed window width; height is computed per step to fit content exactly.
-  static const _windowWidth = 520.0;
-
   /// Exposed for part-file step functions to trigger rebuilds.
   void markDirty(VoidCallback fn) => setState(fn);
 
@@ -142,38 +137,17 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         _errorText = null;
         _step++;
       });
-      _applySubWindowStepSize();
       return;
     }
     _submit();
   }
 
-  void _back() => _goToStep(_step - 1);
-
-  void _goToStep(int index) {
-    if (index < 0 || index > 1 || index == _step) return;
+  void _back() {
+    if (_step <= 0) return;
     setState(() {
       _errorText = null;
-      _step = index;
+      _step--;
     });
-    _applySubWindowStepSize();
-  }
-
-  Size _sizeForStep(int step) {
-    if (step == 0) return const Size(_windowWidth, 380);
-    return switch (_storageType) {
-      StorageType.webdav => const Size(_windowWidth, 560),
-      StorageType.baiduPan => const Size(_windowWidth, 440),
-      _ => const Size(_windowWidth, 680),
-    };
-  }
-
-  Future<void> _applySubWindowStepSize() async {
-    if (widget.asDialog) return;
-    try {
-      await resizeKeepingWindowCenter(_sizeForStep(_step));
-      await windowManager.focus();
-    } catch (_) {}
   }
 
   // -- Build ------------------------------------------------------------------
@@ -195,82 +169,69 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         child: content,
       );
     }
-    // New account: 2-step wizard, no top step indicator (sub-window resizes
-    // per step, matching the sync editor pattern).
-    if (!widget.asDialog) return _buildSubWindowLayout(theme);
+    // New account: 2-step wizard. Sub-window uses a fixed-size container
+    // (no per-step resize) — content scrolls if it overflows.
+    if (!widget.asDialog) {
+      return SizedBox(
+        width: 480,
+        child: _buildWizardContent(theme),
+      );
+    }
     return ShadDialog(
       title: const Text('新增账号'),
       description: const Text('先选择存储类型，再填写对应的连接信息。'),
       constraints: const BoxConstraints(maxWidth: 480),
       scrollable: true,
-      child: _buildDialogContent(theme),
+      child: _buildWizardContent(theme),
+    );
+  }
+
+  /// Shared wizard layout for both sub-window and dialog mode.
+  Widget _buildWizardContent(ShadThemeData theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepBody(theme),
+        if (_errorText != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        _buildNavButtons(theme),
+      ],
     );
   }
 
   /// Editing mode: just the connection fields + nav buttons.
   Widget _buildEditContent(ShadThemeData theme) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        stepConnectionFields(theme: theme, self: this),
-        if (_errorText != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            _errorText!,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.destructive,
+    return SizedBox(
+      width: 480,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          stepConnectionFields(theme: theme, self: this),
+          if (_errorText != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorText!,
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.destructive,
+              ),
             ),
-          ),
+          ],
+          const SizedBox(height: 20),
+          _buildEditNavButtons(theme),
         ],
-        const SizedBox(height: 20),
-        _buildEditNavButtons(theme),
-      ],
-    );
-  }
-
-  Widget _buildSubWindowLayout(ShadThemeData theme) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildStepBody(theme),
-        if (_errorText != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            _errorText!,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.destructive,
-            ),
-          ),
-        ],
-        const SizedBox(height: 16),
-        _buildNavButtons(theme),
-      ],
-    );
-  }
-
-  Widget _buildDialogContent(ShadThemeData theme) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildStepBody(theme),
-        if (_errorText != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            _errorText!,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.destructive,
-            ),
-          ),
-        ],
-        const SizedBox(height: 20),
-        _buildNavButtons(theme),
-      ],
+      ),
     );
   }
 
