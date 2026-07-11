@@ -88,7 +88,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   static const _stepLabels = ['选择协议', '连接信息'];
 
   // Sub-window sizes per step; step 1 varies by protocol field count.
-  static const _sizeStep0 = Size(520, 360);
+  static const _sizeStep0 = Size(520, 500);
   static const _sizeStep1S3 = Size(520, 640);
   static const _sizeStep1WebDAV = Size(520, 540);
   static const _sizeStep1Baidu = Size(520, 420);

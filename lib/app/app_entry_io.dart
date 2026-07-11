@@ -154,8 +154,8 @@ Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowAr
   }
 
   Size _accountEditorWindowSize(AccountEditorWindowArgs args) {
-    // New account starts at step 0 (protocol picker) — small window.
-    if (!args.editing) return const Size(520, 360);
+    // New account starts at step 0 (protocol picker).
+    if (!args.editing) return const Size(520, 500);
     // Editing starts at step 1 (connection fields) — size by protocol.
     final storageType = args.initialConfig?.storageType;
     return switch (storageType) {
