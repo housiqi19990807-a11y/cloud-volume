@@ -1,6 +1,7 @@
-// 新增/编辑账号弹窗。支持两种模式：
-// - 拟态框模式（asDialog: true）：包装成 ShadDialog，用于 Web 回退。
-// - 子窗口模式（asDialog: false）：返回裸内容，用于桌面独立子窗口。
+// 新增/编辑账号弹窗：两步式引导（选择接入协议 → 配置连接信息）。
+// 子窗口模式（asDialog: false）返回裸内容；Web 回退仍用 ShadDialog。
+// 编辑模式跳过步骤 1，直接进入连接信息。
+// 字段构建与协议选择卡片在 part 文件 cloud_storage_account_dialog_steps.dart 中。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/cloud_storage_account_draft.dart';
@@ -10,9 +11,13 @@ import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/account_proxy_section.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
+import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:window_manager/window_manager.dart';
 
 export 'package:remote_storage/models/cloud_storage_account_draft.dart';
+
+part 'cloud_storage_account_dialog_steps.dart';
 
 /// 账号管理页使用的新增/编辑账号对话框。
 ///
@@ -76,6 +81,21 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   bool _mappedBucketNameEdited = false;
   bool _usePathStyle = true;
 
+  // Wizard state — step 0 = protocol picker, step 1 = connection fields.
+  int _step = 0;
+  bool _saving = false;
+  String? _errorText;
+  static const _stepLabels = ['选择协议', '连接信息'];
+
+  // Sub-window sizes per step; step 1 varies by protocol field count.
+  static const _sizeStep0 = Size(520, 360);
+  static const _sizeStep1S3 = Size(520, 640);
+  static const _sizeStep1WebDAV = Size(520, 540);
+  static const _sizeStep1Baidu = Size(520, 420);
+
+  /// Exposed for part-file step functions to trigger rebuilds.
+  void markDirty(VoidCallback fn) => setState(fn);
+
   @override
   void initState() {
     super.initState();
@@ -98,6 +118,8 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     if (config.storageType == StorageType.baiduPan) {
       _authorizedBaiduConfig = config;
     }
+    // Editing an existing account: skip protocol selection.
+    if (widget.editing) _step = 1;
   }
 
   @override
@@ -118,10 +140,54 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     super.dispose();
   }
 
+  // -- Step navigation --------------------------------------------------------
+
+  void _next() {
+    if (_step < 1) {
+      setState(() {
+        _errorText = null;
+        _step++;
+      });
+      _applySubWindowStepSize();
+      return;
+    }
+    _submit();
+  }
+
+  void _back() => _goToStep(_step - 1);
+
+  void _goToStep(int index) {
+    if (index < 0 || index >= _stepLabels.length || index == _step) return;
+    setState(() {
+      _errorText = null;
+      _step = index;
+    });
+    _applySubWindowStepSize();
+  }
+
+  Size _sizeForStep(int step) {
+    if (step == 0) return _sizeStep0;
+    return switch (_storageType) {
+      StorageType.webdav => _sizeStep1WebDAV,
+      StorageType.baiduPan => _sizeStep1Baidu,
+      _ => _sizeStep1S3,
+    };
+  }
+
+  Future<void> _applySubWindowStepSize() async {
+    if (widget.asDialog) return;
+    try {
+      await resizeKeepingWindowCenter(_sizeForStep(_step));
+      await windowManager.focus();
+    } catch (_) {}
+  }
+
+  // -- Build ------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
-    final content = _buildContent();
-    if (!widget.asDialog) return content;
+    final theme = ShadTheme.of(context);
+    if (!widget.asDialog) return _buildSubWindowLayout(theme);
     return ShadDialog(
       title: Text(widget.editing ? '编辑账号' : '新增账号'),
       description: Text(
@@ -129,185 +195,200 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
             ? '修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。'
             : '先选择存储类型，再填写对应的连接信息。',
       ),
-      child: SizedBox(width: 440, child: content),
+      constraints: const BoxConstraints(maxWidth: 480),
+      scrollable: true,
+      child: _buildDialogContent(theme),
     );
   }
 
-  Widget _buildContent() {
-    final isWebDav = _storageType == StorageType.webdav;
-    final isBaiduPan = _storageType == StorageType.baiduPan;
+  Widget _buildSubWindowLayout(ShadThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepIndicator(theme),
+        const SizedBox(height: 16),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: _buildStepBody(theme),
+            ),
+          ),
+        ),
+        if (_errorText != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _buildNavButtons(theme),
+      ],
+    );
+  }
+
+  Widget _buildDialogContent(ShadThemeData theme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!widget.editing) ...[
-          _StorageTypeSegmentedControl(
-            value: _storageType,
-            enabled: true,
-            onChanged: (value) => setState(() => _storageType = value),
-          ),
-          const SizedBox(height: 18),
-        ],
-        CloudStorageLabeledField(
-          label: '名称',
-          child: ShadInput(
-            controller: _nameController,
-            placeholder: Text(
-              isBaiduPan
-                  ? '例如：我的百度网盘'
-                  : isWebDav
-                  ? '例如：IHEP WebDAV'
-                  : '例如：对象存储账号',
-            ),
-            onChanged: (_) => _syncMappedBucketName(),
-          ),
-        ),
-        if (isWebDav) ...[
-          const SizedBox(height: 14),
-          CloudStorageLabeledField(
-            label: '映射桶名称',
-            child: ShadInput(
-              controller: _mappedBucketNameController,
-              placeholder: const Text('默认使用名称'),
-              onChanged: (_) => _mappedBucketNameEdited = true,
+        _buildStepIndicator(theme),
+        const SizedBox(height: 20),
+        _buildStepBody(theme),
+        if (_errorText != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
             ),
           ),
         ],
-        const SizedBox(height: 14),
-        if (isBaiduPan) ..._baiduPanFields(),
-        if (!isBaiduPan && !isWebDav) ..._s3Fields(),
-        if (!isBaiduPan && isWebDav) ..._webdavFields(),
-        const SizedBox(height: 18),
-        AccountProxySection(
-          initialMode: _proxyMode,
-          initialType: _proxyType,
-          hostController: _proxyHostController,
-          portController: _proxyPortController,
-          usernameController: _proxyUsernameController,
-          passwordController: _proxyPasswordController,
-          onModeChanged: (value) => _proxyMode = value,
-          onTypeChanged: (value) => _proxyType = value,
+        const SizedBox(height: 20),
+        _buildNavButtons(theme),
+      ],
+    );
+  }
+
+  Widget _buildStepBody(ShadThemeData theme) {
+    return switch (_step) {
+      0 => stepProtocolPicker(theme: theme, self: this),
+      _ => stepConnectionFields(theme: theme, self: this),
+    };
+  }
+
+  Widget _buildStepIndicator(ShadThemeData theme) {
+    return Row(
+      children: List.generate(_stepLabels.length, (i) {
+        final isActive = i == _step;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: i < _stepLabels.length - 1 ? 8 : 0,
+            ),
+            child: _buildStepTab(theme, i, isActive),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildStepTab(ShadThemeData theme, int index, bool isActive) {
+    final borderColor = isActive
+        ? theme.colorScheme.primary
+        : theme.colorScheme.border.withValues(alpha: 0.7);
+    final bg = isActive
+        ? theme.colorScheme.primary.withValues(alpha: 0.08)
+        : theme.colorScheme.secondary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _goToStep(index),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: borderColor,
+              width: isActive ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${index + 1}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isActive
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.mutedForeground,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  _stepLabels[index],
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                    color: isActive
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.foreground,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 18),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ShadButton.outline(
-              onPressed: widget.asDialog
-                  ? () => Navigator.of(context).pop()
-                  : widget.onCancel,
-              child: const Text('取消'),
+      ),
+    );
+  }
+
+  Widget _buildNavButtons(ShadThemeData theme) {
+    final isLast = _step == 1;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        ShadButton.outline(
+          onPressed: widget.asDialog
+              ? () => Navigator.of(context).pop()
+              : widget.onCancel,
+          child: const Text('取消'),
+        ),
+        const SizedBox(width: 10),
+        if (_step > 0) ...[
+          ShadButton.outline(
+            onPressed: _back,
+            child: const Row(
+              children: [
+                Icon(LucideIcons.chevronLeft, size: 16),
+                SizedBox(width: 2),
+                Text('上一步'),
+              ],
             ),
-            const SizedBox(width: 10),
-            ShadButton(
-              onPressed: _submit,
-              child: Text(widget.editing ? '保存修改' : '保存账号'),
-            ),
-          ],
+          ),
+          const SizedBox(width: 10),
+        ],
+        ShadButton(
+          onPressed: _saving ? null : _next,
+          child: _saving
+              ? const Text('保存中...')
+              : Row(
+                  children: [
+                    Text(isLast
+                        ? (widget.editing ? '保存修改' : '保存账号')
+                        : '下一步'),
+                    if (!isLast) ...[
+                      const SizedBox(width: 4),
+                      const Icon(LucideIcons.chevronRight, size: 16),
+                    ],
+                  ],
+                ),
         ),
       ],
     );
   }
 
-  List<Widget> _s3Fields() {
-    return [
-      CloudStorageLabeledField(
-        label: '网关地址',
-        child: CloudStorageTechnicalInput(
-          controller: _endpointController,
-          keyboardType: TextInputType.url,
-          placeholder: const Text('https://s3.example.com'),
-        ),
-      ),
-      const SizedBox(height: 14),
-      CloudStorageLabeledField(
-        label: '区域',
-        child: CloudStorageTechnicalInput(
-          controller: _regionController,
-          placeholder: const Text('Region，例如 auto'),
-        ),
-      ),
-      const SizedBox(height: 14),
-      CloudStorageLabeledField(
-        label: '访问密钥 ID',
-        child: CloudStorageTechnicalInput(
-          controller: _accessKeyController,
-          placeholder: const Text('Access Key ID'),
-        ),
-      ),
-      const SizedBox(height: 14),
-      CloudStorageLabeledField(
-        label: '访问密钥',
-        child: CloudStorageSecretInput(
-          controller: _secretKeyController,
-          placeholder: Text(
-            widget.editing ? '留空则保留当前 Secret Key' : 'Secret Access Key',
-          ),
-        ),
-      ),
-      const SizedBox(height: 16),
-      _S3AdvancedOptions(
-        usePathStyle: _usePathStyle,
-        onPathStyleChanged: (value) => setState(() => _usePathStyle = value),
-      ),
-    ];
-  }
-
-  List<Widget> _webdavFields() {
-    return [
-      CloudStorageLabeledField(
-        label: 'WebDAV 地址',
-        child: CloudStorageTechnicalInput(
-          controller: _endpointController,
-          keyboardType: TextInputType.url,
-          placeholder: const Text(
-            'https://dav.example.com/remote.php/dav/files/me',
-          ),
-        ),
-      ),
-      const SizedBox(height: 14),
-      CloudStorageLabeledField(
-        label: '用户名',
-        child: CloudStorageTechnicalInput(
-          controller: _webdavUsernameController,
-          placeholder: const Text('输入 WebDAV 用户名'),
-        ),
-      ),
-      const SizedBox(height: 14),
-      CloudStorageLabeledField(
-        label: '密码',
-        child: CloudStorageSecretInput(
-          controller: _webdavPasswordController,
-          placeholder: Text(
-            widget.editing ? '留空则保留当前 WebDAV 密码' : '输入 WebDAV 登录密码',
-          ),
-        ),
-      ),
-    ];
-  }
-
-  List<Widget> _baiduPanFields() {
-    final label = _authorizedBaiduConfig?.displayName.trim().isNotEmpty == true
-        ? _authorizedBaiduConfig!.displayName
-        : _nameController.text.trim();
-    return [
-      BaiduPanAuthSection(
-        accountLabel: label,
-        authorized:
-            _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty == true &&
-            _authorizedBaiduConfig?.hasSecretAccessKey == true,
-        codeController: _baiduAuthCodeController,
-        authUrl: _baiduAuthUrl,
-        openingBrowser: _openingBaiduAuthPage,
-        submittingCode: _authorizingBaidu,
-        onOpenAuthorizationPage: _startBaiduPanAuthorization,
-        onSubmitAuthorizationCode: _authorizeBaiduPan,
-        errorText: _baiduAuthErrorText,
-      ),
-    ];
-  }
+  // -- Submit & helpers -------------------------------------------------------
+  // Protocol-specific field builders (_s3Fields / _webdavFields / _baiduPanFields)
+  // live in the part file cloud_storage_account_dialog_steps.dart.
 
   Future<void> _submit() async {
+    setState(() {
+      _saving = true;
+      _errorText = null;
+    });
     final config = buildAccountConfig(
       CloudStorageAccountDraft(
         storageType: _storageType,
@@ -331,25 +412,29 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       authorizedBaiduConfig: _authorizedBaiduConfig,
     );
     final saved = await widget.onSave(config);
-    if (saved && mounted) {
+    if (!mounted) return;
+    if (saved) {
       widget.onSaved?.call();
       if (widget.asDialog) Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _saving = false;
+        _errorText = '保存失败，请检查配置';
+      });
     }
   }
 
   void _syncMappedBucketName() {
-    if (widget.editing || _mappedBucketNameEdited) {
-      return;
-    }
+    if (widget.editing || _mappedBucketNameEdited) return;
     _mappedBucketNameController.text = _nameController.text;
   }
+
+  // -- Baidu OAuth helpers ----------------------------------------------------
 
   Future<void> _authorizeBaiduPan() async {
     final code = _baiduAuthCodeController.text.trim();
     if (code.isEmpty) {
-      setState(() {
-        _baiduAuthErrorText = '请先粘贴百度授权页显示的授权码。';
-      });
+      setState(() => _baiduAuthErrorText = '请先粘贴百度授权页显示的授权码。');
       return;
     }
     setState(() {
@@ -372,9 +457,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _baiduAuthErrorText = describeBridgeError(error);
-      });
+      setState(() => _baiduAuthErrorText = describeBridgeError(error));
     } finally {
       if (mounted) setState(() => _authorizingBaidu = false);
     }
@@ -388,93 +471,12 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     try {
       final authUrl = await widget.onStartBaiduPanAuthorization();
       if (!mounted) return;
-      setState(() {
-        _baiduAuthUrl = authUrl;
-      });
+      setState(() => _baiduAuthUrl = authUrl);
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _baiduAuthErrorText = describeBridgeError(error);
-      });
+      setState(() => _baiduAuthErrorText = describeBridgeError(error));
     } finally {
       if (mounted) setState(() => _openingBaiduAuthPage = false);
     }
-  }
-}
-
-class _S3AdvancedOptions extends StatelessWidget {
-  const _S3AdvancedOptions({
-    required this.usePathStyle,
-    required this.onPathStyleChanged,
-  });
-
-  final bool usePathStyle;
-  final ValueChanged<bool> onPathStyleChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: ShadSwitch(
-        value: usePathStyle,
-        onChanged: onPathStyleChanged,
-        label: Text(
-          '使用路径风格访问',
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.foreground,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        sublabel: Text(
-          '推荐用于 MinIO、私有 S3 和多数兼容对象存储。',
-          style: TextStyle(
-            color: theme.colorScheme.mutedForeground,
-            fontSize: 12,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StorageTypeSegmentedControl extends StatelessWidget {
-  const _StorageTypeSegmentedControl({
-    required this.value,
-    required this.onChanged,
-    this.enabled = true,
-  });
-
-  final StorageType value;
-  final ValueChanged<StorageType> onChanged;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Row(
-      children: [
-        for (final item in StorageType.values) ...[
-          Expanded(
-            child: ShadButton(
-              size: ShadButtonSize.sm,
-              onPressed: enabled ? () => onChanged(item) : null,
-              backgroundColor: item == value
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.secondary,
-              foregroundColor: item == value
-                  ? theme.colorScheme.primaryForeground
-                  : theme.colorScheme.foreground,
-              child: Text(item.label),
-            ),
-          ),
-          if (item != StorageType.values.last) const SizedBox(width: 8),
-        ],
-      ],
-    );
   }
 }

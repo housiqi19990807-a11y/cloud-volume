@@ -229,15 +229,23 @@ If a path is absent on both sides but still in index → `skip` (`stale_index`).
 
 Lists configured storage accounts and lets users add, edit, or remove them. On desktop, the add/edit form now opens as a **detached OS sub-window** instead of an in-page `ShadDialog`, matching the file-sync editor pattern. On Web, or when the sub-window cannot be created, it falls back to the original `ShadDialog`.
 
+**Two-step wizard (2026-07-10):** New accounts use a 2-step guided flow modeled after `FileSyncProfileEditor`:
+- **Step 1「选择协议」:** Large selectable cards for S3 / WebDAV / 百度网盘 (icon + name + description). Selecting a card updates `_storageType` without navigating.
+- **Step 2「连接信息」:** Name field + protocol-specific connection fields + `AccountProxySection`. The sub-window resizes via `resizeKeepingWindowCenter` when navigating between steps.
+- **Edit mode** skips step 1 (`_step` initialized to `1` in `initState`).
+- Step navigation (`_next` / `_back` / `_goToStep`), step indicator (`_buildStepIndicator` / `_buildStepTab`), and nav buttons (`_buildNavButtons`) are identical in pattern to the sync editor.
+- Sub-window sizes: step 0 = `520×360`; step 1 varies by protocol: S3 = `520×640`, WebDAV = `520×540`, Baidu = `520×420`.
+
 **Sub-window architecture (2026-07-02):** The add/edit form uses the same `desktop_multi_window` plumbing as the sync editor and remote directory picker:
 - `lib/models/account_editor_window_args.dart` — Args model with `initialConfigJson` (edit mode), `profileName`, `editing`, and `creatorFrame*`. JSON is the only data that crosses the multi-window boundary.
 - `lib/app/account_editor_window_app.dart` — Sub-window root is `ShadApp` + `buildAppTheme`. Body: bootstraps its own `RemoteStorageGateway`, custom title bar, and `CloudStorageAccountDialog(asDialog: false)`. On save it calls `api.saveProfile`, shows a toast, sends `account_editor_saved` to the creator window, and closes itself.
 - `lib/services/account_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Conditional service: desktop uses `WindowController.create()` and registers a `VoidCallback` with `DesktopWindowMethodHost`; Web returns `false` so callers fall back to `showShadDialog`.
-- `lib/app/app_entry_io.dart` — Dispatch: checks `AccountEditorWindowArgs.matches(arguments)` and launches `AccountEditorWindowApp`. Window size is configured as `520×640` (minimum `480×560`).
+- `lib/app/app_entry_io.dart` — Dispatch: checks `AccountEditorWindowArgs.matches(arguments)` and launches `AccountEditorWindowApp`. New-account initial window size is `520×360` (step 0 protocol picker); edit-mode size varies by protocol (`_accountEditorWindowSize`). Minimum `480×400`.
 - `lib/services/desktop_window_method_host.dart` — Main engine multiplexes `account_editor_saved` to the registered callback so the parent window can refresh its account list after the sub-window saves.
-- `lib/services/desktop_sub_window_modal.dart` — `account_editor` is included in `_isModalSubWindowArguments` so the modal overlay and always-on-top behavior apply consistently.
+- `lib/services/desktop_sub_window_modal.dart` — `account_editor` is included in `_isModalSubWindowArguments` so the modal overlay and always-on-top behavior apply consistently. Also exports `resizeKeepingWindowCenter` used by step navigation.
 - `lib/services/desktop_overlay.dart` — `AccountEditorWindowService.isSupported` is included in the `showDesktopOverlayOrDialog` helper check.
-- `lib/widgets/cloud_storage_account_dialog.dart` — The dialog widget is now dual-mode: `asDialog: true` wraps the form in a `ShadDialog` (Web / fallback); `asDialog: false` returns bare content for the detached sub-window. Its `onSave` callback now receives a `RemoteStorageConfig` built from the form, and it accepts optional `onSaved` / `onCancel` callbacks for the sub-window path.
+- `lib/widgets/cloud_storage_account_dialog.dart` — The dialog widget is a **2-step wizard** (protocol picker → connection fields). Dual-mode: `asDialog: true` wraps in `ShadDialog` (Web / fallback); `asDialog: false` returns bare content for the detached sub-window. Owns step state, navigation, sub-window resize, submit, and Baidu OAuth helpers. Protocol-specific field builders (`_s3Fields` / `_webdavFields` / `_baiduPanFields`) and step body functions live in the part file.
+- `lib/widgets/cloud_storage_account_dialog_steps.dart` — Part file. `stepProtocolPicker` renders the protocol selection cards (`StorageProtocolCard`). `stepConnectionFields` renders name + protocol fields + proxy section. `_s3Fields` / `_webdavFields` / `_baiduPanFields` are top-level functions receiving `_CloudStorageAccountDialogState`. `_S3AdvancedOptions` (path-style toggle) also lives here.
 - `lib/models/cloud_storage_account_draft.dart` — Plain form draft model, moved out of the dialog to avoid import cycles with the config builder.
 - `lib/utils/account_config_builder.dart` — Builds a `RemoteStorageConfig` from the draft, preserving existing secrets when the user leaves password fields blank in edit mode.
 - `lib/utils/account_profile_name.dart` — Shared profile-key generator used by both the in-page dialog path and the detached sub-window path.
@@ -246,8 +254,9 @@ Lists configured storage accounts and lets users add, edit, or remove them. On d
 #### Data flow
 1. User clicks "新增账号" or row "编辑" in `CloudStoragePage`.
 2. `AccountEditorWindowService.openEditor` acquires the parent modal overlay, registers `widget.onRefresh` as the `account_editor_saved` callback, and spawns the sub-window.
-3. The sub-window bootstraps its own bridge, renders `CloudStorageAccountDialog(asDialog: false)`.
-4. User fills the form and submits; the dialog builds a `RemoteStorageConfig` via `buildAccountConfig` and calls the sub-window `_onSave`.
+3. The sub-window bootstraps its own bridge, renders `CloudStorageAccountDialog(asDialog: false)`. New accounts start at step 0 (protocol picker); editing starts at step 1 (connection fields).
+4. User selects a protocol card → clicks "下一步" → step 1 renders the protocol-specific fields. Sub-window resizes via `resizeKeepingWindowCenter`.
+5. User fills the form and submits; the dialog builds a `RemoteStorageConfig` via `buildAccountConfig` and calls the sub-window `_onSave`.
 5. `_onSave` generates the profile key (or reuses the existing one) and calls `api.saveProfile`.
 6. On success, the dialog invokes `onSaved`, which sends `account_editor_saved` to the creator window, then closes the sub-window.
 7. The main engine receives `account_editor_saved`, calls the registered callback (`widget.onRefresh`), and the account list refreshes.
