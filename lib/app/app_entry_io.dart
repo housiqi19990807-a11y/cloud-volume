@@ -3,6 +3,7 @@
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/app/account_editor_window_app.dart';
+import 'package:remote_storage/app/desktop_modal_window_config.dart';
 import 'package:remote_storage/app/file_preview_window_app.dart';
 import 'package:remote_storage/app/remote_storage_app.dart';
 import 'package:remote_storage/app/remote_directory_picker_window_app.dart';
@@ -13,7 +14,6 @@ import 'package:remote_storage/models/file_preview_window_args.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:remote_storage/services/desktop_window_method_host.dart';
-import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:window_manager/window_manager.dart';
 
 Future<void> runRemoteStorageEntry(List<String> args) async {
@@ -31,7 +31,15 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
   if (AccountEditorWindowArgs.matches(arguments)) {
     final editorArgs = AccountEditorWindowArgs.fromArguments(arguments);
     await DesktopWindowMethodHost.ensureInstalled();
-    await _configureAccountEditorWindow(editorArgs);
+    await configureDesktopModalSubWindow(
+      title: editorArgs.editing ? '编辑账号' : '新增账号',
+      size: _accountEditorWindowSize(editorArgs),
+      creatorFrameLeft: editorArgs.creatorFrameLeft,
+      creatorFrameTop: editorArgs.creatorFrameTop,
+      creatorFrameWidth: editorArgs.creatorFrameWidth,
+      creatorFrameHeight: editorArgs.creatorFrameHeight,
+      creatorWindowId: editorArgs.creatorWindowId,
+    );
     runApp(AccountEditorWindowApp(args: editorArgs));
     return;
   }
@@ -39,7 +47,16 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
   if (SyncEditorWindowArgs.matches(arguments)) {
     final editorArgs = SyncEditorWindowArgs.fromArguments(arguments);
     await DesktopWindowMethodHost.ensureInstalled();
-    await _configureSyncEditorWindow(editorArgs);
+    await configureDesktopModalSubWindow(
+      title: editorArgs.initialProfile != null ? '编辑同步配置' : '新建同步配置',
+      size: const Size(560, 480),
+      minimumSize: const Size(520, 400),
+      creatorFrameLeft: editorArgs.creatorFrameLeft,
+      creatorFrameTop: editorArgs.creatorFrameTop,
+      creatorFrameWidth: editorArgs.creatorFrameWidth,
+      creatorFrameHeight: editorArgs.creatorFrameHeight,
+      creatorWindowId: editorArgs.creatorWindowId,
+    );
     runApp(SyncEditorWindowApp(args: editorArgs));
     return;
   }
@@ -47,38 +64,25 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
   if (RemoteDirectoryPickerWindowArgs.matches(arguments)) {
     final pickerArgs = RemoteDirectoryPickerWindowArgs.fromArguments(arguments);
     await DesktopWindowMethodHost.ensureInstalled();
-    await _configureRemoteDirectoryPickerWindow(pickerArgs);
+    await configureDesktopModalSubWindow(
+      title: '选择远端目录',
+      size: const Size(720, 560),
+      minimumSize: const Size(560, 440),
+      anchorFrameLeft: pickerArgs.anchorFrameLeft,
+      anchorFrameTop: pickerArgs.anchorFrameTop,
+      anchorFrameWidth: pickerArgs.anchorFrameWidth,
+      anchorFrameHeight: pickerArgs.anchorFrameHeight,
+      creatorFrameLeft: pickerArgs.creatorFrameLeft,
+      creatorFrameTop: pickerArgs.creatorFrameTop,
+      creatorFrameWidth: pickerArgs.creatorFrameWidth,
+      creatorFrameHeight: pickerArgs.creatorFrameHeight,
+      creatorWindowId: pickerArgs.creatorWindowId,
+    );
     runApp(RemoteDirectoryPickerWindowApp(args: pickerArgs));
     return;
   }
 
   runApp(const RemoteStorageApp());
-}
-
-Future<void> _configureSyncEditorWindow(SyncEditorWindowArgs args) async {
-  final title = args.initialProfile != null ? '编辑同步配置' : '新建同步配置';
-  const options = WindowOptions(
-    size: Size(560, 480),
-    minimumSize: Size(520, 400),
-    center: false,
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden,
-    windowButtonVisibility: false,
-  );
-  await windowManager.waitUntilReadyToShow(options, () async {
-    await applyModalChildWindowChrome();
-    await windowManager.setTitle(title);
-    await windowManager.show();
-    await positionChildCenteredFromFrame(
-      size: const Size(560, 480),
-      creatorFrameLeft: args.creatorFrameLeft,
-      creatorFrameTop: args.creatorFrameTop,
-      creatorFrameWidth: args.creatorFrameWidth,
-      creatorFrameHeight: args.creatorFrameHeight,
-      creatorWindowId: args.creatorWindowId,
-    );
-    await windowManager.focus();
-  });
 }
 
 Future<void> _configurePreviewWindow(String title) async {
@@ -97,67 +101,8 @@ Future<void> _configurePreviewWindow(String title) async {
   });
 }
 
-Future<void> _configureRemoteDirectoryPickerWindow(RemoteDirectoryPickerWindowArgs args) async {
-  const options = WindowOptions(
-    size: Size(720, 560),
-    minimumSize: Size(560, 440),
-    center: false,
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden,
-    windowButtonVisibility: false,
-  );
-    await windowManager.waitUntilReadyToShow(options, () async {
-      await applyModalChildWindowChrome();
-      await windowManager.setTitle('选择远端目录');
-      await windowManager.show();
-      await positionChildCenteredFromFrame(
-        size: const Size(720, 560),
-        anchorFrameLeft: args.anchorFrameLeft,
-        anchorFrameTop: args.anchorFrameTop,
-        anchorFrameWidth: args.anchorFrameWidth,
-        anchorFrameHeight: args.anchorFrameHeight,
-        creatorFrameLeft: args.creatorFrameLeft,
-        creatorFrameTop: args.creatorFrameTop,
-        creatorFrameWidth: args.creatorFrameWidth,
-        creatorFrameHeight: args.creatorFrameHeight,
-        creatorWindowId: args.creatorWindowId,
-      );
-      await windowManager.focus();
-    });
-  }
-
-  Future<void> _configureAccountEditorWindow(AccountEditorWindowArgs args) async {
-    final title = args.editing ? '编辑账号' : '新增账号';
-    final size = _accountEditorWindowSize(args);
-    final options = WindowOptions(
-      size: size,
-      minimumSize: const Size(480, 400),
-      center: false,
-      skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.hidden,
-      windowButtonVisibility: false,
-    );
-    await windowManager.waitUntilReadyToShow(options, () async {
-      await applyModalChildWindowChrome();
-      await windowManager.setTitle(title);
-      await windowManager.show();
-      await positionChildCenteredFromFrame(
-        size: size,
-        creatorFrameLeft: args.creatorFrameLeft,
-        creatorFrameTop: args.creatorFrameTop,
-        creatorFrameWidth: args.creatorFrameWidth,
-        creatorFrameHeight: args.creatorFrameHeight,
-        creatorWindowId: args.creatorWindowId,
-      );
-      await windowManager.focus();
-    });
-  }
-
   Size _accountEditorWindowSize(AccountEditorWindowArgs args) {
-    // New account: step 0 is compact (protocol picker); step 1 content is
-    // taller but scrolls if needed. Give a comfortable initial size.
     if (!args.editing) return const Size(520, 420);
-    // Editing: size by protocol to fit typical content.
     final storageType = args.initialConfig?.storageType;
     return switch (storageType) {
       StorageType.baiduPan => const Size(520, 520),

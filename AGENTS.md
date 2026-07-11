@@ -487,6 +487,27 @@ Three proxy modes: system (default), direct (no proxy), custom (user-specified U
 - `lib/models/system_proxy_info.dart` 鈥?Dart mirror of the Go `systemProxyResult`.
 - `lib/widgets/settings_update_section.dart` 鈥?`_resolveEffectiveProxy()` queries `api.resolveSystemProxy()` in system mode before update check and install download, converting the result to a `ProxyConfig(mode: custom)`.
 
+### Feature: Desktop Modal Sub-Window Shell (通用子窗口壳)
+
+Three modal sub-windows (account editor, sync editor, directory picker) share a common lifecycle: detached OS window with hidden title bar → custom 44px title bar → bootstrap bridge/data → loading/error/content body → modal scrim + overlay release on close. Previously each window re-implemented this from scratch (title bar widget × 3, close function × 3, `WindowLifecycle` × 2, `_configure*Window` × 4). A shared abstraction now handles all of it.
+
+#### Shared components
+
+- `lib/widgets/desktop_modal_shell.dart` — `DesktopModalShell` (StatelessWidget): 44px title bar with title + close button. Replaces `_AccountEditorTitleBar` / `_SyncEditorTitleBar` / `_PickerTitleBar`.
+- `lib/app/desktop_modal_sub_window_app.dart` — `DesktopModalSubWindowApp<T>` (StatelessWidget): generic sub-window root. Encapsulates `ShadApp` + theme, `_ModalSubWindowLifecycle` (overlay release on dispose/close), `DesktopModalParentFocusRelay` (optional via `useParentFocusRelay`), `DesktopModalWindowFocusGate`, `DesktopModalScrim`, `DesktopModalShell`, and bootstrap-driven loading/error/content body. The close sequence (`unregisterChildWindow` → `notifyCreatorModalOverlayRelease` → `clearModalChildWindowChrome` → `windowManager.close`) is a shared `_closeModalSubWindow` function. Features supply `bootstrap: Future<T> Function()` and `contentBuilder: Widget Function(BuildContext, T)`.
+- `lib/app/desktop_modal_window_config.dart` — `configureDesktopModalSubWindow()`: unified `WindowOptions` + `waitUntilReadyToShow` + `applyModalChildWindowChrome` + `setTitle` + `show` + `positionChildCenteredFromFrame` + `focus`. Replaces per-window `_configure*Window` functions.
+
+#### Migrated windows
+
+- `lib/app/account_editor_window_app.dart` — Now `DesktopModalSubWindowApp<RemoteStorageGateway>` with `bootstrap` → `defaultRemoteStorageApiFactory()`, `contentBuilder` → `_AccountEditorContent` holding save + Baidu OAuth callbacks. Deleted: `_AccountEditorTitleBar`, `_closeAccountEditorWindow`, `AccountEditorWindowLifecycle`, `DesktopModalParentFocusRelay`/`DesktopModalWindowFocusGate`/`DesktopModalScrim` wiring.
+- `lib/app/sync_editor_window_app.dart` — Now `DesktopModalSubWindowApp<_SyncBootstrapResult>` with `bootstrap` → load profiles + bucket list, `contentBuilder` → `_SyncEditorContent` holding save callback + `SyncProfileNotifier` lifecycle. Deleted: `_SyncEditorTitleBar`, `_closeSyncEditorWindow`, `SyncEditorWindowLifecycle`.
+- `lib/app/remote_directory_picker_window_app.dart` — Now `DesktopModalSubWindowApp<RemoteStorageGateway>` with `useParentFocusRelay: false`. Uses `onClose` callback to send the picker result to the creator before the generic shell closes. Deleted: `_PickerTitleBar`, inline `_finish` close logic, `_RemoteDirectoryPickerBody`.
+- `lib/app/app_entry_io.dart` — All three modal windows now configured via `configureDesktopModalSubWindow()`. Deleted: `_configureSyncEditorWindow`, `_configureAccountEditorWindow`, `_configureRemoteDirectoryPickerWindow`. `_configurePreviewWindow` remains (non-modal, center:true, no chrome).
+
+#### Not migrated
+
+- `FilePreviewWindowApp` — non-modal standalone window (no scrim, no overlay release, draggable title bar). Mode is fundamentally different; stays independent.
+
 ### Feature: Responsive Page Header Actions (页面头部响应式操作区)
 
 All list-style pages (任务队列 / 分享管理 / 回收站 / 文件同步 / 账号管理) share the same header pattern: a left `Flexible(Column(title + subtitle))` and right-side action buttons. When many buttons are visible (e.g. bulk-selection mode), the title column was squeezed and the subtitle wrapped mid-sentence. A shared `PageHeaderActions` widget now collapses secondary actions into a `…` overflow menu (`ShadContextMenu`) when the available width drops below a threshold.
