@@ -2,6 +2,7 @@
 // _AccountEditorTitleBar / _SyncEditorTitleBar / _PickerTitleBar copies.
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 44px title bar with title text and a close button.
@@ -50,8 +51,10 @@ class DesktopModalShell extends StatelessWidget {
   }
 }
 
-/// Hover-aware close button without Material ripple (matches main-window
-/// chrome controls more closely than [IconButton]).
+/// Hover-aware close button without Material ripple.
+///
+/// Hover only adds a neutral background wash — icon color stays fixed so the
+/// control does not "re-skin" under the pointer (AGENTS.md Hover visual style).
 class _ModalShellCloseButton extends StatefulWidget {
   const _ModalShellCloseButton({required this.onPressed});
 
@@ -67,12 +70,14 @@ class _ModalShellCloseButtonState extends State<_ModalShellCloseButton> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    // Soft destructive wash on hover only — no primary blue ink splash.
-    final background = _hovered
-        ? const Color(0xfffef3f2)
-        : Colors.transparent;
-    final foreground =
-        _hovered ? const Color(0xffb42318) : theme.colorScheme.mutedForeground;
+    final interaction = ListInteractionColors.fromTheme(theme);
+    // Icon color is stable; only background wash reacts to hover.
+    final iconColor = theme.colorScheme.mutedForeground;
+    final background = interaction.rowBackground(
+      selected: false,
+      hovered: _hovered,
+      pressed: false,
+    );
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
@@ -92,7 +97,7 @@ class _ModalShellCloseButtonState extends State<_ModalShellCloseButton> {
               color: background,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.close, size: 18, color: foreground),
+            child: Icon(Icons.close, size: 18, color: iconColor),
           ),
         ),
       ),

@@ -41,6 +41,7 @@ Hover is a **subtle state change**, not a different component skin. When impleme
 5. **Cursor:** for dense list rows, idle `SystemMouseCursors.basic` and click only while hovered (or a constant click cursor for always-interactive cards is OK if it never sticks). Never leave a pointing hand stuck after unhover/unmount.
 
 Regression reference (2026-07-11): account-editor protocol cards (`StorageProtocolCard`) used hover → primary border + `secondary` fill + primary icon, so sliding the mouse across step 1 looked like three different card styles. Fixed to `ListInteractionColors` neutral hover + selected-only primary chrome.
+Another regression: modal shell close button hovered into pink fill + red X (re-skin). Correct: fixed muted X icon + neutral `ListInteractionColors` wash only (`lib/widgets/desktop_modal_shell.dart`).
 
 Canonical implementations to copy:
 - `lib/pages/main_layout_page.dart` `_SidebarNavItem` / `_SidebarNavItemState` — sidebar nav items.
