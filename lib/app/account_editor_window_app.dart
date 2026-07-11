@@ -182,17 +182,19 @@ class _AccountEditorBodyState extends State<_AccountEditorBody> {
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      child: SingleChildScrollView(
-        child: CloudStorageAccountDialog(
-          initialConfig: widget.args.initialConfig,
-          editing: widget.args.editing,
-          asDialog: false,
-          onSave: _onSave,
-          onSaved: _onSaved,
-          onCancel: () => _closeAccountEditorWindow(widget.args.creatorWindowId),
-          onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-          onAuthorizeBaiduPan: _authorizeBaiduPan,
-        ),
+      // The dialog manages its own scroll view in sub-window mode
+      // (_buildSubWindowLayout wraps the step body in SingleChildScrollView),
+      // so we must not nest another scrollable here — that would give the
+      // inner Column+Expanded an unbounded height constraint.
+      child: CloudStorageAccountDialog(
+        initialConfig: widget.args.initialConfig,
+        editing: widget.args.editing,
+        asDialog: false,
+        onSave: _onSave,
+        onSaved: _onSaved,
+        onCancel: () => _closeAccountEditorWindow(widget.args.creatorWindowId),
+        onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+        onAuthorizeBaiduPan: _authorizeBaiduPan,
       ),
     );
   }
