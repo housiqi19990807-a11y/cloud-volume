@@ -182,20 +182,36 @@ class _AccountEditorBodyState extends State<_AccountEditorBody> {
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      // The dialog manages its own scroll view in sub-window mode
+      // New-account wizard manages its own scroll view in sub-window mode
       // (_buildSubWindowLayout wraps the step body in SingleChildScrollView),
       // so we must not nest another scrollable here — that would give the
-      // inner Column+Expanded an unbounded height constraint.
-      child: CloudStorageAccountDialog(
-        initialConfig: widget.args.initialConfig,
-        editing: widget.args.editing,
-        asDialog: false,
-        onSave: _onSave,
-        onSaved: _onSaved,
-        onCancel: () => _closeAccountEditorWindow(widget.args.creatorWindowId),
-        onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-        onAuthorizeBaiduPan: _authorizeBaiduPan,
-      ),
+      // inner Column+Expanded an unbounded height constraint. Edit mode
+      // returns a plain Column without Expanded, so it needs an outer scroll.
+      child: widget.args.editing
+          ? SingleChildScrollView(
+              child: CloudStorageAccountDialog(
+                initialConfig: widget.args.initialConfig,
+                editing: true,
+                asDialog: false,
+                onSave: _onSave,
+                onSaved: _onSaved,
+                onCancel: () =>
+                    _closeAccountEditorWindow(widget.args.creatorWindowId),
+                onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+                onAuthorizeBaiduPan: _authorizeBaiduPan,
+              ),
+            )
+          : CloudStorageAccountDialog(
+              initialConfig: widget.args.initialConfig,
+              editing: false,
+              asDialog: false,
+              onSave: _onSave,
+              onSaved: _onSaved,
+              onCancel: () =>
+                  _closeAccountEditorWindow(widget.args.creatorWindowId),
+              onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+              onAuthorizeBaiduPan: _authorizeBaiduPan,
+            ),
     );
   }
 }

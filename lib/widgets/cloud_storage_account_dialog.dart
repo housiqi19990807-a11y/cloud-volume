@@ -118,8 +118,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     if (config.storageType == StorageType.baiduPan) {
       _authorizedBaiduConfig = config;
     }
-    // Editing an existing account: skip protocol selection.
-    if (widget.editing) _step = 1;
   }
 
   @override
@@ -187,17 +185,51 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    // Editing: single-screen form, no wizard chrome.
+    if (widget.editing) {
+      final content = _buildEditContent(theme);
+      if (!widget.asDialog) return content;
+      return ShadDialog(
+        title: const Text('编辑账号'),
+        description: const Text(
+          '修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。',
+        ),
+        constraints: const BoxConstraints(maxWidth: 480),
+        scrollable: true,
+        child: content,
+      );
+    }
+    // New account: 2-step wizard.
     if (!widget.asDialog) return _buildSubWindowLayout(theme);
     return ShadDialog(
-      title: Text(widget.editing ? '编辑账号' : '新增账号'),
-      description: Text(
-        widget.editing
-            ? '修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。'
-            : '先选择存储类型，再填写对应的连接信息。',
-      ),
+      title: const Text('新增账号'),
+      description: const Text('先选择存储类型，再填写对应的连接信息。'),
       constraints: const BoxConstraints(maxWidth: 480),
       scrollable: true,
       child: _buildDialogContent(theme),
+    );
+  }
+
+  /// Editing mode: just the connection fields + nav buttons, no step indicator.
+  Widget _buildEditContent(ShadThemeData theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        stepConnectionFields(theme: theme, self: this),
+        if (_errorText != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        _buildEditNavButtons(theme),
+      ],
     );
   }
 
@@ -366,15 +398,33 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
               ? const Text('保存中...')
               : Row(
                   children: [
-                    Text(isLast
-                        ? (widget.editing ? '保存修改' : '保存账号')
-                        : '下一步'),
+                    Text(isLast ? '保存账号' : '下一步'),
                     if (!isLast) ...[
                       const SizedBox(width: 4),
                       const Icon(LucideIcons.chevronRight, size: 16),
                     ],
                   ],
                 ),
+        ),
+      ],
+    );
+  }
+
+  /// Editing mode nav buttons: just Cancel + Save, no step navigation.
+  Widget _buildEditNavButtons(ShadThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        ShadButton.outline(
+          onPressed: widget.asDialog
+              ? () => Navigator.of(context).pop()
+              : widget.onCancel,
+          child: const Text('取消'),
+        ),
+        const SizedBox(width: 10),
+        ShadButton(
+          onPressed: _saving ? null : _submit,
+          child: _saving ? const Text('保存中...') : const Text('保存修改'),
         ),
       ],
     );
