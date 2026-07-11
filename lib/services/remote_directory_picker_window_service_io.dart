@@ -1,4 +1,5 @@
-// Opens the remote-directory browser as a detached OS window and awaits the pick result.
+// Opens the remote-directory browser as a detached OS window and awaits the
+// pick result. Only available when preferModalSubWindows is true.
 
 import 'dart:async';
 
@@ -9,6 +10,7 @@ import 'package:remote_storage/models/remote_directory_picker_window_args.dart';
 import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/services/desktop_window_method_host.dart';
+import 'package:remote_storage/services/modal_sub_window_debug.dart';
 import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 
 class RemoteDirectoryPickerWindowService {
@@ -17,7 +19,8 @@ class RemoteDirectoryPickerWindowService {
   static final RemoteDirectoryPickerWindowService instance =
       RemoteDirectoryPickerWindowService._();
 
-  bool get isSupported => true;
+  /// True only in debug with USE_MODAL_SUB_WINDOWS=true.
+  bool get isSupported => preferModalSubWindows;
 
   Future<RemoteDirectoryResult?> openPicker({
     required List<FileManagerBucketEntry> buckets,
@@ -28,6 +31,7 @@ class RemoteDirectoryPickerWindowService {
     double? anchorFrameHeight,
     String? rootWindowId,
   }) async {
+    if (!isSupported) return null;
     await DesktopWindowMethodHost.ensureInstalled();
     final creator = await WindowController.fromCurrentEngine();
     final localFrame = await readLocalWindowBounds();
@@ -71,7 +75,8 @@ class RemoteDirectoryPickerWindowService {
       final child = await WindowController.create(
         WindowConfiguration(arguments: args.toArguments()),
       );
-      DesktopModalOverlayController.instance.registerChildWindow(child.windowId);
+      DesktopModalOverlayController.instance
+          .registerChildWindow(child.windowId);
       if (rootWindowId != null && rootWindowId.trim().isNotEmpty) {
         await registerModalChildOnRootEngine(rootWindowId, child.windowId);
       }
@@ -82,3 +87,4 @@ class RemoteDirectoryPickerWindowService {
     }
   }
 }
+

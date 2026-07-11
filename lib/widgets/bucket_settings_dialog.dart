@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 Future<RemoteStorageConfig?> showBucketSettingsDialog(
   BuildContext context, {
@@ -14,7 +15,7 @@ Future<RemoteStorageConfig?> showBucketSettingsDialog(
   var readOnly = current.readOnly;
   var trashEnabled = current.isTrashEnabled;
 
-  return showShadDialog<RemoteStorageConfig?>(
+  return showAppModal<RemoteStorageConfig?>(
     context: context,
     builder: (dialogContext) {
       return ShadDialog(

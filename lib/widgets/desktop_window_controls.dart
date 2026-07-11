@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/services/window_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 class DesktopWindowControls extends StatefulWidget {
   const DesktopWindowControls({super.key});
@@ -68,7 +69,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
         await WindowControls.close();
         return;
       }
-      final choice = await showShadDialog<_CloseAction>(
+      final choice = await showAppModal<_CloseAction>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('关闭云卷？'),

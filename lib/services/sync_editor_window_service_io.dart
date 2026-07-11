@@ -1,21 +1,26 @@
 // Desktop sync-editor sub-window service opens an ad-hoc editor as a
 // standalone OS window with its own Flutter engine and bridge connection.
+// Only available when preferModalSubWindows is true (debug + dart-define).
+
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:remote_storage/models/sync_editor_window_args.dart';
 import 'package:remote_storage/services/desktop_modal_overlay_controller.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
+import 'package:remote_storage/services/modal_sub_window_debug.dart';
 
 class SyncEditorWindowService {
   SyncEditorWindowService._();
 
   static final SyncEditorWindowService instance = SyncEditorWindowService._();
 
-  bool get isSupported => true;
+  /// True only in debug with USE_MODAL_SUB_WINDOWS=true.
+  bool get isSupported => preferModalSubWindows;
 
   Future<bool> openEditor({
     required List<String> profileNames,
     Map<String, dynamic>? initialProfile,
   }) async {
+    if (!isSupported) return false;
     acquireParentModalOverlay();
     // Yield to the event loop so the parent scrim can render its loading
     // spinner before the expensive sub-window spawn blocks the UI thread.
@@ -35,7 +40,8 @@ class SyncEditorWindowService {
       final child = await WindowController.create(
         WindowConfiguration(arguments: args.toArguments()),
       );
-      DesktopModalOverlayController.instance.registerChildWindow(child.windowId);
+      DesktopModalOverlayController.instance
+          .registerChildWindow(child.windowId);
       return true;
     } catch (_) {
       await notifyCreatorModalOverlayRelease(
@@ -45,3 +51,4 @@ class SyncEditorWindowService {
     }
   }
 }
+

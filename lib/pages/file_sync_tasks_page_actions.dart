@@ -67,8 +67,8 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
     );
     if (!ok) {
       if (!mounted) return;
-      // Web fallback: use in-app dialog.
-      await showShadDialog(
+      // Default path: in-app modal (OS sub-window only when debug flag on).
+      await showAppModal(
         context: context,
         builder: (_) => FileSyncProfileEditor(
           api: widget.api,
@@ -87,7 +87,7 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
     if (!ok) {
       if (!mounted) return;
       // Web fallback: use in-app dialog.
-      await showShadDialog(
+      await showAppModal(
         context: context,
         builder: (_) => FileSyncProfileEditor(
           api: widget.api,
@@ -111,26 +111,12 @@ extension _FileSyncTasksActions on _FileSyncTasksPageState {
   }
 
   Future<void> _deleteProfile(SyncProfileRuntime runtime) async {
-    final confirmed = await showShadDialog<bool>(
+    final confirmed = await showAppConfirmModal(
       context: context,
-      builder: (_) => ShadDialog(
-        title: const Text('删除同步配置'),
-        description: Text('确定要删除「${runtime.profile.name}」吗？'),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ShadButton.outline(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            const SizedBox(width: 10),
-            ShadButton.destructive(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('删除'),
-            ),
-          ],
-        ),
-      ),
+      title: const Text('删除同步配置'),
+      description: Text('确定要删除「${runtime.profile.name}」吗？'),
+      confirmLabel: '删除',
+      destructive: true,
     );
     if (confirmed != true) return;
     try {

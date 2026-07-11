@@ -9,6 +9,7 @@ import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/transfer_task_widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 part 'transfers_page_retry.dart';
 
@@ -168,7 +169,7 @@ class _TransfersPageState extends State<TransfersPage> {
       showAppToast(context, message: '当前没有已完成的任务可以清空。');
       return;
     }
-    final confirmed = await showShadDialog<bool>(
+    final confirmed = await showAppModal<bool>(
       context: context,
       builder: (dialogContext) => ShadDialog(
         title: const Text('清空已完成记录'),

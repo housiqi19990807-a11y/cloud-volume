@@ -13,6 +13,7 @@ import 'package:remote_storage/widgets/whitesur_file_icon.dart';
 import 'package:remote_storage/services/desktop_overlay.dart';
 import 'package:remote_storage/services/remote_directory_picker_window_service.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 part 'remote_directory_picker_actions.dart';
 part 'remote_directory_picker_list.dart';
@@ -55,7 +56,7 @@ Future<RemoteDirectoryResult?> showRemoteDirectoryPicker({
       anchorFrameHeight: anchorFrameHeight,
       rootWindowId: rootWindowId,
     ),
-    showDialog: () => showShadDialog<RemoteDirectoryResult>(
+    showDialog: () => showAppModal<RemoteDirectoryResult>(
       context: context,
       builder: (_) => RemoteDirectoryPickerDialog(
         api: api,
@@ -82,7 +83,7 @@ class RemoteDirectoryPickerDialog extends StatefulWidget {
   final List<FileManagerBucketEntry> buckets;
   final RemoteDirectoryResult? initial;
 
-  /// true = ShadDialog；false = 子窗口裸内容。
+  /// true = 应用内拟态框（默认）；false = Debug 子窗口裸内容。
   final bool asDialog;
   final void Function(RemoteDirectoryResult result)? onConfirm;
   final VoidCallback? onCancel;

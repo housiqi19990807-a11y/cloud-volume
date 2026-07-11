@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 enum FileObjectAction { open, download, share, copy, move, rename, delete }
 
@@ -102,7 +103,7 @@ Future<String?> showRenameObjectDialog(
 ) async {
   final controller = TextEditingController(text: object.displayName);
   try {
-    return await showShadDialog<String?>(
+    return await showAppModal<String?>(
       context: context,
       builder: (dialogContext) => ShadDialog(
         title: const Text('重命名'),
@@ -148,7 +149,7 @@ Future<String?> showObjectTargetPathDialog(
 }) async {
   final controller = TextEditingController(text: object.key);
   try {
-    return await showShadDialog<String?>(
+    return await showAppModal<String?>(
       context: context,
       builder: (dialogContext) => ShadDialog(
         title: Text(move ? '移动到' : '复制到'),
@@ -196,7 +197,7 @@ Future<bool> showDeleteObjectDialog(
   BuildContext context,
   ObjectInfo object,
 ) async {
-  return await showShadDialog<bool>(
+  return await showAppModal<bool>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('删除'),
@@ -238,7 +239,7 @@ Future<bool> showDeleteObjectDialog(
 }
 
 Future<bool> showDeleteObjectsDialog(BuildContext context, int count) async {
-  return await showShadDialog<bool>(
+  return await showAppModal<bool>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('批量删除'),
@@ -276,7 +277,7 @@ Future<bool> showDeleteTrashItemDialog(
   BuildContext context,
   TrashItem item,
 ) async {
-  return await showShadDialog<bool>(
+  return await showAppModal<bool>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('彻底删除'),
@@ -316,7 +317,7 @@ Future<bool> showDeleteTrashItemDialog(
 }
 
 Future<bool> showDeleteTrashItemsDialog(BuildContext context, int count) async {
-  return await showShadDialog<bool>(
+  return await showAppModal<bool>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('批量彻底删除'),
@@ -351,7 +352,7 @@ Future<bool> showDeleteTrashItemsDialog(BuildContext context, int count) async {
 }
 
 Future<bool> showClearTrashDialog(BuildContext context, String bucket) async {
-  return await showShadDialog<bool>(
+  return await showAppModal<bool>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('清空回收站'),

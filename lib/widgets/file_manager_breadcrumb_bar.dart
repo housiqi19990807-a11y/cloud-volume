@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 class FileManagerBreadcrumbBar extends StatelessWidget {
   const FileManagerBreadcrumbBar({
@@ -226,7 +227,7 @@ class FileManagerBreadcrumbBar extends StatelessWidget {
     BuildContext context,
     List<_CrumbEntry> hiddenCrumbs,
   ) {
-    showShadDialog<void>(
+    showAppModal<void>(
       context: context,
       builder: (dialogContext) => ShadDialog(
         title: const Text('跳转到层级'),

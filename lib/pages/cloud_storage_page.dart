@@ -11,6 +11,7 @@ import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_list.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 class CloudStoragePage extends StatefulWidget {
   const CloudStoragePage({
@@ -84,7 +85,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     );
     if (!ok) {
       if (!mounted) return;
-      await showShadDialog<void>(
+      await showAppModal<void>(
         context: context,
         builder: (_) => CloudStorageAccountDialog(
           onSave: _saveNewAccount,
@@ -109,7 +110,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       );
       if (!ok) {
         if (!mounted) return;
-        await showShadDialog<void>(
+        await showAppModal<void>(
           context: context,
           builder: (_) => CloudStorageAccountDialog(
             initialConfig: config,

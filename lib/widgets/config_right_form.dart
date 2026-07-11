@@ -8,6 +8,7 @@ import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 /// 配置页右侧完整表单。
 class ConfigRightFormPanel extends StatelessWidget {
@@ -360,7 +361,7 @@ class ConfigRightFormPanel extends StatelessWidget {
     final rgCtrl = TextEditingController(text: regionController.text);
     var pathStyle = usePathStyle;
 
-    showShadDialog(
+    showAppModal(
       context: context,
       builder: (dialogContext) {
         return ShadDialog(

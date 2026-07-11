@@ -185,19 +185,21 @@ The sync feature lets users bind a local directory to a remote bucket prefix and
 
 - `lib/pages/file_sync_tasks_page.dart` — File Sync Tasks page. **The sole management hub for sync config.** Summary cards + profile rows; full `sync_*` queue lives on **Transfers**; each profile card shows latest pending/running task via `file_sync_profile_active_task.dart`.
 - `lib/pages/file_sync_tasks_page_actions.dart` — Part file containing the CRUD extension (`_FileSyncTasksActions`): `_addProfile`, `_editProfile`, `_saveProfile`, `_deleteProfile`, `_toggleEnabled`, `_triggerSync`. Extracted to keep the page under 500 lines.
-- `lib/widgets/file_sync_profile_editor.dart` — Editor widget for creating or editing a single `SyncProfile`. **2-step wizard:** Step 1 同步两端 (optional name, local dir via `FilePicker`, remote dir via `RemoteDirectoryPickerDialog`), Step 2 同步策略 (direction, conflict policy, interval, quiet period, exclude rules, enabled toggle). Receives `api` + `List<FileManagerBucketEntry> buckets`. **`asDialog`:** `true` (default) wraps step content in `ShadDialog` for Web / in-app fallback; `false` returns bare `_buildContent` only — **never nest ShadDialog inside the detached sub-window**. Sub-window layout uses `_buildSubWindowLayout`: fixed step indicator + scrollable step body + pinned nav buttons (avoids RenderFlex overflow on step 2). On save success: `onSaved` then `Navigator.pop` only when `asDialog` is true.
+- `lib/widgets/file_sync_profile_editor.dart` — Editor widget for creating or editing a single `SyncProfile`. **2-step wizard:** Step 1 同步两端 (optional name, local dir via `FilePicker`, remote dir via `RemoteDirectoryPickerDialog`), Step 2 同步策略 (direction, conflict policy, interval, quiet period, exclude rules, enabled toggle). Receives `api` + `List<FileManagerBucketEntry> buckets`. **`asDialog`:** `true` (default) wraps step content in `ShadDialog` for the **default in-app modal** path; `false` returns bare `_buildContent` only for the **debug-only** OS sub-window — **never nest ShadDialog inside the detached sub-window**. Sub-window layout uses `_buildSubWindowLayout`: fixed step indicator + scrollable step body + pinned nav buttons (avoids RenderFlex overflow on step 2). On save success: `onSaved` then `Navigator.pop` only when `asDialog` is true.
 
-**Sub-window architecture (2026-06-27):** The sync config editor now opens as a **detached OS sub-window** instead of a cramped ShadDialog. Follows the same `desktop_multi_window` pattern as `FilePreviewWindowApp`:
-- `lib/models/sync_editor_window_args.dart` — Args model with `profileNames` (account names to load buckets from) and optional `initialProfileJson` (for edit mode). Serialized to JSON for crossing the multi-window boundary.
-- `lib/app/sync_editor_window_app.dart` — Sub-window root is **`ShadApp` + `buildAppTheme`** (required — bare `MaterialApp` causes `ShadTheme.of()` crash). Body: bootstraps its own `RemoteStorageApi` bridge, loads buckets from account profiles, `Scaffold` + custom title bar + `FileSyncProfileEditor(asDialog: false)`. On save, `SyncProfileNotifier.saveProfile` then `windowManager.close()` via `onSaved`.
-- `lib/services/sync_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Conditional service: desktop uses `WindowController.create()`, web falls back to returning `false` so callers use in-app dialog.
-- `lib/app/app_entry_io.dart` — Dispatch: checks `SyncEditorWindowArgs.matches(arguments)` and launches `SyncEditorWindowApp`.
-- `lib/services/desktop_modal_overlay_controller.dart` / `lib/widgets/desktop_modal_scrim.dart` — Parent engine shows grey `AbsorbPointer` scrim (ref-count) while modal sub-windows are open; `acquireParentModalOverlay` on open, `modal_overlay_release` method on close.
-- `lib/services/desktop_sub_window_modal.dart` — Shared acquire/release + `windowManager.setMovable(false)` in `app_entry_io` for sync editor and remote picker windows (no title-bar drag).
-- `lib/services/desktop_overlay.dart` — **`showDesktopOverlayOrDialog`**: desktop tries detached sub-window via `openSubWindow`; Web uses `showShadDialog` via `showDialog`. Use this for large flows (sync editor, remote directory picker) instead of calling `showShadDialog` directly from pages.
-- `lib/services/desktop_window_method_host.dart` — Main engine (and sync-editor sub-window) registers `WindowMethodChannel` handler for `remote_directory_picker_result` so picker sub-windows can return JSON to the **creator** window (`creatorWindowId` in args).
-- `lib/models/remote_directory_picker_window_args.dart` / `lib/app/remote_directory_picker_window_app.dart` / `lib/services/remote_directory_picker_window_service.dart` — Remote directory picker as 720×560 sub-window; `RemoteDirectoryPickerDialog(asDialog: false)` inside. `showRemoteDirectoryPicker` routes through `showDesktopOverlayOrDialog`.
-- `lib/widgets/remote_directory_picker_dialog.dart` — File-manager-style remote directory picker. **`showRemoteDirectoryPicker`** uses `showDesktopOverlayOrDialog` (sub-window on desktop). Widget supports `asDialog`, `onConfirm`, `onCancel` for sub-window mode. Shows bucket list at top level, then directory browsing (breadcrumbs, navigate into dirs, create directory). "选择当前目录" returns a `RemoteDirectoryResult(bucket, prefix, profileName, config)`. Uses `listObjects` and `createDirectory` from `RemoteStorageGateway`.
+**Modal presentation policy (2026-07-11):** Default for sync / account / remote-directory editors is the **in-app app modal** (`showAppModal` + `asDialog: true`). OS sub-windows stay in the tree for development only (`preferModalSubWindows` = `kDebugMode && USE_MODAL_SUB_WINDOWS`). See **Feature: App Modal (统一拟态框)** and **Feature: Desktop Modal Sub-Window Shell**.
+
+**Debug sub-window stack (retained, not default):**
+- `lib/models/sync_editor_window_args.dart` — Args model with `profileNames` and optional `initialProfileJson`.
+- `lib/app/sync_editor_window_app.dart` — Built on shared **`DesktopModalSubWindowApp`** (`scrollable: false`). Bootstrap loads bridge + bucket list; content is `FileSyncProfileEditor(asDialog: false)`.
+- `lib/services/sync_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Desktop `isSupported` follows `preferModalSubWindows`; when false, `openEditor` returns `false` and pages open `showAppModal` + `FileSyncProfileEditor(asDialog: true)`.
+- `lib/app/app_entry_io.dart` — Still dispatches debug-spawned sub-windows: `SyncEditorWindowArgs.matches` → `configureDesktopModalSubWindow` + `SyncEditorWindowApp`.
+- `lib/services/desktop_modal_overlay_controller.dart` / `lib/widgets/desktop_modal_scrim.dart` — Parent scrim only on the debug sub-window path.
+- `lib/services/desktop_sub_window_modal.dart` — Shared acquire/release, chrome, center, resize helpers for debug sub-windows.
+- `lib/services/desktop_overlay.dart` — **`showDesktopOverlayOrDialog`**: opens sub-window only when `preferModalSubWindows && service.isSupported`; else in-app dialog. **Current sole caller:** `showRemoteDirectoryPicker`.
+- `lib/services/desktop_window_method_host.dart` — Method multiplex for debug sub-window results/overlay/bounds.
+- `lib/models/remote_directory_picker_window_args.dart` / `lib/app/remote_directory_picker_window_app.dart` / `lib/services/remote_directory_picker_window_service.dart` — Debug remote-directory OS window (720×560); default path is in-app modal.
+- `lib/widgets/remote_directory_picker_dialog.dart` — File-manager-style remote directory picker. **`showRemoteDirectoryPicker`** uses `showDesktopOverlayOrDialog` (in-app modal by default). Widget supports `asDialog`, `onConfirm`, `onCancel`. Returns `RemoteDirectoryResult(bucket, prefix, profileName, config)`.
 - `lib/widgets/remote_directory_picker_list.dart` — Part file: directory list + **file rows for display only**. Directories and `..` are selectable; **files are not** (`dimmed: true` on `FileListTile`). Toggle **显示隐藏文件** filters dot-prefixed names. File icons use **grayscale `ColorFilter.matrix`** (not `srcATop` tint) so multi-color SVGs (e.g. zip) grey correctly; title/size use muted text via `FileListTile.dimmed`.
 - `lib/widgets/file_list_tile.dart` — Shared list row; **`dimmed`** disables hover/press, uses arrow (not hand) cursor, and paints title/size in muted foreground for non-selectable rows.
 
@@ -249,7 +251,7 @@ If a path is absent on both sides but still in index → `skip` (`stale_index`).
 
 #### Data flow
 
-1. User creates/edits a profile from **文件同步** page only (`_addProfile` / `_editProfile`): desktop → `SyncEditorWindowService.openEditor` → sub-window; Web or unsupported → `showShadDialog` + `FileSyncProfileEditor(asDialog: true)`.
+1. User creates/edits a profile from **文件同步** page only (`_addProfile` / `_editProfile`): default → `showAppModal` + `FileSyncProfileEditor(asDialog: true)`; debug sub-window only when `SyncEditorWindowService.openEditor` is supported (`preferModalSubWindows`).
 2. `_FileSyncTasksActions._saveProfile` → `SyncProfileNotifier.saveProfile` → Go `saveSyncProfile` → `go/sync/store.go`.
 3. `SyncProfileNotifier` polls `listSyncProfiles` every 3s → Go runtime state from `scheduler.go`/`runner.go`.
 4. On interval or manual "立即同步" trigger → Go `runner.go` runs `diff.go` → `reconcile.go` → `executor.go`, enqueueing `sync_*` tasks into the shared `TransferQueue`.
@@ -257,7 +259,7 @@ If a path is absent on both sides but still in index → `skip` (`stale_index`).
 
 ### Feature: Account Management (账号管理)
 
-Lists configured storage accounts and lets users add, edit, or remove them. On desktop, the add/edit form opens as a **detached OS sub-window** instead of an in-page `ShadDialog`. On Web, or when the sub-window cannot be created, it falls back to the original `ShadDialog`.
+Lists configured storage accounts and lets users add, edit, or remove them. **Default:** add/edit opens as an **in-app app modal** (`showAppModal` + `CloudStorageAccountDialog(asDialog: true)`). **Debug only:** with `preferModalSubWindows`, desktop can still spawn the detached OS sub-window.
 
 **Two-step wizard (current, 2026-07-11):** New accounts use a 2-step guided flow:
 - **Step 0「选择协议」:** Large selectable cards for S3 / WebDAV / 百度网盘. Selecting a card updates `_storageType` without navigating.
@@ -276,28 +278,22 @@ Lists configured storage accounts and lets users add, edit, or remove them. On d
 - Dialog sub-window content returns `SizedBox(width: 480)` + `Column(mainAxisSize: min)` — it shrink-wraps height; the fixed OS window height is what creates bottom gap or forces scroll.
 - Historical note: `4ce325f9` / `4483c276` used hand-tuned per-step `resizeKeepingWindowCenter` sizes (fragile). `a4197b1d` temporarily used fixed window + scroll. Current approach measures shrink-wrapped form content (`MeasureSize`) and resizes with `fitModalSubWindowToContentSize`. Sync editor still uses discrete step sizes + `resizeKeepingWindowCenter`.
 
-**Sub-window architecture:**
-- `lib/models/account_editor_window_args.dart` — Args model with `initialConfigJson` (edit mode), `profileName`, `editing`, and `creatorFrame*`. JSON is the only data that crosses the multi-window boundary.
-- `lib/app/account_editor_window_app.dart` — `DesktopModalSubWindowApp` with `scrollable: true`; content is `CloudStorageAccountDialog(asDialog: false)`. Save notifies parent via `account_editor_saved`, then `close()`.
-- `lib/services/account_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — Desktop `WindowController.create()` + parent overlay; Web returns `false` for dialog fallback.
-- `lib/app/app_entry_io.dart` — Matches `AccountEditorWindowArgs` and calls `configureDesktopModalSubWindow(size: _accountEditorWindowSize(...))`.
-- `lib/app/desktop_modal_window_config.dart` — Shared `configureDesktopModalSubWindow` (`WindowOptions` size/minSize + modal chrome + center on creator frame).
-- `lib/services/desktop_sub_window_modal.dart` — Modal child chrome + `resizeKeepingWindowCenter` (still used by **sync** editor step changes, not account editor).
-- `lib/services/desktop_window_method_host.dart` — Multiplexes `account_editor_saved` to the parent refresh callback.
-- `lib/widgets/cloud_storage_account_dialog.dart` — Wizard/edit UI; dual-mode `asDialog`. No window resize logic.
+**Default modal path:**
+- `lib/pages/cloud_storage_page.dart` — Opens `showAppModal` + `CloudStorageAccountDialog(asDialog: true)` unless debug sub-window is supported.
+- `lib/widgets/cloud_storage_account_dialog.dart` — Wizard/edit UI; dual-mode `asDialog` (default true).
 - `lib/widgets/cloud_storage_account_dialog_steps.dart` — `stepProtocolPicker` / `stepConnectionFields` + protocol field builders.
 - `lib/models/cloud_storage_account_draft.dart` / `lib/utils/account_config_builder.dart` / `lib/utils/account_profile_name.dart` — Draft, config build, profile key.
-- `lib/pages/cloud_storage_page.dart` — Entry: try sub-window, else `showShadDialog`.
+
+**Debug sub-window architecture (retained):**
+- `lib/models/account_editor_window_args.dart` — Args model with `initialConfigJson`, `profileName`, `editing`, `creatorFrame*`.
+- `lib/app/account_editor_window_app.dart` — `DesktopModalSubWindowApp(scrollable: true)` + `CloudStorageAccountDialog(asDialog: false)`.
+- `lib/services/account_editor_window_service.dart` (+ `_io.dart` / `_web.dart`) — `isSupported => preferModalSubWindows`; otherwise returns `false`.
+- `lib/app/app_entry_io.dart` / `desktop_modal_window_config.dart` / `desktop_sub_window_modal.dart` / `desktop_window_method_host.dart` — Spawn, size, chrome, `account_editor_saved` (debug path only).
 
 #### Data flow
 1. User clicks "新增账号" or row "编辑" in `CloudStoragePage`.
-2. `AccountEditorWindowService.openEditor` acquires parent modal overlay, registers `account_editor_saved` callback, spawns sub-window (no size args).
-3. Child engine `app_entry_io` configures a seed window size, then runs `AccountEditorWindowApp`.
-4. New accounts start at step 0; edit mode shows single-screen fields. After layout, `CloudStorageAccountDialog` measures content and resizes the window; step/protocol/proxy changes re-measure and re-fit.
-5. Submit builds `RemoteStorageConfig` via `buildAccountConfig` and calls sub-window `_onSave` → `api.saveProfile`.
-6. On success, `onSaved` sends `account_editor_saved` to creator, then closes the sub-window.
-7. Main engine refreshes account list via registered callback.
-8. Unsupported path falls back to `showShadDialog` + `CloudStorageAccountDialog(asDialog: true)`.
+2. **Default:** `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`; save via page `_saveNewAccount` / `_saveEditedAccount` → `api.saveProfile` → `onRefresh`.
+3. **Debug only:** if `AccountEditorWindowService.openEditor` is supported, spawn OS sub-window; save notifies creator via `account_editor_saved`, then closes the child.
 
 ### Feature: Transfer Queue (通用传输队列)
 
@@ -524,9 +520,28 @@ Three proxy modes: system (default), direct (no proxy), custom (user-specified U
 - `lib/models/system_proxy_info.dart` 鈥?Dart mirror of the Go `systemProxyResult`.
 - `lib/widgets/settings_update_section.dart` 鈥?`_resolveEffectiveProxy()` queries `api.resolveSystemProxy()` in system mode before update check and install download, converting the result to a `ProxyConfig(mode: custom)`.
 
+### Feature: App Modal (统一拟态框)
+
+**Binding rule (2026-07-11):** User-facing modal UI defaults to **in-app app modals** (single Flutter engine). OS `desktop_multi_window` editors are **debug-only Experimental**. Business code must not call `showShadDialog` directly — only `lib/services/app_modal.dart` may wrap it.
+
+#### Key files
+
+- `lib/services/app_modal.dart` — Unified entry: `showAppModal` (builder returning `ShadDialog` / dual-mode widgets), `showAppModalDialog` (title/description/body/actions helper), `showAppConfirmModal` (yes/no). Internal-only `showShadDialog` call lives here.
+- `lib/services/modal_sub_window_debug.dart` — `kUseModalSubWindows` dart-define + `preferModalSubWindows` gate.
+- `lib/services/desktop_overlay.dart` — Routes large editors: sub-window only if debug gate + supported; else in-app dialog callback.
+- Dual-mode content (still used by default modals with `asDialog: true`): `cloud_storage_account_dialog.dart`, `file_sync_profile_editor.dart`, `remote_directory_picker_dialog.dart`.
+- Migrated callers (non-exhaustive): `object_action_dialogs.dart`, `share_dialogs.dart`, `create_directory_dialog.dart`, `mount_bucket_dialog.dart`, `bucket_settings_dialog.dart`, `profile_picker_dialog.dart`, `desktop_window_controls.dart`, file-manager action/preview/upload parts, `transfers_page.dart`, settings reset, breadcrumb overflow.
+
+#### Gotchas
+
+- Large editors with internal `Expanded` / fixed-height lists must not get an outer `SingleChildScrollView` on top. Prefer finite height inside `ShadDialog` (picker uses height 420) or `scrollable: true` only when the body is `mainAxisSize: min`.
+- Hover / close chrome still follows global hover rules (`ListInteractionColors`; no ink splash; neutral wash only).
+- Web always uses app modals (window services unsupported).
+
 ### Feature: Desktop Modal Sub-Window Shell (通用子窗口壳)
 
-Three modal sub-windows (account editor, sync editor, directory picker) share a common lifecycle: detached OS window with hidden title bar → custom 44px title bar → bootstrap bridge/data → loading/error/content body → modal scrim + overlay release on close. Previously each window re-implemented this from scratch (title bar widget × 3, close function × 3, `WindowLifecycle` × 2, `_configure*Window` × 4). A shared abstraction now handles all of it.
+
+Three **debug-only** modal sub-windows (account editor, sync editor, directory picker) share a common lifecycle when `preferModalSubWindows` is on: detached OS window with hidden title bar → custom 44px title bar → bootstrap bridge/data → loading/error/content body → modal scrim + overlay release on close. Previously each window re-implemented this from scratch (title bar widget × 3, close function × 3, `WindowLifecycle` × 2, `_configure*Window` × 4). A shared abstraction now handles all of it.
 
 #### Shared components
 
@@ -538,14 +553,14 @@ Three modal sub-windows (account editor, sync editor, directory picker) share a 
 
 - `lib/app/account_editor_window_app.dart` — `DesktopModalSubWindowApp<RemoteStorageGateway>` with `scrollable: true` (overflow safety only when content exceeds screen clamp), `bootstrap` → `defaultRemoteStorageApiFactory()`, `contentBuilder` → `_AccountEditorContent` (save + Baidu OAuth). `onSaved` notifies parent then `close()`; `onCancel` calls `close()`. Content-fit resize lives in `CloudStorageAccountDialog` (`MeasureSize` + `fitModalSubWindowToContentSize`).
 - `lib/widgets/measure_size.dart` — `MeasureSize` RenderObject reports child size changes (including descendant-only rebuilds such as proxy custom fields).
-- `lib/services/desktop_sub_window_modal.dart` — `fitModalSubWindowToContentSize` converts measured body size + title bar (44) + content padding into a centered OS window size, clamped to min/max and ~90% of screen.
+- `lib/services/desktop_sub_window_modal.dart` — `fitModalSubWindowToContentSize` converts measured body size + title bar (44) + content padding into a centered OS window size, clamped to fixed min/max only (never `FlutterView.physicalSize` — that is the child window in multi-window).
 - `lib/app/sync_editor_window_app.dart` — `DesktopModalSubWindowApp<_SyncBootstrapResult>` with **`scrollable: false`** (editor owns step indicator + internal scroll + pinned nav via `Expanded`). `bootstrap` → load profiles + buckets; `contentBuilder` → `_SyncEditorContent`; `onSaved` → `close()`. Deleted: `_SyncEditorTitleBar`, `_closeSyncEditorWindow`, `SyncEditorWindowLifecycle`.
 - `lib/app/remote_directory_picker_window_app.dart` — `DesktopModalSubWindowApp<RemoteStorageGateway>` with **`scrollable: false`**, `useParentFocusRelay: false`. `onConfirm` stashes result then `close()`; `onCancel` clears result then `close()`; title-bar X still runs shell `onClose` → `_sendResult` (null if no selection). Deleted: `_PickerTitleBar`, inline `_finish`, `_RemoteDirectoryPickerBody`.
 - `lib/app/app_entry_io.dart` — All three modal windows now configured via `configureDesktopModalSubWindow()`. Deleted: `_configureSyncEditorWindow`, `_configureAccountEditorWindow`, `_configureRemoteDirectoryPickerWindow`. `_configurePreviewWindow` remains (non-modal, center:true, no chrome).
 
 #### Initial window sizes (current)
 
-- Account editor: `_accountEditorWindowSize` in `app_entry_io.dart` seeds only — new `528×340`; edit Baidu `528×520` / WebDAV `528×600` / S3 `528×700`, min `400×280`. Runtime size comes from content measure.
+- Account editor: `_accountEditorWindowSize` in `app_entry_io.dart` seeds only — new `528×380`; edit Baidu `528×560` / WebDAV `528×640` / S3 `528×760`, min `400×280`. Runtime size comes from content measure (`MeasureSize` + `fitModalSubWindowToContentSize`).
 - Sync editor: fixed initial `560×480` (min `520×400`) in `app_entry_io.dart`; step changes inside `FileSyncProfileEditor` call `resizeKeepingWindowCenter` to `560×480` (step 0) / `640×660` (step 1).
 - Remote directory picker: fixed `720×560` (min `560×440`); dialog fills height with `Expanded` list (`scrollable: false` shell).
 
@@ -553,6 +568,20 @@ Three modal sub-windows (account editor, sync editor, directory picker) share a 
 #### Not migrated
 
 - `FilePreviewWindowApp` — non-modal standalone window (no scrim, no overlay release, draggable title bar). Mode is fundamentally different; stays independent.
+
+#### Open-path routing (policy 2026-07-11)
+
+| Flow | Default (release / normal debug) | Debug OS sub-window |
+|------|----------------------------------|---------------------|
+| Account editor | `CloudStoragePage` → `showAppModal` + `CloudStorageAccountDialog(asDialog: true)` | Only when `preferModalSubWindows` → `AccountEditorWindowService.openEditor` |
+| Sync editor | `file_sync_tasks_page_actions` → `showAppModal` + `FileSyncProfileEditor(asDialog: true)` | Only when `preferModalSubWindows` → `SyncEditorWindowService.openEditor` |
+| Remote directory picker | `showRemoteDirectoryPicker` → in-app modal via `showDesktopOverlayOrDialog` → `showAppModal` | Only when `preferModalSubWindows` → `RemoteDirectoryPickerWindowService.openPicker` |
+| Other dialogs | Always `showAppModal` / `showAppConfirmModal` | No sub-window |
+| File preview | Independent non-modal window (unchanged) | Unchanged |
+
+**Debug gate:** `lib/services/modal_sub_window_debug.dart` — `preferModalSubWindows = kDebugMode && bool.fromEnvironment('USE_MODAL_SUB_WINDOWS', defaultValue: false)`. Enable with `--dart-define=USE_MODAL_SUB_WINDOWS=true` in a debug build. Desktop window services set `isSupported => preferModalSubWindows` (web remains false). Never open multi-window modals just to look more “native” for users.
+
+Near-500 dual-mode content widgets: `cloud_storage_account_dialog.dart` (~469), `file_sync_profile_editor.dart` (~479), `remote_directory_picker_dialog.dart` (~444). Shell/services are well under 500 except `desktop_sub_window_modal.dart` (~355).
 
 #### Gotchas
 

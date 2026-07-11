@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 class CreateDirectoryDialog extends StatelessWidget {
   const CreateDirectoryDialog({
@@ -27,7 +28,7 @@ class CreateDirectoryDialog extends StatelessWidget {
     required VoidCallback onCancel,
     required Future<void> Function() onCreate,
   }) {
-    return showShadDialog(
+    return showAppModal(
       context: context,
       builder: (_) => CreateDirectoryDialog(
         controller: controller,

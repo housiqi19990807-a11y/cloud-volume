@@ -47,6 +47,7 @@ import 'package:remote_storage/widgets/batch_task_progress_mode.dart';
 import 'package:remote_storage/utils/file_preview_type.dart';
 import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 part 'file_manager_page_actions.dart';
 part 'file_manager_page_access.dart';

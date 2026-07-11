@@ -1,6 +1,7 @@
 // 账号重置分区组件：危险操作，清空所有已保存账号并回到首次启动流程。
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 /// [SettingsResetUserConfigSection] 暴露“重置账号”入口，点击后会弹出二次确认，
 /// 确认后调用上层传入的 [onReset]，由设置页执行 bridge 重置并刷新启动状态。
@@ -52,7 +53,7 @@ class SettingsResetUserConfigSection extends StatelessWidget {
   }
 
   Future<void> _confirmAndReset(BuildContext context) async {
-    final confirmed = await showShadDialog<bool>(
+    final confirmed = await showAppModal<bool>(
       context: context,
       builder: (dialogContext) => ShadDialog(
         title: const Text('确认重置账号'),

@@ -3,12 +3,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 Future<MountBucketOptions?> showMountBucketDialog(
   BuildContext context, {
   required String bucket,
 }) {
-  return showShadDialog<MountBucketOptions?>(
+  return showAppModal<MountBucketOptions?>(
     context: context,
     builder: (dialogContext) => _MountBucketDialog(bucket: bucket),
   );

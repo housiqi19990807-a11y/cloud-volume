@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 class ProfilePickerDialog extends StatelessWidget {
   const ProfilePickerDialog({
@@ -22,7 +23,7 @@ class ProfilePickerDialog extends StatelessWidget {
     required String activeProfile,
     required ValueChanged<String> onSwitch,
   }) {
-    return showShadDialog(
+    return showAppModal(
       context: context,
       builder: (_) => ProfilePickerDialog(
         profiles: profiles,

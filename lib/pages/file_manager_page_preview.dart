@@ -27,7 +27,7 @@ extension _FileManagerPagePreview on _FileManagerPageState {
     // 远端对象不存在时置为 true：用于隐藏下载相关动作并在关闭弹窗后刷新目录元数据。
     var unavailable = false;
 
-    await showShadDialog(
+    await showAppModal(
       context: context,
       builder: (dialogContext) {
         var started = false;

@@ -1,6 +1,6 @@
 // 新增/编辑账号弹窗：两步式引导（选择接入协议 → 配置连接信息）。
 // 子窗口模式（asDialog: false）返回裸内容并用 MeasureSize 按内容自适应窗口尺寸；
-// Web 回退仍用 ShadDialog。编辑模式不走向导，直接展示单屏连接信息表单。
+// 默认应用内 ShadDialog；Debug 子窗口用 asDialog:false。编辑模式不走向导。
 // 字段构建与协议选择卡片在 part 文件 cloud_storage_account_dialog_steps.dart 中。
 
 import 'package:flutter/material.dart';
@@ -48,7 +48,7 @@ class CloudStorageAccountDialog extends StatefulWidget {
   final RemoteStorageConfig? initialConfig;
   final bool editing;
 
-  /// true = ShadDialog 拟态框模式（Web 端），false = 裸内容（子窗口）。
+  /// true = 应用内拟态框（默认）；false = Debug 子窗口裸内容。
   final bool asDialog;
 
   /// 子窗口模式保存成功后回调（关闭窗口）。

@@ -81,7 +81,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
     String? errorText;
     bool creating = false;
 
-    await showShadDialog(
+    await showAppModal(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -389,7 +389,7 @@ extension _FileManagerPageActions on _FileManagerPageState {
       return;
     }
     unawaited(
-      showShadDialog<void>(
+      showAppModal<void>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: Text(title),

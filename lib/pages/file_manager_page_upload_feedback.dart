@@ -44,7 +44,7 @@ extension _FileManagerPageUploadFeedback on _FileManagerPageState {
     final taskIds = tasks.map((task) => task.id).toList(growable: false);
     TransferQueue.instance.markTasksForeground(taskIds);
     try {
-      await showShadDialog<void>(
+      await showAppModal<void>(
         context: context,
         builder: (dialogContext) => BatchTaskProgressDialog(
           taskIds: taskIds,

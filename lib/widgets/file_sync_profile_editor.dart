@@ -41,7 +41,7 @@ class FileSyncProfileEditor extends StatefulWidget {
   /// 保存成功后回调（子窗口用，关闭窗口）。
   final VoidCallback? onSaved;
 
-  /// true = ShadDialog 拟态框模式（Web 端），false = 裸内容（子窗口）。
+  /// true = 应用内拟态框（默认）；false = Debug 子窗口裸内容。
   final bool asDialog;
 
   /// 子窗口相对此父引擎窗口居中（desktop_multi_window id）。

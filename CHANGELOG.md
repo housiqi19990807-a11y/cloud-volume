@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- 模态 UI：默认统一为应用内拟态框（`showAppModal` / `showAppConfirmModal`）。账号新增/编辑、同步配置、远端目录选择不再默认打开 OS 子窗口；`desktop_multi_window` 子窗口仅 Debug + `--dart-define=USE_MODAL_SUB_WINDOWS=true` 可用。业务侧禁止直接 `showShadDialog`。
+
 
 - Account editor sub-window resizes to measured form content (no step-0 empty bottom / step-1 inner scroll when screen allows).
 

@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:remote_storage/services/app_modal.dart';
 
 enum ShareRecordDetailAction { copyLink, openLink, refresh, delete }
 
@@ -27,7 +28,7 @@ Future<int?> showShareDurationDialog(
   final controller = TextEditingController(text: initialHours.toString());
   String? errorText;
   try {
-    return await showShadDialog<int?>(
+    return await showAppModal<int?>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => ShadDialog(
@@ -120,7 +121,7 @@ Future<void> showShareLinkDialog(
   BuildContext context, {
   required ShareRecord record,
 }) async {
-  await showShadDialog<void>(
+  await showAppModal<void>(
     context: context,
     builder: (dialogContext) => ShadDialog(
       title: const Text('分享已创建'),
@@ -206,7 +207,7 @@ Future<ShareRecordDetailAction?> showShareRecordDetailsDialog(
   required ShareRecord record,
   required bool busy,
 }) async {
-  return showShadDialog<ShareRecordDetailAction?>(
+  return showAppModal<ShareRecordDetailAction?>(
     context: context,
     builder: (dialogContext) => ShadDialog(
       title: const Text('分享详情'),
@@ -328,7 +329,7 @@ Future<bool> showDeleteShareRecordsDialog(
   BuildContext context,
   int count,
 ) async {
-  return await showShadDialog<bool>(
+  return await showAppModal<bool>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('删除分享记录'),
@@ -368,7 +369,7 @@ Future<bool> showDeleteShareRecordDialog(
   BuildContext context,
   ShareRecord record,
 ) async {
-  return await showShadDialog<bool>(
+  return await showAppModal<bool>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('删除分享记录'),
