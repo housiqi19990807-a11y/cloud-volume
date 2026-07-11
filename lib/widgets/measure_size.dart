@@ -74,6 +74,15 @@ class RenderMeasureSize extends RenderProxyBox {
     );
     child.layout(childConstraints, parentUsesSize: true);
     final reported = child.size;
+    if (!reported.width.isFinite ||
+        !reported.height.isFinite ||
+        reported.width <= 0 ||
+        reported.height <= 0) {
+      // Fall back to parent-clamped size rather than feeding infinity into
+      // window-fit math (can happen with mainAxisSize.max + infinite height).
+      size = constraints.constrain(const Size(0, 0));
+      return;
+    }
 
     // Occupy only what the parent allows so we don't force overflow painting
     // before the OS window has been resized to match [reported].

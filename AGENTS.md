@@ -19,17 +19,37 @@
 
 ### Hover-aware clickable rows (binding rule)
 
-Any clickable row, tile, or sidebar item that needs a hover visual response **must be a dedicated `StatefulWidget`** that owns a `bool _hovered` field. The field is toggled by `MouseRegion(onEnter/onExit)` to `setState`, and drives background color, text color, and cursor via an `AnimatedContainer`. This is the only reliable way to get hover to rebuild the widget subtree.
+Any clickable row, tile, card, or sidebar item that needs a hover visual response **must be a dedicated `StatefulWidget`** that owns a `bool _hovered` field. The field is toggled by `MouseRegion(onEnter/onExit)` to `setState`, and drives background color (and only when intentional, text/icon color) via an `AnimatedContainer`. This is the only reliable way to get hover to rebuild the widget subtree.
 
 **Never** build hover items as inline `MouseRegion` + `Container` inside an `extension on State` or a plain builder — the extension/builder has no mutable field to store `_hovered`, so the `onEnter`/`onExit` callbacks have nowhere to write, hover never rebuilds, and you get a dead or stuck hover state. This bug has re-occurred multiple times (settings sidebar rail, file list tiles).
 
+#### Hover visual style (binding)
+
+Hover is a **subtle state change**, not a different component skin. When implementing or reviewing hover UI, follow these rules:
+
+1. **Prefer shared colors** from `lib/theme/list_interaction_colors.dart` (`ListInteractionColors.fromTheme`) for row/tile/card backgrounds:
+   - idle: transparent / surface background
+   - hover: neutral wash (`mutedForeground @ ~0.08`)
+   - selected: primary wash (`primary @ ~0.12`)
+2. **Do not invent a second hover palette** per feature. Bad examples that look like “another style”:
+   - idle gray border → hover **primary/blue border**
+   - idle white → hover **`colorScheme.secondary` blue fill**
+   - idle muted icon → hover **primary icon**
+   - selected and hover using completely different border/fill systems
+3. **Hover must not re-skin the control.** Border color, border width, icon color, font weight, and checkmark presence should stay stable unless the item is **selected** (or disabled). Hover may only lighten/darken the **background wash** (and optionally a very subtle already-selected tint).
+4. **Layout must not jump on hover/select.** Keep border width constant; reserve space for trailing icons (e.g. checkmark `SizedBox(width: 18)`); use `GestureDetector(behavior: HitTestBehavior.opaque)` so the full card hit-tests. Layout jumps under the cursor break hover and, in content-fit sub-windows, can re-trigger window resize.
+5. **Cursor:** for dense list rows, idle `SystemMouseCursors.basic` and click only while hovered (or a constant click cursor for always-interactive cards is OK if it never sticks). Never leave a pointing hand stuck after unhover/unmount.
+
+Regression reference (2026-07-11): account-editor protocol cards (`StorageProtocolCard`) used hover → primary border + `secondary` fill + primary icon, so sliding the mouse across step 1 looked like three different card styles. Fixed to `ListInteractionColors` neutral hover + selected-only primary chrome.
+
 Canonical implementations to copy:
 - `lib/pages/main_layout_page.dart` `_SidebarNavItem` / `_SidebarNavItemState` — sidebar nav items.
-- `lib/widgets/file_list_tile.dart` — file-manager rows (`dimmed` disables hover).
+- `lib/widgets/file_list_tile.dart` — file-manager rows (`dimmed` disables hover); uses `ListInteractionColors`.
 - `lib/widgets/transfer_task_widgets.dart` — transfer queue rows.
 - `lib/pages/settings_page_layout.dart` `_SettingsGroupTile` — settings left rail entries.
+- `lib/widgets/cloud_storage_account_dialog_steps.dart` `StorageProtocolCard` — selectable cards with neutral hover + selected primary border/check only.
 
-The idle cursor should be `SystemMouseCursors.basic` (basic arrow), switching to `SystemMouseCursors.click` only on hover, so it does not get stuck on a pointing hand inherited from an ancestor.
+The idle cursor should be `SystemMouseCursors.basic` (basic arrow), switching to `SystemMouseCursors.click` only on hover, so it does not get stuck on a pointing hand inherited from an ancestor. Always-interactive cards may use a constant `click` cursor if hover state cannot stick.
 
 ## Go Bridge Organization
 
@@ -533,6 +553,7 @@ Three modal sub-windows (account editor, sync editor, directory picker) share a 
 - Content-fit must add shell chrome: title bar 44px + content padding `LTRB(24,16,24,24)` (+ small height fudge). Measuring only the form body and applying that as the OS window size leaves chrome cut off or reintroduces scroll/whitespace.
 - `MeasureSize` must report the **child's unconstrained height** (layout with `maxHeight: infinity`), not the short size forced by the parent `Expanded`/seed window. Reporting the clamped parent size under-measures and clips the button row.
 - After content-fit resize, re-center with `positionChildCenteredFromFrame` using the creator frame from window args. Do not only call `resizeKeepingWindowCenter` on first show — the child may still be at a default OS origin and will jump/off-center.
+- Never clamp content-fit with `FlutterView.physicalSize` / `platformDispatcher.views.first` inside a multi-window child engine — that reports the **current sub-window**, so `max = size * 0.9` shrinks the dialog on every next/back. Use fixed `maxSize` (or a real monitor API from the main process), never the child view size.
 
 ### Feature: Responsive Page Header Actions (页面头部响应式操作区)
 

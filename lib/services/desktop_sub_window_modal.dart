@@ -150,7 +150,7 @@ const EdgeInsets kDesktopModalContentPadding =
 
 /// Resizes the current modal sub-window so [contentSize] (the body widget,
 /// not including title bar / content padding) fits without empty bottom space
-/// or an inner scroll, when the screen allows.
+/// or an inner scroll, within [minSize]/[maxSize].
 ///
 /// Use with shrink-wrapped form content (`MainAxisSize.min`) measured via
 /// [MeasureSize]. Fill-height editors (sync / directory picker) must not use
@@ -176,17 +176,20 @@ Future<void> fitModalSubWindowToContentSize(
   double? creatorFrameHeight,
   String? creatorWindowId,
 }) async {
-  if (contentSize.width <= 0 || contentSize.height <= 0) return;
+  if (!contentSize.width.isFinite ||
+      !contentSize.height.isFinite ||
+      contentSize.width <= 0 ||
+      contentSize.height <= 0) {
+    return;
+  }
 
-  var maxW = maxSize.width;
-  var maxH = maxSize.height;
-  try {
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final screen = view.physicalSize / view.devicePixelRatio;
-    // Leave a little margin so the window never fills the whole display.
-    maxW = (screen.width * 0.92).clamp(minSize.width, maxSize.width);
-    maxH = (screen.height * 0.90).clamp(minSize.height, maxSize.height);
-  } catch (_) {}
+  // Do NOT clamp with FlutterView.physicalSize. In a desktop_multi_window child
+  // engine that value is the *current sub-window size*, not the monitor. Using
+  // window*0.9 as max creates a shrink loop (next → smaller → back → smaller).
+  // Use the fixed [maxSize] ceiling only; content measurement already drives the
+  // target, and minSize floors tiny glitches.
+  final maxW = maxSize.width;
+  final maxH = maxSize.height;
 
   final target = Size(
     (contentSize.width + contentPadding.horizontal).clamp(minSize.width, maxW),

@@ -11,6 +11,7 @@ Widget stepProtocolPicker({
   required _CloudStorageAccountDialogState self,
 }) {
   return Column(
+    mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       for (final type in StorageType.values) ...[
@@ -43,47 +44,50 @@ class StorageProtocolCard extends StatefulWidget {
 }
 
 class _StorageProtocolCardState extends State<StorageProtocolCard> {
+  // Hover must live on this State (not an inline builder). See AGENTS.md
+  // "Hover-aware clickable rows" binding rule.
   bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final interaction = ListInteractionColors.fromTheme(theme);
+    // Fixed border width avoids layout jump under content-fit measurement.
+    const borderWidth = 1.0;
+    // Hover is a neutral wash only — same family as file-list rows.
+    // Do NOT switch to primary border / secondary blue fill / blue icon on
+    // hover; that reads as a different component style, not a hover state.
     final borderColor = widget.selected
         ? theme.colorScheme.primary
-        : (_hovered
-            ? theme.colorScheme.primary.withValues(alpha: 0.5)
-            : theme.colorScheme.border);
-    final bg = widget.selected
-        ? theme.colorScheme.primary.withValues(alpha: 0.06)
-        : (_hovered
-            ? theme.colorScheme.secondary
-            : theme.colorScheme.background);
+        : theme.colorScheme.border;
+    final bg = interaction.rowBackground(
+      selected: widget.selected,
+      hovered: _hovered,
+      pressed: false,
+    );
+    final iconColor = widget.selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.mutedForeground;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: borderColor,
-              width: widget.selected ? 1.5 : 1,
-            ),
+            border: Border.all(color: borderColor, width: borderWidth),
           ),
           child: Row(
             children: [
-              Icon(
-                _iconFor(widget.type),
-                size: 22,
-                color: widget.selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.mutedForeground,
-              ),
+              Icon(_iconFor(widget.type), size: 22, color: iconColor),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -108,12 +112,17 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
                   ],
                 ),
               ),
-              if (widget.selected)
-                Icon(
-                  LucideIcons.check,
-                  size: 18,
-                  color: theme.colorScheme.primary,
-                ),
+              // Reserve checkmark width so select does not reflow card height.
+              SizedBox(
+                width: 18,
+                child: widget.selected
+                    ? Icon(
+                        LucideIcons.check,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      )
+                    : null,
+              ),
             ],
           ),
         ),

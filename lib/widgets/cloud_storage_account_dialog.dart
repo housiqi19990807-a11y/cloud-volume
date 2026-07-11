@@ -11,6 +11,7 @@ import 'package:remote_storage/utils/account_config_builder.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/account_proxy_section.dart';
 import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
+import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:remote_storage/widgets/measure_size.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
