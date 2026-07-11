@@ -23,34 +23,43 @@ Any clickable row, tile, card, or sidebar item that needs a hover visual respons
 
 **Never** build hover items as inline `MouseRegion` + `Container` inside an `extension on State` or a plain builder — the extension/builder has no mutable field to store `_hovered`, so the `onEnter`/`onExit` callbacks have nowhere to write, hover never rebuilds, and you get a dead or stuck hover state. This bug has re-occurred multiple times (settings sidebar rail, file list tiles).
 
-#### Hover visual style (binding)
+#### Hover visual style (binding — read every time you touch hover UI)
 
-Hover is a **subtle state change**, not a different component skin. When implementing or reviewing hover UI, follow these rules:
+Hover is a **subtle state change**, not a different component skin. This is a hard product rule: if the pointer slides across a list of cards/buttons and they look like different designs while hovered, the hover is wrong.
 
-1. **Prefer shared colors** from `lib/theme/list_interaction_colors.dart` (`ListInteractionColors.fromTheme`) for row/tile/card backgrounds:
-   - idle: transparent / surface background
-   - hover: neutral wash (`mutedForeground @ ~0.08`)
-   - selected: primary wash (`primary @ ~0.12`)
-2. **Do not invent a second hover palette** per feature. Bad examples that look like “another style”:
-   - idle gray border → hover **primary/blue border**
-   - idle white → hover **`colorScheme.secondary` blue fill**
-   - idle muted icon → hover **primary icon**
-   - selected and hover using completely different border/fill systems
-3. **Hover must not re-skin the control.** Border color, border width, icon color, font weight, and checkmark presence should stay stable unless the item is **selected** (or disabled). Hover may only lighten/darken the **background wash** (and optionally a very subtle already-selected tint).
-4. **Layout must not jump on hover/select.** Keep border width constant; reserve space for trailing icons (e.g. checkmark `SizedBox(width: 18)`); use `GestureDetector(behavior: HitTestBehavior.opaque)` so the full card hit-tests. Layout jumps under the cursor break hover and, in content-fit sub-windows, can re-trigger window resize.
-5. **Cursor:** for dense list rows, idle `SystemMouseCursors.basic` and click only while hovered (or a constant click cursor for always-interactive cards is OK if it never sticks). Never leave a pointing hand stuck after unhover/unmount.
+**Allowed on hover (only):**
+- Background wash via `ListInteractionColors.fromTheme` (`hover` = neutral `mutedForeground @ ~0.08`)
+- Optionally a slightly stronger wash when already **selected**
 
-Regression reference (2026-07-11): account-editor protocol cards (`StorageProtocolCard`) used hover → primary border + `secondary` fill + primary icon, so sliding the mouse across step 1 looked like three different card styles. Fixed to `ListInteractionColors` neutral hover + selected-only primary chrome.
-Another regression: modal shell close button hovered into pink fill + red X (re-skin). Correct: fixed muted X icon + neutral `ListInteractionColors` wash only (`lib/widgets/desktop_modal_shell.dart`).
+**Forbidden on hover (unless the item is selected/disabled as its permanent state):**
+- Changing **icon color** (muted → primary, gray → red, etc.)
+- Changing **border color** or **border width**
+- Changing **font weight / text color**
+- Swapping in a different fill system (`colorScheme.secondary` blue, pink destructive fill, etc.)
+- Showing/hiding trailing chrome (checkmarks) that reflows layout
+
+**Checklist before shipping any hover control:**
+1. Idle vs hover screenshot should differ mainly by a light background, not by “new theme”.
+2. Icon/border/text at idle == icon/border/text at hover (same Color/width/weight).
+3. Prefer `ListInteractionColors.rowBackground(selected:, hovered:, pressed:)` — do **not** invent per-feature hover palettes.
+4. Use a dedicated `StatefulWidget` + `_hovered` + `MouseRegion` + `GestureDetector(behavior: opaque)` + `AnimatedContainer`.
+5. Layout must not jump (fixed border width; reserve checkmark width; no 1→1.5 border).
+6. Title-bar / chrome buttons (including modal close): **no Material ink splash**; hover = neutral wash only; **do not** turn the X red/pink on hover.
+
+**Bad examples (regressions — do not reintroduce):**
+- Protocol cards: hover → primary border + `secondary` fill + primary icon (`StorageProtocolCard`, fixed 2026-07-11).
+- Modal shell close: hover → pink fill + red X (`DesktopModalShell`, fixed 2026-07-11). Correct = fixed muted X + neutral wash only.
 
 Canonical implementations to copy:
-- `lib/pages/main_layout_page.dart` `_SidebarNavItem` / `_SidebarNavItemState` — sidebar nav items.
-- `lib/widgets/file_list_tile.dart` — file-manager rows (`dimmed` disables hover); uses `ListInteractionColors`.
+- `lib/theme/list_interaction_colors.dart` — shared hover/selected washes.
+- `lib/pages/main_layout_page.dart` `_SidebarNavItem` — sidebar nav items.
+- `lib/widgets/file_list_tile.dart` — file-manager rows (`dimmed` disables hover).
 - `lib/widgets/transfer_task_widgets.dart` — transfer queue rows.
 - `lib/pages/settings_page_layout.dart` `_SettingsGroupTile` — settings left rail entries.
-- `lib/widgets/cloud_storage_account_dialog_steps.dart` `StorageProtocolCard` — selectable cards with neutral hover + selected primary border/check only.
+- `lib/widgets/cloud_storage_account_dialog_steps.dart` `StorageProtocolCard` — selectable cards (neutral hover; primary chrome only when selected).
+- `lib/widgets/desktop_modal_shell.dart` `_ModalShellCloseButton` — modal title-bar close (no splash; neutral hover only).
 
-The idle cursor should be `SystemMouseCursors.basic` (basic arrow), switching to `SystemMouseCursors.click` only on hover, so it does not get stuck on a pointing hand inherited from an ancestor. Always-interactive cards may use a constant `click` cursor if hover state cannot stick.
+Cursor: dense list rows use idle `SystemMouseCursors.basic` and `click` only while hovered (or a constant `click` cursor for always-interactive cards if it never sticks). Never leave a pointing hand stuck after unhover/unmount.
 
 ## Go Bridge Organization
 
