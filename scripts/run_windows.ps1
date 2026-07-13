@@ -344,6 +344,27 @@ $bridgeDir = Join-Path $repoRoot 'bin/bridge'
 $bridgeDll = Join-Path $bridgeDir 'remote_storage_bridge.dll'
 $architecture = Get-NativeWindowsArchitecture
 $flutterArchitecture = if ($architecture -eq 'arm64') { 'arm64' } else { 'x64' }
+$cargoBin = Join-Path $HOME '.cargo\bin'
+if (Test-Path -LiteralPath $cargoBin) {
+  $env:PATH = "$cargoBin;$env:PATH"
+}
+$rustup = Resolve-Executable -Name 'rustup' -Candidates @(
+  (Join-Path $cargoBin 'rustup.exe')
+)
+if ($architecture -eq 'arm64' -and -not $rustup) {
+  throw @'
+Rustup is required for this Windows ARM64 build. The super_native_extensions
+CargoKit step otherwise downloads a precompiled DLL from GitHub, which can
+time out on this network. Rerun scripts/setup_windows_dev.ps1 to install the
+native Rust toolchain, then retry this command.
+'@
+}
+if ($rustup) {
+  Write-Host "Using Rustup=$rustup (CargoKit plugins will build locally)"
+}
+# Keep CargoKit's underlying download/build error visible instead of exposing
+# only MSBuild's generic MSB8066 custom-command failure.
+$env:CARGOKIT_VERBOSE = '1'
 $go = Resolve-Executable -Name 'go' -Candidates @('C:\Program Files\Go\bin\go.exe')
 if (-not $go) {
   throw 'Could not find Go. Rerun scripts/setup_windows_dev.ps1.'

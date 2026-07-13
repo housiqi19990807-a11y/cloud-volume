@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Windows ARM64 Flutter 构建：环境脚本新增原生 Rustup 工具链，运行脚本自动加入 `%USERPROFILE%\.cargo\bin` 并开启 CargoKit 详细日志；`super_native_extensions` 等 Rust 插件会优先本地编译，不再因 GitHub Release 预编译 DLL 间歇性超时而只报模糊的 MSB8066。
 - Windows ARM64 开发：安装脚本会校验并安装 Visual Studio `VC.Tools.ARM64`，且以 MSBuild `Platforms\ARM64` 是否存在作为就绪条件；`run_windows.ps1` 在启动 Flutter 前预检该工具集，缺失时给出明确安装命令。
 - Windows ARM64 cgo：Cloud Files 挂载相关文件的 `#cgo CFLAGS` 不再硬编码 `_AMD64_`，改为按 `amd64`/`arm64` 分别定义架构宏，修复 ARM64 下 `windows.h` 内联汇编与 `CONTEXT` 重定义错误。
 - Windows 启动脚本：修复 `Resolve-Executable` 把裸命令名 `go` 误解析为仓库根目录 `go/` 包目录的问题，避免 bridge 构建时执行目录而非 `go.exe`。

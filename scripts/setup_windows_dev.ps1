@@ -1,5 +1,6 @@
 ﻿# Bootstraps a Windows desktop development environment for this repository.
-# It installs or verifies Flutter, Go, architecture-matched C++ tools, MSYS2, and Inno Setup 6.
+# It installs or verifies Flutter, Go, Rust, architecture-matched C++ tools,
+# MSYS2, and Inno Setup 6.
 param(
   [string]$FlutterRoot = (Join-Path $HOME 'dev\flutter'),
   [string]$MsysRoot = 'C:\msys64',
@@ -351,6 +352,46 @@ function Ensure-Go {
   Ensure-GoProxy -GoExecutable $go
 }
 
+function Ensure-Rust {
+  Write-Section 'Rust toolchain (for Flutter native plugins)'
+  $cargoBin = Join-Path $HOME '.cargo\bin'
+  $rustup = Resolve-Executable -Name 'rustup' -Candidates @(
+    (Join-Path $cargoBin 'rustup.exe')
+  )
+  $target = if ((Get-NativeWindowsArchitecture) -eq 'arm64') {
+    'aarch64-pc-windows-msvc'
+  } else {
+    'x86_64-pc-windows-msvc'
+  }
+
+  if (-not $rustup) {
+    $installer = Join-Path $env:TEMP "cloud-volume-dev-setup\rustup-init-$target.exe"
+    Save-Download `
+      -Url "https://static.rust-lang.org/rustup/dist/$target/rustup-init.exe" `
+      -Destination $installer
+    Write-Host "Installing the Rust $target toolchain..."
+    Invoke-NativeCommand -Name 'rustup-init' -Command {
+      & $installer -y --profile minimal --default-host $target --default-toolchain stable --no-modify-path
+    }
+  }
+
+  Add-UserPathEntry -Entry $cargoBin
+  $rustup = Resolve-Executable -Name 'rustup' -Candidates @(
+    (Join-Path $cargoBin 'rustup.exe')
+  )
+  if (-not $rustup) {
+    throw 'rustup was not found after installation.'
+  }
+
+  & $rustup --version
+  # CargoKit builds Rust-backed Flutter plugins locally when rustup is present.
+  # Ensure the native standard library exists even if rustup was preinstalled
+  # with a different default host.
+  Invoke-NativeCommand -Name "rustup target add $target" -Command {
+    & $rustup target add $target --toolchain stable
+  }
+}
+
 function Resolve-VsWhere {
   $programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
   return Resolve-Executable -Name 'vswhere' -Candidates @(
@@ -461,7 +502,7 @@ function Ensure-VisualStudioBuildTools {
       'modify',
       '--installPath', $existingInstallation,
       '--quiet',
-      '--norestart',
+      '--norestart'
     )
     foreach ($component in $requiredComponents) {
       $modifyArguments += @('--add', $component)
@@ -793,6 +834,7 @@ Ensure-Git
 Ensure-GitSafeDirectory -Path (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Ensure-Go
 Ensure-VisualStudioBuildTools
+Ensure-Rust
 Ensure-WindowsSymlinkSupport
 Ensure-Msys2
 Ensure-Flutter
