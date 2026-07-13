@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Windows ARM64 cgo：Cloud Files 挂载相关文件的 `#cgo CFLAGS` 不再硬编码 `_AMD64_`，改为按 `amd64`/`arm64` 分别定义架构宏，修复 ARM64 下 `windows.h` 内联汇编与 `CONTEXT` 重定义错误。
 - Windows 启动脚本：修复 `Resolve-Executable` 把裸命令名 `go` 误解析为仓库根目录 `go/` 包目录的问题，避免 bridge 构建时执行目录而非 `go.exe`。
 - Windows ARM64 工具链探测：`run_windows.ps1` 改为用 `ProcessStartInfo` 读取编译器 `-dumpmachine`，避免 PowerShell 调用算子在 ARM 主机上空输出导致已安装的 CLANGARM64 识别失败；并优先使用 `clangarm64` 路径、自动纠正陈旧的 `BRIDGE_CC`。
 - Windows ARM64 开发：环境安装、bridge 构建、Flutter release 输出和 Inno Setup 打包现已按本机架构自适应。x64 继续使用 MSYS2 UCRT64 GCC，ARM64 改用 CLANGARM64 Clang，并在构建前校验 cgo 编译器 target，避免 ARM64 汇编被误交给 x86_64 assembler。

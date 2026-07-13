@@ -3,7 +3,8 @@
 // Windows Cloud Files provider wraps the minimal CFAPI lifecycle needed by this app.
 package mount
 
-// #cgo CFLAGS: -I. -D_AMD64_ -D_M_AMD64=100 -DWIN64 -D_WIN32_WINNT=0x0A00
+// #cgo amd64 CFLAGS: -I. -D_AMD64_ -D_M_AMD64=100 -DWIN64 -D_WIN32_WINNT=0x0A00
+// #cgo arm64 CFLAGS: -I. -D_ARM64_ -D_M_ARM64=1 -DWIN64 -D_WIN32_WINNT=0x0A00
 // #cgo LDFLAGS: -lole32
 // #include "cloud_files_windows.h"
 // #include <stdlib.h>
