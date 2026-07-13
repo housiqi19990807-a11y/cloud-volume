@@ -1,4 +1,4 @@
-# Windows local startup helper: resolves Flutter and an architecture-matched
+﻿# Windows local startup helper: resolves Flutter and an architecture-matched
 # MinGW/LLVM toolchain, builds the Go bridge with CGO, then launches Flutter.
 param(
   [string]$FlutterPath,
@@ -52,7 +52,17 @@ function Resolve-Executable {
     [string[]]$Candidates
   )
 
-  if ($Name -and (Test-Path -LiteralPath $Name)) {
+  # Bare names like "go" must not resolve to a same-named directory
+  # (this repository has a top-level /go package directory).
+  $looksLikePath = $false
+  if ($Name) {
+    if ($Name.Contains('\') -or $Name.Contains('/') -or $Name.Contains(':')) {
+      $looksLikePath = $true
+    } elseif ($Name -like '*.exe' -or $Name -like '*.bat' -or $Name -like '*.cmd' -or $Name -like '*.ps1') {
+      $looksLikePath = $true
+    }
+  }
+  if ($looksLikePath -and (Test-Path -LiteralPath $Name -PathType Leaf)) {
     return (Resolve-Path -LiteralPath $Name).Path
   }
 
@@ -64,7 +74,7 @@ function Resolve-Executable {
   }
 
   foreach ($candidate in $Candidates) {
-    if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
       return (Resolve-Path -LiteralPath $candidate).Path
     }
   }
@@ -269,6 +279,10 @@ $go = Resolve-Executable -Name 'go' -Candidates @('C:\Program Files\Go\bin\go.ex
 if (-not $go) {
   throw 'Could not find Go. Rerun scripts/setup_windows_dev.ps1.'
 }
+$goBin = Split-Path -Parent $go
+if ($env:PATH -notlike "*$goBin*") {
+  $env:PATH = "$goBin;$env:PATH"
+}
 $flutterCandidates = @()
 if ($env:FLUTTER_ROOT) {
   $flutterCandidates += (Join-Path $env:FLUTTER_ROOT 'bin/flutter.bat')
@@ -393,3 +407,4 @@ try {
 } finally {
   Pop-Location
 }
+
