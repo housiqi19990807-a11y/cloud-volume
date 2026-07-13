@@ -131,6 +131,7 @@ Windows development now has two scripts: one for new-machine dependency bootstra
 
 #### Gotchas
 
+- Windows on ARM64 currently exposes an architecture mismatch in the bootstrap/run scripts: native Go and Flutter report `GOARCH=arm64` / `windows-arm64`, while `setup_windows_dev.ps1` installs the MSYS2 UCRT64 `mingw-w64-ucrt-x86_64-gcc` packages and `run_windows.ps1` resolves `C:\msys64\ucrt64\bin\gcc.exe` (`x86_64-w64-mingw32`). Passing ARM64 cgo assembly such as `gcc_arm64.S` to that x64 assembler produces `no such instruction: stp/ldp/blr`. ARM64 builds need an ARM64-targeting compiler (for example the MSYS2 CLANGARM64 toolchain) and architecture-aware compiler resolution; do not diagnose these assembler errors as a Go source failure.
 - `scripts/run_windows.ps1` fails fast with clear errors if Flutter or `gcc`/`g++` is missing; it does not download or install them.
 - `scripts/setup_windows_dev.ps1` prefers `winget` but can install VS Build Tools and MSYS2 without it. Git and Go still require either `winget` or preinstallation before the script reaches later steps.
 - Direct downloads use retrying `Invoke-WebRequest`, then `curl.exe -L --ssl-no-revoke`; the latter handles Windows machines whose certificate revocation check fails because the revocation server is offline.
