@@ -5,7 +5,10 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 set "REPO_ROOT=%SCRIPT_DIR%.."
 set "RUN_SCRIPT=%SCRIPT_DIR%run_windows.ps1"
-set "OUTPUT_DIR=%REPO_ROOT%\build\windows\x64\runner\Release"
+set "TARGET_ARCH=x64"
+if /I "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "TARGET_ARCH=arm64"
+if /I "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "TARGET_ARCH=arm64"
+set "OUTPUT_DIR=%REPO_ROOT%\build\windows\%TARGET_ARCH%\runner\Release"
 
 if not exist "%RUN_SCRIPT%" (
   echo Cannot find %RUN_SCRIPT%

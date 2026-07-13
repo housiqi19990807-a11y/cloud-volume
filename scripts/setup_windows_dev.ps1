@@ -1,5 +1,5 @@
 # Bootstraps a Windows desktop development environment for this repository.
-# It installs or verifies Flutter, Go, Visual Studio C++ tools, MSYS2 UCRT64, and Inno Setup 6.
+# It installs or verifies Flutter, Go, architecture-matched C++ tools, MSYS2, and Inno Setup 6.
 param(
   [string]$FlutterRoot = (Join-Path $HOME 'dev\flutter'),
   [string]$MsysRoot = 'C:\msys64',
@@ -44,6 +44,20 @@ function Resolve-Executable {
   }
 
   return $null
+}
+
+function Get-NativeWindowsArchitecture {
+  # PROCESSOR_ARCHITEW6432 exposes the native architecture when the current
+  # PowerShell process itself is running through x64/x86 emulation.
+  $architecture = $env:PROCESSOR_ARCHITEW6432
+  if (-not $architecture) {
+    $architecture = $env:PROCESSOR_ARCHITECTURE
+  }
+  switch ($architecture.ToUpperInvariant()) {
+    'AMD64' { return 'amd64' }
+    'ARM64' { return 'arm64' }
+    default { throw "Unsupported Windows architecture: $architecture" }
+  }
 }
 
 function Refresh-ProcessPath {
@@ -320,8 +334,9 @@ function Ensure-Go {
     'C:\Program Files\Go\bin\go.exe'
   )
   if (-not $go) {
-    $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\go-windows-amd64.msi'
-    Save-Download -Url 'https://go.dev/dl/go1.24.4.windows-amd64.msi' -Destination $installer
+    $goArchitecture = Get-NativeWindowsArchitecture
+    $installer = Join-Path $env:TEMP "cloud-volume-dev-setup\go-windows-$goArchitecture.msi"
+    Save-Download -Url "https://go.dev/dl/go1.24.4.windows-$goArchitecture.msi" -Destination $installer
     Invoke-Installer -Path $installer -Name 'Go' -Arguments @('/qn', '/norestart')
   }
 
@@ -344,46 +359,79 @@ function Resolve-VsWhere {
   )
 }
 
-function Test-VCToolsInstalled {
+function Get-RequiredVCToolComponents {
+  $components = @('Microsoft.VisualStudio.Component.VC.Tools.x86.x64')
+  if ((Get-NativeWindowsArchitecture) -eq 'arm64') {
+    $components += 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+  }
+  return $components
+}
+
+function Get-VisualStudioInstallation {
+  param([string[]]$RequiredComponents = @())
+
   $vswhere = Resolve-VsWhere
   if (-not $vswhere) {
-    return $false
+    return $null
   }
 
-  $installation = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-  return [bool]$installation
+  $arguments = @('-latest', '-products', '*')
+  if ($RequiredComponents.Count -gt 0) {
+    $arguments += '-requires'
+    $arguments += $RequiredComponents
+  }
+  $arguments += @('-property', 'installationPath')
+  $installation = & $vswhere @arguments
+  if ($LASTEXITCODE -ne 0 -or -not $installation) {
+    return $null
+  }
+  return $installation.Trim()
+}
+
+function Test-VCToolsInstalled {
+  return [bool](Get-VisualStudioInstallation -RequiredComponents (Get-RequiredVCToolComponents))
 }
 
 function Ensure-VisualStudioBuildTools {
   Write-Section 'Visual Studio C++ tools'
   if (Test-VCToolsInstalled) {
-    Write-Skip 'Visual Studio C++ build tools already installed'
+    Write-Skip "Visual Studio C++ build tools already installed for $(Get-NativeWindowsArchitecture)"
     return
   }
 
-  $installedByWinget = Invoke-WingetInstall `
-    -Id 'Microsoft.VisualStudio.2022.BuildTools' `
-    -Name 'Visual Studio 2022 Build Tools' `
-    -ExtraArgs @(
-      '--silent',
-      '--override',
-      '--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
-    )
+  $requiredComponents = Get-RequiredVCToolComponents
+  $existingInstallation = Get-VisualStudioInstallation
+  if ($existingInstallation) {
+    $vsSetup = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe'
+    if (-not (Test-Path -LiteralPath $vsSetup)) {
+      throw "Visual Studio Installer was not found at $vsSetup."
+    }
+    Write-Host "Adding architecture-specific Visual Studio components to $existingInstallation..."
+    $modifyArguments = @('modify', '--installPath', $existingInstallation, '--quiet', '--norestart')
+    foreach ($component in $requiredComponents) {
+      $modifyArguments += @('--add', $component)
+    }
+    Invoke-Installer -Path $vsSetup -Name 'Visual Studio C++ tools modification' -Arguments $modifyArguments
+  } else {
+    $override = '--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+    foreach ($component in $requiredComponents) {
+      $override += " --add $component"
+    }
 
-  if (-not $installedByWinget) {
-    $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\vs_BuildTools.exe'
-    Save-Download -Url 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -Destination $installer
-    Invoke-Installer `
-      -Path $installer `
+    $installedByWinget = Invoke-WingetInstall `
+      -Id 'Microsoft.VisualStudio.2022.BuildTools' `
       -Name 'Visual Studio 2022 Build Tools' `
-      -Arguments @(
-        '--wait',
-        '--quiet',
-        '--norestart',
-        '--add',
-        'Microsoft.VisualStudio.Workload.VCTools',
-        '--includeRecommended'
-      )
+      -ExtraArgs @('--silent', '--override', $override)
+
+    if (-not $installedByWinget) {
+      $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\vs_BuildTools.exe'
+      Save-Download -Url 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -Destination $installer
+      $installArguments = @('--wait', '--quiet', '--norestart', '--add', 'Microsoft.VisualStudio.Workload.VCTools', '--includeRecommended')
+      foreach ($component in $requiredComponents) {
+        $installArguments += @('--add', $component)
+      }
+      Invoke-Installer -Path $installer -Name 'Visual Studio 2022 Build Tools' -Arguments $installArguments
+    }
   }
 
   if (-not (Test-VCToolsInstalled)) {
@@ -392,7 +440,9 @@ function Ensure-VisualStudioBuildTools {
 }
 
 function Ensure-Msys2 {
-  Write-Section 'MSYS2 UCRT64 toolchain'
+  $architecture = Get-NativeWindowsArchitecture
+  $environmentName = if ($architecture -eq 'arm64') { 'CLANGARM64' } else { 'UCRT64' }
+  Write-Section "MSYS2 $environmentName toolchain"
   $bash = Join-Path $MsysRoot 'usr\bin\bash.exe'
   if (-not (Test-Path -LiteralPath $bash)) {
     $installedByWinget = Invoke-WingetInstall -Id 'MSYS2.MSYS2' -Name 'MSYS2'
@@ -420,27 +470,35 @@ function Ensure-Msys2 {
   }
 
   if (-not $SkipMsysPackages) {
-    Write-Host 'Installing MSYS2 UCRT64 gcc/g++ packages...'
+    Write-Host "Installing MSYS2 $environmentName compiler packages..."
+    $packages = if ($architecture -eq 'arm64') {
+      'mingw-w64-clang-aarch64-clang mingw-w64-clang-aarch64-pkg-config make'
+    } else {
+      'mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkg-config make'
+    }
     Invoke-NativeCommand -Name 'MSYS2 package installation' -Command {
-      & $bash -lc 'pacman -Sy --needed --noconfirm mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkg-config make'
+      & $bash -lc "pacman -Sy --needed --noconfirm $packages"
     }
   } else {
     Write-Skip 'MSYS2 package installation skipped'
   }
 
-  $ucrtBin = Join-Path $MsysRoot 'ucrt64\bin'
-  Add-UserPathEntry -Entry $ucrtBin
-  $gcc = Resolve-Executable -Name 'gcc' -Candidates @((Join-Path $ucrtBin 'gcc.exe'))
-  $gxx = Resolve-Executable -Name 'g++' -Candidates @((Join-Path $ucrtBin 'g++.exe'))
-  if (-not $gcc -or -not $gxx) {
-    throw 'MSYS2 UCRT64 gcc/g++ were not found.'
+  $toolchainBin = Join-Path $MsysRoot $(if ($architecture -eq 'arm64') { 'clangarm64\bin' } else { 'ucrt64\bin' })
+  $ccName = if ($architecture -eq 'arm64') { 'clang.exe' } else { 'gcc.exe' }
+  $cxxName = if ($architecture -eq 'arm64') { 'clang++.exe' } else { 'g++.exe' }
+  Add-UserPathEntry -Entry $toolchainBin
+  $cc = Resolve-Executable -Name '' -Candidates @((Join-Path $toolchainBin $ccName))
+  $cxx = Resolve-Executable -Name '' -Candidates @((Join-Path $toolchainBin $cxxName))
+  if (-not $cc -or -not $cxx) {
+    throw "MSYS2 $environmentName $ccName/$cxxName were not found."
   }
 
-  [Environment]::SetEnvironmentVariable('BRIDGE_CC', $gcc, 'User')
-  [Environment]::SetEnvironmentVariable('BRIDGE_CXX', $gxx, 'User')
-  $env:BRIDGE_CC = $gcc
-  $env:BRIDGE_CXX = $gxx
-  & $gcc --version | Select-Object -First 1
+  [Environment]::SetEnvironmentVariable('BRIDGE_CC', $cc, 'User')
+  [Environment]::SetEnvironmentVariable('BRIDGE_CXX', $cxx, 'User')
+  $env:BRIDGE_CC = $cc
+  $env:BRIDGE_CXX = $cxx
+  & $cc --version | Select-Object -First 1
+  & $cc -dumpmachine
 }
 
 

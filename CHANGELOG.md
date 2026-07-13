@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Windows ARM64 开发：环境安装、bridge 构建、Flutter release 输出和 Inno Setup 打包现已按本机架构自适应。x64 继续使用 MSYS2 UCRT64 GCC，ARM64 改用 CLANGARM64 Clang，并在构建前校验 cgo 编译器 target，避免 ARM64 汇编被误交给 x86_64 assembler。
 - Windows 开发环境：安装脚本会在未配置自定义 Go 模块代理时设置 `GOPROXY=https://goproxy.cn,direct`，提升国内网络下依赖下载的可靠性；已有自定义代理保持不变。
 - 账号管理 / 文件管理：列表视图支持拖拽排序。
 - 启动刷新：`AppBootstrapPage` 在已进入主界面后的 `onRefresh` 改为静默替换 bootstrap 会话，不再走 FutureBuilder 全屏“正在检查配置”，避免账号拖拽排序等操作闪一下。账号顺序与桶顺序写入 bbolt `meta`（`profile_order` / `bucket_order`），重启后保持；卡片视图仍不支持拖拽。搜索中或回收站首页的桶列表禁用排序。

@@ -62,7 +62,7 @@ func matchPlatformAsset(args json.RawMessage) (any, error) {
 	case "darwin":
 		result = matchMacOS(input.Assets, arch)
 	case "windows":
-		result = matchWindows(input.Assets)
+		result = matchWindows(input.Assets, arch)
 	case "linux":
 		result = matchLinux(input.Assets)
 	}
@@ -122,15 +122,20 @@ func matchMacOS(assets []releaseAsset, arch string) *platformAssetResult {
 	return nil
 }
 
-// matchWindows matches exact desktop filenames from build_desktop_packages.sh.
-// Full-name matching prevents CLI packages (yunjuan-cli-full-windows-amd64.zip)
-// from matching since they also end with "-windows-amd64.zip".
-func matchWindows(assets []releaseAsset) *platformAssetResult {
-	if a := findAssetByName(assets, artifactPrefix+"-windows-amd64.zip"); a != nil {
-		return &platformAssetResult{Asset: *a, Platform: "Windows", InstallerType: "zip"}
+// matchWindows prefers the native package and lets ARM64 fall back to amd64,
+// which Windows 11 on ARM can execute, while releases transition to dual arch.
+func matchWindows(assets []releaseAsset, arch string) *platformAssetResult {
+	architectures := []string{"amd64"}
+	if arch == "arm64" {
+		architectures = []string{"arm64", "amd64"}
 	}
-	if a := findAssetByName(assets, artifactPrefix+"-windows-amd64-installer.exe"); a != nil {
-		return &platformAssetResult{Asset: *a, Platform: "Windows", InstallerType: "exe"}
+	for _, candidateArch := range architectures {
+		if a := findAssetByName(assets, artifactPrefix+"-windows-"+candidateArch+".zip"); a != nil {
+			return &platformAssetResult{Asset: *a, Platform: "Windows", InstallerType: "zip"}
+		}
+		if a := findAssetByName(assets, artifactPrefix+"-windows-"+candidateArch+"-installer.exe"); a != nil {
+			return &platformAssetResult{Asset: *a, Platform: "Windows", InstallerType: "exe"}
+		}
 	}
 	return nil
 }
@@ -158,4 +163,3 @@ func findAssetByName(assets []releaseAsset, name string) *releaseAsset {
 	}
 	return nil
 }
-

@@ -48,16 +48,18 @@ class PlatformUpdateAsset {
 PlatformUpdateAsset? matchPlatformAsset(
   List<ReleaseAsset> assets, {
   String? runtimeArchitecture,
+  String? runtimePlatform,
 }) {
   if (assets.isEmpty) return null;
 
-  if (isMacOSPlatform) {
+  final platform = runtimePlatform?.toLowerCase();
+  if (platform == 'macos' || (platform == null && isMacOSPlatform)) {
     return _matchMacOS(assets, runtimeArchitecture ?? runtimeCpuArchitecture);
   }
-  if (isWindowsPlatform) {
-    return _matchWindows(assets);
+  if (platform == 'windows' || (platform == null && isWindowsPlatform)) {
+    return _matchWindows(assets, runtimeArchitecture ?? runtimeCpuArchitecture);
   }
-  if (isLinuxPlatform) {
+  if (platform == 'linux' || (platform == null && isLinuxPlatform)) {
     return _matchLinux(assets);
   }
   return null;
@@ -97,29 +99,32 @@ PlatformUpdateAsset? _matchMacOS(List<ReleaseAsset> assets, String arch) {
   return null;
 }
 
-PlatformUpdateAsset? _matchWindows(List<ReleaseAsset> assets) {
-  // Prefer the green ZIP package; fall back to the Inno Setup installer.
-  final zip = _findAsset(assets, 'windows-amd64', '.zip');
-  if (zip != null) {
-    return PlatformUpdateAsset(
-      asset: zip,
-      platform: 'Windows',
-      installerType: 'zip',
+PlatformUpdateAsset? _matchWindows(List<ReleaseAsset> assets, String arch) {
+  // Prefer native ZIP/installer; Windows ARM64 can use amd64 as a transition fallback.
+  final architectures = arch == 'arm64' ? ['arm64', 'amd64'] : ['amd64'];
+  for (final candidateArch in architectures) {
+    final zip = _findAssetByExactName(
+      assets,
+      'yunjuan-windows-$candidateArch.zip',
     );
-  }
-  const installerPattern = 'windows-amd64-installer';
-  final installer = assets.cast<ReleaseAsset?>().firstWhere(
-    (a) =>
-        a!.name.toLowerCase().contains(installerPattern) &&
-        a.name.toLowerCase().endsWith('.exe'),
-    orElse: () => null,
-  );
-  if (installer != null) {
-    return PlatformUpdateAsset(
-      asset: installer,
-      platform: 'Windows',
-      installerType: 'exe',
+    if (zip != null) {
+      return PlatformUpdateAsset(
+        asset: zip,
+        platform: 'Windows',
+        installerType: 'zip',
+      );
+    }
+    final installer = _findAssetByExactName(
+      assets,
+      'yunjuan-windows-$candidateArch-installer.exe',
     );
+    if (installer != null) {
+      return PlatformUpdateAsset(
+        asset: installer,
+        platform: 'Windows',
+        installerType: 'exe',
+      );
+    }
   }
   return null;
 }
@@ -157,6 +162,17 @@ ReleaseAsset? _findAsset(
     if (name.contains(lowered) && name.endsWith(ext)) {
       return asset;
     }
+  }
+  return null;
+}
+
+ReleaseAsset? _findAssetByExactName(
+  List<ReleaseAsset> assets,
+  String expectedName,
+) {
+  final expected = expectedName.toLowerCase();
+  for (final asset in assets) {
+    if (asset.name.toLowerCase() == expected) return asset;
   }
   return null;
 }

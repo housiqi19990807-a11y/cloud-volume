@@ -14,8 +14,20 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-NativeWindowsArchitecture {
+  # Detect the OS architecture even when this PowerShell is emulated.
+  $architecture = $env:PROCESSOR_ARCHITEW6432
+  if (-not $architecture) { $architecture = $env:PROCESSOR_ARCHITECTURE }
+  switch ($architecture.ToUpperInvariant()) {
+    'AMD64' { return 'x64' }
+    'ARM64' { return 'arm64' }
+    default { throw "Unsupported Windows architecture: $architecture" }
+  }
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-$releaseDir = Join-Path $repoRoot 'build\windows\x64\runner\Release'
+$architecture = Get-NativeWindowsArchitecture
+$releaseDir = Join-Path $repoRoot "build\windows\$architecture\runner\Release"
 $outputDir = Join-Path $repoRoot 'dist\release'
 $issPath = Join-Path $repoRoot 'scripts\windows_installer.iss'
 
@@ -59,14 +71,15 @@ New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
 # Step 5: Run ISCC. AppName/AppPublisher use .iss UTF-8 BOM defaults (not passed
 # here because PowerShell corrupts Chinese when transmitting args to ISCC).
-$installerBase = "yunjuan-windows-amd64-installer"
+$installerBase = "yunjuan-windows-$architecture-installer"
+$innoArchitecture = if ($architecture -eq 'arm64') { 'arm64' } else { 'x64compatible' }
 & $iscc /Qp `
   "/DAppVersion=$Version" `
   "/DSourceDir=$releaseDir" `
   "/DOutputDir=$outputDir" `
   "/DOutputBaseFilename=$installerBase" `
-  "/DArchitecturesAllowed=x64compatible" `
-  "/DArchitecturesInstallIn64BitMode=x64compatible" `
+  "/DArchitecturesAllowed=$innoArchitecture" `
+  "/DArchitecturesInstallIn64BitMode=$innoArchitecture" `
   $issPath
 
 if ($LASTEXITCODE -ne 0) {
