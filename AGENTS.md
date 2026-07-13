@@ -130,6 +130,7 @@ Windows development now has two scripts: one for new-machine dependency bootstra
 #### Gotchas
 
 - ARM64 cgo must use the CLANGARM64 compiler selected by the scripts. If `gcc_arm64.S` ever reports unknown `stp`/`ldp`/`blr` instructions again, inspect the printed compiler target: it must contain `aarch64`/`arm64`, not `x86_64`. User overrides passed with `-BridgeCc`/`-BridgeCxx` are intentionally rejected when their `-dumpmachine` target does not match the native architecture.
+- On some Windows ARM hosts, PowerShell's call operator (`& clang.exe -dumpmachine`) can return empty output even when the compiler works. `run_windows.ps1` therefore probes compilers through `System.Diagnostics.ProcessStartInfo`, prefers known `C:\\msys64\\clangarm64\\bin\\clang(.exe|++.exe)` paths over a stale user `BRIDGE_CC` pointing at UCRT64 gcc, and rewrites the user `BRIDGE_CC`/`BRIDGE_CXX` values after a successful match.
 - `scripts/run_windows.ps1` fails fast with clear errors if Flutter or `gcc`/`g++` is missing; it does not download or install them.
 - `scripts/setup_windows_dev.ps1` prefers `winget` but can install VS Build Tools and MSYS2 without it. Git and Go still require either `winget` or preinstallation before the script reaches later steps.
 - Direct downloads use retrying `Invoke-WebRequest`, then `curl.exe -L --ssl-no-revoke`; the latter handles Windows machines whose certificate revocation check fails because the revocation server is offline.

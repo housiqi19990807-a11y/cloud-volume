@@ -97,6 +97,30 @@ function Test-CompilerTargetArchitecture {
   return $Target -match '(^|[-_])(x86_64|amd64)([-_]|$)'
 }
 
+function Get-CompilerDumpMachine {
+  param([Parameter(Mandatory = $true)][string]$Compiler)
+
+  # MSYS2/LLVM tools can return empty output under PowerShell's call operator
+  # on some Windows ARM hosts. Probe via ProcessStartInfo instead.
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $Compiler
+  $psi.Arguments = '-dumpmachine'
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $compilerDir = Split-Path -Parent $Compiler
+  $psi.EnvironmentVariables['Path'] = "$compilerDir;$env:Path"
+  $process = [System.Diagnostics.Process]::Start($psi)
+  $stdout = $process.StandardOutput.ReadToEnd()
+  $stderr = $process.StandardError.ReadToEnd()
+  $process.WaitForExit()
+  return [pscustomobject]@{
+    ExitCode = $process.ExitCode
+    Target = (($stdout + $stderr).Trim())
+  }
+}
+
 function Resolve-ArchitectureCompiler {
   param(
     [string]$Requested,
@@ -110,30 +134,49 @@ function Resolve-ArchitectureCompiler {
     $allCandidates += $Requested
   }
   $allCandidates += $Candidates
+
   $seen = @{}
+  $tried = @()
   foreach ($candidate in $allCandidates) {
     if (-not $candidate) {
       continue
     }
-    $compiler = Resolve-Executable -Name $candidate -Candidates @($candidate)
+
+    $compiler = $null
+    if (Test-Path -LiteralPath $candidate) {
+      $compiler = (Resolve-Path -LiteralPath $candidate).Path
+    } else {
+      $command = Get-Command $candidate -ErrorAction SilentlyContinue
+      if ($command) {
+        $compiler = $command.Source
+      }
+    }
     if (-not $compiler -or $seen.ContainsKey($compiler)) {
       continue
     }
     $seen[$compiler] = $true
-    $target = (& $compiler -dumpmachine 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -eq 0 -and $target) {
-      $target = $target.Trim()
+
+    $probe = Get-CompilerDumpMachine -Compiler $compiler
+    $target = $probe.Target
+    if ($probe.ExitCode -eq 0 -and $target) {
       if (Test-CompilerTargetArchitecture -Target $target -Architecture $Architecture) {
         Write-Host "Using $Label=$compiler ($target)"
         return $compiler
       }
+      $tried += "$compiler => $target"
       Write-Host "skip: $compiler targets $target, expected $Architecture" -ForegroundColor DarkGray
+    } else {
+      $tried += "$compiler => dumpmachine failed (exit=$($probe.ExitCode))"
+      Write-Host "skip: $compiler dumpmachine failed (exit=$($probe.ExitCode))" -ForegroundColor DarkGray
     }
+
     if ($Requested -and $candidate -eq $Requested) {
       throw "$Label '$Requested' does not target $Architecture."
     }
   }
-  throw "Could not find a $Label compiler targeting $Architecture. Rerun scripts/setup_windows_dev.ps1 or pass the matching compiler path explicitly."
+
+  $detail = if ($tried.Count -gt 0) { ' Tried: ' + ($tried -join '; ') } else { '' }
+  throw "Could not find a $Label targeting $Architecture.$detail Rerun scripts/setup_windows_dev.ps1 or pass -BridgeCc/-BridgeCxx."
 }
 
 function Invoke-NativeCommand {
@@ -243,14 +286,34 @@ Ensure-GitSafeDirectory -Path $flutterRoot
 Ensure-GitSafeDirectory -Path $repoRootPath
 
 $ccCandidates = if ($architecture -eq 'arm64') {
-  @($env:BRIDGE_CC, 'C:\msys64\clangarm64\bin\clang.exe', 'C:\msys64\clangarm64\bin\aarch64-w64-mingw32-clang.exe')
+  # Prefer known ARM64 toolchain paths before any stale BRIDGE_CC value
+  # left over from an earlier x64-only setup (commonly UCRT64 gcc).
+  @(
+    'C:\msys64\clangarm64\bin\clang.exe',
+    'C:\msys64\clangarm64\bin\aarch64-w64-mingw32-clang.exe',
+    $env:BRIDGE_CC
+  )
 } else {
-  @($env:BRIDGE_CC, 'C:\msys64\ucrt64\bin\gcc.exe', 'C:\msys64\mingw64\bin\gcc.exe', 'C:\msys64\clang64\bin\clang.exe')
+  @(
+    'C:\msys64\ucrt64\bin\gcc.exe',
+    'C:\msys64\mingw64\bin\gcc.exe',
+    'C:\msys64\clang64\bin\clang.exe',
+    $env:BRIDGE_CC
+  )
 }
 $cxxCandidates = if ($architecture -eq 'arm64') {
-  @($env:BRIDGE_CXX, 'C:\msys64\clangarm64\bin\clang++.exe', 'C:\msys64\clangarm64\bin\aarch64-w64-mingw32-clang++.exe')
+  @(
+    'C:\msys64\clangarm64\bin\clang++.exe',
+    'C:\msys64\clangarm64\bin\aarch64-w64-mingw32-clang++.exe',
+    $env:BRIDGE_CXX
+  )
 } else {
-  @($env:BRIDGE_CXX, 'C:\msys64\ucrt64\bin\g++.exe', 'C:\msys64\mingw64\bin\g++.exe', 'C:\msys64\clang64\bin\clang++.exe')
+  @(
+    'C:\msys64\ucrt64\bin\g++.exe',
+    'C:\msys64\mingw64\bin\g++.exe',
+    'C:\msys64\clang64\bin\clang++.exe',
+    $env:BRIDGE_CXX
+  )
 }
 $cc = Resolve-ArchitectureCompiler -Requested $BridgeCc -Candidates $ccCandidates -Architecture $architecture -Label 'C compiler'
 $cxx = Resolve-ArchitectureCompiler -Requested $BridgeCxx -Candidates $cxxCandidates -Architecture $architecture -Label 'C++ compiler'
@@ -263,6 +326,18 @@ $env:BRIDGE_CXX = $cxx
 $env:CC = $cc
 $env:CXX = $cxx
 $env:PATH = "$(Split-Path -Parent $cc);$env:PATH"
+
+# Keep user env in sync so the next shell does not prefer a stale x64 compiler.
+$storedCc = [Environment]::GetEnvironmentVariable('BRIDGE_CC', 'User')
+$storedCxx = [Environment]::GetEnvironmentVariable('BRIDGE_CXX', 'User')
+if ($storedCc -ne $cc) {
+  [Environment]::SetEnvironmentVariable('BRIDGE_CC', $cc, 'User')
+  Write-Host "Updated user BRIDGE_CC=$cc"
+}
+if ($storedCxx -ne $cxx) {
+  [Environment]::SetEnvironmentVariable('BRIDGE_CXX', $cxx, 'User')
+  Write-Host "Updated user BRIDGE_CXX=$cxx"
+}
 Write-Host "Target architecture: Windows $architecture (Flutter output: $flutterArchitecture)"
 
 if ($env:HTTP_PROXY -or $env:HTTPS_PROXY -or $env:ALL_PROXY) {

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Windows ARM64 工具链探测：`run_windows.ps1` 改为用 `ProcessStartInfo` 读取编译器 `-dumpmachine`，避免 PowerShell 调用算子在 ARM 主机上空输出导致已安装的 CLANGARM64 识别失败；并优先使用 `clangarm64` 路径、自动纠正陈旧的 `BRIDGE_CC`。
 - Windows ARM64 开发：环境安装、bridge 构建、Flutter release 输出和 Inno Setup 打包现已按本机架构自适应。x64 继续使用 MSYS2 UCRT64 GCC，ARM64 改用 CLANGARM64 Clang，并在构建前校验 cgo 编译器 target，避免 ARM64 汇编被误交给 x86_64 assembler。
 - Windows 开发环境：安装脚本会在未配置自定义 Go 模块代理时设置 `GOPROXY=https://goproxy.cn,direct`，提升国内网络下依赖下载的可靠性；已有自定义代理保持不变。
 - 账号管理 / 文件管理：列表视图支持拖拽排序。
