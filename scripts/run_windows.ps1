@@ -207,6 +207,75 @@ function Test-IsAdministrator {
   return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Get-VisualStudioInstallPath {
+  $vswhere = Resolve-Executable -Name 'vswhere' -Candidates @(
+    'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe',
+    'C:\Program Files\Microsoft Visual Studio\Installer\vswhere.exe'
+  )
+  if (-not $vswhere) {
+    return $null
+  }
+  $installation = & $vswhere -latest -products * -property installationPath
+  if ($LASTEXITCODE -ne 0 -or -not $installation) {
+    return $null
+  }
+  return ("$installation").Trim()
+}
+
+function Test-VisualStudioWindowsTargetReady {
+  param([string]$Architecture)
+
+  $installation = Get-VisualStudioInstallPath
+  if (-not $installation) {
+    return $false
+  }
+  $platformName = if ($Architecture -eq 'arm64') { 'ARM64' } else { 'x64' }
+  $platformRoot = Join-Path $installation 'MSBuild\Microsoft\VC'
+  if (-not (Test-Path -LiteralPath $platformRoot)) {
+    return $false
+  }
+  $platformProps = Get-ChildItem -LiteralPath $platformRoot -Directory -ErrorAction SilentlyContinue |
+    ForEach-Object { Join-Path $_.FullName ("Platforms\$platformName\Platform.props") } |
+    Where-Object { Test-Path -LiteralPath $_ } |
+    Select-Object -First 1
+  if (-not $platformProps) {
+    return $false
+  }
+  $msvcRoot = Join-Path $installation 'VC\Tools\MSVC'
+  if (-not (Test-Path -LiteralPath $msvcRoot)) {
+    return $false
+  }
+  $hostName = if ($Architecture -eq 'arm64') { 'Hostarm64' } else { 'Hostx64' }
+  $targetName = if ($Architecture -eq 'arm64') { 'arm64' } else { 'x64' }
+  $hasTarget = Get-ChildItem -LiteralPath $msvcRoot -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "bin\$hostName\$targetName") } |
+    Select-Object -First 1
+  return [bool]$hasTarget
+}
+
+function Ensure-VisualStudioWindowsTarget {
+  param([string]$Architecture)
+
+  if (Test-VisualStudioWindowsTargetReady -Architecture $Architecture) {
+    return
+  }
+
+  if ($Architecture -eq 'arm64') {
+    throw @"
+Visual Studio Build Tools are missing the ARM64 C++ platform toolset required by Flutter/CMake.
+
+Install component Microsoft.VisualStudio.Component.VC.Tools.ARM64, then rerun.
+
+Admin PowerShell:
+  & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart --wait
+
+Or rerun:
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows_dev.ps1
+"@
+  }
+
+  throw 'Visual Studio C++ x64 build tools were not detected. Rerun scripts/setup_windows_dev.ps1.'
+}
 function Ensure-WindowsSymlinkSupport {
   $path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
   $enabled = $false
@@ -373,6 +442,7 @@ try {
   $versionLabel = Resolve-VersionLabel -ForBuild ([bool]$Build) -ExplicitVersion $Version
   Write-Host "Using APP_VERSION_LABEL=$versionLabel"
   Ensure-WindowsSymlinkSupport
+  Ensure-VisualStudioWindowsTarget -Architecture $architecture
   Invoke-NativeCommand -Name 'flutter config --enable-windows-desktop' -Command {
     & $flutter config --enable-windows-desktop
   }
@@ -407,4 +477,5 @@ try {
 } finally {
   Pop-Location
 }
+
 

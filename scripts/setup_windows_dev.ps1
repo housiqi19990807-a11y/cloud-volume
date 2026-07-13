@@ -1,4 +1,4 @@
-# Bootstraps a Windows desktop development environment for this repository.
+﻿# Bootstraps a Windows desktop development environment for this repository.
 # It installs or verifies Flutter, Go, architecture-matched C++ tools, MSYS2, and Inno Setup 6.
 param(
   [string]$FlutterRoot = (Join-Path $HOME 'dev\flutter'),
@@ -360,6 +360,8 @@ function Resolve-VsWhere {
 }
 
 function Get-RequiredVCToolComponents {
+  # Always keep the x64 toolset; ARM64 hosts also need the native ARM64 toolset
+  # so Flutter/CMake can generate Platform=ARM64 projects.
   $components = @('Microsoft.VisualStudio.Component.VC.Tools.x86.x64')
   if ((Get-NativeWindowsArchitecture) -eq 'arm64') {
     $components += 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
@@ -376,26 +378,72 @@ function Get-VisualStudioInstallation {
   }
 
   $arguments = @('-latest', '-products', '*')
-  if ($RequiredComponents.Count -gt 0) {
-    $arguments += '-requires'
-    $arguments += $RequiredComponents
+  foreach ($component in $RequiredComponents) {
+    if ($component) {
+      # vswhere expects repeated -requires flags for multiple components.
+      $arguments += @('-requires', $component)
+    }
   }
   $arguments += @('-property', 'installationPath')
   $installation = & $vswhere @arguments
   if ($LASTEXITCODE -ne 0 -or -not $installation) {
     return $null
   }
-  return $installation.Trim()
+  return ("$installation").Trim()
+}
+
+function Test-VisualStudioWindowsTargetReady {
+  param([string]$Architecture = (Get-NativeWindowsArchitecture))
+
+  $installation = Get-VisualStudioInstallation
+  if (-not $installation) {
+    return $false
+  }
+
+  # Component IDs alone are not enough: Flutter/CMake need the MSBuild platform
+  # folder for the requested architecture (Platforms\ARM64 or Platforms\x64).
+  $platformName = if ($Architecture -eq 'arm64') { 'ARM64' } else { 'x64' }
+  $platformRoot = Join-Path $installation 'MSBuild\Microsoft\VC'
+  if (-not (Test-Path -LiteralPath $platformRoot)) {
+    return $false
+  }
+
+  $platformProps = Get-ChildItem -LiteralPath $platformRoot -Directory -ErrorAction SilentlyContinue |
+    ForEach-Object {
+      Join-Path $_.FullName ("Platforms\$platformName\Platform.props")
+    } |
+    Where-Object { Test-Path -LiteralPath $_ } |
+    Select-Object -First 1
+  if (-not $platformProps) {
+    return $false
+  }
+
+  $msvcRoot = Join-Path $installation 'VC\Tools\MSVC'
+  if (-not (Test-Path -LiteralPath $msvcRoot)) {
+    return $false
+  }
+  $hostName = if ($Architecture -eq 'arm64') { 'Hostarm64' } else { 'Hostx64' }
+  $targetName = if ($Architecture -eq 'arm64') { 'arm64' } else { 'x64' }
+  $hasTarget = Get-ChildItem -LiteralPath $msvcRoot -Directory -ErrorAction SilentlyContinue |
+    Where-Object {
+      Test-Path -LiteralPath (Join-Path $_.FullName "bin\$hostName\$targetName")
+    } |
+    Select-Object -First 1
+  return [bool]$hasTarget
 }
 
 function Test-VCToolsInstalled {
-  return [bool](Get-VisualStudioInstallation -RequiredComponents (Get-RequiredVCToolComponents))
+  if (-not (Get-VisualStudioInstallation -RequiredComponents (Get-RequiredVCToolComponents))) {
+    return $false
+  }
+  return (Test-VisualStudioWindowsTargetReady)
 }
 
 function Ensure-VisualStudioBuildTools {
   Write-Section 'Visual Studio C++ tools'
+  $architecture = Get-NativeWindowsArchitecture
   if (Test-VCToolsInstalled) {
-    Write-Skip "Visual Studio C++ build tools already installed for $(Get-NativeWindowsArchitecture)"
+    Write-Skip "Visual Studio C++ build tools already installed for $architecture"
     return
   }
 
@@ -407,7 +455,15 @@ function Ensure-VisualStudioBuildTools {
       throw "Visual Studio Installer was not found at $vsSetup."
     }
     Write-Host "Adding architecture-specific Visual Studio components to $existingInstallation..."
-    $modifyArguments = @('modify', '--installPath', $existingInstallation, '--quiet', '--norestart')
+    Write-Host ("Required components: " + ($requiredComponents -join ', '))
+    # --wait is required so setup.exe does not return before modify finishes.
+    $modifyArguments = @(
+      'modify',
+      '--installPath', $existingInstallation,
+      '--quiet',
+      '--norestart',
+      '--wait'
+    )
     foreach ($component in $requiredComponents) {
       $modifyArguments += @('--add', $component)
     }
@@ -426,7 +482,13 @@ function Ensure-VisualStudioBuildTools {
     if (-not $installedByWinget) {
       $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\vs_BuildTools.exe'
       Save-Download -Url 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -Destination $installer
-      $installArguments = @('--wait', '--quiet', '--norestart', '--add', 'Microsoft.VisualStudio.Workload.VCTools', '--includeRecommended')
+      $installArguments = @(
+        '--wait',
+        '--quiet',
+        '--norestart',
+        '--add', 'Microsoft.VisualStudio.Workload.VCTools',
+        '--includeRecommended'
+      )
       foreach ($component in $requiredComponents) {
         $installArguments += @('--add', $component)
       }
@@ -435,10 +497,14 @@ function Ensure-VisualStudioBuildTools {
   }
 
   if (-not (Test-VCToolsInstalled)) {
-    throw 'Visual Studio C++ build tools were not detected after installation. Reboot or open Visual Studio Installer to finish setup, then rerun this script.'
+    $hint = if ($architecture -eq 'arm64') {
+      'On ARM64 hosts, install "MSVC v143 - VS 2022 C++ ARM64/ARM64EC build tools" (Microsoft.VisualStudio.Component.VC.Tools.ARM64) so MSBuild has Platforms\ARM64.'
+    } else {
+      'Install the Visual Studio C++ desktop build tools workload and the MSVC x64 toolset.'
+    }
+    throw "Visual Studio C++ build tools for $architecture were not detected after installation. $hint Reboot if the installer requested it, then rerun this script."
   }
 }
-
 function Ensure-Msys2 {
   $architecture = Get-NativeWindowsArchitecture
   $environmentName = if ($architecture -eq 'arm64') { 'CLANGARM64' } else { 'UCRT64' }
@@ -747,3 +813,4 @@ Test-ProjectBuildInputs
 Write-Section 'Done'
 Write-Host 'Open a new PowerShell window to pick up user PATH changes, then run:'
 Write-Host '  powershell -ExecutionPolicy Bypass -File .\scripts\run_windows.ps1'
+
