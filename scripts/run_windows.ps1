@@ -267,7 +267,7 @@ Visual Studio Build Tools are missing the ARM64 C++ platform toolset required by
 Install component Microsoft.VisualStudio.Component.VC.Tools.ARM64, then rerun.
 
 Admin PowerShell:
-  & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart --wait
+  & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools" --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart
 
 Or rerun:
   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_windows_dev.ps1

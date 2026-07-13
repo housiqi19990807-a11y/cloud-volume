@@ -456,13 +456,12 @@ function Ensure-VisualStudioBuildTools {
     }
     Write-Host "Adding architecture-specific Visual Studio components to $existingInstallation..."
     Write-Host ("Required components: " + ($requiredComponents -join ', '))
-    # --wait is required so setup.exe does not return before modify finishes.
+    # setup.exe does not accept --wait; Start-Process -Wait already blocks.
     $modifyArguments = @(
       'modify',
       '--installPath', $existingInstallation,
       '--quiet',
       '--norestart',
-      '--wait'
     )
     foreach ($component in $requiredComponents) {
       $modifyArguments += @('--add', $component)
