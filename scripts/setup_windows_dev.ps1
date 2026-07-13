@@ -161,10 +161,20 @@ function Ensure-WindowsSymlinkSupport {
   Write-Section 'Windows symlink support'
   $path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
   $enabled = $false
+
+  # Missing registry value is normal on a fresh machine. Treat it as "not enabled"
+  # instead of failing under $ErrorActionPreference = 'Stop'.
   if (Test-Path -LiteralPath $path) {
-    $value = (Get-ItemProperty -Path $path -Name AllowDevelopmentWithoutDevLicense -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense
-    $enabled = ($value -eq 1)
+    try {
+      $props = Get-ItemProperty -Path $path -ErrorAction Stop
+      if ($null -ne $props.PSObject.Properties['AllowDevelopmentWithoutDevLicense']) {
+        $enabled = ($props.AllowDevelopmentWithoutDevLicense -eq 1)
+      }
+    } catch {
+      $enabled = $false
+    }
   }
+
   if ($enabled) {
     Write-Skip 'Windows Developer Mode symlink support already enabled'
     return
@@ -172,13 +182,29 @@ function Ensure-WindowsSymlinkSupport {
 
   if (Test-IsAdministrator) {
     Write-Host 'Enabling Windows Developer Mode symlink support for Flutter plugins...'
-    New-Item -Path $path -Force | Out-Null
-    New-ItemProperty -Path $path -Name AllowDevelopmentWithoutDevLicense -PropertyType DWord -Value 1 -Force | Out-Null
-    return
+    try {
+      New-Item -Path $path -Force | Out-Null
+      New-ItemProperty -Path $path -Name AllowDevelopmentWithoutDevLicense -PropertyType DWord -Value 1 -Force | Out-Null
+      Write-Host 'Developer Mode registry flag enabled.'
+      return
+    } catch {
+      Write-Host "Could not enable Developer Mode automatically: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
   }
 
-  Start-Process 'ms-settings:developers' | Out-Null
-  throw 'Flutter Windows plugins require symlink support. Enable Developer Mode in Windows Settings, then rerun this script. The settings page has been opened.'
+  # Soft-fail: many setups can continue, and the user can enable this later if
+  # Flutter plugin symlink creation fails during pub get / Windows builds.
+  Write-Host 'Windows Developer Mode is not enabled.' -ForegroundColor Yellow
+  Write-Host 'This helps Flutter Windows plugins create symlinks. It is optional for initial setup,' -ForegroundColor Yellow
+  Write-Host 'but recommended if flutter pub get or Windows plugin builds later fail.' -ForegroundColor Yellow
+  Write-Host 'Enable it later via: Settings -> Privacy & security -> For developers -> Developer Mode' -ForegroundColor Yellow
+  Write-Host 'Or open: ms-settings:developers' -ForegroundColor Yellow
+  try {
+    Start-Process 'ms-settings:developers' | Out-Null
+    Write-Host 'Opened the Windows Developer settings page for convenience.' -ForegroundColor DarkGray
+  } catch {
+    # Ignore UI launch failures in non-interactive sessions.
+  }
 }
 
 function Ensure-GitSafeDirectory {
@@ -223,6 +249,7 @@ function Invoke-WingetInstall {
     'install',
     '--id', $Id,
     '--exact',
+    '--source', 'winget',
     '--accept-package-agreements',
     '--accept-source-agreements'
   ) + $ExtraArgs
@@ -251,14 +278,53 @@ function Ensure-Git {
   & $git --version
 }
 
-function Ensure-Go {
-  Write-Section 'Go'
-  if (Resolve-Executable -Name 'go') {
-    & go version
+function Ensure-GoProxy {
+  param([Parameter(Mandatory = $true)][string]$GoExecutable)
+
+  # Keep deliberate custom proxy settings, but replace Go's upstream default
+  # with the more reliable mainland-China module proxy for local development.
+  $current = (& $GoExecutable env GOPROXY 2>$null).Trim()
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to read the current Go GOPROXY setting.'
+  }
+  if ($current -and $current -ne 'https://proxy.golang.org,direct') {
+    Write-Skip "custom GOPROXY already configured: $current"
     return
   }
 
-  Invoke-WingetInstall -Id 'GoLang.Go' -Name 'Go'
+  $proxy = 'https://goproxy.cn,direct'
+  Write-Host "Configuring GOPROXY=$proxy"
+  Invoke-NativeCommand -Name 'go env GOPROXY' -Command {
+    & $GoExecutable env -w "GOPROXY=$proxy"
+  }
+}
+
+function Ensure-Go {
+  Write-Section 'Go'
+  $go = Resolve-Executable -Name 'go'
+  if ($go) {
+    & $go version
+    Ensure-GoProxy -GoExecutable $go
+    return
+  }
+
+  $installedByWinget = $false
+  try {
+    $installedByWinget = Invoke-WingetInstall -Id 'GoLang.Go' -Name 'Go'
+  } catch {
+    Write-Host "winget Go install failed: $($_.Exception.Message)"
+    Write-Host 'Falling back to the official Go Windows installer...'
+  }
+
+  $go = Resolve-Executable -Name 'go' -Candidates @(
+    'C:\Program Files\Go\bin\go.exe'
+  )
+  if (-not $go) {
+    $installer = Join-Path $env:TEMP 'cloud-volume-dev-setup\go-windows-amd64.msi'
+    Save-Download -Url 'https://go.dev/dl/go1.24.4.windows-amd64.msi' -Destination $installer
+    Invoke-Installer -Path $installer -Name 'Go' -Arguments @('/qn', '/norestart')
+  }
+
   Add-UserPathEntry -Entry 'C:\Program Files\Go\bin'
   $go = Resolve-Executable -Name 'go' -Candidates @(
     'C:\Program Files\Go\bin\go.exe'
@@ -267,6 +333,7 @@ function Ensure-Go {
     throw 'Go was not found after installation.'
   }
   & $go version
+  Ensure-GoProxy -GoExecutable $go
 }
 
 function Resolve-VsWhere {
@@ -376,6 +443,106 @@ function Ensure-Msys2 {
   & $gcc --version | Select-Object -First 1
 }
 
+
+function Test-HttpEndpoint {
+  param(
+    [Parameter(Mandatory = $true)][string]$Url,
+    [int]$TimeoutSec = 8
+  )
+
+  try {
+    $request = [System.Net.HttpWebRequest]::Create($Url)
+    $request.Method = 'HEAD'
+    $request.Timeout = $TimeoutSec * 1000
+    $request.ReadWriteTimeout = $TimeoutSec * 1000
+    $request.AllowAutoRedirect = $true
+    $request.UserAgent = 'cloud-volume-setup'
+    try {
+      $response = $request.GetResponse()
+      $status = [int]$response.StatusCode
+      $response.Close()
+      return ($status -ge 200 -and $status -lt 500)
+    } catch [System.Net.WebException] {
+      # Some mirrors reject HEAD or return 405/403; treat that as reachable if TLS succeeded.
+      $resp = $_.Exception.Response
+      if ($null -ne $resp) {
+        $status = [int]$resp.StatusCode
+        $resp.Close()
+        return ($status -ge 200 -and $status -lt 500) -or ($status -eq 405) -or ($status -eq 403)
+      }
+
+      # Retry once with GET for hosts that dislike HEAD.
+      try {
+        $getRequest = [System.Net.HttpWebRequest]::Create($Url)
+        $getRequest.Method = 'GET'
+        $getRequest.Timeout = $TimeoutSec * 1000
+        $getRequest.ReadWriteTimeout = $TimeoutSec * 1000
+        $getRequest.AllowAutoRedirect = $true
+        $getRequest.UserAgent = 'cloud-volume-setup'
+        $getResponse = $getRequest.GetResponse()
+        $status = [int]$getResponse.StatusCode
+        $getResponse.Close()
+        return ($status -ge 200 -and $status -lt 500)
+      } catch {
+        return $false
+      }
+    }
+  } catch {
+    return $false
+  }
+}
+
+function Set-FlutterPackageMirrors {
+  # Prefer an explicit caller/user override. Otherwise probe China mirrors first,
+  # then fall back to the official pub.dev / Google storage endpoints.
+  $preferredPub = $env:PUB_HOSTED_URL
+  $preferredStorage = $env:FLUTTER_STORAGE_BASE_URL
+  $userForced = -not [string]::IsNullOrWhiteSpace($preferredPub) -or -not [string]::IsNullOrWhiteSpace($preferredStorage)
+
+  if ($userForced) {
+    if ([string]::IsNullOrWhiteSpace($preferredPub)) {
+      $preferredPub = 'https://pub.dev'
+    }
+    if ([string]::IsNullOrWhiteSpace($preferredStorage)) {
+      $preferredStorage = 'https://storage.googleapis.com'
+    }
+    $env:PUB_HOSTED_URL = $preferredPub
+    $env:FLUTTER_STORAGE_BASE_URL = $preferredStorage
+    Write-Host "Using caller-provided Flutter mirrors:"
+    Write-Host "  PUB_HOSTED_URL=$($env:PUB_HOSTED_URL)"
+    Write-Host "  FLUTTER_STORAGE_BASE_URL=$($env:FLUTTER_STORAGE_BASE_URL)"
+    return
+  }
+
+  $chinaPub = 'https://pub.flutter-io.cn'
+  $chinaStorage = 'https://storage.flutter-io.cn'
+  $officialPub = 'https://pub.dev'
+  $officialStorage = 'https://storage.googleapis.com'
+
+  Write-Host 'Probing Flutter package mirrors...'
+  $chinaOk = (Test-HttpEndpoint -Url $chinaPub) -and (Test-HttpEndpoint -Url $chinaStorage)
+  if ($chinaOk) {
+    $env:PUB_HOSTED_URL = $chinaPub
+    $env:FLUTTER_STORAGE_BASE_URL = $chinaStorage
+    Write-Host "China mirror reachable; using:"
+    Write-Host "  PUB_HOSTED_URL=$chinaPub"
+    Write-Host "  FLUTTER_STORAGE_BASE_URL=$chinaStorage"
+    return
+  }
+
+  Write-Host 'China mirror probe failed (TLS/network). Falling back to official sources...' -ForegroundColor Yellow
+  $officialOk = (Test-HttpEndpoint -Url $officialPub) -and (Test-HttpEndpoint -Url $officialStorage)
+  $env:PUB_HOSTED_URL = $officialPub
+  $env:FLUTTER_STORAGE_BASE_URL = $officialStorage
+  if ($officialOk) {
+    Write-Host "Official sources reachable; using:"
+  } else {
+    Write-Host "Official source probe also failed; still configuring official endpoints and letting Flutter report the real error:" -ForegroundColor Yellow
+  }
+  Write-Host "  PUB_HOSTED_URL=$officialPub"
+  Write-Host "  FLUTTER_STORAGE_BASE_URL=$officialStorage"
+}
+
 function Ensure-Flutter {
   Write-Section 'Flutter'
   $existingFlutter = Resolve-Executable -Name 'flutter' -Candidates @(
@@ -402,12 +569,7 @@ function Ensure-Flutter {
   Add-UserPathEntry -Entry $flutterBin
   [Environment]::SetEnvironmentVariable('FLUTTER_ROOT', $FlutterRoot, 'User')
   $env:FLUTTER_ROOT = $FlutterRoot
-  if (-not $env:FLUTTER_STORAGE_BASE_URL) {
-    $env:FLUTTER_STORAGE_BASE_URL = 'https://storage.flutter-io.cn'
-  }
-  if (-not $env:PUB_HOSTED_URL) {
-    $env:PUB_HOSTED_URL = 'https://pub.flutter-io.cn'
-  }
+  Set-FlutterPackageMirrors
 
   Repair-FlutterDartSdk
 

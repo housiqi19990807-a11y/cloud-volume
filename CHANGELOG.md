@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Windows 开发环境：安装脚本会在未配置自定义 Go 模块代理时设置 `GOPROXY=https://goproxy.cn,direct`，提升国内网络下依赖下载的可靠性；已有自定义代理保持不变。
 - 账号管理 / 文件管理：列表视图支持拖拽排序。
 - 启动刷新：`AppBootstrapPage` 在已进入主界面后的 `onRefresh` 改为静默替换 bootstrap 会话，不再走 FutureBuilder 全屏“正在检查配置”，避免账号拖拽排序等操作闪一下。账号顺序与桶顺序写入 bbolt `meta`（`profile_order` / `bucket_order`），重启后保持；卡片视图仍不支持拖拽。搜索中或回收站首页的桶列表禁用排序。
 
