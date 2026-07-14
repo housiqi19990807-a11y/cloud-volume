@@ -1,5 +1,5 @@
-// 右侧表单面板：有空间时垂直居中，空间不足时回退为可滚动布局。
-// 这样大窗口不会显得偏上，小窗口也不会把提交按钮挤出可视区域。
+// 配置页账号表单：半宽时垂直居中；全屏时隐藏左侧宣传后使用更宽布局。
+// 宽屏全屏模式会把字段拆成两列，减少单页滚动。
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -10,11 +10,14 @@ import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:remote_storage/services/app_modal.dart';
 
-/// 配置页右侧完整表单。
+part 'config_right_form_fields.dart';
+
+/// 配置页账号表单。
 class ConfigRightFormPanel extends StatelessWidget {
   const ConfigRightFormPanel({
     super.key,
     required this.storageType,
+    this.fullWidth = false,
     required this.nameController,
     required this.mappedBucketNameController,
     this.onNameChanged,
@@ -44,6 +47,9 @@ class ConfigRightFormPanel extends StatelessWidget {
   });
 
   final StorageType storageType;
+
+  /// 首次启动第二步：占满整页，隐藏左侧宣传后使用更宽表单。
+  final bool fullWidth;
   final TextEditingController nameController;
   final TextEditingController mappedBucketNameController;
   final ValueChanged<String>? onNameChanged;
@@ -95,13 +101,23 @@ class ConfigRightFormPanel extends StatelessWidget {
           final minContentHeight = viewportHeight > 64
               ? viewportHeight - 64
               : viewportHeight;
+          // 全屏表单更宽；半宽模式保持原先窄卡片观感。
+          final maxFormWidth = fullWidth ? 720.0 : 380.0;
+          final useTwoColumns =
+              fullWidth && !isBaiduPan && constraints.maxWidth >= 700;
+          final horizontalPadding = fullWidth ? 48.0 : 32.0;
+          final verticalPadding = fullWidth ? 28.0 : 32.0;
+
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: verticalPadding,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: minContentHeight),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 380),
+                  constraints: BoxConstraints(maxWidth: maxFormWidth),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -122,7 +138,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        SizedBox(height: fullWidth ? 12 : 18),
                       ],
                       // 标题。
                       Text(
@@ -142,113 +158,17 @@ class ConfigRightFormPanel extends StatelessWidget {
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      SizedBox(height: fullWidth ? 22 : 28),
                       _sectionLabel(context, '连接信息'),
                       const SizedBox(height: 16),
-                      _fieldLabel(context, '名称'),
-                      const SizedBox(height: 6),
-                      ShadInput(
-                        controller: nameController,
-                        placeholder: Text(
-                          isBaiduPan
-                              ? '例如：我的百度网盘'
-                              : isWebDav
-                              ? '例如：IHEP WebDAV'
-                              : '例如：对象存储账号',
+                      if (useTwoColumns)
+                        buildConfigFormTwoColumnFields(this, context)
+                      else
+                        buildConfigFormSingleColumnFields(
+                          this,
+                          context,
+                          isBaiduPan: isBaiduPan,
                         ),
-                        onChanged: onNameChanged,
-                      ),
-                      if (isWebDav) ...[
-                        const SizedBox(height: 18),
-                        _fieldLabel(context, '映射桶名称'),
-                        const SizedBox(height: 6),
-                        ShadInput(
-                          controller: mappedBucketNameController,
-                          placeholder: const Text('默认使用名称'),
-                          onChanged: onMappedBucketNameChanged,
-                        ),
-                        const SizedBox(height: 18),
-                      ],
-                      if (!isWebDav && !isBaiduPan) ...[
-                        const SizedBox(height: 18),
-                      ],
-                      if (isBaiduPan) ...[
-                        const SizedBox(height: 18),
-                        BaiduPanAuthSection(
-                          accountLabel: baiduPanAccountLabel,
-                          authorized: baiduPanAuthorized,
-                          codeController: baiduPanCodeController,
-                          authUrl: baiduPanAuthUrl,
-                          openingBrowser: baiduPanOpeningBrowser,
-                          submittingCode: baiduPanAuthorizing,
-                          onOpenAuthorizationPage: onStartBaiduPanAuthorization,
-                          onSubmitAuthorizationCode: onAuthorizeBaiduPan,
-                        ),
-                      ] else ...[
-                        _fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
-                        const SizedBox(height: 6),
-                        CloudStorageTechnicalInput(
-                          controller: endpointController,
-                          keyboardType: TextInputType.url,
-                          placeholder: Text(
-                            isWebDav
-                                ? 'https://webdav-ocloud.ihep.ac.cn'
-                                : 'https://fgws3-ocloud.ihep.ac.cn',
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                      ],
-                      if (!isBaiduPan &&
-                          isWebDav &&
-                          webdavUsernameController != null &&
-                          webdavPasswordController != null) ...[
-                        _fieldLabel(context, '用户名'),
-                        const SizedBox(height: 6),
-                        CloudStorageTechnicalInput(
-                          controller: webdavUsernameController!,
-                          placeholder: const Text('输入 WebDAV 用户名'),
-                        ),
-                        const SizedBox(height: 18),
-                        _fieldLabel(context, '密码'),
-                        const SizedBox(height: 6),
-                        CloudStorageSecretInput(
-                          controller: webdavPasswordController!,
-                          placeholder: Text(
-                            hasStoredWebdavPassword
-                                ? '留空则保留当前已保存的 WebDAV 密码'
-                                : '输入 WebDAV 登录密码',
-                          ),
-                        ),
-                      ] else if (!isBaiduPan) ...[
-                        // 访问密钥 ID。
-                        _fieldLabel(context, '访问密钥 ID'),
-                        const SizedBox(height: 6),
-                        CloudStorageTechnicalInput(
-                          controller: accessKeyController,
-                          placeholder: const Text('输入 Access Key ID'),
-                        ),
-                        const SizedBox(height: 18),
-                        // 访问密钥。
-                        _fieldLabel(context, '访问密钥'),
-                        const SizedBox(height: 6),
-                        CloudStorageSecretInput(
-                          controller: secretKeyController,
-                          placeholder: Text(
-                            hasStoredSecretKey
-                                ? '留空则保留当前已保存的 Secret Access Key'
-                                : '输入 Secret Access Key',
-                          ),
-                        ),
-                      ],
-                      // 高级设置入口。
-                      if (!isWebDav && !isBaiduPan) ...[
-                        const SizedBox(height: 18),
-                        _AdvancedSettingsLink(
-                          onTap: isSaving
-                              ? null
-                              : () => _openAdvancedDialog(context),
-                        ),
-                      ],
                       // 错误提示。
                       if (errorText != null) ...[
                         const SizedBox(height: 16),
@@ -256,35 +176,40 @@ class ConfigRightFormPanel extends StatelessWidget {
                       ],
                       const SizedBox(height: 24),
                       // 底部保存按钮。
-                      SizedBox(
-                        width: double.infinity,
-                        height: 44,
-                        child: ShadButton(
-                          onPressed: isSaving ? null : onSave,
-                          child: isSaving
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: AppLoadingIndicator(
-                                        strokeWidth: 2,
-                                        color:
-                                            theme.colorScheme.primaryForeground,
+                      Align(
+                        alignment: fullWidth
+                            ? Alignment.centerRight
+                            : Alignment.center,
+                        child: SizedBox(
+                          width: fullWidth ? 220 : double.infinity,
+                          height: 44,
+                          child: ShadButton(
+                            onPressed: isSaving ? null : onSave,
+                            child: isSaving
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: AppLoadingIndicator(
+                                          strokeWidth: 2,
+                                          color: theme
+                                              .colorScheme.primaryForeground,
+                                        ),
                                       ),
+                                      const SizedBox(width: 8),
+                                      const Text('保存中...'),
+                                    ],
+                                  )
+                                : const Text(
+                                    '确认添加',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                    const SizedBox(width: 8),
-                                    const Text('保存中...'),
-                                  ],
-                                )
-                              : const Text(
-                                  '确认添加',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
                                   ),
-                                ),
+                          ),
                         ),
                       ),
                     ],
@@ -357,7 +282,7 @@ class ConfigRightFormPanel extends StatelessWidget {
   }
 
   /// 打开高级设置弹窗。
-  void _openAdvancedDialog(BuildContext context) {
+  void openAdvancedDialog(BuildContext context) {
     final rgCtrl = TextEditingController(text: regionController.text);
     var pathStyle = usePathStyle;
 
@@ -465,3 +390,4 @@ class _AdvancedSettingsLink extends StatelessWidget {
     );
   }
 }
+

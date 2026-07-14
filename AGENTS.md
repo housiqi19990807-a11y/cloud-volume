@@ -263,15 +263,22 @@ If a path is absent on both sides but still in index → `skip` (`stale_index`).
 
 ### Feature: First-run Config Setup (首次启动配置)
 
-First-run / incomplete-config onboarding before the main shell. Split-panel page: brand left, wizard right. Content extends under the desktop title-bar chrome (no page-level top padding).
+First-run / incomplete-config onboarding before the main shell. Content extends under the desktop title-bar chrome (no page-level top padding).
+
+**Layout by step (current, 2026-07-14):**
+- **Step 0「选择协议」:** split-panel — left brand (`ConfigLeftPanel`), right type chooser (`ConfigStorageTypeStep`).
+- **Step 1「连接信息」:** full-screen form — left brand is **hidden** so the form can use the full window width; `ConfigRightFormPanel(fullWidth: true)`. On wide windows, S3 / WebDAV fields use a two-column layout to avoid single-column scrolling; Baidu OAuth stays single-column because the auth block is already wide.
+- **Step transition:** Next / Back animate the left brand with `TweenAnimationBuilder` + `ClipRect/Align(widthFactor)` (slide-collapse) and fade the right pane with a non-stacking `AnimatedSwitcher` (~240ms). No intermediate spinner page — that was dropped because double rebuild + spinner animation felt janky.
 
 #### Key files
 
-- `lib/pages/config_setup_page.dart` — Wizard host. Step 0 choose type → step 1 account form. Owns controllers and default gateway constants. Layout is full-bleed under chrome (same as pre-fix layout).
+- `lib/pages/config_setup_page.dart` — Wizard host. Step 0 choose type → step 1 account form. Owns controllers and default gateway constants. Conditionally mounts left brand only on step 0; passes `fullWidth: true` on step 1.
 - `lib/widgets/config_storage_type_step.dart` — Step 0 type cards (S3 / WebDAV / 百度网盘) + Next.
-- `lib/widgets/config_right_form.dart` — Step 1 connection form + Back / Save. Back uses `ShadButton.ghost` (same as before layout experiments).
-- `lib/widgets/config_left_panel.dart` — Brand / tagline / accent picker.
+- `lib/widgets/config_right_form.dart` — Step 1 connection form shell + Back / Save / advanced dialog. `fullWidth` widens the form (max ~720) and enables two-column field layout when viewport ≥ 700. Back uses `ShadButton.ghost`.
+- `lib/widgets/config_right_form_fields.dart` — Part file: single-column / two-column field builders for the connection form.
+- `lib/widgets/config_left_panel.dart` — Brand / tagline / accent picker (step 0 only on first-run).
 - `lib/pages/app_bootstrap_page.dart` — Routes here when `!state.configured` or “重新配置认证信息”.
+- `lib/pages/login_page.dart` — Web login still uses left brand + form split (independent of first-run step layout).
 
 #### Default gateways (IHEP)
 
@@ -286,6 +293,7 @@ Presets apply when the field is empty or still a known preset; user-typed custom
 #### Gotchas
 
 - Do **not** add Scaffold body top padding to clear `DesktopWindowControls` — that creates a full-width white band above both panels. Baidu step-1 Back was already usable with the original padding; avoid layout hacks here unless a real hit-test bug is reproduced.
+- Step 1 intentionally drops the left brand so the long connection form does not need as much vertical scrolling; step 0 keeps the brand for first-run marketing / accent picker.
 - Account-management modal wizard (`CloudStorageAccountDialog`) is a separate path and does not prefill IHEP defaults; only first-run setup does.
 - Save still goes through `api.saveConfig` (legacy first-run profile `"default"`).
 

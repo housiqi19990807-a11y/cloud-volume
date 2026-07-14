@@ -1,5 +1,5 @@
-// 首次启动配置页：左右等分布局，内容延伸至标题栏下方。
-// 左侧：品牌面板。右侧：表单。组件拆分至 widgets/ 目录。
+// 首次启动配置页：第一步左右分栏（品牌 + 协议选择），第二步全屏账号表单。
+// 表单页通过收缩左侧宣传拿到完整宽度；步骤切换只做轻量宽度/淡入动画。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -15,6 +15,9 @@ const _kDefaultS3Endpoint = 'https://fgws3-ocloud.ihep.ac.cn';
 const _kDefaultWebDavEndpoint = 'https://webdav-ocloud.ihep.ac.cn';
 const _kDefaultRegion = 'auto';
 const _kBaiduPanEndpoint = 'https://pan.baidu.com';
+
+// 分栏 ↔ 全屏切换动画时长，保持短促避免拖沓。
+const _kStepAnimDuration = Duration(milliseconds: 240);
 
 /// 是否仍是首次引导里的预设地址（用户未手改时允许随协议切换）。
 bool _isPresetEndpoint(String value) {
@@ -277,76 +280,130 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     }
   }
 
+  void _goToAccountForm() {
+    if (_isSaving || _step == _SetupStep.accountForm) return;
+    // 进入表单前再对齐一次当前协议的默认网关。
+    if (_isPresetEndpoint(_endpointController.text)) {
+      _endpointController.text = _defaultEndpointFor(_storageType);
+    }
+    setState(() {
+      _errorText = null;
+      _step = _SetupStep.accountForm;
+    });
+  }
+
+  void _goBackToChooseType() {
+    if (_isSaving || _step == _SetupStep.chooseType) return;
+    setState(() {
+      _errorText = null;
+      _step = _SetupStep.chooseType;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isAccountForm = _step == _SetupStep.accountForm;
     return Scaffold(
-      body: Row(
-        children: [
-          // 左右等分，视觉更平衡。
-          Expanded(
-            child: ConfigLeftPanel(configPath: widget.initialState.configPath),
-          ),
-          Expanded(
-            child: _step == _SetupStep.chooseType
-                ? ConfigStorageTypeStep(
-                    selectedType: _storageType,
-                    onTypeChanged: _selectStorageType,
-                    onNext: () => setState(() {
-                      _errorText = null;
-                      // 进入表单前再对齐一次当前协议的默认网关。
-                      if (_isPresetEndpoint(_endpointController.text)) {
-                        _endpointController.text =
-                            _defaultEndpointFor(_storageType);
-                      }
-                      _step = _SetupStep.accountForm;
-                    }),
-                  )
-                : ConfigRightFormPanel(
-                    storageType: _storageType,
-                    nameController: _nameController,
-                    mappedBucketNameController: _mappedBucketNameController,
-                    onNameChanged: _syncMappedBucketNameFromName,
-                    onMappedBucketNameChanged: (_) {
-                      _mappedBucketNameEdited = true;
-                    },
-                    endpointController: _endpointController,
-                    regionController: _regionController,
-                    accessKeyController: _accessKeyController,
-                    secretKeyController: _secretKeyController,
-                    hasStoredSecretKey:
-                        widget.initialState.config.hasSecretAccessKey,
-                    webdavUsernameController: _webdavUsernameController,
-                    webdavPasswordController: _webdavPasswordController,
-                    hasStoredWebdavPassword:
-                        widget.initialState.config.hasWebdavPassword,
-                    baiduPanAuthorized:
-                        _authorizedBaiduConfig?.hasSecretAccessKey == true &&
-                        _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty ==
-                            true,
-                    baiduPanAccountLabel:
-                        _authorizedBaiduConfig?.displayName.trim().isNotEmpty ==
-                            true
-                        ? _authorizedBaiduConfig!.displayName
-                        : _nameController.text.trim(),
-                    baiduPanCodeController: _baiduAuthCodeController,
-                    baiduPanAuthUrl: _baiduAuthUrl,
-                    baiduPanOpeningBrowser: _openingBaiduAuthPage,
-                    baiduPanAuthorizing: _authorizingBaidu,
-                    onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-                    onAuthorizeBaiduPan: _authorizeBaiduPan,
-                    usePathStyle: _usePathStyle,
-                    onPathStyleChanged: (v) =>
-                        setState(() => _usePathStyle = v),
-                    isSaving: _isSaving,
-                    errorText: _errorText,
-                    onSave: _save,
-                    onBack: () => setState(() {
-                      _errorText = null;
-                      _step = _SetupStep.chooseType;
-                    }),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // 左侧按半宽内容裁剪收缩，避免内容被挤压变形。
+          final brandWidth = constraints.maxWidth * 0.5;
+          return Row(
+            children: [
+              TweenAnimationBuilder<double>(
+                duration: _kStepAnimDuration,
+                curve: Curves.easeOutCubic,
+                tween: Tween<double>(end: isAccountForm ? 0 : 1),
+                builder: (context, factor, child) {
+                  return ClipRect(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: factor.clamp(0.0, 1.0),
+                      child: child,
+                    ),
+                  );
+                },
+                child: SizedBox(
+                  width: brandWidth,
+                  child: ConfigLeftPanel(
+                    configPath: widget.initialState.configPath,
                   ),
-          ),
-        ],
+                ),
+              ),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: _kStepAnimDuration,
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  // 只淡入新页，不叠画旧页，降低切换期绘制压力。
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  layoutBuilder: (currentChild, _) {
+                    return currentChild ?? const SizedBox.shrink();
+                  },
+                  child: isAccountForm
+                      ? ConfigRightFormPanel(
+                          key: const ValueKey('setup-account-form'),
+                          storageType: _storageType,
+                          fullWidth: true,
+                          nameController: _nameController,
+                          mappedBucketNameController:
+                              _mappedBucketNameController,
+                          onNameChanged: _syncMappedBucketNameFromName,
+                          onMappedBucketNameChanged: (_) {
+                            _mappedBucketNameEdited = true;
+                          },
+                          endpointController: _endpointController,
+                          regionController: _regionController,
+                          accessKeyController: _accessKeyController,
+                          secretKeyController: _secretKeyController,
+                          hasStoredSecretKey:
+                              widget.initialState.config.hasSecretAccessKey,
+                          webdavUsernameController: _webdavUsernameController,
+                          webdavPasswordController: _webdavPasswordController,
+                          hasStoredWebdavPassword:
+                              widget.initialState.config.hasWebdavPassword,
+                          baiduPanAuthorized:
+                              _authorizedBaiduConfig?.hasSecretAccessKey ==
+                                  true &&
+                              _authorizedBaiduConfig?.accessKeyId
+                                      .trim()
+                                      .isNotEmpty ==
+                                  true,
+                          baiduPanAccountLabel:
+                              _authorizedBaiduConfig?.displayName
+                                      .trim()
+                                      .isNotEmpty ==
+                                  true
+                              ? _authorizedBaiduConfig!.displayName
+                              : _nameController.text.trim(),
+                          baiduPanCodeController: _baiduAuthCodeController,
+                          baiduPanAuthUrl: _baiduAuthUrl,
+                          baiduPanOpeningBrowser: _openingBaiduAuthPage,
+                          baiduPanAuthorizing: _authorizingBaidu,
+                          onStartBaiduPanAuthorization:
+                              _startBaiduPanAuthorization,
+                          onAuthorizeBaiduPan: _authorizeBaiduPan,
+                          usePathStyle: _usePathStyle,
+                          onPathStyleChanged: (v) =>
+                              setState(() => _usePathStyle = v),
+                          isSaving: _isSaving,
+                          errorText: _errorText,
+                          onSave: _save,
+                          onBack: _goBackToChooseType,
+                        )
+                      : ConfigStorageTypeStep(
+                          key: const ValueKey('setup-choose-type'),
+                          selectedType: _storageType,
+                          onTypeChanged: _selectStorageType,
+                          onNext: _goToAccountForm,
+                        ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

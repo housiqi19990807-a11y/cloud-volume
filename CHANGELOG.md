@@ -1,7 +1,9 @@
 # Changelog
 
 ## Unreleased
-- 首次启动配置：S3 默认网关 `https://fgws3-ocloud.ihep.ac.cn`，WebDAV 默认网关 `https://webdav-ocloud.ihep.ac.cn`（用户已手改地址时不会被协议切换覆盖）。布局保持原先铺满标题栏下方的左右分栏，不为桌面拖拽区额外加顶部白边。
+- 首次启动配置：步骤切换改为左侧品牌面板宽度收缩 + 右侧内容淡入（约 240ms），去掉中间 loading 占位，避免二次重建导致掉帧。
+- 首次启动配置：添加存储账号第二步（连接信息）改为全屏表单，隐藏左侧品牌宣传；宽屏下 S3 / WebDAV 字段两列排布，减少单页滚动。第一步协议选择仍保留左右分栏。
+- 首次启动配置：S3 默认网关 `https://fgws3-ocloud.ihep.ac.cn`，WebDAV 默认网关 `https://webdav-ocloud.ihep.ac.cn`（用户已手改地址时不会被协议切换覆盖）。布局铺满标题栏下方，不为桌面拖拽区额外加顶部白边。
 - Windows ARM64 Flutter 构建：环境脚本新增原生 Rustup 工具链，运行脚本自动加入 `%USERPROFILE%\.cargo\bin` 并开启 CargoKit 详细日志；`super_native_extensions` 等 Rust 插件会优先本地编译，不再因 GitHub Release 预编译 DLL 间歇性超时而只报模糊的 MSB8066。
 - Windows ARM64 开发：安装脚本会校验并安装 Visual Studio `VC.Tools.ARM64`，且以 MSBuild `Platforms\ARM64` 是否存在作为就绪条件；`run_windows.ps1` 在启动 Flutter 前预检该工具集，缺失时给出明确安装命令。
 - Windows ARM64 cgo：Cloud Files 挂载相关文件的 `#cgo CFLAGS` 不再硬编码 `_AMD64_`，改为按 `amd64`/`arm64` 分别定义架构宏，修复 ARM64 下 `windows.h` 内联汇编与 `CONTEXT` 重定义错误。
