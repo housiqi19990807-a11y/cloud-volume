@@ -673,8 +673,8 @@ Catalogued 2026-07-14. Presentation is always in-app `showAppModal*` unless note
 
 | Modal | Entry / widget | Opened from | Notes |
 |-------|----------------|-------------|-------|
-| Account editor | `CloudStorageAccountDialog` | `cloud_storage_page.dart` add/edit | In-app max width **640**. Protocol cards one row; connection fields two-column. Content-fit resize only in sub-window. |
-| Sync profile editor | `FileSyncProfileEditor` | `file_sync_tasks_page_actions.dart` add/edit | In-app max width **640**. Strategy step two-column. Nested remote picker. |
+| Account editor | `CloudStorageAccountDialog` | `cloud_storage_page.dart` add/edit | In-app max width **680**. Protocol cards one row; connection fields two-column. Content-fit resize only in sub-window. |
+| Sync profile editor | `FileSyncProfileEditor` | `file_sync_tasks_page_actions.dart` add/edit | In-app max width **680**. Strategy step two-column. Nested remote picker. |
 | Remote directory picker | `showRemoteDirectoryPicker` / `RemoteDirectoryPickerDialog` | Sync editor step 1 | In-app max width **720**, body height **520**. Via `showDesktopOverlayOrDialog`. |
 
 Debug sub-window shells (only when `preferModalSubWindows`): `AccountEditorWindowApp`, `SyncEditorWindowApp`, `RemoteDirectoryPickerWindowApp` — see **Feature: Desktop Modal Sub-Window Shell**.
@@ -739,7 +739,7 @@ All in `lib/widgets/share_dialogs.dart`.
 - Large editors with internal `Expanded` / fixed-height lists must not get an outer `SingleChildScrollView` on top. Prefer finite height inside `ShadDialog` (picker uses height 420) or `scrollable: true` only when the body is `mainAxisSize: min`.
 - Hover / close chrome still follows global hover rules (`ListInteractionColors`; no ink splash; neutral wash only).
 - Web always uses app modals (window services unsupported).
-- Dual-mode editors should stay wide enough to avoid tall single-column forms: account/sync **640**, remote picker **720×520**. Prefer two-column field pairs and compact protocol cards before increasing scroll.
+- Dual-mode editors should stay wide enough to avoid tall single-column forms: account/sync **680**, remote picker **720×520**. Prefer two-column field pairs and compact protocol cards before increasing scroll.
 - Prefer `showAppConfirmModal` for simple yes/no; prefer dedicated widgets/helpers when the body has form fields, lists, or progress.
 - When adding a new modal: enter only through `showAppModal*`, keep content under 500 lines (split by part/feature), and update this inventory.
 
@@ -765,8 +765,8 @@ Three **debug-only** modal sub-windows (account editor, sync editor, directory p
 
 #### Initial window sizes (current)
 
-- Account editor: `_accountEditorWindowSize` in `app_entry_io.dart` seeds only — new `680×360`; edit Baidu `680×520` / WebDAV `680×560` / S3 `680×620`, min `400×280`. Runtime size comes from content measure (`MeasureSize` + `fitModalSubWindowToContentSize`). In-app dialog max width is **640**.
-- Sync editor: fixed initial `640×520` (min `520×400`) in `app_entry_io.dart`; step changes inside `FileSyncProfileEditor` call `resizeKeepingWindowCenter` to `640×520` (step 0) / `680×560` (step 1). In-app dialog max width is **640**.
+- Account editor: `_accountEditorWindowSize` in `app_entry_io.dart` seeds only — new `680×360`; edit Baidu `680×520` / WebDAV `680×560` / S3 `680×620`, min `400×280`. Runtime size comes from content measure (`MeasureSize` + `fitModalSubWindowToContentSize`). In-app dialog max width is **680**.
+- Sync editor: fixed initial `640×520` (min `520×400`) in `app_entry_io.dart`; step changes inside `FileSyncProfileEditor` call `resizeKeepingWindowCenter` to `640×520` (step 0) / `680×560` (step 1). In-app dialog max width is **680**.
 - Remote directory picker: fixed `760×620` (min `640×480`); in-app dialog max width **720** / body height **520**; dialog fills height with `Expanded` list (`scrollable: false` shell).
 
 

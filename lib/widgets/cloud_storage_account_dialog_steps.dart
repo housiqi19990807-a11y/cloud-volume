@@ -88,7 +88,10 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: widget.compact ? 14 : 12,
+          ),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(10),
@@ -243,11 +246,11 @@ Widget stepConnectionFields({
             onChanged: (_) => self._syncMappedBucketName(),
           ),
         ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 18),
       if (isBaiduPan) ..._baiduPanFields(self),
       if (!isBaiduPan && !isWebDav) ..._s3Fields(self),
       if (!isBaiduPan && isWebDav) ..._webdavFields(self),
-      const SizedBox(height: 14),
+      const SizedBox(height: 22),
       AccountProxySection(
         initialMode: self._proxyMode,
         initialType: self._proxyType,
@@ -268,7 +271,7 @@ Widget _twoColumnRow({required Widget left, required Widget right}) {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Expanded(child: left),
-      const SizedBox(width: 12),
+      const SizedBox(width: 16),
       Expanded(child: right),
     ],
   );
@@ -291,7 +294,7 @@ class _S3AdvancedOptions extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.secondary,
         borderRadius: BorderRadius.circular(10),
@@ -333,7 +336,7 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
         placeholder: const Text('https://s3.example.com'),
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: 18),
     _twoColumnRow(
       left: CloudStorageLabeledField(
         label: '区域',
@@ -350,7 +353,7 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
         ),
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: 18),
     CloudStorageLabeledField(
       label: '访问密钥',
       child: CloudStorageSecretInput(
@@ -362,7 +365,7 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
         ),
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: 18),
     _S3AdvancedOptions(
       usePathStyle: self._usePathStyle,
       onPathStyleChanged: (value) =>
@@ -384,7 +387,7 @@ List<Widget> _webdavFields(_CloudStorageAccountDialogState self) {
         ),
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: 18),
     _twoColumnRow(
       left: CloudStorageLabeledField(
         label: '用户名',

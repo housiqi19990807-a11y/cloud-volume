@@ -297,7 +297,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     return ShadDialog(
       title: Text(widget.initial == null ? '新建同步配置' : '编辑同步配置'),
       description: const Text('将一个本地目录与远端桶目录保持同步。'),
-      constraints: const BoxConstraints(maxWidth: 640),
+      constraints: const BoxConstraints(maxWidth: 680),
       scrollable: true,
       child: _buildDialogContent(theme),
     );
@@ -329,7 +329,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
             ),
           ),
         ],
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         _buildNavButtons(theme),
       ],
     );
@@ -341,7 +341,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildStepIndicator(theme),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         _buildStepBody(theme),
         if (_errorText != null) ...[
           const SizedBox(height: 12),
@@ -353,7 +353,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
             ),
           ),
         ],
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         _buildNavButtons(theme),
       ],
     );

@@ -9,7 +9,7 @@ const _quietOptions = <int>[0, 5, 10, 30, 60, 120];
 
 Widget stepLabel(ShadThemeData theme, String text) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.only(bottom: 8),
     child: Text(
       text,
       style: TextStyle(
@@ -36,7 +36,7 @@ Widget stepPickEndpoints({
         controller: self._nameController,
         placeholder: const Text('留空则使用桶名'),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       stepLabel(theme, '本地目录'),
       Row(
         children: [
@@ -62,7 +62,7 @@ Widget stepPickEndpoints({
           ),
         ],
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       stepLabel(theme, '远端目录'),
       Row(
         children: [
@@ -139,7 +139,7 @@ Widget stepSyncStrategy({
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +174,7 @@ Widget stepSyncStrategy({
           ),
         ],
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -207,7 +207,7 @@ Widget stepSyncStrategy({
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,14 +247,14 @@ Widget stepSyncStrategy({
           ),
         ],
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       stepLabel(theme, '排除规则（每行一条）'),
       ShadInput(
         controller: self._excludeController,
         placeholder: const Text('.DS_Store\n*.tmp'),
         maxLines: 3,
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       Row(
         children: [
           Expanded(

@@ -55,7 +55,7 @@ class _AccountProxySectionState extends State<AccountProxySection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         CloudStorageLabeledField(label: '代理设置', child: _buildModeSelect()),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         Text(
           '默认跟随设置中的全局代理；也可为此账号单独指定。',
           style: TextStyle(
