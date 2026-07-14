@@ -81,7 +81,7 @@ class ConfigLeftPanel extends StatelessWidget {
             padding: const EdgeInsets.only(
               left: 40,
               right: 40,
-              top: 56,
+              top: 24,
               bottom: 40,
             ),
             child: Column(

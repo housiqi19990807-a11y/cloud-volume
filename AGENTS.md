@@ -261,6 +261,34 @@ If a path is absent on both sides but still in index → `skip` (`stale_index`).
 4. On interval or manual "立即同步" trigger → Go `runner.go` runs `diff.go` → `reconcile.go` → `executor.go`, enqueueing `sync_*` tasks into the shared `TransferQueue`.
 5. `FileSyncTasksPage` displays both profile statuses (from `SyncProfileNotifier`) and live `sync_*` tasks (from `TransferQueue`).
 
+### Feature: First-run Config Setup (首次启动配置)
+
+First-run / incomplete-config onboarding before the main shell. Split-panel page: brand left, wizard right.
+
+#### Key files
+
+- `lib/pages/config_setup_page.dart` — Wizard host. Step 0 choose type → step 1 account form. Owns controllers and default gateway constants. Desktop layout uses top inset `_kDesktopChromeTopInset` (52) so content clears `DesktopWindowControls` drag strip (top 8 + height 48).
+- `lib/widgets/config_storage_type_step.dart` — Step 0 type cards (S3 / WebDAV / 百度网盘) + Next.
+- `lib/widgets/config_right_form.dart` — Step 1 connection form + Back / Save. Back is `ShadButton.outline` with fixed height 36 (not ghost) for a reliable hit target under desktop chrome.
+- `lib/widgets/config_left_panel.dart` — Brand / tagline / accent picker.
+- `lib/pages/app_bootstrap_page.dart` — Routes here when `!state.configured` or “重新配置认证信息”.
+
+#### Default gateways (IHEP)
+
+| Protocol | Default endpoint |
+|----------|------------------|
+| S3 | `https://fgws3-ocloud.ihep.ac.cn` |
+| WebDAV | `https://webdav-ocloud.ihep.ac.cn` |
+| 百度网盘 | `https://pan.baidu.com` (OAuth, not user-edited) |
+
+Presets apply when the field is empty or still a known preset; user-typed custom URLs are not overwritten when switching protocol cards.
+
+#### Gotchas
+
+- `DesktopWindowControls` is stacked above `AppBootstrapPage` in `RemoteStorageApp` and uses a full-width translucent drag region. Without top inset, the step-1 Back control near the top of the right pane can absorb clicks poorly / feel dead.
+- Account-management modal wizard (`CloudStorageAccountDialog`) is a separate path and does not prefill IHEP defaults; only first-run setup does.
+- Save still goes through `api.saveConfig` (legacy first-run profile `"default"`).
+
 ### Feature: Account Management (账号管理)
 
 Lists configured storage accounts and lets users add, edit, or remove them. **Default:** add/edit opens as an **in-app app modal** (`showAppModal` + `CloudStorageAccountDialog(asDialog: true)`). **Debug only:** with `preferModalSubWindows`, desktop can still spawn the detached OS sub-window.

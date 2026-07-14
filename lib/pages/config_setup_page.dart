@@ -1,5 +1,5 @@
-// 首次启动配置页：左右等分布局，内容延伸至标题栏下方。
-// 左侧：品牌面板。右侧：表单。组件拆分至 widgets/ 目录。
+// 首次启动配置页：左右等分布局。
+// 内容整体下移，避开桌面自定义标题栏的拖拽命中区，避免「返回」被挡住。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
@@ -10,10 +10,31 @@ import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 import 'package:remote_storage/widgets/config_storage_type_step.dart';
 
-// 首次运行预设默认值。
-const _kDefaultEndpoint = 'https://fgws3-ocloud.ihep.ac.cn';
+// 首次运行预设默认网关（IHEP 对象存储 / WebDAV）。
+const _kDefaultS3Endpoint = 'https://fgws3-ocloud.ihep.ac.cn';
+const _kDefaultWebDavEndpoint = 'https://webdav-ocloud.ihep.ac.cn';
 const _kDefaultRegion = 'auto';
 const _kBaiduPanEndpoint = 'https://pan.baidu.com';
+
+/// 是否仍是首次引导里的预设地址（用户未手改时允许随协议切换）。
+bool _isPresetEndpoint(String value) {
+  final endpoint = value.trim();
+  return endpoint.isEmpty ||
+      endpoint == _kDefaultS3Endpoint ||
+      endpoint == _kDefaultWebDavEndpoint ||
+      endpoint == _kBaiduPanEndpoint;
+}
+
+String _defaultEndpointFor(StorageType type) {
+  return switch (type) {
+    StorageType.s3 => _kDefaultS3Endpoint,
+    StorageType.webdav => _kDefaultWebDavEndpoint,
+    StorageType.baiduPan => _kBaiduPanEndpoint,
+  };
+}
+
+// 与 DesktopWindowControls 顶部拖拽条对齐：top 8 + height 48 ≈ 56。
+const _kDesktopChromeTopInset = 52.0;
 
 enum _SetupStep { chooseType, accountForm }
 
@@ -82,11 +103,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     _endpointController = TextEditingController(
       text: config.endpoint.trim().isNotEmpty
           ? config.endpoint
-          : config.storageType == StorageType.baiduPan
-          ? _kBaiduPanEndpoint
-          : config.storageType == StorageType.s3
-          ? _kDefaultEndpoint
-          : '',
+          : _defaultEndpointFor(config.storageType),
     );
     _regionController = TextEditingController(
       text: config.region.trim().isNotEmpty ? config.region : _kDefaultRegion,
@@ -121,15 +138,10 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   void _selectStorageType(StorageType type) {
     setState(() {
       _storageType = type;
-      if (type == StorageType.s3 && _endpointController.text.trim().isEmpty) {
-        _endpointController.text = _kDefaultEndpoint;
-      }
-      if (type == StorageType.baiduPan) {
-        _endpointController.text = _kBaiduPanEndpoint;
-      }
-      if (type == StorageType.webdav &&
-          _endpointController.text.trim() == _kDefaultEndpoint) {
-        _endpointController.clear();
+      // 仅在仍是预设/空地址时替换，避免覆盖用户已手填的自定义网关。
+      if (type == StorageType.baiduPan ||
+          _isPresetEndpoint(_endpointController.text)) {
+        _endpointController.text = _defaultEndpointFor(type);
       }
       final mappedName = _mappedBucketNameController.text.trim();
       if (mappedName.isEmpty ||
@@ -271,68 +283,81 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        children: [
-          // 左右等分，视觉更平衡。
-          Expanded(
-            child: ConfigLeftPanel(configPath: widget.initialState.configPath),
-          ),
-          Expanded(
-            child: _step == _SetupStep.chooseType
-                ? ConfigStorageTypeStep(
-                    selectedType: _storageType,
-                    onTypeChanged: _selectStorageType,
-                    onNext: () => setState(() {
-                      _errorText = null;
-                      _step = _SetupStep.accountForm;
-                    }),
-                  )
-                : ConfigRightFormPanel(
-                    storageType: _storageType,
-                    nameController: _nameController,
-                    mappedBucketNameController: _mappedBucketNameController,
-                    onNameChanged: _syncMappedBucketNameFromName,
-                    onMappedBucketNameChanged: (_) {
-                      _mappedBucketNameEdited = true;
-                    },
-                    endpointController: _endpointController,
-                    regionController: _regionController,
-                    accessKeyController: _accessKeyController,
-                    secretKeyController: _secretKeyController,
-                    hasStoredSecretKey:
-                        widget.initialState.config.hasSecretAccessKey,
-                    webdavUsernameController: _webdavUsernameController,
-                    webdavPasswordController: _webdavPasswordController,
-                    hasStoredWebdavPassword:
-                        widget.initialState.config.hasWebdavPassword,
-                    baiduPanAuthorized:
-                        _authorizedBaiduConfig?.hasSecretAccessKey == true &&
-                        _authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty ==
-                            true,
-                    baiduPanAccountLabel:
-                        _authorizedBaiduConfig?.displayName.trim().isNotEmpty ==
-                            true
-                        ? _authorizedBaiduConfig!.displayName
-                        : _nameController.text.trim(),
-                    baiduPanCodeController: _baiduAuthCodeController,
-                    baiduPanAuthUrl: _baiduAuthUrl,
-                    baiduPanOpeningBrowser: _openingBaiduAuthPage,
-                    baiduPanAuthorizing: _authorizingBaidu,
-                    onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-                    onAuthorizeBaiduPan: _authorizeBaiduPan,
-                    usePathStyle: _usePathStyle,
-                    onPathStyleChanged: (v) =>
-                        setState(() => _usePathStyle = v),
-                    isSaving: _isSaving,
-                    errorText: _errorText,
-                    onSave: _save,
-                    onBack: () => setState(() {
-                      _errorText = null;
-                      _step = _SetupStep.chooseType;
-                    }),
-                  ),
-          ),
-        ],
+      body: Padding(
+        // 避开 Stack 上层的 DesktopWindowControls 拖拽命中区。
+        padding: const EdgeInsets.only(top: _kDesktopChromeTopInset),
+        child: Row(
+          children: [
+            // 左右等分，视觉更平衡。
+            Expanded(
+              child: ConfigLeftPanel(configPath: widget.initialState.configPath),
+            ),
+            Expanded(
+              child: _step == _SetupStep.chooseType
+                  ? ConfigStorageTypeStep(
+                      selectedType: _storageType,
+                      onTypeChanged: _selectStorageType,
+                      onNext: () => setState(() {
+                        _errorText = null;
+                        // 进入表单前再对齐一次当前协议的默认网关。
+                        if (_isPresetEndpoint(_endpointController.text)) {
+                          _endpointController.text =
+                              _defaultEndpointFor(_storageType);
+                        }
+                        _step = _SetupStep.accountForm;
+                      }),
+                    )
+                  : ConfigRightFormPanel(
+                      storageType: _storageType,
+                      nameController: _nameController,
+                      mappedBucketNameController: _mappedBucketNameController,
+                      onNameChanged: _syncMappedBucketNameFromName,
+                      onMappedBucketNameChanged: (_) {
+                        _mappedBucketNameEdited = true;
+                      },
+                      endpointController: _endpointController,
+                      regionController: _regionController,
+                      accessKeyController: _accessKeyController,
+                      secretKeyController: _secretKeyController,
+                      hasStoredSecretKey:
+                          widget.initialState.config.hasSecretAccessKey,
+                      webdavUsernameController: _webdavUsernameController,
+                      webdavPasswordController: _webdavPasswordController,
+                      hasStoredWebdavPassword:
+                          widget.initialState.config.hasWebdavPassword,
+                      baiduPanAuthorized:
+                          _authorizedBaiduConfig?.hasSecretAccessKey == true &&
+                          _authorizedBaiduConfig?.accessKeyId
+                                  .trim()
+                                  .isNotEmpty ==
+                              true,
+                      baiduPanAccountLabel:
+                          _authorizedBaiduConfig?.displayName
+                                      .trim()
+                                      .isNotEmpty ==
+                                  true
+                          ? _authorizedBaiduConfig!.displayName
+                          : _nameController.text.trim(),
+                      baiduPanCodeController: _baiduAuthCodeController,
+                      baiduPanAuthUrl: _baiduAuthUrl,
+                      baiduPanOpeningBrowser: _openingBaiduAuthPage,
+                      baiduPanAuthorizing: _authorizingBaidu,
+                      onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+                      onAuthorizeBaiduPan: _authorizeBaiduPan,
+                      usePathStyle: _usePathStyle,
+                      onPathStyleChanged: (v) =>
+                          setState(() => _usePathStyle = v),
+                      isSaving: _isSaving,
+                      errorText: _errorText,
+                      onSave: _save,
+                      onBack: () => setState(() {
+                        _errorText = null;
+                        _step = _SetupStep.chooseType;
+                      }),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -400,3 +425,4 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     }
   }
 }
+

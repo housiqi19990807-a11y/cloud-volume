@@ -29,7 +29,8 @@ class ConfigStorageTypeStep extends StatelessWidget {
               ? viewportHeight - 64
               : viewportHeight;
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+            // 顶部与配置表单页一致，避开自定义标题栏拖拽区。
+            padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: minContentHeight),
               child: Center(

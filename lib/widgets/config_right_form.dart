@@ -96,7 +96,8 @@ class ConfigRightFormPanel extends StatelessWidget {
               ? viewportHeight - 64
               : viewportHeight;
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+            // 顶部留给桌面 chrome / 返回按钮，避免贴窗顶难点。
+            padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: minContentHeight),
               child: Center(
@@ -107,10 +108,13 @@ class ConfigRightFormPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (onBack != null) ...[
+                        // outline + 固定高度，避免 ghost 小按钮命中区过小、
+                        // 也避免被上层桌面拖拽条“擦边”吃掉点击。
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: ShadButton.ghost(
+                          child: ShadButton.outline(
                             size: ShadButtonSize.sm,
+                            height: 36,
                             onPressed: isSaving ? null : onBack,
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
@@ -192,8 +196,8 @@ class ConfigRightFormPanel extends StatelessWidget {
                           keyboardType: TextInputType.url,
                           placeholder: Text(
                             isWebDav
-                                ? 'https://dav.example.com/remote.php/dav/files/me'
-                                : 'https://s3.example.com',
+                                ? 'https://webdav-ocloud.ihep.ac.cn'
+                                : 'https://fgws3-ocloud.ihep.ac.cn',
                           ),
                         ),
                         const SizedBox(height: 22),

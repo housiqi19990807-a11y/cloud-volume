@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- 首次启动配置：选择 S3 / WebDAV 后进入连接页时，「返回」按钮不再被桌面自定义标题栏拖拽区挡住；返回改为更清晰的 outline 按钮并加大命中高度。S3 默认网关 `https://fgws3-ocloud.ihep.ac.cn`，WebDAV 默认网关 `https://webdav-ocloud.ihep.ac.cn`（用户已手改地址时不会被协议切换覆盖）。
 - Windows ARM64 Flutter 构建：环境脚本新增原生 Rustup 工具链，运行脚本自动加入 `%USERPROFILE%\.cargo\bin` 并开启 CargoKit 详细日志；`super_native_extensions` 等 Rust 插件会优先本地编译，不再因 GitHub Release 预编译 DLL 间歇性超时而只报模糊的 MSB8066。
 - Windows ARM64 开发：安装脚本会校验并安装 Visual Studio `VC.Tools.ARM64`，且以 MSBuild `Platforms\ARM64` 是否存在作为就绪条件；`run_windows.ps1` 在启动 Flutter 前预检该工具集，缺失时给出明确安装命令。
 - Windows ARM64 cgo：Cloud Files 挂载相关文件的 `#cgo CFLAGS` 不再硬编码 `_AMD64_`，改为按 `amd64`/`arm64` 分别定义架构宏，修复 ARM64 下 `windows.h` 内联汇编与 `CONTEXT` 重定义错误。
