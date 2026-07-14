@@ -10,22 +10,17 @@ Widget stepProtocolPicker({
   required ShadThemeData theme,
   required _CloudStorageAccountDialogState self,
 }) {
-  // Wide dialog: put protocol cards in one row so step 1 stays short.
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      for (var i = 0; i < StorageType.values.length; i++) ...[
-        if (i > 0) const SizedBox(width: 10),
-        Expanded(
-          child: StorageProtocolCard(
-            type: StorageType.values[i],
-            selected: self._storageType == StorageType.values[i],
-            onTap: () => self.markDirty(
-              () => self._storageType = StorageType.values[i],
-            ),
-            compact: true,
-          ),
+      for (final type in StorageType.values) ...[
+        StorageProtocolCard(
+          type: type,
+          selected: self._storageType == type,
+          onTap: () => self.markDirty(() => self._storageType = type),
         ),
+        if (type != StorageType.values.last) const SizedBox(height: 10),
       ],
     ],
   );
@@ -38,15 +33,11 @@ class StorageProtocolCard extends StatefulWidget {
     required this.type,
     required this.selected,
     required this.onTap,
-    this.compact = false,
   });
 
   final StorageType type;
   final bool selected;
   final VoidCallback onTap;
-
-  /// When true, stack icon / title / description for a multi-column row.
-  final bool compact;
 
   @override
   State<StorageProtocolCard> createState() => _StorageProtocolCardState();
@@ -88,37 +79,20 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
           width: double.infinity,
-          padding: EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: widget.compact ? 14 : 12,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: borderColor, width: borderWidth),
           ),
-          child: widget.compact
-              ? Column(
+          child: Row(
+            children: [
+              Icon(_iconFor(widget.type), size: 22, color: iconColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(_iconFor(widget.type), size: 20, color: iconColor),
-                        const Spacer(),
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: widget.selected
-                              ? Icon(
-                                  LucideIcons.check,
-                                  size: 16,
-                                  color: theme.colorScheme.primary,
-                                )
-                              : null,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
                     Text(
                       widget.type.label,
                       style: TextStyle(
@@ -127,57 +101,30 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
                         color: theme.colorScheme.foreground,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       _descriptionFor(widget.type),
                       style: TextStyle(
-                        fontSize: 11.5,
-                        height: 1.35,
+                        fontSize: 12,
                         color: theme.colorScheme.mutedForeground,
                       ),
                     ),
                   ],
-                )
-              : Row(
-                  children: [
-                    Icon(_iconFor(widget.type), size: 22, color: iconColor),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.type.label,
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w600,
-                              color: theme.colorScheme.foreground,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _descriptionFor(widget.type),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.colorScheme.mutedForeground,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Reserve checkmark width so select does not reflow card height.
-                    SizedBox(
-                      width: 18,
-                      child: widget.selected
-                          ? Icon(
-                              LucideIcons.check,
-                              size: 18,
-                              color: theme.colorScheme.primary,
-                            )
-                          : null,
-                    ),
-                  ],
                 ),
+              ),
+              // Reserve checkmark width so select does not reflow card height.
+              SizedBox(
+                width: 18,
+                child: widget.selected
+                    ? Icon(
+                        LucideIcons.check,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      )
+                    : null,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -204,8 +151,7 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
 // Step 2 — Connection fields: name + protocol-specific details + proxy
 // ---------------------------------------------------------------------------
 
-/// 步骤 2「配置连接信息」：名称字段 + 对应协议的连接参数 + 代理设置。
-/// 宽对话框下用双列排布，减少纵向滚动。
+/// 步骤 2「配置连接信息」：只保留主连接字段；路径风格 / 代理放进二级「高级设置」弹窗。
 Widget stepConnectionFields({
   required ShadThemeData theme,
   required _CloudStorageAccountDialogState self,
@@ -216,64 +162,138 @@ Widget stepConnectionFields({
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      if (isWebDav)
-        _twoColumnRow(
-          left: CloudStorageLabeledField(
-            label: '名称',
-            child: ShadInput(
-              controller: self._nameController,
-              placeholder: const Text('例如：IHEP WebDAV'),
-              onChanged: (_) => self._syncMappedBucketName(),
-            ),
+      CloudStorageLabeledField(
+        label: '名称',
+        child: ShadInput(
+          controller: self._nameController,
+          placeholder: Text(
+            isBaiduPan
+                ? '例如：我的百度网盘'
+                : isWebDav
+                    ? '例如：IHEP WebDAV'
+                    : '例如：对象存储账号',
           ),
-          right: CloudStorageLabeledField(
-            label: '映射桶名称',
-            child: ShadInput(
-              controller: self._mappedBucketNameController,
-              placeholder: const Text('默认使用名称'),
-              onChanged: (_) => self._mappedBucketNameEdited = true,
-            ),
-          ),
-        )
-      else
+          onChanged: (_) => self._syncMappedBucketName(),
+        ),
+      ),
+      if (isWebDav) ...[
+        const SizedBox(height: 14),
         CloudStorageLabeledField(
-          label: '名称',
+          label: '映射桶名称',
           child: ShadInput(
-            controller: self._nameController,
-            placeholder: Text(
-              isBaiduPan ? '例如：我的百度网盘' : '例如：对象存储账号',
-            ),
-            onChanged: (_) => self._syncMappedBucketName(),
+            controller: self._mappedBucketNameController,
+            placeholder: const Text('默认使用名称'),
+            onChanged: (_) => self._mappedBucketNameEdited = true,
           ),
         ),
-      const SizedBox(height: 18),
+      ],
+      const SizedBox(height: 14),
       if (isBaiduPan) ..._baiduPanFields(self),
       if (!isBaiduPan && !isWebDav) ..._s3Fields(self),
       if (!isBaiduPan && isWebDav) ..._webdavFields(self),
-      const SizedBox(height: 22),
-      AccountProxySection(
-        initialMode: self._proxyMode,
-        initialType: self._proxyType,
-        hostController: self._proxyHostController,
-        portController: self._proxyPortController,
-        usernameController: self._proxyUsernameController,
-        passwordController: self._proxyPasswordController,
-        onModeChanged: (value) => self._proxyMode = value,
-        onTypeChanged: (value) => self._proxyType = value,
+      const SizedBox(height: 16),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: ShadButton.outline(
+          size: ShadButtonSize.sm,
+          onPressed: () => _openAccountAdvancedSettings(self),
+          child: const Text('高级设置…'),
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        isBaiduPan
+            ? '代理等可选项在高级设置中配置。'
+            : isWebDav
+                ? '代理等可选项在高级设置中配置。'
+                : '路径风格访问、代理等可选项在高级设置中配置。',
+        style: TextStyle(
+          fontSize: 12,
+          color: theme.colorScheme.mutedForeground,
+        ),
       ),
     ],
   );
 }
 
-/// Two equal columns with a fixed gutter; keeps tall forms shorter.
-Widget _twoColumnRow({required Widget left, required Widget right}) {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(child: left),
-      const SizedBox(width: 16),
-      Expanded(child: right),
-    ],
+Future<void> _openAccountAdvancedSettings(
+  _CloudStorageAccountDialogState self,
+) async {
+  final isS3 = self._storageType == StorageType.s3;
+  var usePathStyle = self._usePathStyle;
+  var proxyMode = self._proxyMode;
+  var proxyType = self._proxyType;
+
+  await showAppModal<void>(
+    context: self.context,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return ShadDialog(
+            title: const Text('高级设置'),
+            description: Text(
+              isS3 ? '路径风格访问与此账号的代理策略。' : '此账号的代理策略。',
+            ),
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (isS3) ...[
+                    _S3AdvancedOptions(
+                      usePathStyle: usePathStyle,
+                      onPathStyleChanged: (value) =>
+                          setDialogState(() => usePathStyle = value),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  AccountProxySection(
+                    initialMode: proxyMode,
+                    initialType: proxyType,
+                    hostController: self._proxyHostController,
+                    portController: self._proxyPortController,
+                    usernameController: self._proxyUsernameController,
+                    passwordController: self._proxyPasswordController,
+                    onModeChanged: (value) {
+                      proxyMode = value;
+                      setDialogState(() {});
+                    },
+                    onTypeChanged: (value) {
+                      proxyType = value;
+                      setDialogState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ShadButton.outline(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('取消'),
+                      ),
+                      const SizedBox(width: 10),
+                      ShadButton(
+                        onPressed: () {
+                          self.markDirty(() {
+                            self._usePathStyle = usePathStyle;
+                            self._proxyMode = proxyMode;
+                            self._proxyType = proxyType;
+                          });
+                          Navigator.of(dialogContext).pop();
+                        },
+                        child: const Text('完成'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
   );
 }
 
@@ -325,7 +345,7 @@ class _S3AdvancedOptions extends StatelessWidget {
 // Protocol-specific field builders (called from stepConnectionFields)
 // ---------------------------------------------------------------------------
 
-/// S3 fields: endpoint, region, access key, secret key, path-style switch.
+/// S3 fields: endpoint, region, access key, secret key.
 List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
   return [
     CloudStorageLabeledField(
@@ -336,24 +356,23 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
         placeholder: const Text('https://s3.example.com'),
       ),
     ),
-    const SizedBox(height: 18),
-    _twoColumnRow(
-      left: CloudStorageLabeledField(
-        label: '区域',
-        child: CloudStorageTechnicalInput(
-          controller: self._regionController,
-          placeholder: const Text('Region，例如 auto'),
-        ),
-      ),
-      right: CloudStorageLabeledField(
-        label: '访问密钥 ID',
-        child: CloudStorageTechnicalInput(
-          controller: self._accessKeyController,
-          placeholder: const Text('Access Key ID'),
-        ),
+    const SizedBox(height: 14),
+    CloudStorageLabeledField(
+      label: '区域',
+      child: CloudStorageTechnicalInput(
+        controller: self._regionController,
+        placeholder: const Text('Region，例如 auto'),
       ),
     ),
-    const SizedBox(height: 18),
+    const SizedBox(height: 14),
+    CloudStorageLabeledField(
+      label: '访问密钥 ID',
+      child: CloudStorageTechnicalInput(
+        controller: self._accessKeyController,
+        placeholder: const Text('Access Key ID'),
+      ),
+    ),
+    const SizedBox(height: 14),
     CloudStorageLabeledField(
       label: '访问密钥',
       child: CloudStorageSecretInput(
@@ -364,12 +383,6 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
               : 'Secret Access Key',
         ),
       ),
-    ),
-    const SizedBox(height: 18),
-    _S3AdvancedOptions(
-      usePathStyle: self._usePathStyle,
-      onPathStyleChanged: (value) =>
-          self.markDirty(() => self._usePathStyle = value),
     ),
   ];
 }
@@ -387,24 +400,23 @@ List<Widget> _webdavFields(_CloudStorageAccountDialogState self) {
         ),
       ),
     ),
-    const SizedBox(height: 18),
-    _twoColumnRow(
-      left: CloudStorageLabeledField(
-        label: '用户名',
-        child: CloudStorageTechnicalInput(
-          controller: self._webdavUsernameController,
-          placeholder: const Text('输入 WebDAV 用户名'),
-        ),
+    const SizedBox(height: 14),
+    CloudStorageLabeledField(
+      label: '用户名',
+      child: CloudStorageTechnicalInput(
+        controller: self._webdavUsernameController,
+        placeholder: const Text('输入 WebDAV 用户名'),
       ),
-      right: CloudStorageLabeledField(
-        label: '密码',
-        child: CloudStorageSecretInput(
-          controller: self._webdavPasswordController,
-          placeholder: Text(
-            self.widget.editing
-                ? '留空则保留当前 WebDAV 密码'
-                : '输入 WebDAV 登录密码',
-          ),
+    ),
+    const SizedBox(height: 14),
+    CloudStorageLabeledField(
+      label: '密码',
+      child: CloudStorageSecretInput(
+        controller: self._webdavPasswordController,
+        placeholder: Text(
+          self.widget.editing
+              ? '留空则保留当前 WebDAV 密码'
+              : '输入 WebDAV 登录密码',
         ),
       ),
     ),

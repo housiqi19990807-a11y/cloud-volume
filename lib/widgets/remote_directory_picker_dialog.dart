@@ -217,7 +217,7 @@ class _RemoteDirectoryPickerDialogState
     final theme = ShadTheme.of(context);
     final body = SizedBox(
       width: double.infinity,
-      height: widget.asDialog ? 520 : double.infinity,
+      height: widget.asDialog ? 440 : double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -252,7 +252,7 @@ class _RemoteDirectoryPickerDialogState
             ? '选择一个存储桶进入。'
             : '浏览目录后点击「选择当前目录」确认。',
       ),
-      constraints: const BoxConstraints(maxWidth: 720),
+      constraints: const BoxConstraints(maxWidth: 560),
       child: body,
     );
   }

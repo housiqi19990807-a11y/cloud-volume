@@ -73,7 +73,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   bool _saving = false;
   String? _errorText;
 
-  static const _stepLabels = ['同步两端', '同步策略'];
+  static const _stepLabels = ['同步两端', '同步策略', '高级设置'];
 
   @override
   void initState() {
@@ -142,12 +142,17 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     return true;
   }
 
-  static const _subWindowSizeStep0 = Size(640, 520);
-  static const _subWindowSizeStep1 = Size(680, 560);
+  static const _subWindowSizeStep0 = Size(520, 480);
+  static const _subWindowSizeStep1 = Size(520, 500);
+  static const _subWindowSizeStep2 = Size(520, 480);
 
   Future<void> _applySubWindowStepSize() async {
     if (widget.asDialog) return;
-    final size = _step == 0 ? _subWindowSizeStep0 : _subWindowSizeStep1;
+    final size = switch (_step) {
+      0 => _subWindowSizeStep0,
+      1 => _subWindowSizeStep1,
+      _ => _subWindowSizeStep2,
+    };
     try {
       await resizeKeepingWindowCenter(size);
       await windowManager.focus();
@@ -155,7 +160,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   }
 
   void _next() {
-    if (_step < 1) {
+    if (_step < _stepLabels.length - 1) {
       if (!_validateCurrentStep()) return;
       setState(() => _step++);
       _applySubWindowStepSize();
@@ -297,7 +302,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
     return ShadDialog(
       title: Text(widget.initial == null ? '新建同步配置' : '编辑同步配置'),
       description: const Text('将一个本地目录与远端桶目录保持同步。'),
-      constraints: const BoxConstraints(maxWidth: 680),
+      constraints: const BoxConstraints(maxWidth: 520),
       scrollable: true,
       child: _buildDialogContent(theme),
     );
@@ -362,7 +367,8 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
   Widget _buildStepBody(ShadThemeData theme) {
     return switch (_step) {
       0 => stepPickEndpoints(theme: theme, self: this),
-      _ => stepSyncStrategy(theme: theme, self: this),
+      1 => stepSyncStrategy(theme: theme, self: this),
+      _ => stepAdvancedSettings(theme: theme, self: this),
     };
   }
 
@@ -442,7 +448,7 @@ class _FileSyncProfileEditorState extends State<FileSyncProfileEditor> {
 
   /// 底部导航。
   Widget _buildNavButtons(ShadThemeData theme) {
-    final isLast = _step == 1;
+    final isLast = _step == _stepLabels.length - 1;
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
