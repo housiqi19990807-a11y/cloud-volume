@@ -654,19 +654,93 @@ Three proxy modes: system (default), direct (no proxy), custom (user-specified U
 
 **Binding rule (2026-07-11):** User-facing modal UI defaults to **in-app app modals** (single Flutter engine). OS `desktop_multi_window` editors are **debug-only Experimental**. Business code must not call `showShadDialog` directly — only `lib/services/app_modal.dart` may wrap it.
 
-#### Key files
+#### Unified API
 
-- `lib/services/app_modal.dart` — Unified entry: `showAppModal` (builder returning `ShadDialog` / dual-mode widgets), `showAppModalDialog` (title/description/body/actions helper), `showAppConfirmModal` (yes/no). Internal-only `showShadDialog` call lives here.
-- `lib/services/modal_sub_window_debug.dart` — `kUseModalSubWindows` dart-define + `preferModalSubWindows` gate.
-- `lib/services/desktop_overlay.dart` — Routes large editors: sub-window only if debug gate + supported; else in-app dialog callback.
-- Dual-mode content (still used by default modals with `asDialog: true`): `cloud_storage_account_dialog.dart`, `file_sync_profile_editor.dart`, `remote_directory_picker_dialog.dart`.
-- Migrated callers (non-exhaustive): `object_action_dialogs.dart`, `share_dialogs.dart`, `create_directory_dialog.dart`, `mount_bucket_dialog.dart`, `bucket_settings_dialog.dart`, `profile_picker_dialog.dart`, `desktop_window_controls.dart`, file-manager action/preview/upload parts, `transfers_page.dart`, settings reset, breadcrumb overflow.
+- `lib/services/app_modal.dart` — Sole business entry for in-app modals:
+  - `showAppModal` — builder returning a `ShadDialog` / dual-mode editor.
+  - `showAppModalDialog` — title / description / body / actions helper for simple forms.
+  - `showAppConfirmModal` — yes/no confirmations (`cancel` + `confirm`, optional `destructive`).
+  - Constants: `kAppModalDefaultMaxWidth = 480`, `kAppModalDefaultContentWidth = 420`.
+  - The only allowed `showShadDialog` call lives here.
+- `lib/services/modal_sub_window_debug.dart` — `preferModalSubWindows = kDebugMode && USE_MODAL_SUB_WINDOWS`.
+- `lib/services/desktop_overlay.dart` — `showDesktopOverlayOrDialog`: debug OS sub-window only when gate + supported; otherwise in-app modal. **Current sole production caller:** `showRemoteDirectoryPicker`.
+
+#### Inventory (all current in-app modals)
+
+Catalogued 2026-07-14. Presentation is always in-app `showAppModal*` unless noted under dual-mode / debug sub-window.
+
+##### Dual-mode large editors (default `asDialog: true`; optional debug OS sub-window)
+
+| Modal | Entry / widget | Opened from | Notes |
+|-------|----------------|-------------|-------|
+| Account editor | `CloudStorageAccountDialog` | `cloud_storage_page.dart` add/edit | 2-step wizard (protocol → connection). Content-fit resize only in sub-window. |
+| Sync profile editor | `FileSyncProfileEditor` | `file_sync_tasks_page_actions.dart` add/edit | 2-step wizard (endpoints → strategy). Nested remote picker. |
+| Remote directory picker | `showRemoteDirectoryPicker` / `RemoteDirectoryPickerDialog` | Sync editor step 1 | Via `showDesktopOverlayOrDialog`. Returns `RemoteDirectoryResult`. |
+
+Debug sub-window shells (only when `preferModalSubWindows`): `AccountEditorWindowApp`, `SyncEditorWindowApp`, `RemoteDirectoryPickerWindowApp` — see **Feature: Desktop Modal Sub-Window Shell**.
+
+##### File manager / objects
+
+| Modal | Entry | Opened from | Purpose |
+|-------|-------|-------------|---------|
+| Create directory | `CreateDirectoryDialog` | `file_manager_page_actions.dart` | Name input + create. |
+| Rename object | `showRenameObjectDialog` | `file_manager_page_actions.dart` | Rename file/dir. |
+| Copy / move target path | `showObjectTargetPathDialog` | file-manager actions / selection | Path form for copy or move. |
+| Delete object | `showDeleteObjectDialog` | `file_manager_page_actions.dart` | Single delete confirm. |
+| Batch delete objects | `showDeleteObjectsDialog` | `file_manager_page_selection.dart` | Multi-select delete confirm. |
+| Bucket settings | `showBucketSettingsDialog` | `file_manager_page_bucket_policy.dart` | Per-bucket read-only + trash policy. |
+| Mount bucket | `showMountBucketDialog` | `file_manager_page_mount.dart` | Mount path + read-only mode. |
+| File preview | `FilePreviewDialog` via `showAppModal` | `file_manager_page_preview.dart` | In-app image/text preview; separate non-modal OS preview window also exists. |
+| Batch task progress | `BatchTaskProgressDialog` via `showAppModal` | `file_manager_page_upload_feedback.dart` | Upload/download/copy/move progress; can background. |
+| Breadcrumb overflow | inline `ShadDialog` via `showAppModal` | `file_manager_breadcrumb_bar.dart` | Jump to collapsed path segments. |
+| Page error / message | inline `ShadDialog` via `showAppModal` | `file_manager_page_actions.dart` `_showPageMessage` | Generic failure / info. |
+
+Object/trash dialog helpers live in `lib/widgets/object_action_dialogs.dart`. Create-directory UI is `lib/widgets/create_directory_dialog.dart`. Bucket/mount: `bucket_settings_dialog.dart`, `mount_bucket_dialog.dart`. Preview/progress: `file_preview_dialog.dart`, `batch_task_progress_dialog.dart`.
+
+##### Trash
+
+| Modal | Entry | Opened from | Purpose |
+|-------|-------|-------------|---------|
+| Permanent delete (one) | `showDeleteTrashItemDialog` | file-manager trash + `global_trash_page.dart` | Hard-delete one trash item. |
+| Permanent delete (batch) | `showDeleteTrashItemsDialog` | `global_trash_page.dart` | Hard-delete multiple. |
+| Empty trash | `showClearTrashDialog` | file-manager trash + global trash | Clear one bucket trash. |
+
+##### Share
+
+| Modal | Entry | Opened from | Purpose |
+|-------|-------|-------------|---------|
+| Share duration | `showShareDurationDialog` | file-manager actions, share management refresh | Hours input + presets (1h–7d). |
+| Share created | `showShareLinkDialog` | after create share | Copy/open link. |
+| Share details | `showShareRecordDetailsDialog` | `share_management_page.dart` | Detail + copy/open/refresh/delete actions. |
+| Delete share (one) | `showDeleteShareRecordDialog` | share management | Confirm delete one record. |
+| Delete share (batch) | `showDeleteShareRecordsDialog` | share management multi-select | Confirm delete many. |
+
+All in `lib/widgets/share_dialogs.dart`.
+
+##### Sync / accounts / settings / app chrome
+
+| Modal | Entry | Opened from | Purpose |
+|-------|-------|-------------|---------|
+| Delete sync profile | `showAppConfirmModal` | `file_sync_tasks_page_actions.dart` | Confirm delete sync config. |
+| Clear finished transfers | inline `ShadDialog` via `showAppModal` | `transfers_page.dart` | Remove finished/failed/cancelled queue rows. |
+| Reset all accounts | inline `ShadDialog` via `showAppModal` | `settings_reset_user_config_section.dart` | Destructive clear of saved accounts. |
+| Advanced S3 settings | inline `ShadDialog` via `showAppModal` | `config_right_form.dart` | Region + path-style (first-run / legacy form). |
+| Close app | inline `ShadDialog` via `showAppModal` | `desktop_window_controls.dart` | Tray hide vs exit (or minimize vs exit). |
+| Profile / gateway picker | `ProfilePickerDialog` | currently no live caller found | Switch remote storage gateway; keep for potential reuse. |
+
+#### Not app modals
+
+- `FilePreviewWindowApp` — detached non-modal preview window (no scrim / overlay release).
+- Toasts (`showAppToast` / `showAppErrorToast`) — non-blocking, not modal routes.
+- Context menus / overflow menus — not modal dialogs.
 
 #### Gotchas
 
 - Large editors with internal `Expanded` / fixed-height lists must not get an outer `SingleChildScrollView` on top. Prefer finite height inside `ShadDialog` (picker uses height 420) or `scrollable: true` only when the body is `mainAxisSize: min`.
 - Hover / close chrome still follows global hover rules (`ListInteractionColors`; no ink splash; neutral wash only).
 - Web always uses app modals (window services unsupported).
+- Prefer `showAppConfirmModal` for simple yes/no; prefer dedicated widgets/helpers when the body has form fields, lists, or progress.
+- When adding a new modal: enter only through `showAppModal*`, keep content under 500 lines (split by part/feature), and update this inventory.
 
 ### Feature: Desktop Modal Sub-Window Shell (通用子窗口壳)
 
