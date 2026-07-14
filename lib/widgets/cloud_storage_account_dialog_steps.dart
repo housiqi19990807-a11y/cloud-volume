@@ -234,9 +234,9 @@ Future<void> _openAccountAdvancedSettings(
             description: Text(
               isS3 ? '路径风格访问与此账号的代理策略。' : '此账号的代理策略。',
             ),
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 480),
             child: SizedBox(
-              width: 380,
+              width: 440,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,6 +294,18 @@ Future<void> _openAccountAdvancedSettings(
         },
       );
     },
+  );
+}
+
+/// Two equal columns with a fixed gutter for wider account forms.
+Widget _twoColumnRow({required Widget left, required Widget right}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: left),
+      const SizedBox(width: 14),
+      Expanded(child: right),
+    ],
   );
 }
 
@@ -357,19 +369,20 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
       ),
     ),
     const SizedBox(height: 14),
-    CloudStorageLabeledField(
-      label: '区域',
-      child: CloudStorageTechnicalInput(
-        controller: self._regionController,
-        placeholder: const Text('Region，例如 auto'),
+    _twoColumnRow(
+      left: CloudStorageLabeledField(
+        label: '区域',
+        child: CloudStorageTechnicalInput(
+          controller: self._regionController,
+          placeholder: const Text('Region，例如 auto'),
+        ),
       ),
-    ),
-    const SizedBox(height: 14),
-    CloudStorageLabeledField(
-      label: '访问密钥 ID',
-      child: CloudStorageTechnicalInput(
-        controller: self._accessKeyController,
-        placeholder: const Text('Access Key ID'),
+      right: CloudStorageLabeledField(
+        label: '访问密钥 ID',
+        child: CloudStorageTechnicalInput(
+          controller: self._accessKeyController,
+          placeholder: const Text('Access Key ID'),
+        ),
       ),
     ),
     const SizedBox(height: 14),
@@ -401,22 +414,23 @@ List<Widget> _webdavFields(_CloudStorageAccountDialogState self) {
       ),
     ),
     const SizedBox(height: 14),
-    CloudStorageLabeledField(
-      label: '用户名',
-      child: CloudStorageTechnicalInput(
-        controller: self._webdavUsernameController,
-        placeholder: const Text('输入 WebDAV 用户名'),
+    _twoColumnRow(
+      left: CloudStorageLabeledField(
+        label: '用户名',
+        child: CloudStorageTechnicalInput(
+          controller: self._webdavUsernameController,
+          placeholder: const Text('输入 WebDAV 用户名'),
+        ),
       ),
-    ),
-    const SizedBox(height: 14),
-    CloudStorageLabeledField(
-      label: '密码',
-      child: CloudStorageSecretInput(
-        controller: self._webdavPasswordController,
-        placeholder: Text(
-          self.widget.editing
-              ? '留空则保留当前 WebDAV 密码'
-              : '输入 WebDAV 登录密码',
+      right: CloudStorageLabeledField(
+        label: '密码',
+        child: CloudStorageSecretInput(
+          controller: self._webdavPasswordController,
+          placeholder: Text(
+            self.widget.editing
+                ? '留空则保留当前 WebDAV 密码'
+                : '输入 WebDAV 登录密码',
+          ),
         ),
       ),
     ),

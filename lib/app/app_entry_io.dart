@@ -52,7 +52,7 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
     await DesktopWindowMethodHost.ensureInstalled();
     await configureDesktopModalSubWindow(
       title: editorArgs.initialProfile != null ? '编辑同步配置' : '新建同步配置',
-      size: const Size(520, 480),
+      size: const Size(600, 480),
       minimumSize: const Size(520, 400),
       creatorFrameLeft: editorArgs.creatorFrameLeft,
       creatorFrameTop: editorArgs.creatorFrameTop,
@@ -69,7 +69,7 @@ Future<void> runRemoteStorageEntry(List<String> args) async {
     await DesktopWindowMethodHost.ensureInstalled();
     await configureDesktopModalSubWindow(
       title: '选择远端目录',
-      size: const Size(560, 520),
+      size: const Size(640, 560),
       minimumSize: const Size(480, 400),
       anchorFrameLeft: pickerArgs.anchorFrameLeft,
       anchorFrameTop: pickerArgs.anchorFrameTop,
@@ -109,11 +109,11 @@ Future<void> _configurePreviewWindow(String title) async {
   Size _accountEditorWindowSize(AccountEditorWindowArgs args) {
     // 480 content + 48 horizontal padding from DesktopModalSubWindowApp.
     // Seed a bit tall so first-frame buttons are not clipped before measure.
-    if (!args.editing) return const Size(520, 360);
+    if (!args.editing) return const Size(640, 360);
     final storageType = args.initialConfig?.storageType;
     return switch (storageType) {
-      StorageType.baiduPan => const Size(520, 480),
-      StorageType.webdav => const Size(520, 520),
-      _ => const Size(520, 560),
+      StorageType.baiduPan => const Size(640, 480),
+      StorageType.webdav => const Size(640, 520),
+      _ => const Size(640, 560),
     };
   }

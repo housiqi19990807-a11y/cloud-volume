@@ -674,8 +674,8 @@ Catalogued 2026-07-14. Presentation is always in-app `showAppModal*` unless note
 | Modal | Entry / widget | Opened from | Notes |
 |-------|----------------|-------------|-------|
 | Account editor | `CloudStorageAccountDialog` | `cloud_storage_page.dart` add/edit | Compact in-app max width **520**. Main form keeps connection fields only; path-style + proxy open nested **高级设置** modal (`showAppModal`, max **420**). Content-fit resize only in sub-window. |
-| Sync profile editor | `FileSyncProfileEditor` | `file_sync_tasks_page_actions.dart` add/edit | Compact max width **520**. **3-step** wizard: 同步两端 → 同步策略 → 高级设置（排除规则 / 启用）. Nested remote picker. |
-| Remote directory picker | `showRemoteDirectoryPicker` / `RemoteDirectoryPickerDialog` | Sync editor step 1 | Compact max width **560**, body height **440**. Via `showDesktopOverlayOrDialog`. |
+| Sync profile editor | `FileSyncProfileEditor` | `file_sync_tasks_page_actions.dart` add/edit | Comfortable max width **600**. **3-step** wizard: 同步两端 → 同步策略 → 高级设置（排除规则 / 启用）. Nested remote picker. |
+| Remote directory picker | `showRemoteDirectoryPicker` / `RemoteDirectoryPickerDialog` | Sync editor step 1 | Comfortable max width **640**, body height **480**. Via `showDesktopOverlayOrDialog`. |
 
 Debug sub-window shells (only when `preferModalSubWindows`): `AccountEditorWindowApp`, `SyncEditorWindowApp`, `RemoteDirectoryPickerWindowApp` — see **Feature: Desktop Modal Sub-Window Shell**.
 
@@ -739,7 +739,7 @@ All in `lib/widgets/share_dialogs.dart`.
 - Large editors with internal `Expanded` / fixed-height lists must not get an outer `SingleChildScrollView` on top. Prefer finite height inside `ShadDialog` (picker uses height 420) or `scrollable: true` only when the body is `mainAxisSize: min`.
 - Hover / close chrome still follows global hover rules (`ListInteractionColors`; no ink splash; neutral wash only).
 - Web always uses app modals (window services unsupported).
-- Dual-mode editors must stay **smaller than the main window**: account/sync **~520**, remote picker **~560×440**. Prefer more steps / nested advanced modals over widening. Account path-style + proxy live in nested 高级设置; sync exclude/enable is step 3.
+- Dual-mode editors must stay **smaller than the main window**: account/sync **~600–640**, remote picker **~640×480**. Prefer more steps / nested advanced modals over widening. Account path-style + proxy live in nested 高级设置; sync exclude/enable is step 3.
 - Prefer `showAppConfirmModal` for simple yes/no; prefer dedicated widgets/helpers when the body has form fields, lists, or progress.
 - When adding a new modal: enter only through `showAppModal*`, keep content under 500 lines (split by part/feature), and update this inventory.
 
@@ -765,9 +765,9 @@ Three **debug-only** modal sub-windows (account editor, sync editor, directory p
 
 #### Initial window sizes (current)
 
-- Account editor: `_accountEditorWindowSize` in `app_entry_io.dart` seeds only — new `520×360`; edit Baidu `520×480` / WebDAV `520×520` / S3 `520×560`, min `400×280`. Runtime size comes from content measure. In-app dialog max width is **520**. Nested advanced modal max width **420**.
-- Sync editor: fixed initial `520×480` in `app_entry_io.dart`; step sizes `520×480` / `520×500` / `520×480`. In-app dialog max width is **520**. Three steps: endpoints, strategy, advanced.
-- Remote directory picker: fixed `560×520` (min `480×400`); in-app dialog max width **560** / body height **440**; dialog fills height with `Expanded` list (`scrollable: false` shell).
+- Account editor: `_accountEditorWindowSize` in `app_entry_io.dart` seeds only — new `640×360`; edit Baidu `640×480` / WebDAV `640×520` / S3 `640×560`, min `400×280`. Runtime size comes from content measure. In-app dialog max width is **640**. Nested advanced modal max width **480**.
+- Sync editor: fixed initial `600×480` in `app_entry_io.dart`; step sizes `600×480` / `600×500` / `600×480`. In-app dialog max width is **640**. Three steps: endpoints, strategy, advanced.
+- Remote directory picker: fixed `640×560` (min `480×400`); in-app dialog max width **640** / body height **480**; dialog fills height with `Expanded` list (`scrollable: false` shell).
 
 
 #### Not migrated
