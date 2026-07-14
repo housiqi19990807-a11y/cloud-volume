@@ -36,7 +36,7 @@ Widget stepPickEndpoints({
         controller: self._nameController,
         placeholder: const Text('留空则使用桶名'),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
       stepLabel(theme, '本地目录'),
       Row(
         children: [
@@ -62,7 +62,7 @@ Widget stepPickEndpoints({
           ),
         ],
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
       stepLabel(theme, '远端目录'),
       Row(
         children: [
@@ -96,7 +96,8 @@ Widget stepPickEndpoints({
 
 
 
-/// 步骤 2「同步策略」：同步方向、冲突策略、同步周期、静默时间、排除规则、启用开关。
+/// 步骤 2「同步策略」：方向 / 冲突 / 周期 / 静默 / 排除 / 启用。
+/// 宽对话框下前四项双列排布，降低纵向高度。
 Widget stepSyncStrategy({
   required ShadThemeData theme,
   required _FileSyncProfileEditorState self,
@@ -104,84 +105,156 @@ Widget stepSyncStrategy({
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      stepLabel(theme, '同步方向'),
-      SizedBox(
-        width: double.infinity,
-        child: ShadSelect<String>(
-          initialValue: self._direction.value,
-          selectedOptionBuilder: (context, value) =>
-              Text(SyncDirection.fromValue(value).label),
-          options: SyncDirection.values
-              .map((d) => ShadOption<String>(value: d.value, child: Text(d.label)))
-              .toList(growable: false),
-          onChanged: (v) {
-            if (v != null) {
-              self.markDirty(() => self._direction = SyncDirection.fromValue(v));
-            }
-          },
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                stepLabel(theme, '同步方向'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ShadSelect<String>(
+                    initialValue: self._direction.value,
+                    selectedOptionBuilder: (context, value) =>
+                        Text(SyncDirection.fromValue(value).label),
+                    options: SyncDirection.values
+                        .map(
+                          (d) => ShadOption<String>(
+                            value: d.value,
+                            child: Text(d.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (v) {
+                      if (v != null) {
+                        self.markDirty(
+                          () => self._direction = SyncDirection.fromValue(v),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                stepLabel(theme, '冲突策略'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ShadSelect<String>(
+                    initialValue: self._conflictPolicy.value,
+                    selectedOptionBuilder: (context, value) =>
+                        Text(SyncConflictPolicy.fromValue(value).label),
+                    options: SyncConflictPolicy.values
+                        .map(
+                          (p) => ShadOption<String>(
+                            value: p.value,
+                            child: Text(p.label),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (v) {
+                      if (v != null) {
+                        self.markDirty(
+                          () => self._conflictPolicy =
+                              SyncConflictPolicy.fromValue(v),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
+      const SizedBox(height: 14),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                stepLabel(theme, '同步周期'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ShadSelect<int>(
+                    initialValue: self._intervalSeconds,
+                    selectedOptionBuilder: (context, value) =>
+                        Text(_intervalLabel(value)),
+                    options: _intervalOptions
+                        .map(
+                          (s) => ShadOption<int>(
+                            value: s,
+                            child: Text(_intervalLabel(s)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (v) {
+                      if (v != null) {
+                        self.markDirty(() => self._intervalSeconds = v);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                stepLabel(theme, '热数据静默时间'),
+                SizedBox(
+                  width: double.infinity,
+                  child: ShadSelect<int>(
+                    initialValue: self._quietSeconds,
+                    selectedOptionBuilder: (context, value) =>
+                        Text(_quietLabel(value)),
+                    options: _quietOptions
+                        .map(
+                          (s) => ShadOption<int>(
+                            value: s,
+                            child: Text(_quietLabel(s)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (v) {
+                      if (v != null) {
+                        self.markDirty(() => self._quietSeconds = v);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '写入后静默该秒数再纳入同步，避免编辑中文件频繁上传。',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      const SizedBox(height: 16),
-      stepLabel(theme, '冲突策略'),
-      SizedBox(
-        width: double.infinity,
-        child: ShadSelect<String>(
-          initialValue: self._conflictPolicy.value,
-          selectedOptionBuilder: (context, value) =>
-              Text(SyncConflictPolicy.fromValue(value).label),
-          options: SyncConflictPolicy.values
-              .map((p) => ShadOption<String>(value: p.value, child: Text(p.label)))
-              .toList(growable: false),
-          onChanged: (v) {
-            if (v != null) {
-              self.markDirty(() => self._conflictPolicy = SyncConflictPolicy.fromValue(v));
-            }
-          },
-      ),
-      ),
-      const SizedBox(height: 16),
-      stepLabel(theme, '同步周期'),
-      SizedBox(
-        width: double.infinity,
-        child: ShadSelect<int>(
-          initialValue: self._intervalSeconds,
-          selectedOptionBuilder: (context, value) => Text(_intervalLabel(value)),
-          options: _intervalOptions
-              .map((s) => ShadOption<int>(value: s, child: Text(_intervalLabel(s))))
-              .toList(growable: false),
-          onChanged: (v) {
-            if (v != null) self.markDirty(() => self._intervalSeconds = v);
-          },
-      ),
-      ),
-      const SizedBox(height: 16),
-      stepLabel(theme, '热数据静默时间'),
-      SizedBox(
-        width: double.infinity,
-        child: ShadSelect<int>(
-          initialValue: self._quietSeconds,
-          selectedOptionBuilder: (context, value) => Text(_quietLabel(value)),
-          options: _quietOptions
-              .map((s) => ShadOption<int>(value: s, child: Text(_quietLabel(s))))
-              .toList(growable: false),
-          onChanged: (v) {
-            if (v != null) self.markDirty(() => self._quietSeconds = v);
-          },
-      ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        '文件写入后静默该秒数才纳入同步，避免正在编辑的文件频繁上传。',
-        style: TextStyle(fontSize: 11, color: theme.colorScheme.mutedForeground),
-      ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
       stepLabel(theme, '排除规则（每行一条）'),
       ShadInput(
         controller: self._excludeController,
         placeholder: const Text('.DS_Store\n*.tmp'),
-        maxLines: 4,
+        maxLines: 3,
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
       Row(
         children: [
           Expanded(

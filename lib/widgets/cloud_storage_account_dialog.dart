@@ -147,7 +147,8 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   // -- Sub-window content-fit -------------------------------------------------
 
   /// Content width for the sub-window form body (shell adds horizontal padding).
-  static const double _contentWidth = 480;
+  /// Wide enough for two-column connection fields without feeling sparse.
+  static const double _contentWidth = 640;
 
   Size? _latestContentSize;
   int _fitGeneration = 0;
@@ -232,7 +233,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         description: const Text(
           '修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。',
         ),
-        constraints: const BoxConstraints(maxWidth: 480),
+        constraints: const BoxConstraints(maxWidth: 640),
         scrollable: true,
         child: content,
       );
@@ -245,7 +246,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     return ShadDialog(
       title: const Text('新增账号'),
       description: const Text('先选择存储类型，再填写对应的连接信息。'),
-      constraints: const BoxConstraints(maxWidth: 480),
+      constraints: const BoxConstraints(maxWidth: 640),
       scrollable: true,
       child: _buildWizardContent(theme),
     );
@@ -268,7 +269,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
             ),
           ),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         _buildNavButtons(theme),
       ],
     );
@@ -291,7 +292,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
             ),
           ),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         _buildEditNavButtons(theme),
       ],
     );
