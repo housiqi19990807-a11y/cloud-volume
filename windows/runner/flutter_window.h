@@ -30,6 +30,7 @@ class FlutterWindow : public Win32Window {
   void InitializeTrayIcon();
   void RemoveTrayIcon();
   void HideToTray();
+  void HideForExit();
   void RestoreFromTray();
   void EnsureVisible();
   void ShowTrayContextMenu(POINT anchor);

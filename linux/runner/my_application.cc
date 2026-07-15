@@ -58,6 +58,9 @@ static void handle_window_method_call(MyApplication* self,
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else if (g_strcmp0(method, "hideToTray") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(method, "hideForExit") == 0) {
+    gtk_widget_hide(GTK_WIDGET(self->window));
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
   } else if (g_strcmp0(method, "shouldConfirmClose") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(
         fl_value_new_bool(FALSE)));

@@ -450,6 +450,6 @@ The desktop runners now use adaptive startup sizing on all three platforms:
 
 Deleting a mounted object from the app file list also removes its existing Windows Cloud Files placeholder. App-side directory creation, uploads, copies, and moves project new or overwritten objects into the sync root as placeholders when their parent directory is present. Pending delayed writeback for deleted paths is canceled first, and provider-owned filesystem callbacks are suppressed so Explorer and the remote object list converge without recreating or double-deleting objects.
 
-On confirmed application exit, active mounts are cleaned before the native window is destroyed. Windows Cloud Files sessions disconnect and deregister their sync roots; hiding to the tray keeps mounts active by design.
+On confirmed application exit, the window and tray icon disappear immediately while active mounts are cleaned in the background. Windows Cloud Files sessions disconnect and deregister their sync roots before process termination; hiding to the tray keeps mounts active by design.
 
 - 桌面端诊断日志由设置页统一控制，Flutter `AppLog` 与 Go backend 日志共享 `Silent` / `Error` / `Info` / `Debug` 等级。

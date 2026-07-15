@@ -5,6 +5,8 @@ import 'remote_storage_gateway.dart';
 class AppExitCleanup {
   AppExitCleanup._();
 
+  static const Duration _cleanupTimeout = Duration(seconds: 30);
+
   static RemoteStorageGateway? _api;
   static Future<void>? _inFlight;
 
@@ -31,7 +33,7 @@ class AppExitCleanup {
 
   static Future<void> _cleanup(RemoteStorageGateway api) async {
     try {
-      await api.cleanupMounts();
+      await api.cleanupMounts().timeout(_cleanupTimeout);
     } catch (_) {
       // Exit must continue even if a stale native mount cannot be deregistered.
     }

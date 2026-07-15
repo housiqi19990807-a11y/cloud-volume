@@ -44,11 +44,20 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
     if (_busy || !mounted) return;
     setState(() => _busy = true);
     try {
-      await AppExitCleanup.cleanupMounts();
-      await WindowControls.exitApp();
+      await _hideAndCleanupThenExit();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _hideAndCleanupThenExit() async {
+    try {
+      await WindowControls.hideForExit();
+    } catch (_) {
+      // Older hosts may not expose hideForExit; cleanup and exit still proceed.
+    }
+    await AppExitCleanup.cleanupMounts();
+    await WindowControls.exitApp();
   }
 
   Future<void> _refreshMaximized() async {
@@ -79,9 +88,8 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
       final confirm = await WindowControls.shouldConfirmClose();
       if (!mounted) return;
       if (!confirm) {
-        // Host has no tray confirmation to show: clean mounts, then quit directly.
-        await AppExitCleanup.cleanupMounts();
-        await WindowControls.exitApp();
+        // Host has no tray confirmation to show: disappear, clean, then exit.
+        await _hideAndCleanupThenExit();
         return;
       }
       final choice = await showAppModal<_CloseAction>(
@@ -135,8 +143,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
           await WindowControls.minimize();
           break;
         case _CloseAction.exit:
-          await AppExitCleanup.cleanupMounts();
-          await WindowControls.exitApp();
+          await _hideAndCleanupThenExit();
           break;
         case null:
           break;

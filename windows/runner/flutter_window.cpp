@@ -183,6 +183,11 @@ void FlutterWindow::RegisterWindowChannel() {
           result->Success();
           return;
         }
+        if (method == "hideForExit") {
+          HideForExit();
+          result->Success();
+          return;
+        }
         if (method == "startDrag") {
           StartDrag();
           result->Success();
@@ -260,6 +265,11 @@ void FlutterWindow::HideToTray() {
   // lose track of whether it used to fill the work area.
   was_maximized_before_hide_ = IsWindowMaximized();
   ShowWindow(GetHandle(), SW_HIDE);
+}
+
+void FlutterWindow::HideForExit() {
+  ShowWindow(GetHandle(), SW_HIDE);
+  RemoveTrayIcon();
 }
 
 void FlutterWindow::RestoreFromTray() {

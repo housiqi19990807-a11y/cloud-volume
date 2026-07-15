@@ -94,6 +94,12 @@ class WindowControls {
     await _channel.invokeMethod<void>('hideToTray');
   }
 
+  /// Hides all exit UI while Flutter finishes native mount cleanup.
+  static Future<void> hideForExit() async {
+    if (!supported) return;
+    await _channel.invokeMethod<void>('hideForExit');
+  }
+
   static Future<void> startDrag() async {
     if (!supported) return;
     await _channel.invokeMethod<void>('startDrag');
