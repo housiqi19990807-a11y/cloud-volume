@@ -14,6 +14,7 @@ import 'package:remote_storage/pages/login_page.dart';
 import 'package:remote_storage/pages/main_layout_page.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/services/desktop_window_method_host.dart';
+import 'package:remote_storage/services/app_exit_cleanup.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/app_log.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
@@ -76,6 +77,7 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
         );
       }
       if (!mounted) return;
+      AppExitCleanup.register(session.api);
       setState(() {
         _session = session;
         _loading = false;
@@ -231,4 +233,3 @@ class _BootstrapMessageView extends StatelessWidget {
     );
   }
 }
-

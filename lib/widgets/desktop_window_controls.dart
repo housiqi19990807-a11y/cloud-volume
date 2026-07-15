@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/services/window_controls.dart';
+import 'package:remote_storage/services/app_exit_cleanup.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/app_modal.dart';
 
@@ -27,15 +28,28 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
     // Route OS-level close gestures (Alt+F4 / taskbar close on Windows) through
     // the same confirmation flow as the in-app close button.
     WindowControls.registerCloseRequestHandler(_handleCloseRequest);
+    WindowControls.registerExitRequestHandler(_handleExitRequest);
   }
 
   @override
   void dispose() {
     WindowControls.registerCloseRequestHandler(null);
+    WindowControls.registerExitRequestHandler(null);
     super.dispose();
   }
 
   Future<void> _handleCloseRequest() => _confirmClose();
+
+  Future<void> _handleExitRequest() async {
+    if (_busy || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await AppExitCleanup.cleanupMounts();
+      await WindowControls.exitApp();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _refreshMaximized() async {
     if (!WindowControls.supported) return;
@@ -65,8 +79,9 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
       final confirm = await WindowControls.shouldConfirmClose();
       if (!mounted) return;
       if (!confirm) {
-        // Host is not intercepting close (e.g. non-tray builds): quit directly.
-        await WindowControls.close();
+        // Host has no tray confirmation to show: clean mounts, then quit directly.
+        await AppExitCleanup.cleanupMounts();
+        await WindowControls.exitApp();
         return;
       }
       final choice = await showAppModal<_CloseAction>(
@@ -120,6 +135,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
           await WindowControls.minimize();
           break;
         case _CloseAction.exit:
+          await AppExitCleanup.cleanupMounts();
           await WindowControls.exitApp();
           break;
         case null:

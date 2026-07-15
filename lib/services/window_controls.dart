@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:remote_storage/platform/platform_info.dart';
 
 typedef CloseRequestHandler = Future<void> Function();
+typedef ExitRequestHandler = Future<void> Function();
 
 class WindowControls {
   WindowControls._();
@@ -16,18 +17,33 @@ class WindowControls {
   );
 
   static CloseRequestHandler? _onRequestClose;
+  static ExitRequestHandler? _onRequestExit;
 
   /// Registers the handler invoked when the native host asks Flutter to
   /// decide what an OS-level close gesture (Alt+F4, taskbar close) should do.
   /// Only the Windows runner currently emits `requestClose`.
   static void registerCloseRequestHandler(CloseRequestHandler? handler) {
     _onRequestClose = handler;
+    _installRequestHandler();
+  }
+
+  static void registerExitRequestHandler(ExitRequestHandler? handler) {
+    _onRequestExit = handler;
+    _installRequestHandler();
+  }
+
+  static void _installRequestHandler() {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'requestClose') {
         final handler = _onRequestClose;
         if (handler != null) {
           await handler();
         }
+        return null;
+      }
+      if (call.method == 'requestExit') {
+        final handler = _onRequestExit;
+        if (handler != null) await handler();
         return null;
       }
       throw MissingPluginException('unknown method ${call.method}');

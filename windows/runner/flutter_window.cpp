@@ -130,12 +130,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       break;
 
     case WM_CLOSE:
-      // When the tray is active, swallow WM_CLOSE and route it back through
-      // the Flutter "hide to tray vs exit" confirmation so Alt+F4, taskbar
-      // close, and the in-app close button all behave the same way. Without
-      // this, only the in-app button would prompt and OS-level close would
-      // quit the app immediately.
-      if (tray_icon_added_) {
+      // Route every OS close gesture through Flutter. Flutter either hides to
+      // tray or awaits mount cleanup before calling native ExitApplication.
+      if (window_channel_) {
         CloseViaChannel();
         return 0;
       }
@@ -207,12 +204,22 @@ void FlutterWindow::RegisterWindowChannel() {
 }
 
 void FlutterWindow::CloseViaChannel() {
-  // Reuse the Flutter close path so the "hide to tray vs exit" dialog drives
-  // every close gesture (in-app button, Alt+F4, taskbar close). The Dart side
-  // decides whether to hide to tray or actually quit via WindowControls.close.
+  // Reuse the Flutter close path so every close gesture reaches mount cleanup
+  // before the Dart side chooses tray/minimize/exit.
   if (window_channel_) {
     window_channel_->InvokeMethod(
         "requestClose", std::make_unique<flutter::EncodableValue>());
+  }
+}
+
+void FlutterWindow::ExitViaChannel() {
+  // Tray Exit is already an explicit user choice; let Flutter run the same
+  // mount cleanup as the title-bar confirmation before destroying the window.
+  if (window_channel_) {
+    window_channel_->InvokeMethod(
+        "requestExit", std::make_unique<flutter::EncodableValue>());
+  } else {
+    ExitApplication();
   }
 }
 
@@ -312,7 +319,7 @@ bool FlutterWindow::HandleTrayCommand(UINT command_id) {
       RestoreFromTray();
       return true;
     case kTrayCommandExit:
-      ExitApplication();
+      ExitViaChannel();
       return true;
     default:
       return false;
