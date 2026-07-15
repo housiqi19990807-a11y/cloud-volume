@@ -85,15 +85,9 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
     if (_busy || !mounted) return;
     setState(() => _busy = true);
     try {
-      final confirm = await WindowControls.shouldConfirmClose();
       final activeMountCount = await AppExitCleanup.activeMountCount();
       final hasActiveMounts = activeMountCount > 0;
       if (!mounted) return;
-      if (!confirm && !hasActiveMounts) {
-        // Host has no tray confirmation to show: disappear, clean, then exit.
-        await _hideAndCleanupThenExit();
-        return;
-      }
       final description = hasActiveMounts
           ? '当前有 $activeMountCount 个挂载。退出会卸载这些挂载；如需保留挂载，请选择“后台运行”。'
           : WindowControls.supportsTray
