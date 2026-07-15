@@ -125,6 +125,9 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 	session.access.externalDelete = func(virtualPath string, isDir bool) error {
 		return b.removeExternalPlaceholder(session, watcher, virtualPath, isDir)
 	}
+	session.access.externalUpload = func(virtualPath string, isDir bool) error {
+		return b.createExternalPlaceholder(session, watcher, provider, virtualPath, isDir)
+	}
 	b.resetHealthState()
 	if !session.readOnly {
 		if err := b.checkHealthy(session, true); err != nil {
@@ -157,6 +160,7 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 	session.mounted = false
 	if session.access != nil {
 		session.access.externalDelete = nil
+		session.access.externalUpload = nil
 	}
 
 	var firstErr error

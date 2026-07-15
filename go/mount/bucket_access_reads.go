@@ -257,9 +257,15 @@ func (a *bucketAccess) MarkExternalDelete(virtualPath string, isDir bool) {
 // the path plus its parent listings so the new entry becomes visible on the
 // next read without waiting for the list TTL.
 func (a *bucketAccess) InvalidateExternalUpload(virtualPath string, isDir bool) {
-	a.cache.removeLocalPath(virtualPath, isDir)
-	a.cache.invalidatePath(virtualPath)
-	a.cache.invalidatePath(parentVirtualPrefix(virtualPath))
+	clean := cleanVirtualPath(virtualPath)
+	a.cache.removeLocalPath(clean, isDir)
+	a.cache.invalidatePath(clean)
+	a.cache.invalidatePath(parentVirtualPrefix(clean))
+	if a.externalUpload != nil {
+		if err := a.externalUpload(clean, isDir); err != nil {
+			log.Printf("[mount/external] local-upload-projection path=%q isDir=%t error=%v", clean, isDir, err)
+		}
+	}
 }
 
 // InvalidateExternalRename covers rename/move: the source path is treated as

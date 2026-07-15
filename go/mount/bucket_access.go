@@ -44,6 +44,8 @@ type bucketAccess struct {
 	// externalDelete projects remote-first deletions into platform mount state.
 	// It is installed by backends that expose a real sync root (Windows Cloud Files).
 	externalDelete func(virtualPath string, isDir bool) error
+	// externalUpload projects remote-first creates/overwrites into that sync root.
+	externalUpload func(virtualPath string, isDir bool) error
 }
 
 func newBucketAccess(

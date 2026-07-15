@@ -94,6 +94,23 @@ func TestMarkExternalDeleteCancelsWritebackAndProjects(t *testing.T) {
 	}
 }
 
+func TestInvalidateExternalUploadProjectsCreatedPath(t *testing.T) {
+	access := newTestBucketAccess(t)
+	var projectedPath string
+	var projectedDir bool
+	access.externalUpload = func(virtualPath string, isDir bool) error {
+		projectedPath = virtualPath
+		projectedDir = isDir
+		return nil
+	}
+
+	access.InvalidateExternalUpload("docs/new-folder", true)
+
+	if projectedPath != "docs/new-folder" || !projectedDir {
+		t.Fatalf("unexpected platform projection path=%q isDir=%t", projectedPath, projectedDir)
+	}
+}
+
 // TestNotifyExternalDeleteOnNonMatchingSessionIsNoop verifies the callback is
 // never invoked when the config does not match an existing session.
 func TestNotifyExternalDeleteOnNonMatchingSessionIsNoop(t *testing.T) {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Windows Cloud Files: deleting a file or directory from the app file list now removes the existing sync-root placeholder immediately, cancels pending mount writeback that could recreate the object, and suppresses provider-owned delete callbacks so the removal is not sent to the remote backend twice.
+- Windows Cloud Files: app-side directory creation, uploads, copies, and moves now project new or overwritten remote objects into the sync root as placeholders when their parent directory is present.
 - Windows 设置：移除已失效的“此电脑”云卷入口卡片及左侧锚点，保留旧配置字段用于兼容已有配置文件。
 - 首次启动配置：步骤切换改为左侧品牌面板宽度收缩 + 右侧内容淡入（约 240ms），去掉中间 loading 占位，避免二次重建导致掉帧。
 - 首次启动配置：添加存储账号第二步（连接信息）改为全屏表单，隐藏左侧品牌宣传；宽屏下 S3 / WebDAV 字段两列排布，减少单页滚动。第一步协议选择仍保留左右分栏。
