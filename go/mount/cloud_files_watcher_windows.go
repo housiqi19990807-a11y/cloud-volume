@@ -17,12 +17,13 @@ import (
 )
 
 type windowsPathState struct {
-	mu           sync.Mutex
-	ignored      map[string]windowsIgnoredPath
-	hydrating    map[string]bool
-	kinds        map[string]bool
-	files        map[string]windowsObservedFile
-	placeholders map[string]bool
+	mu              sync.Mutex
+	ignored         map[string]windowsIgnoredPath
+	hydrating       map[string]bool
+	kinds           map[string]bool
+	files           map[string]windowsObservedFile
+	placeholders    map[string]bool
+	providerDeletes map[string]windowsProviderDelete
 }
 
 type windowsIgnoredPath struct {
@@ -64,11 +65,12 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 		access: access,
 		raw:    rawWatcher,
 		state: &windowsPathState{
-			ignored:      map[string]windowsIgnoredPath{},
-			hydrating:    map[string]bool{},
-			kinds:        map[string]bool{},
-			files:        map[string]windowsObservedFile{},
-			placeholders: map[string]bool{},
+			ignored:         map[string]windowsIgnoredPath{},
+			hydrating:       map[string]bool{},
+			kinds:           map[string]bool{},
+			files:           map[string]windowsObservedFile{},
+			placeholders:    map[string]bool{},
+			providerDeletes: map[string]windowsProviderDelete{},
 		},
 		done:           make(chan struct{}),
 		watched:        map[string]bool{},
@@ -387,219 +389,4 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, er
 		return directoryCount, queuedFileCount, nil
 	}
 	return directoryCount, queuedFileCount, err
-}
-
-func (s *windowsPathState) ignore(
-	localPath string,
-	ttl time.Duration,
-	ignoreDescendants bool,
-) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.ignored[filepath.Clean(localPath)] = windowsIgnoredPath{
-		until:             time.Now().Add(ttl),
-		ignoreDescendants: ignoreDescendants,
-	}
-}
-
-// clearIgnore drops any pending ignore window for a path. This is used when an
-// explicit open/fetch callback re-arms a placeholder directory, meaning the
-// directory is now user-visible and subsequent writes beneath it should be
-// treated as real edits rather than placeholder bookkeeping noise.
-func (s *windowsPathState) clearIgnore(localPath string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.ignored, filepath.Clean(localPath))
-}
-
-func (s *windowsPathState) shouldIgnore(localPath string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	now := time.Now()
-	clean := filepath.Clean(localPath)
-	for path := range s.hydrating {
-		if clean == path || strings.HasPrefix(clean, path+string(os.PathSeparator)) {
-			return true
-		}
-	}
-	for path, ignored := range s.ignored {
-		if now.After(ignored.until) {
-			delete(s.ignored, path)
-			continue
-		}
-		if clean == path {
-			return true
-		}
-		if ignored.ignoreDescendants &&
-			strings.HasPrefix(clean, path+string(os.PathSeparator)) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *windowsPathState) markHydrating(localPath string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.hydrating[filepath.Clean(localPath)] = true
-}
-
-func (s *windowsPathState) markHydrated(localPath string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	clean := filepath.Clean(localPath)
-	delete(s.hydrating, clean)
-	// Cloud Files may emit local write/change events right after a successful
-	// hydration materializes bytes on disk. Those are system-owned reads, not
-	// user edits, and should not be fed back into the writeback queue.
-	s.ignored[clean] = windowsIgnoredPath{
-		until:             time.Now().Add(windowsCFEventIgnoreTTL),
-		ignoreDescendants: false,
-	}
-	delete(s.placeholders, clean)
-	if info, err := os.Stat(clean); err == nil && !info.IsDir() {
-		s.files[clean] = windowsObservedFile{
-			size:    info.Size(),
-			modTime: info.ModTime().UnixNano(),
-		}
-	}
-}
-
-func (s *windowsPathState) remember(localPath string, isDir bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.kinds[filepath.Clean(localPath)] = isDir
-}
-
-func (s *windowsPathState) markPlaceholder(localPath string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.placeholders[filepath.Clean(localPath)] = true
-}
-
-func (s *windowsPathState) shouldQueueFile(
-	localPath string,
-	size int64,
-	modTime time.Time,
-	fromHarvest bool,
-) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	clean := filepath.Clean(localPath)
-	if fromHarvest && s.placeholders[clean] {
-		return false
-	}
-	delete(s.placeholders, clean)
-	next := windowsObservedFile{
-		size:    size,
-		modTime: modTime.UnixNano(),
-	}
-	current, ok := s.files[clean]
-	if ok && current == next {
-		return false
-	}
-	s.files[clean] = next
-	return true
-}
-
-func (s *windowsPathState) isDir(localPath string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.kinds[filepath.Clean(localPath)]
-}
-
-func (s *windowsPathState) forget(localPath string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	clean := filepath.Clean(localPath)
-	for current := range s.hydrating {
-		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
-			delete(s.hydrating, current)
-		}
-	}
-	for current := range s.kinds {
-		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
-			delete(s.kinds, current)
-		}
-	}
-	for current := range s.files {
-		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
-			delete(s.files, current)
-		}
-	}
-	for current := range s.placeholders {
-		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
-			delete(s.placeholders, current)
-		}
-	}
-}
-
-func (s *windowsPathState) clearPlaceholdersUnder(localPath string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	clean := filepath.Clean(localPath)
-	for current := range s.placeholders {
-		if current == clean || strings.HasPrefix(current, clean+string(os.PathSeparator)) {
-			delete(s.placeholders, current)
-		}
-	}
-}
-
-func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	oldClean := filepath.Clean(oldPath)
-	newClean := filepath.Clean(newPath)
-	updates := map[string]bool{}
-	hydratingUpdates := map[string]bool{}
-	for current := range s.hydrating {
-		if current == oldClean || strings.HasPrefix(current, oldClean+string(os.PathSeparator)) {
-			replacement := strings.Replace(current, oldClean, newClean, 1)
-			hydratingUpdates[replacement] = true
-			delete(s.hydrating, current)
-		}
-	}
-	for current, currentIsDir := range s.kinds {
-		if current == oldClean || strings.HasPrefix(current, oldClean+string(os.PathSeparator)) {
-			replacement := strings.Replace(current, oldClean, newClean, 1)
-			updates[replacement] = currentIsDir
-			delete(s.kinds, current)
-		}
-	}
-	fileUpdates := map[string]windowsObservedFile{}
-	for current, file := range s.files {
-		if current == oldClean || strings.HasPrefix(current, oldClean+string(os.PathSeparator)) {
-			replacement := strings.Replace(current, oldClean, newClean, 1)
-			fileUpdates[replacement] = file
-			delete(s.files, current)
-		}
-	}
-	placeholderUpdates := map[string]bool{}
-	for current := range s.placeholders {
-		if current == oldClean || strings.HasPrefix(current, oldClean+string(os.PathSeparator)) {
-			replacement := strings.Replace(current, oldClean, newClean, 1)
-			placeholderUpdates[replacement] = true
-			delete(s.placeholders, current)
-		}
-	}
-	if len(updates) == 0 {
-		updates[newClean] = isDir
-	}
-	for current, currentIsDir := range updates {
-		s.kinds[current] = currentIsDir
-	}
-	for current, file := range fileUpdates {
-		s.files[current] = file
-	}
-	for current := range placeholderUpdates {
-		s.placeholders[current] = true
-	}
-	for current := range hydratingUpdates {
-		s.hydrating[current] = true
-	}
 }

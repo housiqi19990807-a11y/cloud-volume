@@ -446,4 +446,8 @@ The desktop runners now use adaptive startup sizing on all three platforms:
 - Windows now applies the same low-resolution startup sizing strategy in the native runner before the Flutter surface is shown.
 - macOS now resolves the initial centered frame from the visible screen area as well, and also lowers the minimum resizable size when the display is smaller than the normal default window.
 
+### Windows Cloud Files deletion consistency
+
+Deleting a mounted object from the app file list also removes its existing Windows Cloud Files placeholder. Pending delayed writeback for that path is canceled first, and provider-owned filesystem callbacks are suppressed so Explorer and the remote object list converge without recreating or double-deleting the object.
+
 - 桌面端诊断日志由设置页统一控制，Flutter `AppLog` 与 Go backend 日志共享 `Silent` / `Error` / `Info` / `Debug` 等级。

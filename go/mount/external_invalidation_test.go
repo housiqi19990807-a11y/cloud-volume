@@ -66,6 +66,34 @@ func TestNotifyExternalDeleteClearsCachedEntry(t *testing.T) {
 	}
 }
 
+// TestMarkExternalDeleteCancelsWritebackAndProjects verifies that a remote-first
+// delete cannot be undone by a delayed upload and reaches the platform mount.
+func TestMarkExternalDeleteCancelsWritebackAndProjects(t *testing.T) {
+	access := newTestBucketAccess(t)
+	stagedPath := createTempFile(t, access.cacheRoot, "pending.txt", "hello")
+	access.registerLocalWrite("pending.txt", stagedPath, 5)
+	access.scheduleUpload("pending.txt", stagedPath)
+	if !access.writeback.hasPendingAtOrBelow("pending.txt", false) {
+		t.Fatal("expected pending writeback before external delete")
+	}
+
+	var projectedPath string
+	var projectedDir bool
+	access.externalDelete = func(virtualPath string, isDir bool) error {
+		projectedPath = virtualPath
+		projectedDir = isDir
+		return nil
+	}
+	access.MarkExternalDelete("pending.txt", false)
+
+	if access.writeback.hasPendingAtOrBelow("pending.txt", false) {
+		t.Fatal("expected external delete to cancel pending writeback")
+	}
+	if projectedPath != "pending.txt" || projectedDir {
+		t.Fatalf("unexpected platform projection path=%q isDir=%t", projectedPath, projectedDir)
+	}
+}
+
 // TestNotifyExternalDeleteOnNonMatchingSessionIsNoop verifies the callback is
 // never invoked when the config does not match an existing session.
 func TestNotifyExternalDeleteOnNonMatchingSessionIsNoop(t *testing.T) {

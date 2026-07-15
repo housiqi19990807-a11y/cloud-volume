@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
 	s3ops "remote-storage/go/s3"
@@ -233,8 +234,21 @@ func (a *bucketAccess) InvalidateListCache(prefix string) {
 // mount-side delete performs, then also drops the object metadata cache so a
 // subsequent stat/list cannot resurrect the removed entry.
 func (a *bucketAccess) MarkExternalDelete(virtualPath string, isDir bool) {
+	clean := cleanVirtualPath(virtualPath)
+	if a.writeback != nil {
+		if isDir {
+			a.writeback.cancelAtOrBelow(clean, true)
+		} else {
+			a.writeback.cancel(clean)
+		}
+	}
 	a.cache.markDeleted(virtualPath, isDir)
 	a.cache.invalidatePath(virtualPath)
+	if a.externalDelete != nil {
+		if err := a.externalDelete(clean, isDir); err != nil {
+			log.Printf("[mount/external] local-delete-projection path=%q isDir=%t error=%v", clean, isDir, err)
+		}
+	}
 }
 
 // InvalidateExternalUpload records that an out-of-mount caller created or
