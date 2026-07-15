@@ -123,7 +123,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
                       child: hasActiveMounts
                           ? const Text('后台运行')
                           : Text(
-                              WindowControls.supportsTray ? '隐藏到托盘' : '最小化窗口',
+                              WindowControls.supportsTray ? '最小化到托盘' : '最小化窗口',
                             ),
                     ),
                     const SizedBox(width: 10),
