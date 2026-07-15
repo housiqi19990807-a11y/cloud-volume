@@ -1,7 +1,8 @@
 part of 'remote_storage_api_desktop.dart';
 
 // Desktop storage bridge calls cover object mutations, transfers, mounts, and cache APIs.
-mixin _RemoteStorageDesktopStorageApiMixin implements RemoteStorageGateway {
+mixin _RemoteStorageDesktopStorageApiMixin
+    implements RemoteStorageGateway, ActiveMountQuery {
   Future<dynamic> runBridgeCall(
     String method, [
     Map<String, dynamic> payload = const <String, dynamic>{},
@@ -280,6 +281,15 @@ mixin _RemoteStorageDesktopStorageApiMixin implements RemoteStorageGateway {
   @override
   Future<void> cleanupMounts() async {
     await runBridgeCall('cleanup_mounts');
+  }
+
+  @override
+  Future<int> getActiveMountCount() async {
+    final result = await runBridgeCall('get_active_mount_count');
+    if (result is Map<String, dynamic>) {
+      return (result['count'] as num?)?.toInt() ?? 0;
+    }
+    return 0;
   }
 
   @override

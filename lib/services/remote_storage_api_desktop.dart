@@ -39,7 +39,7 @@ class RemoteStorageApi
         _RemoteStorageRuntimeApiMixin,
         _RemoteStorageDesktopStorageApiMixin,
         _RemoteStorageCacheApiMixin
-    implements RemoteStorageGateway {
+    implements RemoteStorageGateway, ActiveMountQuery {
   RemoteStorageApi(this._bridge);
 
   static Future<RemoteStorageApi> bootstrap() async {

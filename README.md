@@ -452,4 +452,6 @@ Deleting a mounted object from the app file list also removes its existing Windo
 
 On confirmed application exit, the window and tray icon disappear immediately while active mounts are cleaned in the background. Windows Cloud Files sessions disconnect and deregister their sync roots before process termination; hiding to the tray keeps mounts active by design.
 
+When one or more mounts are active, closing the app explicitly warns that Exit will unmount them. Choose "后台运行" to keep the process and mounts active.
+
 - 桌面端诊断日志由设置页统一控制，Flutter `AppLog` 与 Go backend 日志共享 `Silent` / `Error` / `Info` / `Debug` 等级。

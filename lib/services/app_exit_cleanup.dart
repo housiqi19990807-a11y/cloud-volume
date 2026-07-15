@@ -31,6 +31,16 @@ class AppExitCleanup {
     return future;
   }
 
+  static Future<int> activeMountCount() async {
+    final api = _api;
+    if (api == null || api is! ActiveMountQuery) return 0;
+    try {
+      return await (api as ActiveMountQuery).getActiveMountCount();
+    } catch (_) {
+      return 0;
+    }
+  }
+
   static Future<void> _cleanup(RemoteStorageGateway api) async {
     try {
       await api.cleanupMounts().timeout(_cleanupTimeout);

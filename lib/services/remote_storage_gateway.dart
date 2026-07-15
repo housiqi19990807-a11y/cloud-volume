@@ -295,6 +295,11 @@ abstract class RemoteStorageGateway {
   });
 }
 
+/// Optional desktop capability for warning before exit unmounts active roots.
+abstract interface class ActiveMountQuery {
+  Future<int> getActiveMountCount();
+}
+
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
 
 /// Bridge build metadata used for update package selection.

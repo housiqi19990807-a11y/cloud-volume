@@ -86,21 +86,30 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
     setState(() => _busy = true);
     try {
       final confirm = await WindowControls.shouldConfirmClose();
+      final activeMountCount = await AppExitCleanup.activeMountCount();
+      final hasActiveMounts = activeMountCount > 0;
       if (!mounted) return;
-      if (!confirm) {
+      if (!confirm && !hasActiveMounts) {
         // Host has no tray confirmation to show: disappear, clean, then exit.
         await _hideAndCleanupThenExit();
         return;
       }
+      final description = hasActiveMounts
+          ? '当前有 $activeMountCount 个挂载。退出会卸载这些挂载；如需保留挂载，请选择“后台运行”。'
+          : WindowControls.supportsTray
+          ? '你可以隐藏到托盘，或者直接退出应用。'
+          : '你可以先最小化窗口，或者直接退出应用。';
       final choice = await showAppModal<_CloseAction>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('关闭云卷？'),
-          description: Text(
-            WindowControls.supportsTray
-                ? '你可以隐藏到托盘，或者直接退出应用。'
-                : '你可以先最小化窗口，或者直接退出应用。',
-          ),
+          description: hasActiveMounts
+              ? Text(description)
+              : Text(
+                  WindowControls.supportsTray
+                      ? '你可以隐藏到托盘，或者直接退出应用。'
+                      : '你可以先最小化窗口，或者直接退出应用。',
+                ),
           child: SizedBox(
             width: 360,
             child: Column(
@@ -117,9 +126,11 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
                             ? _CloseAction.tray
                             : _CloseAction.minimize,
                       ),
-                      child: Text(
-                        WindowControls.supportsTray ? '隐藏到托盘' : '最小化窗口',
-                      ),
+                      child: hasActiveMounts
+                          ? const Text('后台运行')
+                          : Text(
+                              WindowControls.supportsTray ? '隐藏到托盘' : '最小化窗口',
+                            ),
                     ),
                     const SizedBox(width: 10),
                     ShadButton(

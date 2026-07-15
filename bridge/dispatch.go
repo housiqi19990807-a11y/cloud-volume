@@ -112,6 +112,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return openBucketMount(args)
 	case "cleanup_mounts":
 		return cleanupMounts()
+	case "get_active_mount_count":
+		return getActiveMountCount()
 	case "cleanup_stale_windows_processes":
 		return cleanupStaleWindowsProcesses()
 	case "get_cache_stats":

@@ -60,6 +60,11 @@ func CleanupMounts() error {
 	return globalManager.cleanupMounts()
 }
 
+// ActiveMountCount returns the number of live in-process mount sessions.
+func ActiveMountCount() int {
+	return globalManager.activeMountCount()
+}
+
 func (m *manager) mountBucket(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
@@ -245,6 +250,19 @@ func (m *manager) cleanupMounts() error {
 	}
 	log.Printf("[mount/manager] cleanup-done")
 	return nil
+}
+
+func (m *manager) activeMountCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	count := 0
+	for _, session := range m.sessions {
+		if session != nil && session.mounted && !session.stopping {
+			count++
+		}
+	}
+	return count
 }
 
 func newMountSession(
