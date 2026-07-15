@@ -47,7 +47,6 @@ enum _SettingsTab {
   resetAccount,
   configManage,
   // Windows group
-  windowsEntry,
   windowsWriteback,
   windowsMount,
   // About group
@@ -97,8 +96,6 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _mountMetadataCacheError;
   bool _savingWebdavCredentials = false;
   String? _webdavCredentialsError;
-  bool _savingWindowsThisPcEntry = false;
-  String? _windowsThisPcEntryError;
   bool _savingWindowsWritebackConcurrency = false;
   String? _windowsWritebackConcurrencyError;
   bool _resettingWindowsMounts = false;

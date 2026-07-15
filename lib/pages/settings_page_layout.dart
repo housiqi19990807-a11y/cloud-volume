@@ -39,11 +39,7 @@ extension _SettingsLayout on _SettingsPageState {
       if (_showsWindowsTab)
         _SettingsRailGroup(
           header: 'Windows',
-          tabs: [
-            _SettingsTab.windowsEntry,
-            _SettingsTab.windowsWriteback,
-            _SettingsTab.windowsMount,
-          ],
+          tabs: [_SettingsTab.windowsWriteback, _SettingsTab.windowsMount],
         ),
       _SettingsRailGroup(header: '关于', tabs: [_SettingsTab.about]),
     ];
@@ -118,7 +114,6 @@ extension _SettingsLayout on _SettingsPageState {
       _SettingsTab.webdav => 'WebDAV 凭据',
       _SettingsTab.resetAccount => '账号重置',
       _SettingsTab.configManage => '配置管理',
-      _SettingsTab.windowsEntry => 'Windows 入口',
       _SettingsTab.windowsWriteback => '写回并发',
       _SettingsTab.windowsMount => '挂载恢复',
       _SettingsTab.about => '关于云卷',
@@ -180,8 +175,6 @@ extension _SettingsLayout on _SettingsPageState {
         return _buildResetAccountSection(theme);
       case _SettingsTab.configManage:
         return _buildConfigManageSection(theme);
-      case _SettingsTab.windowsEntry:
-        return _buildWindowsEntrySection(theme, config);
       case _SettingsTab.windowsWriteback:
         return _buildWindowsWritebackSection(theme, config);
       case _SettingsTab.windowsMount:

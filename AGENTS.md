@@ -534,7 +534,7 @@ The window centers on `self.screen ?? NSScreen.main`. `NSScreen.main` is whateve
 ### Navigation structure
 
 - `lib/pages/main_layout_page.dart` — Root layout with sidebar navigation. Routes include 文件同步 (`FileSyncTasksPage`), 文件管理 (`FileManagerPage`), 传输 (`TransfersPage`), 回收站 (`GlobalTrashPage`), 分享管理 (`ShareManagementPage`), and 设置 (`SettingsPage`).
-- `lib/pages/settings_page.dart` — Settings page. Groups (通用设置, Windows 设置, 关于) use a **left vertical sidebar rail** (not top tabs). Sync management was **removed** from Settings (2026-06-26) and now lives entirely in the File Sync Tasks page.
+- `lib/pages/settings_page.dart` — Settings page. Groups (通用设置, Windows 设置, 关于) use a **left vertical sidebar rail** (not top tabs). Sync management was **removed** from Settings (2026-06-26) and now lives entirely in the File Sync Tasks page. The obsolete Windows “此电脑” entry card and anchor were removed on 2026-07-15.
 
 ### Feature: Settings Page Layout (设置页布局)
 
@@ -543,13 +543,13 @@ The settings page uses a **two-column anchor layout**: a left vertical anchor ra
 #### Key files
 - `lib/pages/settings_page.dart` — `SettingsPage` + `_SettingsPageState`. `_SettingsTab` enum identifies one card/anchor per config block. State owns `_contentScrollController` and `_sectionKeys` (**no `_activeTab` field**). `build()` renders a `Row`: left `SizedBox(width: 180)` with title + `_buildGroupRail(theme)`; right `Expanded` + `SingleChildScrollView(controller: _contentScrollController)` with `_buildAllContent`.
 - `lib/pages/settings_page_layout.dart` — part file. `_SettingsLayout` extension: `_railGroups()` builds `_SettingsRailGroup` list with section headers + anchors; `_buildGroupRail` renders headers + `_SettingsGroupTile` rows; `_tabLabel` maps enum to Chinese label; `_buildAllContent` renders every visible card as one page using `KeyedSubtree` + `_sectionKeys`; `_scrollToAnchor` uses `Scrollable.ensureVisible` and **only scrolls** — it no longer updates any `_activeTab` (2026-07-06). `_SettingsGroupTile` is the hover-aware StatefulWidget tile (must be StatefulWidget — see Hover rule above); it exposes **no `active` parameter** — appearance is hover-only.
-- `lib/pages/settings_page_sections.dart` — part file. `_SettingsSections` extension with per-anchor card builders (`_buildUpdateSection`, `_buildProxySection`, `_buildAppearanceSection`, `_buildLogSection`, `_buildDownloadSection`, `_buildCacheSection`, `_buildVisibilitySection`, `_buildSyncSection`, `_buildTrashSection`, `_buildWebdavSection`, `_buildResetAccountSection`, `_buildConfigManageSection`, `_buildWindowsEntrySection`, `_buildWindowsWritebackSection`, `_buildWindowsMountSection`, `_buildAboutSection`). Each returns `[_buildCard(...)]`.
+- `lib/pages/settings_page_sections.dart` — part file. `_SettingsSections` extension with per-anchor card builders (`_buildUpdateSection`, `_buildProxySection`, `_buildAppearanceSection`, `_buildLogSection`, `_buildDownloadSection`, `_buildCacheSection`, `_buildVisibilitySection`, `_buildSyncSection`, `_buildTrashSection`, `_buildWebdavSection`, `_buildResetAccountSection`, `_buildConfigManageSection`, `_buildWindowsWritebackSection`, `_buildWindowsMountSection`, `_buildAboutSection`). Each returns `[_buildCard(...)]`. The removed Windows entry has no builder or page state/action; `windowsThisPcEntryEnabled` remains in the config model only for backward compatibility.
 - `lib/widgets/settings_cache_section.dart` — Settings → 通用 → 缓存设置 card body. Layout is intentionally split into three visible groups: `缓存目录设置` (resolved path + choose/reset/open actions), `缓存占用` (stats block + refresh action + error text), and `缓存清理` (manual clean buttons + auto-clean rules editor). Keep these concerns visually separated; do not collapse them back into one mixed button row.
 - `lib/pages/settings_page_actions.dart` — part file with `_SettingsPageActions` extension: all config save/refresh/cleanup actions.
 
 #### Data flow
 1. `_SettingsPageState.build()` wires the right-side `SingleChildScrollView` to `_contentScrollController` and calls `_buildAllContent(theme, config)`.
-2. `_railGroups()` returns 通用 (including 日志设置; download anchor only when supported; WebDAV 凭据 anchor only on Web), Windows (if `isWindowsPlatform`), 关于 groups.
+2. `_railGroups()` returns 通用 (including 日志设置; download anchor only when supported; WebDAV 凭据 anchor only on Web), Windows (if `isWindowsPlatform`, with 写回并发 and 挂载恢复 only), 关于 groups.
 3. `_buildAllContent` loops through those same visible anchors, wrapping each section card with the matching `_sectionKeys[tab]`.
 4. Tapping `_SettingsGroupTile` calls `_scrollToAnchor(tab)`, which runs `Scrollable.ensureVisible` to scroll the right page to the keyed card. It does **not** set any active/selected state — the rail tile only shows hover feedback while the pointer is over it.
 5. Left rail scrolls independently when the anchor list is taller than the viewport.

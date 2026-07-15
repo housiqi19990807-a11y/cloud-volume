@@ -264,25 +264,6 @@ extension _SettingsSections on _SettingsPageState {
 
   // ---- Windows group ----
 
-  List<Widget> _buildWindowsEntrySection(
-    ShadThemeData theme,
-    RemoteStorageConfig config,
-  ) {
-    return [
-      _buildCard(
-        theme,
-        'Windows 入口',
-        WindowsThisPcEntrySection(
-          theme: theme,
-          enabled: config.windowsThisPcEntryEnabled,
-          saving: _savingWindowsThisPcEntry,
-          errorText: _windowsThisPcEntryError,
-          onChanged: (value) => _saveWindowsThisPcEntry(config, value),
-        ),
-      ),
-    ];
-  }
-
   List<Widget> _buildWindowsWritebackSection(
     ShadThemeData theme,
     RemoteStorageConfig config,

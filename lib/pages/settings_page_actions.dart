@@ -218,33 +218,6 @@ extension _SettingsPageActions on _SettingsPageState {
     }
   }
 
-  Future<void> _saveWindowsThisPcEntry(
-    RemoteStorageConfig config,
-    bool enabled,
-  ) async {
-    if (enabled == config.windowsThisPcEntryEnabled) {
-      return;
-    }
-    _updateState(() {
-      _savingWindowsThisPcEntry = true;
-      _windowsThisPcEntryError = null;
-    });
-    try {
-      await widget.api.saveConfig(
-        config.copyWith(windowsThisPcEntryEnabled: enabled),
-      );
-      if (!mounted) return;
-      widget.onRefresh();
-    } catch (error) {
-      if (!mounted) return;
-      _updateState(() => _windowsThisPcEntryError = error.toString());
-    } finally {
-      if (mounted) {
-        _updateState(() => _savingWindowsThisPcEntry = false);
-      }
-    }
-  }
-
   Future<void> _saveWindowsWritebackConcurrency(
     RemoteStorageConfig config,
     int value,
@@ -346,11 +319,7 @@ extension _SettingsPageActions on _SettingsPageState {
     try {
       await widget.api.resetUserConfig();
       if (!mounted) return;
-      showAppToast(
-        context,
-        title: '账号已重置',
-        message: '已清空全部账号信息，即将返回初始化配置页。',
-      );
+      showAppToast(context, title: '账号已重置', message: '已清空全部账号信息，即将返回初始化配置页。');
       widget.onRefresh();
     } catch (error) {
       if (!mounted) return;
@@ -397,11 +366,7 @@ extension _SettingsPageActions on _SettingsPageState {
     } catch (error) {
       if (!mounted) return;
       _updateState(() => _cacheDirectoryError = error.toString());
-      showAppErrorToast(
-        context,
-        title: '打开缓存目录失败',
-        message: error.toString(),
-      );
+      showAppErrorToast(context, title: '打开缓存目录失败', message: error.toString());
     } finally {
       if (mounted) {
         _updateState(() => _openingCache = false);
