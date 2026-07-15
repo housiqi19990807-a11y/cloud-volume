@@ -62,14 +62,19 @@ func (n *windowsShellNamespace) Register() error {
 }
 
 func (n *windowsShellNamespace) Unregister() error {
+	namespacePath := filepath.Join(thisPCNamespaceBase, n.clsid)
+	classPath := filepath.Join(classesCLSIDBase, n.clsid)
+	changed := registryKeyExists(namespacePath) || registryKeyExists(classPath)
 	var firstErr error
-	if err := registry.DeleteKey(registry.CURRENT_USER, filepath.Join(thisPCNamespaceBase, n.clsid)); err != nil && err != registry.ErrNotExist {
+	if err := registry.DeleteKey(registry.CURRENT_USER, namespacePath); err != nil && err != registry.ErrNotExist {
 		firstErr = fmt.Errorf("remove This PC namespace key: %w", err)
 	}
-	if err := deleteRegistryTree(registry.CURRENT_USER, filepath.Join(classesCLSIDBase, n.clsid)); err != nil && firstErr == nil {
+	if err := deleteRegistryTree(registry.CURRENT_USER, classPath); err != nil && firstErr == nil {
 		firstErr = err
 	}
-	notifyExplorerShellChanged()
+	if changed {
+		notifyExplorerShellChanged()
+	}
 	return firstErr
 }
 
@@ -157,6 +162,7 @@ func cleanupLegacyWindowsShellNamespaces() error {
 		return err
 	}
 	var firstErr error
+	changed := false
 	for _, entry := range entries {
 		if !isManagedWindowsShellNamespace(entry.name) {
 			continue
@@ -167,9 +173,21 @@ func cleanupLegacyWindowsShellNamespaces() error {
 		if err := deleteRegistryTree(registry.CURRENT_USER, filepath.Join(classesCLSIDBase, entry.clsid)); err != nil && firstErr == nil {
 			firstErr = err
 		}
+		changed = true
 	}
-	notifyExplorerShellChanged()
+	if changed {
+		notifyExplorerShellChanged()
+	}
 	return firstErr
+}
+
+func registryKeyExists(path string) bool {
+	key, err := registry.OpenKey(registry.CURRENT_USER, path, registry.QUERY_VALUE)
+	if err != nil {
+		return false
+	}
+	_ = key.Close()
+	return true
 }
 
 func listWindowsShellNamespaces() ([]windowsShellNamespaceEntry, error) {

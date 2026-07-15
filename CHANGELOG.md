@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Windows exit: confirmed window exit and tray-menu Exit now hide the window/tray immediately, then clean active mounts in the background before process termination, so Cloud Files providers disconnect and deregister during normal shutdown.
+- Windows exit: avoid broadcasting a global Explorer association refresh when no managed This PC namespace entry changed.
 - Windows Cloud Files: deleting a file or directory from the app file list now removes the existing sync-root placeholder immediately, cancels pending mount writeback that could recreate the object, and suppresses provider-owned delete callbacks so the removal is not sent to the remote backend twice.
 - Windows Cloud Files: app-side directory creation, uploads, copies, and moves now project new or overwritten remote objects into the sync root as placeholders when their parent directory is present.
 - Windows 设置：移除已失效的“此电脑”云卷入口卡片及左侧锚点，保留旧配置字段用于兼容已有配置文件。
