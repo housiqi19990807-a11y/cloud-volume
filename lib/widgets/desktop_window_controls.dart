@@ -105,7 +105,7 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
                       : '你可以先最小化窗口，或者直接退出应用。',
                 ),
           child: SizedBox(
-            width: 360,
+            width: double.infinity,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -866,3 +866,5 @@ Relevant files and flow: `go/mount/bucket_access.go` owns the session-scoped `ex
 **Shell refresh gotcha:** `windows_shell_namespace_windows.go` must call `notifyExplorerShellChanged` only when a managed This PC namespace key was actually added or removed. Broadcasting `SHCNE_ASSOCCHANGED | SHCNF_FLUSH` on every cleanup, including when no namespace entry exists, causes an unnecessary whole-desktop/Explorer refresh during exit.
 
 **Mounted-exit warning:** `DesktopWindowControls` always shows the close choice dialog, even with zero active mounts, so users can minimize/hide to tray instead of exiting. It calls `AppExitCleanup.activeMountCount`; any live mount changes the copy to explain that Exit unmounts active roots and that "后台运行" preserves them. On Windows the keep-alive action hides to tray; on Linux it minimizes while keeping the process and mounts alive.
+
+**Close dialog layout:** The action row must span the available dialog width (`double.infinity`) before using `MainAxisAlignment.end`; a fixed narrow width centers the buttons inside a wide warning dialog instead of placing them at the lower right.
