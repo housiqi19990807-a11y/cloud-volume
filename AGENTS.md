@@ -181,6 +181,24 @@ The Windows host removes the native title bar and uses app-owned chrome, while s
 - Even on Windows 11, fully custom borderless/popup windows can be less reliable than standard overlapped windows for OS-drawn corners. The current code requests rounded corners but does not implement a manual `SetWindowRgn` or transparent-window mask fallback.
 - The current development machine reported `Windows Server 2022 Datacenter`, `OsBuildNumber 20348`; lack of rounded corners there is expected and does not prove the DWM call is broken on Windows 11.
 
+### Feature: Windows Mount Presentation / Drive Letters
+
+Windows has two distinct mount presentations. The selected `windows_mount_mode` decides whether a bucket receives a real mapped drive letter or remains a Cloud Files sync-root directory.
+
+#### Key files
+
+- `go/mount/backend_windows.go` - Selects `cloud_files_cached`, `cloud_files_direct`, or `webdav`; an empty/unknown setting normalizes to `cloud_files_cached`.
+- `go/mount/backend_windows_webdav.go` / `go/mount/webdav_mount_windows.go` - WebDAV starts the local server, scans unused drive letters from `Z:` down through `D:`, and invokes `net use <drive> <url> /persistent:no`. This is currently the only backend that assigns a drive letter.
+- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/windows_cloud_files_paths.go` - Cloud Files registers the stable sync root at `~/Cloud Volume/<bucket>` and returns that directory as `mountPath`; it does not allocate a drive letter.
+- `go/mount/windows_shell_namespace_windows.go` - When `windows_this_pc_entry_enabled` is true, Cloud Files can register a per-user Explorer namespace shortcut under “This PC”. This is a folder entry targeting the sync root, not an `X:`-style drive.
+- `lib/widgets/windows_settings_sections.dart` / `lib/models/remote_storage_config.dart` - Settings exposes both Cloud Files variants and the legacy pure-WebDAV mapped-drive fallback. New/default configs select `cloud_files_cached` and disable the optional “This PC” namespace entry.
+
+#### Gotchas
+
+- Do not describe the Cloud Files “This PC” namespace item as a drive letter. `Win32_LogicalDisk` / `net use` will not contain it, and paths remain under the user profile.
+- Cloud Files can gain a drive-letter convenience entry by mapping an unused letter to its existing sync-root directory (for example with `subst` or an equivalent DOS-device API), while keeping the real directory as the CFAPI registration path. That mapping is presentation-only and needs explicit create/remove, collision, remount, and stale-cleanup handling; it is not implemented today.
+- The current WebDAV allocator does not let users request a specific letter; it always chooses the highest free letter in `Z:` to `D:` order.
+
 ### Feature: File Sync (文件同步)
 
 The sync feature lets users bind a local directory to a remote bucket prefix and keep them in sync (upload / download / two-way) on a configurable schedule, with conflict policies and exclude rules. The Go side runs a scheduler that computes diffs and executes operations; the Flutter side manages config and shows live status.
