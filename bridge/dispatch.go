@@ -114,6 +114,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return cleanupMounts()
 	case "get_active_mount_count":
 		return getActiveMountCount()
+	case "list_available_drive_letters":
+		return listAvailableDriveLetters()
 	case "cleanup_stale_windows_processes":
 		return cleanupStaleWindowsProcesses()
 	case "get_cache_stats":

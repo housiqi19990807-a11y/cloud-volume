@@ -39,3 +39,26 @@ func TestManagedWindowsCloudFilesMappingTargetRequiresDirectChild(t *testing.T) 
 		t.Fatalf("expected sibling directory not to be treated as managed")
 	}
 }
+
+func TestNormalizeWindowsDriveRequest(t *testing.T) {
+	t.Parallel()
+
+	for input, want := range map[string]string{
+		"z":  "Z:",
+		"Y:": "Y:",
+	} {
+		got, err := normalizeWindowsDriveRequest(input)
+		if err != nil {
+			t.Fatalf("normalizeWindowsDriveRequest(%q): %v", input, err)
+		}
+		if got != want {
+			t.Fatalf("normalizeWindowsDriveRequest(%q) = %q, want %q", input, got, want)
+		}
+	}
+
+	for _, input := range []string{"C:", "AA:", "1:"} {
+		if _, err := normalizeWindowsDriveRequest(input); err == nil {
+			t.Fatalf("expected %q to be rejected", input)
+		}
+	}
+}

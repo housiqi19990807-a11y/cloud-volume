@@ -284,17 +284,17 @@ func newMountSession(
 		return nil, err
 	}
 	session := &mountSession{
-		config:            cfg,
-		bucket:            bucket,
-		rootPrefix:        normalizeRootPrefix(cfg.RootPrefix),
-		requestedPath:     normalizeMountPath(options.MountPath),
-		readOnly:          options.ReadOnly,
-		assignDriveLetter: options.AssignDriveLetter,
-		autoSync:          options.AutoSync,
-		uploadWorkers:     options.UploadWorkers,
-		mountTarget:       normalizeMountPath(options.MountPath),
-		access:            access,
-		backend:           backend,
+		config:               cfg,
+		bucket:               bucket,
+		rootPrefix:           normalizeRootPrefix(cfg.RootPrefix),
+		requestedPath:        normalizeMountPath(options.MountPath),
+		readOnly:             options.ReadOnly,
+		requestedDriveLetter: strings.ToUpper(strings.TrimSpace(options.DriveLetter)),
+		autoSync:             options.AutoSync,
+		uploadWorkers:        options.UploadWorkers,
+		mountTarget:          normalizeMountPath(options.MountPath),
+		access:               access,
+		backend:              backend,
 	}
 	if err := backend.Initialize(session); err != nil {
 		_ = access.close()

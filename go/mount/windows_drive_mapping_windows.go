@@ -21,21 +21,38 @@ type windowsDriveMapping struct {
 var getLogicalDrivesProc = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLogicalDrives")
 
 func allocateWindowsDriveLetter() (string, error) {
+	letters, err := availableWindowsDriveLetters()
+	if err != nil {
+		return "", err
+	}
+	if len(letters) == 0 {
+		return "", fmt.Errorf("no available drive letter")
+	}
+	return letters[0], nil
+}
+
+// AvailableWindowsDriveLetters returns free mount choices in preferred order.
+func AvailableWindowsDriveLetters() ([]string, error) {
+	return availableWindowsDriveLetters()
+}
+
+func availableWindowsDriveLetters() ([]string, error) {
 	mask, _, callErr := getLogicalDrivesProc.Call()
 	if mask == 0 {
-		return "", fmt.Errorf("list local drives: %w", callErr)
+		return nil, fmt.Errorf("list local drives: %v", callErr)
 	}
 	used := uint32(mask)
+	letters := make([]string, 0, 23)
 	for letter := 'Z'; letter >= 'D'; letter-- {
 		index := uint(letter - 'A')
 		if used&(1<<index) == 0 {
-			return string(letter) + ":", nil
+			letters = append(letters, string(letter)+":")
 		}
 	}
-	return "", fmt.Errorf("no available drive letter")
+	return letters, nil
 }
 
-func assignWindowsDriveLetter(targetPath string) (string, error) {
+func assignWindowsDriveLetter(targetPath, requestedDrive string) (string, error) {
 	target := filepath.Clean(strings.TrimSpace(targetPath))
 	if !filepath.IsAbs(target) {
 		return "", fmt.Errorf("drive mapping target must be absolute")
@@ -48,7 +65,7 @@ func assignWindowsDriveLetter(targetPath string) (string, error) {
 		return "", fmt.Errorf("drive mapping target %q is not a directory", target)
 	}
 
-	drive, err := allocateWindowsDriveLetter()
+	drive, err := selectWindowsDriveLetter(requestedDrive)
 	if err != nil {
 		return "", err
 	}
@@ -68,6 +85,38 @@ func assignWindowsDriveLetter(targetPath string) (string, error) {
 	}
 	_ = removeWindowsDriveLetter(drive, target)
 	return "", fmt.Errorf("drive mapping %s was not visible after creation", drive)
+}
+
+func selectWindowsDriveLetter(requestedDrive string) (string, error) {
+	if strings.TrimSpace(requestedDrive) == "" {
+		return allocateWindowsDriveLetter()
+	}
+	drive, err := normalizeWindowsDriveRequest(requestedDrive)
+	if err != nil {
+		return "", err
+	}
+	letters, err := availableWindowsDriveLetters()
+	if err != nil {
+		return "", err
+	}
+	for _, available := range letters {
+		if available == drive {
+			return drive, nil
+		}
+	}
+	return "", fmt.Errorf("requested drive letter %s is no longer available", drive)
+}
+
+func normalizeWindowsDriveRequest(value string) (string, error) {
+	trimmed := strings.ToUpper(strings.TrimSpace(value))
+	if len(trimmed) == 1 {
+		trimmed += ":"
+	}
+	drive := normalizeWindowsDrive(trimmed)
+	if drive == "" || len(drive) != 2 || drive[0] < 'D' || drive[0] > 'Z' {
+		return "", fmt.Errorf("invalid drive letter %q", value)
+	}
+	return drive, nil
 }
 
 func removeWindowsDriveLetter(drivePath, expectedTarget string) error {

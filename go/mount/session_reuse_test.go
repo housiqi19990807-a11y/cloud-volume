@@ -44,7 +44,7 @@ func TestMountSessionMatchesRequiresNormalizedConfigAndBucket(t *testing.T) {
 		Endpoint:         "https://example.com",
 		Bucket:           "bucket-a",
 		WindowsMountMode: storageconfig.WindowsMountModeCloudFilesCached,
-	}, "bucket-a", MountOptions{AssignDriveLetter: true}) {
+	}, "bucket-a", MountOptions{DriveLetter: "Z:"}) {
 		t.Fatalf("expected drive-letter option change to force remount")
 	}
 }

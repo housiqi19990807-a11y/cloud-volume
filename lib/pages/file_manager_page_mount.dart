@@ -153,12 +153,25 @@ extension _FileManagerPageMount on _FileManagerPageState {
       _showMountUnavailableMessage(targetBucket);
       return;
     }
+    final supportsDriveLetters =
+        isWindowsPlatform &&
+        targetBucket.config.windowsMountMode != WindowsMountMode.webdav;
+    var availableDriveLetters = const <String>[];
+    if (supportsDriveLetters && widget.api is AvailableDriveLetterQuery) {
+      try {
+        availableDriveLetters = await (widget.api as AvailableDriveLetterQuery)
+            .listAvailableDriveLetters();
+      } catch (error) {
+        _showPageError(error);
+        return;
+      }
+    }
+    if (!mounted) return;
     final options = await showMountBucketDialog(
       context,
       bucket: targetBucket.bucket.name,
-      allowDriveLetter:
-          isWindowsPlatform &&
-          targetBucket.config.windowsMountMode != WindowsMountMode.webdav,
+      showWindowsMountMode: supportsDriveLetters,
+      availableDriveLetters: availableDriveLetters,
     );
     if (options == null) {
       return;

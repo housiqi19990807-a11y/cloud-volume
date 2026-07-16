@@ -140,8 +140,11 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 			return err
 		}
 	}
-	if session.assignDriveLetter {
-		driveLetter, err := assignWindowsDriveLetter(session.mountPath)
+	if session.requestedDriveLetter != "" {
+		driveLetter, err := assignWindowsDriveLetter(
+			session.mountPath,
+			session.requestedDriveLetter,
+		)
 		if err != nil {
 			return fmt.Errorf("assign Cloud Files drive letter: %w", err)
 		}

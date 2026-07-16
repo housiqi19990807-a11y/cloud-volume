@@ -25,11 +25,11 @@ func mountBucket(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	log.Printf(
-		"[bridge/mount] mount bucket=%q path=%q read_only=%t assign_drive_letter=%t",
+		"[bridge/mount] mount bucket=%q path=%q read_only=%t drive_letter=%q",
 		input.Bucket,
 		input.Options.MountPath,
 		input.Options.ReadOnly,
-		input.Options.AssignDriveLetter,
+		input.Options.DriveLetter,
 	)
 	return bucketmount.MountBucketWithOptions(input.Config, input.Bucket, input.Options)
 }
@@ -70,6 +70,10 @@ func cleanupMounts() (any, error) {
 
 func getActiveMountCount() (any, error) {
 	return map[string]any{"count": bucketmount.ActiveMountCount()}, nil
+}
+
+func listAvailableDriveLetters() (any, error) {
+	return bucketmount.AvailableWindowsDriveLetters()
 }
 
 func cleanupStaleWindowsProcesses() (any, error) {

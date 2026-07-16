@@ -300,6 +300,11 @@ abstract interface class ActiveMountQuery {
   Future<int> getActiveMountCount();
 }
 
+/// Optional Windows capability used to populate Cloud Files drive choices.
+abstract interface class AvailableDriveLetterQuery {
+  Future<List<String>> listAvailableDriveLetters();
+}
+
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
 
 /// Bridge build metadata used for update package selection.
@@ -378,18 +383,18 @@ class MountBucketOptions {
   const MountBucketOptions({
     this.mountPath = '',
     this.readOnly = false,
-    this.assignDriveLetter = false,
+    this.driveLetter = '',
   });
 
   final String mountPath;
   final bool readOnly;
-  final bool assignDriveLetter;
+  final String driveLetter;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'mountPath': mountPath.trim(),
       'readOnly': readOnly,
-      'assignDriveLetter': assignDriveLetter,
+      'driveLetter': driveLetter.trim().toUpperCase(),
     };
   }
 }

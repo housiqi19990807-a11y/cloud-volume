@@ -1,30 +1,38 @@
-// 挂载设置弹窗：选择挂载路径和读写模式，保持桶列表操作行简洁。
+// Mount settings dialog separates access mode from platform-specific presentation.
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:remote_storage/services/app_modal.dart';
+
+enum _MountPresentation { driveLetter, path }
 
 Future<MountBucketOptions?> showMountBucketDialog(
   BuildContext context, {
   required String bucket,
-  bool allowDriveLetter = false,
+  bool showWindowsMountMode = false,
+  List<String> availableDriveLetters = const <String>[],
 }) {
   return showAppModal<MountBucketOptions?>(
     context: context,
-    builder: (dialogContext) =>
-        _MountBucketDialog(bucket: bucket, allowDriveLetter: allowDriveLetter),
+    builder: (dialogContext) => _MountBucketDialog(
+      bucket: bucket,
+      showWindowsMountMode: showWindowsMountMode,
+      availableDriveLetters: availableDriveLetters,
+    ),
   );
 }
 
 class _MountBucketDialog extends StatefulWidget {
   const _MountBucketDialog({
     required this.bucket,
-    required this.allowDriveLetter,
+    required this.showWindowsMountMode,
+    required this.availableDriveLetters,
   });
 
   final String bucket;
-  final bool allowDriveLetter;
+  final bool showWindowsMountMode;
+  final List<String> availableDriveLetters;
 
   @override
   State<_MountBucketDialog> createState() => _MountBucketDialogState();
@@ -33,85 +41,112 @@ class _MountBucketDialog extends StatefulWidget {
 class _MountBucketDialogState extends State<_MountBucketDialog> {
   String _mountPath = '';
   bool _readOnly = false;
-  bool _assignDriveLetter = false;
+  late _MountPresentation _presentation;
+  String? _driveLetter;
+
+  @override
+  void initState() {
+    super.initState();
+    final hasDrive = widget.availableDriveLetters.isNotEmpty;
+    _presentation = widget.showWindowsMountMode && hasDrive
+        ? _MountPresentation.driveLetter
+        : _MountPresentation.path;
+    _driveLetter = hasDrive ? widget.availableDriveLetters.first : null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final hasCustomPath = _mountPath.trim().isNotEmpty;
+    final usesPath = _presentation == _MountPresentation.path;
     return ShadDialog(
       title: const Text('挂载存储桶'),
-      description: Text('选择 ${widget.bucket} 的本地挂载方式。'),
+      description: Text('配置 ${widget.bucket} 的本地挂载。'),
       child: SizedBox(
         width: 440,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ModeSwitch(
-              readOnly: _readOnly,
+            ShadSwitch(
+              value: _readOnly,
               onChanged: (value) => setState(() => _readOnly = value),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '挂载路径',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.foreground,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: SelectableText(
-                hasCustomPath ? _mountPath : '使用系统默认挂载路径',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: hasCustomPath
-                      ? theme.colorScheme.foreground
-                      : theme.colorScheme.mutedForeground,
+              label: Text(
+                '只读挂载',
+                style: theme.textTheme.small.copyWith(
+                  color: theme.colorScheme.foreground,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
+              sublabel: const Text('关闭时允许在挂载目录中新增、修改和删除文件。'),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ShadButton.outline(
-                  onPressed: _pickDirectory,
-                  child: const Text('选择路径'),
-                ),
-                const SizedBox(width: 10),
-                ShadButton.outline(
-                  onPressed: hasCustomPath
-                      ? () => setState(() => _mountPath = '')
-                      : null,
-                  child: const Text('使用默认'),
-                ),
-              ],
-            ),
-            if (widget.allowDriveLetter) ...[
-              const SizedBox(height: 16),
-              ShadSwitch(
-                value: _assignDriveLetter,
-                onChanged: (value) =>
-                    setState(() => _assignDriveLetter = value),
-                label: Text(
-                  '分配盘符',
-                  style: theme.textTheme.small.copyWith(
-                    color: theme.colorScheme.foreground,
-                    fontWeight: FontWeight.w600,
+            if (widget.showWindowsMountMode) ...[
+              const SizedBox(height: 18),
+              _FieldLabel(text: '挂载模式', theme: theme),
+              const SizedBox(height: 8),
+              ShadSelect<_MountPresentation>(
+                key: ValueKey<_MountPresentation>(_presentation),
+                minWidth: 440,
+                initialValue: _presentation,
+                selectedOptionBuilder: (context, value) =>
+                    Text(_presentationLabel(value)),
+                options: [
+                  if (widget.availableDriveLetters.isNotEmpty)
+                    const ShadOption<_MountPresentation>(
+                      value: _MountPresentation.driveLetter,
+                      child: Text('分配盘符'),
+                    ),
+                  const ShadOption<_MountPresentation>(
+                    value: _MountPresentation.path,
+                    child: Text('路径挂载'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _presentation = value);
+                },
+              ),
+              if (widget.availableDriveLetters.isEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '当前没有可分配的盘符，请使用路径挂载。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.mutedForeground,
                   ),
                 ),
-                sublabel: const Text('自动选择空闲盘符；卸载存储桶时会一并移除。'),
+              ],
+            ],
+            if (widget.showWindowsMountMode && !usesPath) ...[
+              const SizedBox(height: 16),
+              _FieldLabel(text: '盘符', theme: theme),
+              const SizedBox(height: 8),
+              ShadSelect<String>(
+                key: ValueKey<String?>(_driveLetter),
+                minWidth: 440,
+                initialValue: _driveLetter,
+                selectedOptionBuilder: (context, value) => Text(value),
+                options: widget.availableDriveLetters
+                    .map(
+                      (letter) => ShadOption<String>(
+                        value: letter,
+                        child: Text(letter),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => setState(() => _driveLetter = value),
               ),
             ],
-            const SizedBox(height: 18),
+            if (!widget.showWindowsMountMode || usesPath) ...[
+              const SizedBox(height: 16),
+              _PathPicker(
+                theme: theme,
+                mountPath: _mountPath,
+                onPick: _pickDirectory,
+                onReset: _mountPath.isEmpty
+                    ? null
+                    : () => setState(() => _mountPath = ''),
+              ),
+            ],
+            const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -121,13 +156,15 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                 ),
                 const SizedBox(width: 10),
                 ShadButton(
-                  onPressed: () => Navigator.of(context).pop(
-                    MountBucketOptions(
-                      mountPath: _mountPath,
-                      readOnly: _readOnly,
-                      assignDriveLetter: _assignDriveLetter,
-                    ),
-                  ),
+                  onPressed: _canSubmit
+                      ? () => Navigator.of(context).pop(
+                          MountBucketOptions(
+                            mountPath: usesPath ? _mountPath : '',
+                            readOnly: _readOnly,
+                            driveLetter: usesPath ? '' : _driveLetter ?? '',
+                          ),
+                        )
+                      : null,
                   child: const Text('开始挂载'),
                 ),
               ],
@@ -138,57 +175,92 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
     );
   }
 
+  bool get _canSubmit =>
+      _presentation == _MountPresentation.path || _driveLetter != null;
+
   Future<void> _pickDirectory() async {
     final path = await FilePicker.getDirectoryPath(
       dialogTitle: '选择挂载路径',
       initialDirectory: _mountPath.trim().isEmpty ? null : _mountPath.trim(),
     );
-    if (path == null || path.trim().isEmpty) {
-      return;
-    }
+    if (path == null || path.trim().isEmpty || !mounted) return;
     setState(() => _mountPath = path.trim());
   }
 }
 
-class _ModeSwitch extends StatelessWidget {
-  const _ModeSwitch({required this.readOnly, required this.onChanged});
+class _PathPicker extends StatelessWidget {
+  const _PathPicker({
+    required this.theme,
+    required this.mountPath,
+    required this.onPick,
+    required this.onReset,
+  });
 
-  final bool readOnly;
-  final ValueChanged<bool> onChanged;
+  final ShadThemeData theme;
+  final String mountPath;
+  final VoidCallback onPick;
+  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Row(
+    final hasCustomPath = mountPath.trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: ShadButton(
-            size: ShadButtonSize.sm,
-            onPressed: () => onChanged(false),
-            backgroundColor: readOnly
-                ? theme.colorScheme.secondary
-                : theme.colorScheme.primary,
-            foregroundColor: readOnly
-                ? theme.colorScheme.foreground
-                : theme.colorScheme.primaryForeground,
-            child: const Text('读写挂载'),
+        _FieldLabel(text: '挂载路径', theme: theme),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondary,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: SelectableText(
+            hasCustomPath ? mountPath : '使用系统默认挂载路径',
+            style: TextStyle(
+              fontSize: 12,
+              color: hasCustomPath
+                  ? theme.colorScheme.foreground
+                  : theme.colorScheme.mutedForeground,
+            ),
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ShadButton(
-            size: ShadButtonSize.sm,
-            onPressed: () => onChanged(true),
-            backgroundColor: readOnly
-                ? theme.colorScheme.primary
-                : theme.colorScheme.secondary,
-            foregroundColor: readOnly
-                ? theme.colorScheme.primaryForeground
-                : theme.colorScheme.foreground,
-            child: const Text('只读挂载'),
-          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            ShadButton.outline(onPressed: onPick, child: const Text('选择路径')),
+            const SizedBox(width: 10),
+            ShadButton.outline(onPressed: onReset, child: const Text('使用默认')),
+          ],
         ),
       ],
     );
   }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({required this.text, required this.theme});
+
+  final String text;
+  final ShadThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: theme.colorScheme.foreground,
+      ),
+    );
+  }
+}
+
+String _presentationLabel(_MountPresentation value) {
+  return switch (value) {
+    _MountPresentation.driveLetter => '分配盘符',
+    _MountPresentation.path => '路径挂载',
+  };
 }

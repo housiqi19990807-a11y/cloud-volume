@@ -43,27 +43,27 @@ type mountProbeSnapshot struct {
 }
 
 type mountSession struct {
-	config            storageconfig.RemoteStorageConfig
-	bucket            string
-	rootPrefix        string
-	mountName         string
-	requestedPath     string
-	readOnly          bool
-	assignDriveLetter bool
-	autoSync          bool
-	uploadWorkers     int
-	mountPath         string
-	mountTarget       string
-	driveLetter       string
-	managedPath       bool
-	serverURL         string
-	port              int
-	mounted           bool
-	server            *webDAVServer
-	access            *bucketAccess
-	backend           mountBackend
-	lastError         string
-	stopping          bool
+	config               storageconfig.RemoteStorageConfig
+	bucket               string
+	rootPrefix           string
+	mountName            string
+	requestedPath        string
+	readOnly             bool
+	requestedDriveLetter string
+	autoSync             bool
+	uploadWorkers        int
+	mountPath            string
+	mountTarget          string
+	driveLetter          string
+	managedPath          bool
+	serverURL            string
+	port                 int
+	mounted              bool
+	server               *webDAVServer
+	access               *bucketAccess
+	backend              mountBackend
+	lastError            string
+	stopping             bool
 }
 
 func (s *mountSession) status() BucketMountStatus {
