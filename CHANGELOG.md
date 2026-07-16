@@ -2,6 +2,7 @@
 
 ## Unreleased
 - Windows Cloud Files: the mount dialog now uses a read-only switch plus a Windows-only presentation selector for “分配盘符” or “路径挂载”. Drive mode is the default when available, lists every free letter from `Z:` through `D:` for explicit selection, and unmount/remount/normal exit remove only mappings whose target still matches the managed Cloud Files path.
+- Windows Cloud Files: the drive selector now opens without scrolling the modal to its last row, and an inline note clarifies that the drive is a local sync-directory mapping rather than a representation of the cloud account's real capacity.
 - Windows exit: confirmed window exit and tray-menu Exit now hide the window/tray immediately, then clean active mounts in the background before process termination, so Cloud Files providers disconnect and deregister during normal shutdown.
 - Windows exit: avoid broadcasting a global Explorer association refresh when no managed This PC namespace entry changed.
 - Desktop exit: when mounts are active, the close dialog now warns that Exit will unmount them and labels the keep-alive action "后台运行".

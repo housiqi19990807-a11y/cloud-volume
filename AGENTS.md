@@ -201,6 +201,7 @@ Windows has two distinct mount presentations. The selected `windows_mount_mode` 
 
 - Do not describe the Cloud Files “This PC” namespace item as a drive letter. `Win32_LogicalDisk` / `net use` will not contain it, and paths remain under the user profile.
 - Cloud Files drive letters are `subst` convenience mappings, not separate volumes. Keep `session.mountPath` as the CFAPI registration/hydration root and `session.driveLetter` as presentation only; never translate provider callback paths through the drive letter.
+- The drive-letter `ShadSelect` sets `ensureSelectedVisible: false`. The package default calls `Scrollable.ensureVisible` for the selected option and can scroll the surrounding app modal to its final row when the popover opens.
 - Removal must query the current `subst` target and refuse to delete a drive whose target differs from the session path. Per-bucket stale cleanup runs before deleting the sync root, and full cleanup only removes mappings targeting direct children of `~/Cloud Volume`.
 - The current WebDAV allocator does not let users request a specific letter; it always chooses the highest free letter in `Z:` to `D:` order.
 

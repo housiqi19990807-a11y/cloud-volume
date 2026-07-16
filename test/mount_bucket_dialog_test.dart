@@ -24,6 +24,12 @@ void main() {
     expect(find.text('盘符'), findsOneWidget);
     expect(find.text('Z:'), findsOneWidget);
     expect(find.text('挂载路径'), findsNothing);
+    expect(find.text('映射盘符只是将本地同步目录映射到盘符入口，不代表云存储的真实容量。'), findsOneWidget);
+
+    final driveSelect = tester.widget<ShadSelect<String>>(
+      find.byType(ShadSelect<String>),
+    );
+    expect(driveSelect.ensureSelectedVisible, isFalse);
 
     await tester.tap(find.byType(ShadSwitch));
     await tester.tap(find.text('开始挂载'));

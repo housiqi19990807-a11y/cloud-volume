@@ -123,6 +123,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                 key: ValueKey<String?>(_driveLetter),
                 minWidth: 440,
                 initialValue: _driveLetter,
+                ensureSelectedVisible: false,
                 selectedOptionBuilder: (context, value) => Text(value),
                 options: widget.availableDriveLetters
                     .map(
@@ -133,6 +134,28 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                     )
                     .toList(growable: false),
                 onChanged: (value) => setState(() => _driveLetter = value),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    LucideIcons.info,
+                    size: 15,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      '映射盘符只是将本地同步目录映射到盘符入口，不代表云存储的真实容量。',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.45,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
             if (!widget.showWindowsMountMode || usesPath) ...[
