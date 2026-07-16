@@ -140,6 +140,19 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 			return err
 		}
 	}
+	if session.assignDriveLetter {
+		driveLetter, err := assignWindowsDriveLetter(session.mountPath)
+		if err != nil {
+			return fmt.Errorf("assign Cloud Files drive letter: %w", err)
+		}
+		session.driveLetter = driveLetter
+		log.Printf(
+			"[mount/cloud-files] drive-mapped bucket=%q drive=%q path=%q",
+			session.bucket,
+			session.driveLetter,
+			session.mountPath,
+		)
+	}
 	session.mounted = true
 	log.Printf(
 		"[mount/cloud-files] start-done bucket=%q mode=%q path=%q",
@@ -164,6 +177,15 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 	}
 
 	var firstErr error
+	if session.driveLetter != "" {
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=drive-unmap-start drive=%q", session.bucket, session.driveLetter)
+		if err := removeWindowsDriveLetter(session.driveLetter, session.mountPath); err != nil {
+			firstErr = err
+		} else {
+			session.driveLetter = ""
+		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=drive-unmap-done err=%v", session.bucket, firstErr)
+	}
 	if b.provider != nil {
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=provider-disconnect-start", session.bucket)
 		if err := b.provider.Disconnect(); err != nil && firstErr == nil {
@@ -229,6 +251,9 @@ func (b *windowsCloudFilesBackend) IsActive(session *mountSession) (bool, error)
 // being mounted. Previous implementations cleaned ALL buckets under the root,
 // which broke concurrent multi-bucket mounts by tearing down other active sessions.
 func (b *windowsCloudFilesBackend) CleanupStale(session *mountSession) error {
+	if err := cleanupWindowsDriveMappingsForPath(session.mountPath); err != nil {
+		return err
+	}
 	if err := cleanupManagedWindowsCloudFilesForBucket(session.bucket); err != nil {
 		return err
 	}
@@ -240,6 +265,9 @@ func (b *windowsCloudFilesBackend) CleanupStale(session *mountSession) error {
 func cleanupManagedWindowsCloudFilesForBucket(bucket string) error {
 	mountPath, err := windowsCloudFilesMountPath(bucket)
 	if err != nil {
+		return err
+	}
+	if err := cleanupWindowsDriveMappingsForPath(mountPath); err != nil {
 		return err
 	}
 	if _, statErr := os.Stat(mountPath); os.IsNotExist(statErr) {
@@ -262,6 +290,9 @@ func cleanupManagedWindowsCloudFilesForBucket(bucket string) error {
 // cleanupManagedWindowsCloudFilesArtifacts removes ALL Cloud Files sync-root
 // directories under the managed root. Used only during full cleanup/shutdown.
 func cleanupManagedWindowsCloudFilesArtifacts() error {
+	if err := cleanupManagedWindowsCloudFilesDriveMappings(); err != nil {
+		return err
+	}
 	if err := cleanupLegacyWindowsShellNamespaces(); err != nil {
 		return err
 	}

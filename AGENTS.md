@@ -188,15 +188,19 @@ Windows has two distinct mount presentations. The selected `windows_mount_mode` 
 #### Key files
 
 - `go/mount/backend_windows.go` - Selects `cloud_files_cached`, `cloud_files_direct`, or `webdav`; an empty/unknown setting normalizes to `cloud_files_cached`.
-- `go/mount/backend_windows_webdav.go` / `go/mount/webdav_mount_windows.go` - WebDAV starts the local server, scans unused drive letters from `Z:` down through `D:`, and invokes `net use <drive> <url> /persistent:no`. This is currently the only backend that assigns a drive letter.
-- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/windows_cloud_files_paths.go` - Cloud Files registers the stable sync root at `~/Cloud Volume/<bucket>` and returns that directory as `mountPath`; it does not allocate a drive letter.
+- `go/mount/backend_windows_webdav.go` / `go/mount/webdav_mount_windows.go` - WebDAV starts the local server, scans unused drive letters from `Z:` down through `D:`, and invokes `net use <drive> <url> /persistent:no`.
+- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/windows_cloud_files_paths.go` - Cloud Files registers the stable sync root at `~/Cloud Volume/<bucket>` and returns that directory as `mountPath`. When requested, startup assigns a drive letter after the provider health check; stop removes it before disconnecting the provider.
+- `go/mount/windows_drive_mapping_windows.go` - Shared Windows drive-letter allocation and `subst` lifecycle. It scans `Z:` down through `D:`, verifies the mapping after creation, compares the current target before removal, and cleans managed mappings whose targets are direct children of the Cloud Files root.
 - `go/mount/windows_shell_namespace_windows.go` - When `windows_this_pc_entry_enabled` is true, Cloud Files can register a per-user Explorer namespace shortcut under “This PC”. This is a folder entry targeting the sync root, not an `X:`-style drive.
+- `lib/widgets/mount_bucket_dialog.dart` / `lib/pages/file_manager_page_mount.dart` - The mount dialog shows “分配盘符” only on Windows Cloud Files modes and sends `assignDriveLetter` through `MountBucketOptions`; WebDAV and non-Windows mounts do not show the switch.
+- `lib/services/remote_storage_gateway.dart` / `lib/models/bucket_mount_status.dart` / `go/mount/options.go` / `go/mount/types.go` - Carry `assignDriveLetter` into the session and return the actual `driveLetter` to Flutter. Opening a mounted bucket prefers that drive when present while the provider continues using the real sync-root path internally.
 - `lib/widgets/windows_settings_sections.dart` / `lib/models/remote_storage_config.dart` - Settings exposes both Cloud Files variants and the legacy pure-WebDAV mapped-drive fallback. New/default configs select `cloud_files_cached` and disable the optional “This PC” namespace entry.
 
 #### Gotchas
 
 - Do not describe the Cloud Files “This PC” namespace item as a drive letter. `Win32_LogicalDisk` / `net use` will not contain it, and paths remain under the user profile.
-- Cloud Files can gain a drive-letter convenience entry by mapping an unused letter to its existing sync-root directory (for example with `subst` or an equivalent DOS-device API), while keeping the real directory as the CFAPI registration path. That mapping is presentation-only and needs explicit create/remove, collision, remount, and stale-cleanup handling; it is not implemented today.
+- Cloud Files drive letters are `subst` convenience mappings, not separate volumes. Keep `session.mountPath` as the CFAPI registration/hydration root and `session.driveLetter` as presentation only; never translate provider callback paths through the drive letter.
+- Removal must query the current `subst` target and refuse to delete a drive whose target differs from the session path. Per-bucket stale cleanup runs before deleting the sync root, and full cleanup only removes mappings targeting direct children of `~/Cloud Volume`.
 - The current WebDAV allocator does not let users request a specific letter; it always chooses the highest free letter in `Z:` to `D:` order.
 
 ### Feature: File Sync (文件同步)

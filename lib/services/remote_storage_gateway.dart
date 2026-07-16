@@ -375,15 +375,21 @@ class CleanCacheResult {
 }
 
 class MountBucketOptions {
-  const MountBucketOptions({this.mountPath = '', this.readOnly = false});
+  const MountBucketOptions({
+    this.mountPath = '',
+    this.readOnly = false,
+    this.assignDriveLetter = false,
+  });
 
   final String mountPath;
   final bool readOnly;
+  final bool assignDriveLetter;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'mountPath': mountPath.trim(),
       'readOnly': readOnly,
+      'assignDriveLetter': assignDriveLetter,
     };
   }
 }

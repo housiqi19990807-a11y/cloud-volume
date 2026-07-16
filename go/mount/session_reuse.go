@@ -21,6 +21,7 @@ func mountSessionMatches(
 		reflect.DeepEqual(session.config, normalized) &&
 		session.requestedPath == normalizeMountPath(options.MountPath) &&
 		session.readOnly == options.ReadOnly &&
+		session.assignDriveLetter == options.AssignDriveLetter &&
 		session.autoSync == options.AutoSync &&
 		session.uploadWorkers == options.UploadWorkers
 }

@@ -10,5 +10,8 @@ func newWindowsCloudFilesBackend(mode string) (mountBackend, error) {
 }
 
 func cleanupManagedWindowsCloudFilesArtifacts() error {
+	if err := cleanupManagedWindowsCloudFilesDriveMappings(); err != nil {
+		return err
+	}
 	return cleanupLegacyWindowsShellNamespaces()
 }

@@ -18,12 +18,13 @@ const (
 
 // BucketMountStatus is returned to Flutter so the UI can render mount actions.
 type BucketMountStatus struct {
-	Mounted   bool   `json:"mounted"`
-	Bucket    string `json:"bucket"`
-	MountPath string `json:"mountPath"`
-	ServerURL string `json:"serverUrl"`
-	Port      int    `json:"port"`
-	LastError string `json:"lastError,omitempty"`
+	Mounted     bool   `json:"mounted"`
+	Bucket      string `json:"bucket"`
+	MountPath   string `json:"mountPath"`
+	ServerURL   string `json:"serverUrl"`
+	Port        int    `json:"port"`
+	DriveLetter string `json:"driveLetter,omitempty"`
+	LastError   string `json:"lastError,omitempty"`
 }
 
 // mountBackend keeps lifecycle differences out of the cross-platform manager.
@@ -42,25 +43,27 @@ type mountProbeSnapshot struct {
 }
 
 type mountSession struct {
-	config        storageconfig.RemoteStorageConfig
-	bucket        string
-	rootPrefix    string
-	mountName     string
-	requestedPath string
-	readOnly      bool
-	autoSync      bool
-	uploadWorkers int
-	mountPath     string
-	mountTarget   string
-	managedPath   bool
-	serverURL     string
-	port          int
-	mounted       bool
-	server        *webDAVServer
-	access        *bucketAccess
-	backend       mountBackend
-	lastError     string
-	stopping      bool
+	config            storageconfig.RemoteStorageConfig
+	bucket            string
+	rootPrefix        string
+	mountName         string
+	requestedPath     string
+	readOnly          bool
+	assignDriveLetter bool
+	autoSync          bool
+	uploadWorkers     int
+	mountPath         string
+	mountTarget       string
+	driveLetter       string
+	managedPath       bool
+	serverURL         string
+	port              int
+	mounted           bool
+	server            *webDAVServer
+	access            *bucketAccess
+	backend           mountBackend
+	lastError         string
+	stopping          bool
 }
 
 func (s *mountSession) status() BucketMountStatus {
@@ -68,12 +71,13 @@ func (s *mountSession) status() BucketMountStatus {
 		return BucketMountStatus{}
 	}
 	return BucketMountStatus{
-		Mounted:   s.mounted,
-		Bucket:    s.bucket,
-		MountPath: s.mountPath,
-		ServerURL: s.serverURL,
-		Port:      s.port,
-		LastError: s.lastError,
+		Mounted:     s.mounted,
+		Bucket:      s.bucket,
+		MountPath:   s.mountPath,
+		ServerURL:   s.serverURL,
+		Port:        s.port,
+		DriveLetter: s.driveLetter,
+		LastError:   s.lastError,
 	}
 }
 

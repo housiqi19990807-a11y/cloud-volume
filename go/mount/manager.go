@@ -173,7 +173,11 @@ func (m *manager) openBucketMount(bucket string) (BucketMountStatus, error) {
 	session := existing
 	m.mu.Unlock()
 
-	if err := openMountPath(session.mountPath); err != nil {
+	openPath := session.mountPath
+	if session.driveLetter != "" {
+		openPath = session.driveLetter
+	}
+	if err := openMountPath(openPath); err != nil {
 		return session.status(), err
 	}
 	return session.status(), nil
@@ -280,16 +284,17 @@ func newMountSession(
 		return nil, err
 	}
 	session := &mountSession{
-		config:        cfg,
-		bucket:        bucket,
-		rootPrefix:    normalizeRootPrefix(cfg.RootPrefix),
-		requestedPath: normalizeMountPath(options.MountPath),
-		readOnly:      options.ReadOnly,
-		autoSync:      options.AutoSync,
-		uploadWorkers: options.UploadWorkers,
-		mountTarget:   normalizeMountPath(options.MountPath),
-		access:        access,
-		backend:       backend,
+		config:            cfg,
+		bucket:            bucket,
+		rootPrefix:        normalizeRootPrefix(cfg.RootPrefix),
+		requestedPath:     normalizeMountPath(options.MountPath),
+		readOnly:          options.ReadOnly,
+		assignDriveLetter: options.AssignDriveLetter,
+		autoSync:          options.AutoSync,
+		uploadWorkers:     options.UploadWorkers,
+		mountTarget:       normalizeMountPath(options.MountPath),
+		access:            access,
+		backend:           backend,
 	}
 	if err := backend.Initialize(session); err != nil {
 		_ = access.close()

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Windows Cloud Files: the mount dialog can now optionally assign the highest available drive letter from `Z:` through `D:` to the bucket sync root; unmount, remount cleanup, and normal exit remove only mappings whose target still matches the managed Cloud Files path.
 - Windows exit: confirmed window exit and tray-menu Exit now hide the window/tray immediately, then clean active mounts in the background before process termination, so Cloud Files providers disconnect and deregister during normal shutdown.
 - Windows exit: avoid broadcasting a global Explorer association refresh when no managed This PC namespace entry changed.
 - Desktop exit: when mounts are active, the close dialog now warns that Exit will unmount them and labels the keep-alive action "后台运行".

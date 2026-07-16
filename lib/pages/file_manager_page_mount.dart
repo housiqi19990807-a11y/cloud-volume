@@ -156,6 +156,9 @@ extension _FileManagerPageMount on _FileManagerPageState {
     final options = await showMountBucketDialog(
       context,
       bucket: targetBucket.bucket.name,
+      allowDriveLetter:
+          isWindowsPlatform &&
+          targetBucket.config.windowsMountMode != WindowsMountMode.webdav,
     );
     if (options == null) {
       return;

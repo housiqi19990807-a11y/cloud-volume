@@ -9,10 +9,11 @@ import (
 // MountOptions carries optional caller-specific mount behavior without
 // changing the desktop bridge contract.
 type MountOptions struct {
-	MountPath     string
-	ReadOnly      bool
-	AutoSync      bool
-	UploadWorkers int
+	MountPath         string `json:"mountPath"`
+	ReadOnly          bool   `json:"readOnly"`
+	AssignDriveLetter bool   `json:"assignDriveLetter"`
+	AutoSync          bool   `json:"autoSync"`
+	UploadWorkers     int    `json:"uploadWorkers"`
 }
 
 func normalizeMountPath(value string) string {

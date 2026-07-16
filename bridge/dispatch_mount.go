@@ -25,10 +25,11 @@ func mountBucket(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	log.Printf(
-		"[bridge/mount] mount bucket=%q path=%q read_only=%t",
+		"[bridge/mount] mount bucket=%q path=%q read_only=%t assign_drive_letter=%t",
 		input.Bucket,
 		input.Options.MountPath,
 		input.Options.ReadOnly,
+		input.Options.AssignDriveLetter,
 	)
 	return bucketmount.MountBucketWithOptions(input.Config, input.Bucket, input.Options)
 }

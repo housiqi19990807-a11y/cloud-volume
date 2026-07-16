@@ -7,6 +7,7 @@ class BucketMountStatus {
     required this.mountPath,
     required this.serverUrl,
     required this.port,
+    this.driveLetter = '',
     this.lastError,
   });
 
@@ -17,6 +18,7 @@ class BucketMountStatus {
       mountPath: (json['mountPath'] ?? '').toString(),
       serverUrl: (json['serverUrl'] ?? '').toString(),
       port: (json['port'] ?? 0) as int,
+      driveLetter: (json['driveLetter'] ?? '').toString(),
       lastError: json['lastError']?.toString(),
     );
   }
@@ -26,6 +28,7 @@ class BucketMountStatus {
   final String mountPath;
   final String serverUrl;
   final int port;
+  final String driveLetter;
   final String? lastError;
 
   bool get hasError => (lastError ?? '').trim().isNotEmpty;

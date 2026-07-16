@@ -10,13 +10,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/sys/windows"
 )
 
 const managedMountPrefix = "云卷-"
-
-var getLogicalDrivesProc = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLogicalDrives")
 
 func mountWebDAVOnWindows(serverURL string) (string, error) {
 	if err := ensureWindowsWebClientRunning(); err != nil {
@@ -150,22 +146,6 @@ func webdavRemoteMatchesBucket(remote, mountName string) bool {
 	}
 	trimmed := strings.TrimSuffix(decoded, "/")
 	return strings.HasSuffix(trimmed, "/"+mountName)
-}
-
-func allocateWindowsDriveLetter() (string, error) {
-	mask, _, callErr := getLogicalDrivesProc.Call()
-	if mask == 0 {
-		return "", fmt.Errorf("list local drives: %w", callErr)
-	}
-	used := uint32(mask)
-	for letter := 'Z'; letter >= 'D'; letter-- {
-		index := uint(letter - 'A')
-		if used&(1<<index) != 0 {
-			continue
-		}
-		return string(letter) + ":", nil
-	}
-	return "", fmt.Errorf("no available drive letter")
 }
 
 func ensureWindowsWebClientRunning() error {

@@ -8,17 +8,23 @@ import 'package:remote_storage/services/app_modal.dart';
 Future<MountBucketOptions?> showMountBucketDialog(
   BuildContext context, {
   required String bucket,
+  bool allowDriveLetter = false,
 }) {
   return showAppModal<MountBucketOptions?>(
     context: context,
-    builder: (dialogContext) => _MountBucketDialog(bucket: bucket),
+    builder: (dialogContext) =>
+        _MountBucketDialog(bucket: bucket, allowDriveLetter: allowDriveLetter),
   );
 }
 
 class _MountBucketDialog extends StatefulWidget {
-  const _MountBucketDialog({required this.bucket});
+  const _MountBucketDialog({
+    required this.bucket,
+    required this.allowDriveLetter,
+  });
 
   final String bucket;
+  final bool allowDriveLetter;
 
   @override
   State<_MountBucketDialog> createState() => _MountBucketDialogState();
@@ -27,6 +33,7 @@ class _MountBucketDialog extends StatefulWidget {
 class _MountBucketDialogState extends State<_MountBucketDialog> {
   String _mountPath = '';
   bool _readOnly = false;
+  bool _assignDriveLetter = false;
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +95,22 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                 ),
               ],
             ),
+            if (widget.allowDriveLetter) ...[
+              const SizedBox(height: 16),
+              ShadSwitch(
+                value: _assignDriveLetter,
+                onChanged: (value) =>
+                    setState(() => _assignDriveLetter = value),
+                label: Text(
+                  '分配盘符',
+                  style: theme.textTheme.small.copyWith(
+                    color: theme.colorScheme.foreground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                sublabel: const Text('自动选择空闲盘符；卸载存储桶时会一并移除。'),
+              ),
+            ],
             const SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -102,6 +125,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                     MountBucketOptions(
                       mountPath: _mountPath,
                       readOnly: _readOnly,
+                      assignDriveLetter: _assignDriveLetter,
                     ),
                   ),
                   child: const Text('开始挂载'),

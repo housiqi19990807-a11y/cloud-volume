@@ -39,4 +39,12 @@ func TestMountSessionMatchesRequiresNormalizedConfigAndBucket(t *testing.T) {
 	}, "bucket-b", MountOptions{}) {
 		t.Fatalf("expected bucket change to force remount")
 	}
+
+	if mountSessionMatches(session, storageconfig.RemoteStorageConfig{
+		Endpoint:         "https://example.com",
+		Bucket:           "bucket-a",
+		WindowsMountMode: storageconfig.WindowsMountModeCloudFilesCached,
+	}, "bucket-a", MountOptions{AssignDriveLetter: true}) {
+		t.Fatalf("expected drive-letter option change to force remount")
+	}
 }
