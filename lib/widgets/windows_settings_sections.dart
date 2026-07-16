@@ -99,6 +99,204 @@ class WindowsMountModeSection extends StatelessWidget {
   }
 }
 
+class WindowsMountEngineSection extends StatefulWidget {
+  const WindowsMountEngineSection({
+    super.key,
+    required this.theme,
+    required this.engine,
+    required this.capacityGb,
+    required this.winFspAvailable,
+    required this.installingWinFsp,
+    required this.saving,
+    required this.errorText,
+    required this.onEngineChanged,
+    required this.onCapacitySaved,
+    required this.onInstallWinFsp,
+  });
+
+  final ShadThemeData theme;
+  final WindowsMountEngine engine;
+  final int capacityGb;
+  final bool winFspAvailable;
+  final bool installingWinFsp;
+  final bool saving;
+  final String? errorText;
+  final ValueChanged<WindowsMountEngine> onEngineChanged;
+  final ValueChanged<int> onCapacitySaved;
+  final VoidCallback onInstallWinFsp;
+
+  @override
+  State<WindowsMountEngineSection> createState() =>
+      _WindowsMountEngineSectionState();
+}
+
+class _WindowsMountEngineSectionState
+    extends State<WindowsMountEngineSection> {
+  late final TextEditingController _capacityController;
+
+  @override
+  void initState() {
+    super.initState();
+    _capacityController = TextEditingController(
+      text: widget.capacityGb.toString(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant WindowsMountEngineSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.capacityGb != oldWidget.capacityGb) {
+      _capacityController.text = widget.capacityGb.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _capacityController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cloud Files 是默认内核，保留占位文件、按需下载和现有写回链路。WinFsp 提供真正的虚拟文件系统卷，可向 Explorer 报告自定义容量，但需要先安装 WinFsp 2025。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.6,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: ShadSelect<WindowsMountEngine>(
+            key: ValueKey<WindowsMountEngine>(widget.engine),
+            minWidth: 320,
+            initialValue: widget.engine,
+            ensureSelectedVisible: false,
+            selectedOptionBuilder: (context, value) =>
+                Text(_engineLabel(value)),
+            options: WindowsMountEngine.values
+                .where((engine) =>
+                    engine != WindowsMountEngine.winFsp ||
+                    widget.winFspAvailable)
+                .map(
+                  (engine) => ShadOption<WindowsMountEngine>(
+                    value: engine,
+                    child: Text(_engineLabel(engine)),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: widget.saving
+                ? null
+                : (value) {
+                    if (value != null) widget.onEngineChanged(value);
+                  },
+          ),
+        ),
+        if (!widget.winFspAvailable) ...[
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                LucideIcons.info,
+                size: 15,
+                color: theme.colorScheme.mutedForeground,
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  '未检测到 WinFsp 驱动。应用已内嵌安装包，点击下方按钮即可静默安装（会弹出 UAC 确认）。安装后即可选择 WinFsp 虚拟文件系统引擎。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.45,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ShadButton.outline(
+            onPressed: (widget.saving || widget.installingWinFsp)
+                ? null
+                : widget.onInstallWinFsp,
+            child: Text(widget.installingWinFsp ? '正在安装 WinFsp...' : '安装 WinFsp'),
+          ),
+        ],
+        if (widget.engine == WindowsMountEngine.winFsp) ...[
+          const SizedBox(height: 16),
+          Text(
+            '虚拟总容量',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.foreground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ShadInput(
+                  controller: _capacityController,
+                  keyboardType: TextInputType.number,
+                  enabled: !widget.saving,
+                  placeholder: const Text('1024'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('GB', style: theme.textTheme.small),
+              const SizedBox(width: 12),
+              ShadButton.outline(
+                onPressed: widget.saving
+                    ? null
+                    : () {
+                        final value = int.tryParse(
+                          _capacityController.text.trim(),
+                        );
+                        widget.onCapacitySaved(value ?? 0);
+                      },
+                child: Text(widget.saving ? '保存中...' : '保存容量'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '仅控制 WinFsp 卷在 Explorer 中显示的总容量；不改变云端配额或本地缓存上限。',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.mutedForeground,
+            ),
+          ),
+        ],
+        if (widget.errorText != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            widget.errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _engineLabel(WindowsMountEngine engine) {
+    return switch (engine) {
+      WindowsMountEngine.cloudFiles => 'Cloud Files（默认）',
+      WindowsMountEngine.winFsp => 'WinFsp 虚拟文件系统',
+    };
+  }
+}
+
 class WindowsWritebackConcurrencySection extends StatelessWidget {
   const WindowsWritebackConcurrencySection({
     super.key,

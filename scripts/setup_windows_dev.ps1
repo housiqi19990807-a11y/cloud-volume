@@ -823,6 +823,62 @@ function Ensure-InnoSetup {
   Write-Host "Installed ISCC.exe at $iscc"
 }
 
+function Ensure-WinFsp {
+  Write-Section 'WinFsp (optional: enables the WinFsp virtual file system mount engine)'
+
+  $arch = Get-NativeWindowsArchitecture
+  $dllName = if ($arch -eq 'arm64') { 'winfsp-a64.dll' } else { 'winfsp-x64.dll' }
+
+  $winFspDir = $null
+  $reg = Join-Path 'HKLM:\SOFTWARE\WOW6432Node' 'WinFsp'
+  if (-not (Test-Path $reg)) { $reg = 'HKLM:\SOFTWARE\WinFsp' }
+  if (Test-Path $reg) {
+    $props = Get-ItemProperty -Path $reg -ErrorAction SilentlyContinue
+    if ($props -and $props.PSObject.Properties['InstallDir']) {
+      $winFspDir = $props.InstallDir
+    }
+  }
+  if (-not $winFspDir -and $env:ProgramFiles) {
+    $candidate = Join-Path $env:ProgramFiles 'WinFsp'
+    if (Test-Path (Join-Path $candidate "bin\$dllName")) {
+      $winFspDir = $candidate
+    }
+  }
+  if ($winFspDir -and (Test-Path (Join-Path $winFspDir "bin\$dllName"))) {
+    Write-Skip "WinFsp already installed at $winFspDir"
+    return
+  }
+
+  $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+  $bundledMsi = Join-Path $repoRoot 'go\mount\embedded\winfsp.msi'
+  if (Test-Path $bundledMsi) {
+    Write-Host "Installing WinFsp from bundled MSI: $bundledMsi"
+    $exitCode = (Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/i', $bundledMsi, '/qn', '/norestart') -Wait -PassThru -Verb RunAs).ExitCode
+    if ($exitCode -eq 0 -or $exitCode -eq 3010) {
+      Write-Host 'WinFsp installed from the bundled MSI.'
+      return
+    }
+    Write-Host "Bundled WinFsp MSI install exited with code $exitCode; trying winget next."
+  }
+
+  $installedByWinget = $false
+  if (-not $SkipWingetInstall) {
+    try {
+      $installedByWinget = Invoke-WingetInstall -Id 'WinFsp.WinFsp' -Name 'WinFsp'
+    } catch {
+      Write-Host "winget WinFsp install failed: $($_.Exception.Message)"
+    }
+  } else {
+    Write-Skip 'winget install skipped for WinFsp'
+  }
+  if ($installedByWinget) {
+    return
+  }
+
+  Write-Host 'WinFsp was not installed. The app will continue to use the Cloud Files engine by default.'
+  Write-Host 'To enable the WinFsp virtual file system mount engine, install WinFsp from the Settings page or from https://winfsp.dev/ and relaunch.'
+}
+
 if ($env:OS -ne 'Windows_NT') {
   throw 'This script must be run on Windows.'
 }
@@ -839,6 +895,7 @@ Ensure-WindowsSymlinkSupport
 Ensure-Msys2
 Ensure-Flutter
 Ensure-InnoSetup
+Ensure-WinFsp
 
 if (-not $SkipDoctor) {
   Write-Section 'Flutter doctor'

@@ -49,7 +49,7 @@ S3 账号支持 endpoint、access key、secret key、region、path-style URL 和
 - 多账号与多后端：统一管理 S3 兼容对象存储、WebDAV 和百度网盘账号；首次启动、账号管理和文件管理都围绕同一套 profile 流程展开。每个账号可单独选择跟随全局代理、跟随系统、直连或自定义 HTTP/SOCKS5 代理。
 - 文件管理：聚合 bucket / 根目录、目录浏览、列表/网格视图、搜索、多选、右键菜单、拖拽上传、粘贴上传、复制、移动、重命名、新建目录、下载和批量删除。
 - 预览与缓存：桌面端支持图片预览、外部应用打开、另存为和下载；已下载文件会复用本地缓存，本地拖拽或粘贴上传成功后也会把本地副本登记为预览缓存，刚上传的文件双击即可打开。
-- 桌面挂载：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV 与 Cloud Files；支持只读/读写模式、本地优先缓存、overlay、异步写回和写回状态提示。
+- 桌面挂载：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV、Cloud Files 与可选的 WinFsp 虚拟文件系统卷；支持只读/读写模式、本地优先缓存、overlay、异步写回和写回状态提示。Windows 高级设置里可切换挂载内核（Cloud Files 或 WinFsp），WinFsp 模式可自定义 Explorer 显示的虚拟总容量，驱动缺失时支持应用内一键静默安装（内嵌 MSI）。
 - 文件同步：本地目录可定期同步到远端桶目录，支持上传、下载、双向同步、冲突策略、静默期、删除传播、重命名识别和空目录处理。
 - 任务队列：上传、下载、复制、移动、删除、挂载懒加载读取、挂载写回和文件同步任务都进入统一队列，支持进度展示、筛选、取消、重试、前台弹框与后台执行。
 - 回收站与分享：提供应用级软删除、全局/桶级回收站、恢复、彻底删除、清空回收站，以及预签名分享链接的创建、续期、复制和删除。
@@ -116,7 +116,7 @@ make run
 
 Windows 本地启动前提：
 
-- 新 Windows 机器可以双击 `scripts\setup_windows_dev.bat` 一键准备开发环境；命令行也可以运行 `powershell -ExecutionPolicy Bypass -File .\scripts\setup_windows_dev.ps1`。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2，并通过官方 `rustup-init` 安装 Rust；如果本机没有 `winget`，VS Build Tools 和 MSYS2 会回退到官方安装器直链静默安装。脚本会按系统架构安装编译工具：x64 使用 MSYS2 UCRT64 `gcc/g++`，ARM64 使用 MSYS2 CLANGARM64 `clang/clang++`、原生 `aarch64-pc-windows-msvc` Rust，并补齐对应的 Visual Studio C++ 组件。Rust 使 CargoKit 插件在本地编译，避免 Windows ARM64 构建依赖 GitHub Release 预编译包。脚本还会写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并在未配置自定义 Go 模块代理时设置 `GOPROXY=https://goproxy.cn,direct`。
+- 新 Windows 机器可以双击 `scripts\setup_windows_dev.bat` 一键准备开发环境；命令行也可以运行 `powershell -ExecutionPolicy Bypass -File .\scripts\setup_windows_dev.ps1`。脚本会通过 `winget` 安装/校验 Git、Go、Visual Studio 2022 Build Tools、MSYS2、WinFsp，并通过官方 `rustup-init` 安装 Rust；如果本机没有 `winget`，VS Build Tools、MSYS2 和 WinFsp 会回退到官方安装器或仓库内嵌的 WinFsp MSI 直链静默安装。脚本会按系统架构安装编译工具：x64 使用 MSYS2 UCRT64 `gcc/g++`，ARM64 使用 MSYS2 CLANGARM64 `clang/clang++`、原生 `aarch64-pc-windows-msvc` Rust，并补齐对应的 Visual Studio C++ 组件。Rust 使 CargoKit 插件在本地编译，避免 Windows ARM64 构建依赖 GitHub Release 预编译包。脚本还会写入 `FLUTTER_ROOT` / `BRIDGE_CC` / `BRIDGE_CXX` 和用户 `PATH`，并在未配置自定义 Go 模块代理时设置 `GOPROXY=https://goproxy.cn,direct`。
 - 如果 Flutter 目录是管理员权限创建的，Git 可能报 `detected dubious ownership`；安装脚本和 Windows 运行脚本会自动把 Flutter 根目录加入当前用户的 Git `safe.directory`，避免 Flutter 取 engine version 失败。
 - Flutter Windows 插件可能需要 symlink 支持；安装脚本和 Windows 运行/构建脚本会检测 Developer Mode。管理员权限下会尝试自动写入系统开关，否则仅提示用户稍后手动启用，不阻断初始环境配置。
 - 如果希望安装完成后顺便构建本项目，可加 `-ValidateProject`；默认只做依赖安装、`flutter config --enable-windows-desktop` 和 `flutter doctor -v`，避免首次安装后立刻进入长时间构建。

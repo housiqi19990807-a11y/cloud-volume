@@ -29,6 +29,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 part 'settings_page_actions.dart';
 part 'settings_page_layout.dart';
 part 'settings_page_sections.dart';
+part 'settings_page_windows_mount_actions.dart';
 
 /// Each enum value identifies a settings card that can be reached from the
 /// left-side anchor rail.
@@ -98,6 +99,10 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _webdavCredentialsError;
   bool _savingWindowsWritebackConcurrency = false;
   String? _windowsWritebackConcurrencyError;
+  bool _savingWindowsMountEngine = false;
+  String? _windowsMountEngineError;
+  bool _winFspAvailable = false;
+  bool _installingWindowsWinFsp = false;
   bool _resettingWindowsMounts = false;
   String? _windowsMountResetError;
   bool _cleaningStaleWindowsProcesses = false;
@@ -231,5 +236,19 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) return;
       refreshCacheStats(widget.state.config);
     });
+    _refreshWindowsWinFspAvailability();
+  }
+
+  Future<void> _refreshWindowsWinFspAvailability() async {
+    if (!isWindowsPlatform) return;
+    if (widget.api is! WindowsWinFspQuery) return;
+    try {
+      final available =
+          await (widget.api as WindowsWinFspQuery).listWindowsWinFspAvailable();
+      if (!mounted) return;
+      setState(() => _winFspAvailable = available);
+    } catch (_) {
+      // Availability probe is best-effort; leave the selector on Cloud Files.
+    }
   }
 }

@@ -78,6 +78,28 @@ func TestNormalizeWindowsMountMode(t *testing.T) {
 	}
 }
 
+func TestNormalizeWindowsMountEngine(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeWindowsMountEngine(WindowsMountEngineWinFsp); got != WindowsMountEngineWinFsp {
+		t.Fatalf("expected WinFsp engine, got %q", got)
+	}
+	if got := normalizeWindowsMountEngine(""); got != WindowsMountEngineCloudFiles {
+		t.Fatalf("expected legacy config to default to Cloud Files, got %q", got)
+	}
+}
+
+func TestNormalizeWindowsWinFspCapacityGB(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeWindowsWinFspCapacityGB(0); got != defaultWindowsWinFspCapacityGB {
+		t.Fatalf("expected default capacity, got %d", got)
+	}
+	if got := normalizeWindowsWinFspCapacityGB(maxWindowsWinFspCapacityGB + 1); got != maxWindowsWinFspCapacityGB {
+		t.Fatalf("expected capped capacity, got %d", got)
+	}
+}
+
 func TestResolveCacheDirUsesConfiguredPath(t *testing.T) {
 	t.Parallel()
 

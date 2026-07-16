@@ -230,6 +230,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           widget.initialState.config.mountMetadataCacheSeconds,
       usePathStyle: _usePathStyle,
       windowsMountMode: widget.initialState.config.windowsMountMode,
+      windowsMountEngine: widget.initialState.config.windowsMountEngine,
+      windowsWinFspCapacityGb:
+          widget.initialState.config.windowsWinFspCapacityGb,
       windowsThisPcEntryEnabled:
           widget.initialState.config.windowsThisPcEntryEnabled,
       windowsWritebackConcurrency:
@@ -471,4 +474,3 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     }
   }
 }
-

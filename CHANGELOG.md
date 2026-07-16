@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Windows 挂载高级设置：新增挂载内核选择（Cloud Files 默认 / WinFsp 虚拟文件系统）。WinFsp 模式在 Explorer 中呈现真实卷，可自定义虚拟总容量；驱动缺失时设置页和挂载弹窗都会提示并支持一键静默安装（仓库已内嵌 `winfsp.msi`，约 2.1 MB）。
+- Windows 构建：bridge 在检测到 `third_party/winfsp/inc/fuse` 头文件时自动加上 `-tags winfsp` 构建 WinFsp 引擎；未安装 WinFsp 时默认构建仅保留 Cloud Files，不影响现有开发流程。
+- Windows 打包：Inno Setup 安装器新增可选的「安装 WinFsp」勾选项，并把 `winfsp.msi` 一并放到 `{app}\winfsp`，方便应用内安装复用。
 - Windows Cloud Files: the mount dialog now uses a read-only switch plus a Windows-only presentation selector for “分配盘符” or “路径挂载”. Drive mode is the default when available, lists every free letter from `Z:` through `D:` for explicit selection, and unmount/remount/normal exit remove only mappings whose target still matches the managed Cloud Files path.
 - Windows Cloud Files: the drive selector now opens without scrolling the modal to its last row, and an inline note clarifies that the drive is a local sync-directory mapping rather than a representation of the cloud account's real capacity.
 - Windows exit: confirmed window exit and tray-menu Exit now hide the window/tray immediately, then clean active mounts in the background before process termination, so Cloud Files providers disconnect and deregister during normal shutdown.

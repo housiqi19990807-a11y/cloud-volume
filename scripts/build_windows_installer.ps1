@@ -73,6 +73,10 @@ New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 # here because PowerShell corrupts Chinese when transmitting args to ISCC).
 $installerBase = "yunjuan-windows-$architecture-installer"
 $innoArchitecture = if ($architecture -eq 'arm64') { 'arm64' } else { 'x64compatible' }
+$winFspMsi = Join-Path $repoRoot 'go\mount\embedded\winfsp.msi'
+if (-not (Test-Path $winFspMsi)) {
+  throw "WinFsp MSI not found at $winFspMsi. Keep go/mount/embedded/winfsp.msi in the repo."
+}
 & $iscc /Qp `
   "/DAppVersion=$Version" `
   "/DSourceDir=$releaseDir" `
@@ -80,6 +84,7 @@ $innoArchitecture = if ($architecture -eq 'arm64') { 'arm64' } else { 'x64compat
   "/DOutputBaseFilename=$installerBase" `
   "/DArchitecturesAllowed=$innoArchitecture" `
   "/DArchitecturesInstallIn64BitMode=$innoArchitecture" `
+  "/DWinFspMsiPath=$winFspMsi" `
   $issPath
 
 if ($LASTEXITCODE -ne 0) {

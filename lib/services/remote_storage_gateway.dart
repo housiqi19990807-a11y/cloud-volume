@@ -305,6 +305,15 @@ abstract interface class AvailableDriveLetterQuery {
   Future<List<String>> listAvailableDriveLetters();
 }
 
+/// Optional Windows capability that reports whether the WinFsp driver is
+/// installed, so the mount engine selector can enable/disable the WinFsp
+/// option without attempting a real mount first. The optional install method
+/// extracts the embedded WinFsp MSI and elevates msiexec for a silent install.
+abstract interface class WindowsWinFspQuery {
+  Future<bool> listWindowsWinFspAvailable();
+  Future<bool> installWindowsWinFsp();
+}
+
 typedef RemoteStorageApiFactory = Future<RemoteStorageGateway> Function();
 
 /// Bridge build metadata used for update package selection.

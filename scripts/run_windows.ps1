@@ -474,8 +474,17 @@ try {
   }
 
   New-Item -ItemType Directory -Force -Path $bridgeDir | Out-Null
+  $winFspInc = Join-Path $repoRootPath 'third_party\winfsp\inc\fuse'
+  $winFspTags = @()
+  if (Test-Path -LiteralPath (Join-Path $winFspInc 'fuse_common.h')) {
+    $env:CPATH = $winFspInc
+    $winFspTags = @('-tags', 'winfsp')
+    Write-Host "WinFsp headers found at $winFspInc; building bridge with -tags winfsp"
+  } else {
+    Write-Host 'WinFsp headers not found; building bridge without the WinFsp engine (Cloud Files still works).'
+  }
   Invoke-NativeCommand -Name 'go bridge build' -Command {
-    & $go build -buildvcs=false -buildmode=c-shared -o $bridgeDll ./bridge
+    & $go build -buildvcs=false -buildmode=c-shared @winFspTags -o $bridgeDll ./bridge
   }
 
  if ($Build) {

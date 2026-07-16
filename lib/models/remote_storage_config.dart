@@ -58,6 +58,21 @@ enum WindowsMountMode {
   }
 }
 
+enum WindowsMountEngine {
+  cloudFiles('cloud_files'),
+  winFsp('winfsp');
+
+  const WindowsMountEngine(this.storageValue);
+
+  final String storageValue;
+
+  static WindowsMountEngine fromStorage(Object? value) {
+    return value?.toString().trim().toLowerCase() == 'winfsp'
+        ? WindowsMountEngine.winFsp
+        : WindowsMountEngine.cloudFiles;
+  }
+}
+
 enum StorageType {
   s3('s3', 'S3 对象存储'),
   webdav('webdav', 'WebDAV'),
@@ -123,6 +138,8 @@ class RemoteStorageConfig {
     required this.mountMetadataCacheSeconds,
     required this.usePathStyle,
     required this.windowsMountMode,
+    this.windowsMountEngine = WindowsMountEngine.cloudFiles,
+    this.windowsWinFspCapacityGb = 1024,
     required this.windowsThisPcEntryEnabled,
     required this.windowsWritebackConcurrency,
     required this.cacheAutoCleanupEnabled,
@@ -164,6 +181,8 @@ class RemoteStorageConfig {
       mountMetadataCacheSeconds: 60,
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
+      windowsMountEngine: WindowsMountEngine.cloudFiles,
+      windowsWinFspCapacityGb: 1024,
       windowsThisPcEntryEnabled: false,
       windowsWritebackConcurrency: 4,
       cacheAutoCleanupEnabled: false,
@@ -269,6 +288,15 @@ class RemoteStorageConfig {
       windowsMountMode: WindowsMountMode.fromStorage(
         json['windowsMountMode'] ?? json['windows_mount_mode'],
       ),
+      windowsMountEngine: WindowsMountEngine.fromStorage(
+        json['windowsMountEngine'] ?? json['windows_mount_engine'],
+      ),
+      windowsWinFspCapacityGb:
+          _intFromDynamic(
+            json['windowsWinFspCapacityGb'] ??
+                json['windows_winfsp_capacity_gb'],
+          ) ??
+          1024,
       windowsThisPcEntryEnabled:
           _boolFromDynamic(
             json['windowsThisPcEntryEnabled'] ??
@@ -335,6 +363,8 @@ class RemoteStorageConfig {
   final int mountMetadataCacheSeconds;
   final bool usePathStyle;
   final WindowsMountMode windowsMountMode;
+  final WindowsMountEngine windowsMountEngine;
+  final int windowsWinFspCapacityGb;
   final bool windowsThisPcEntryEnabled;
   final int windowsWritebackConcurrency;
   final bool cacheAutoCleanupEnabled;
@@ -428,6 +458,8 @@ class RemoteStorageConfig {
       'mountMetadataCacheSeconds': mountMetadataCacheSeconds,
       'usePathStyle': usePathStyle,
       'windowsMountMode': windowsMountMode.storageValue,
+      'windowsMountEngine': windowsMountEngine.storageValue,
+      'windowsWinFspCapacityGb': windowsWinFspCapacityGb,
       'windowsThisPcEntryEnabled': windowsThisPcEntryEnabled,
       'windowsWritebackConcurrency': windowsWritebackConcurrency,
       'cacheAutoCleanupEnabled': cacheAutoCleanupEnabled,
@@ -469,6 +501,8 @@ class RemoteStorageConfig {
     int? mountMetadataCacheSeconds,
     bool? usePathStyle,
     WindowsMountMode? windowsMountMode,
+    WindowsMountEngine? windowsMountEngine,
+    int? windowsWinFspCapacityGb,
     bool? windowsThisPcEntryEnabled,
     int? windowsWritebackConcurrency,
     bool? cacheAutoCleanupEnabled,
@@ -512,6 +546,9 @@ class RemoteStorageConfig {
           mountMetadataCacheSeconds ?? this.mountMetadataCacheSeconds,
       usePathStyle: usePathStyle ?? this.usePathStyle,
       windowsMountMode: windowsMountMode ?? this.windowsMountMode,
+      windowsMountEngine: windowsMountEngine ?? this.windowsMountEngine,
+      windowsWinFspCapacityGb:
+          windowsWinFspCapacityGb ?? this.windowsWinFspCapacityGb,
       windowsThisPcEntryEnabled:
           windowsThisPcEntryEnabled ?? this.windowsThisPcEntryEnabled,
       windowsWritebackConcurrency:

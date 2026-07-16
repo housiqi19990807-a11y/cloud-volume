@@ -5,7 +5,8 @@ mixin _RemoteStorageDesktopStorageApiMixin
     implements
         RemoteStorageGateway,
         ActiveMountQuery,
-        AvailableDriveLetterQuery {
+        AvailableDriveLetterQuery,
+        WindowsWinFspQuery {
   Future<dynamic> runBridgeCall(
     String method, [
     Map<String, dynamic> payload = const <String, dynamic>{},
@@ -303,6 +304,28 @@ mixin _RemoteStorageDesktopStorageApiMixin
         .map((value) => value.toString().trim().toUpperCase())
         .where((value) => value.isNotEmpty)
         .toList(growable: false);
+  }
+
+  @override
+  Future<bool> listWindowsWinFspAvailable() async {
+    try {
+      final result = await runBridgeCall('list_windows_winfsp_available');
+      if (result is Map<String, dynamic>) {
+        return result['available'] == true;
+      }
+    } catch (_) {
+      // Bridge not available; treat as WinFsp absent so the UI hides the engine.
+    }
+    return false;
+  }
+
+  @override
+  Future<bool> installWindowsWinFsp() async {
+    final result = await runBridgeCall('install_windows_winfsp');
+    if (result is Map<String, dynamic>) {
+      return result['available'] == true || result['ok'] == true;
+    }
+    return false;
   }
 
   @override

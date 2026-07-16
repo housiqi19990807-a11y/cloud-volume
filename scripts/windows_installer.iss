@@ -27,6 +27,9 @@
 #ifndef ArchitecturesInstallIn64BitMode
   #define ArchitecturesInstallIn64BitMode "x64compatible"
 #endif
+#ifndef WinFspMsiPath
+  #define WinFspMsiPath "go\mount\embedded\winfsp.msi"
+#endif
 #ifndef SignTool
   #define SignTool ""
 #endif
@@ -83,13 +86,20 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+Name: "installwinfsp"; Description: "Install WinFsp (required for the virtual file system mount engine)"; GroupDescription: "Optional components:"; Flags: checkedonce
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Bundle the WinFsp MSI next to the app so the in-app installer can also reuse
+; it if the user skips the optional install step during setup.
+Source: "{#WinFspMsiPath}"; DestDir: "{app}\winfsp"; DestName: "winfsp.msi"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\cloud-volume.exe"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\cloud-volume.exe"; Tasks: desktopicon
 
 [Run]
+; Quietly install WinFsp when the user leaves the optional task checked. The
+; MSI itself may still request elevation via UAC.
+Filename: "msiexec.exe"; Parameters: "/i ""{app}\winfsp\winfsp.msi"" /qn /norestart"; StatusMsg: "Installing WinFsp..."; Flags: runhidden waituntilterminated; Tasks: installwinfsp
 Filename: "{app}\cloud-volume.exe"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent

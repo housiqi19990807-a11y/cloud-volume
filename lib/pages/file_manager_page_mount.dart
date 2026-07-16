@@ -153,9 +153,48 @@ extension _FileManagerPageMount on _FileManagerPageState {
       _showMountUnavailableMessage(targetBucket);
       return;
     }
+    final config = targetBucket.config;
+    final winFspEnabled = isWindowsPlatform &&
+        config.windowsMountEngine == WindowsMountEngine.winFsp;
+    if (winFspEnabled && widget.api is WindowsWinFspQuery) {
+      final available = await (widget.api as WindowsWinFspQuery)
+          .listWindowsWinFspAvailable();
+      if (!mounted) return;
+      if (!available) {
+        final shouldInstall = await showAppConfirmModal(
+          context: context,
+          title: const Text('需要安装 WinFsp'),
+          description: const Text(
+            '当前挂载引擎为 WinFsp 虚拟文件系统，但本机尚未安装 WinFsp 驱动。应用已内嵌安装包，是否现在安装？（会弹出 UAC 确认）',
+          ),
+          confirmLabel: '安装并继续',
+          cancelLabel: '取消',
+        );
+        if (shouldInstall != true) return;
+        try {
+          final installed = await (widget.api as WindowsWinFspQuery)
+              .installWindowsWinFsp();
+          if (!mounted) return;
+          if (!installed) {
+            _showPageMessage(
+              title: 'WinFsp 安装未完成',
+              message: '驱动仍不可见，可能需要重启后再试，或在设置中切换回 Cloud Files 引擎。',
+            );
+            return;
+          }
+        } catch (error) {
+          _showPageError(error);
+          return;
+        }
+      }
+    }
+    // WinFsp exposes a real virtual volume, so drive letters are always offered.
+    // Cloud Files offers a drive letter via sync-root mapping; WebDAV owns its
+    // own net-use drive and must not show the selector.
     final supportsDriveLetters =
         isWindowsPlatform &&
-        targetBucket.config.windowsMountMode != WindowsMountMode.webdav;
+        (winFspEnabled ||
+            targetBucket.config.windowsMountMode != WindowsMountMode.webdav);
     var availableDriveLetters = const <String>[];
     if (supportsDriveLetters && widget.api is AvailableDriveLetterQuery) {
       try {

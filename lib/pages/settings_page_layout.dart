@@ -178,7 +178,7 @@ extension _SettingsLayout on _SettingsPageState {
       case _SettingsTab.windowsWriteback:
         return _buildWindowsWritebackSection(theme, config);
       case _SettingsTab.windowsMount:
-        return _buildWindowsMountSection(theme);
+        return _buildWindowsMountSection(theme, config);
       case _SettingsTab.about:
         return _buildAboutSection(theme);
     }

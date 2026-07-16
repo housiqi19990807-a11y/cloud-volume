@@ -283,8 +283,30 @@ extension _SettingsSections on _SettingsPageState {
     ];
   }
 
-  List<Widget> _buildWindowsMountSection(ShadThemeData theme) {
+  List<Widget> _buildWindowsMountSection(
+    ShadThemeData theme,
+    RemoteStorageConfig config,
+  ) {
     return [
+      _buildCard(
+        theme,
+        'Windows 挂载高级设置',
+        WindowsMountEngineSection(
+          theme: theme,
+          engine: config.windowsMountEngine,
+          capacityGb: config.windowsWinFspCapacityGb,
+          winFspAvailable: _winFspAvailable,
+          installingWinFsp: _installingWindowsWinFsp,
+          saving: _savingWindowsMountEngine,
+          errorText: _windowsMountEngineError,
+          onEngineChanged: (value) =>
+              _saveWindowsMountEngine(config, value),
+          onCapacitySaved: (value) =>
+              _saveWindowsWinFspCapacity(config, value),
+          onInstallWinFsp: _installWindowsWinFsp,
+        ),
+      ),
+      const SizedBox(height: 14),
       _buildCard(
         theme,
         'Windows 挂载恢复',

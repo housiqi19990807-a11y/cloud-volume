@@ -33,6 +33,8 @@ type RemoteStorageConfig struct {
 	MountMetadataCacheSeconds   int                       `json:"mountMetadataCacheSeconds" toml:"mount_metadata_cache_seconds"`
 	UsePathStyle                bool                      `json:"usePathStyle" toml:"use_path_style"`
 	WindowsMountMode            string                    `json:"windowsMountMode" toml:"windows_mount_mode"`
+	WindowsMountEngine          string                    `json:"windowsMountEngine" toml:"windows_mount_engine"`
+	WindowsWinFspCapacityGB     int                       `json:"windowsWinFspCapacityGb" toml:"windows_winfsp_capacity_gb"`
 	WindowsThisPcEntryEnabled   bool                      `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
 	WindowsWritebackConcurrency int                       `json:"windowsWritebackConcurrency" toml:"windows_writeback_concurrency"`
 	CacheAutoCleanupEnabled     bool                      `json:"cacheAutoCleanupEnabled" toml:"cache_auto_cleanup_enabled"`
@@ -61,6 +63,10 @@ const (
 	WindowsMountModeCloudFilesCached   = "cloud_files_cached"
 	WindowsMountModeCloudFilesDirect   = "cloud_files_direct"
 	WindowsMountModeWebDAV             = "webdav"
+	WindowsMountEngineCloudFiles       = "cloud_files"
+	WindowsMountEngineWinFsp           = "winfsp"
+	defaultWindowsWinFspCapacityGB     = 1024
+	maxWindowsWinFspCapacityGB         = 8 * 1024 * 1024
 	defaultWritebackQuietSeconds       = 10
 	maxWritebackQuietSeconds           = 300
 	defaultTrashRetentionDays          = 30
@@ -100,6 +106,8 @@ func DefaultConfig() RemoteStorageConfig {
 		MountMetadataCacheSeconds:   defaultMountMetadataCacheSeconds,
 		UsePathStyle:                true,
 		WindowsMountMode:            WindowsMountModeCloudFilesCached,
+		WindowsMountEngine:          WindowsMountEngineCloudFiles,
+		WindowsWinFspCapacityGB:     defaultWindowsWinFspCapacityGB,
 		WindowsThisPcEntryEnabled:   false,
 		WindowsWritebackConcurrency: defaultWindowsWritebackConcurrency,
 		CacheAutoCleanupEnabled:     false,
@@ -137,6 +145,8 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		MountMetadataCacheSeconds:   normalizeMountMetadataCacheSeconds(c.MountMetadataCacheSeconds),
 		UsePathStyle:                c.UsePathStyle,
 		WindowsMountMode:            normalizeWindowsMountMode(c.WindowsMountMode),
+		WindowsMountEngine:          normalizeWindowsMountEngine(c.WindowsMountEngine),
+		WindowsWinFspCapacityGB:     normalizeWindowsWinFspCapacityGB(c.WindowsWinFspCapacityGB),
 		WindowsThisPcEntryEnabled:   c.WindowsThisPcEntryEnabled,
 		WindowsWritebackConcurrency: normalizeWindowsWritebackConcurrency(c.WindowsWritebackConcurrency),
 		CacheAutoCleanupEnabled:     c.CacheAutoCleanupEnabled,
@@ -426,6 +436,24 @@ func normalizeWindowsMountMode(value string) string {
 		return WindowsMountModeWebDAV
 	default:
 		return WindowsMountModeCloudFilesCached
+	}
+}
+
+func normalizeWindowsMountEngine(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), WindowsMountEngineWinFsp) {
+		return WindowsMountEngineWinFsp
+	}
+	return WindowsMountEngineCloudFiles
+}
+
+func normalizeWindowsWinFspCapacityGB(value int) int {
+	switch {
+	case value <= 0:
+		return defaultWindowsWinFspCapacityGB
+	case value > maxWindowsWinFspCapacityGB:
+		return maxWindowsWinFspCapacityGB
+	default:
+		return value
 	}
 }
 

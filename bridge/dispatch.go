@@ -116,6 +116,10 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return getActiveMountCount()
 	case "list_available_drive_letters":
 		return listAvailableDriveLetters()
+	case "list_windows_winfsp_available":
+		return listWindowsWinFspAvailable()
+	case "install_windows_winfsp":
+		return installWindowsWinFsp()
 	case "cleanup_stale_windows_processes":
 		return cleanupStaleWindowsProcesses()
 	case "get_cache_stats":
