@@ -9,14 +9,11 @@ package mount
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
-	"syscall"
 )
 
 // InstallWindowsWinFsp extracts the embedded MSI (or reuses the side-by-side
-// copy shipped by the Inno Setup installer) and runs a silent elevated install.
+// copy shipped by the Inno Setup installer) and runs an elevated install.
 // When WinFsp is already present the call is a no-op. On success the caller
 // should re-probe with WindowsWinFspAvailable.
 func InstallWindowsWinFsp() error {
@@ -32,13 +29,25 @@ func InstallWindowsWinFsp() error {
 		defer cleanup()
 	}
 
-	// Prefer a silent elevated msiexec so the user only sees the UAC prompt.
-	// /qn = quiet, no UI; /norestart keeps the app running after install.
-	if err := runElevated("msiexec.exe", "/i", msiPath, "/qn", "/norestart"); err != nil {
-		return fmt.Errorf("install WinFsp: %w", err)
+	// /passive shows a progress bar but needs no user input; /norestart keeps
+	// the app running. ALLUSERS=1 forces a per-machine install which is what
+	// the WinFsp MSI expects (it is authored as Privileged/elevated).
+	exitCode, runErr := runElevatedWait(
+		"msiexec.exe",
+		"/i \""+msiPath+"\" /passive /norestart ALLUSERS=1",
+	)
+	if runErr != nil {
+		return fmt.Errorf("install WinFsp: %w", runErr)
 	}
+	switch exitCode {
+	case 0, 3010: // success, or success-with-reboot-required
+		// fall through to availability probe
+	default:
+		return fmt.Errorf("WinFsp 安装程序退出码 %d（请查看 UAC / MSI 对话框了解详情）", exitCode)
+	}
+
 	if !WindowsWinFspAvailable() {
-		return fmt.Errorf("WinFsp install finished but the driver DLL is still not visible; reboot may be required")
+		return fmt.Errorf("WinFsp 安装上报成功，但驱动 DLL 仍不可见；可能需要重启系统")
 	}
 	return nil
 }
@@ -77,43 +86,4 @@ func sideBySideWinFspMSI() string {
 		return candidate
 	}
 	return ""
-}
-
-// runElevated launches a process with the "runas" verb so the user sees a UAC
-// elevation prompt. It waits for the process to exit and surfaces a non-zero
-// exit code as an error.
-func runElevated(file string, args ...string) error {
-	// Build a single command line; ShellExecuteW with "runas" does not take an
-	// argv array, so we quote arguments that contain spaces.
-	quoted := make([]string, 0, len(args))
-	for _, arg := range args {
-		if strings.ContainsAny(arg, " \t\"") {
-			quoted = append(quoted, `"`+strings.ReplaceAll(arg, `"`, `\"`)+`"`)
-			continue
-		}
-		quoted = append(quoted, arg)
-	}
-	params := strings.Join(quoted, " ")
-
-	// Use PowerShell Start-Process -Verb RunAs -Wait so we get a reliable exit
-	// code from the elevated msiexec process.
-	ps := fmt.Sprintf(
-		"Start-Process -FilePath %s -ArgumentList %s -Verb RunAs -Wait -PassThru | ForEach-Object { exit $_.ExitCode }",
-		powershellQuote(file),
-		powershellQuote(params),
-	)
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps)
-	// Hide the PowerShell window; the UAC prompt itself still appears.
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// If elevation was cancelled the exit code is typically 1223 /
-		// ERROR_CANCELLED; surface the combined output for diagnosis.
-		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return nil
-}
-
-func powershellQuote(value string) string {
-	return `'` + strings.ReplaceAll(value, `'`, `''`) + `'`
 }
