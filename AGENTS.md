@@ -171,16 +171,17 @@ The Windows host removes the native title bar and uses app-owned chrome, while s
 
 #### Key files
 
-- `windows/runner/win32_window.cpp` - Defines `GetBorderlessWindowStyle()` as `WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN`: the standard top-level style preserves native DWM maximize/restore, snap, and taskbar work-area behavior, while `WM_NCCALCSIZE` removes the visible native chrome. It handles custom hit-testing, resizes the hosted Flutter child in `WM_SIZE`, and calls `DwmSetWindowAttribute(..., DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)` in `UpdateTheme`. `MaximizeOrRestore()` sends `WM_SYSCOMMAND` with `SC_MAXIMIZE`/`SC_RESTORE`, matching native caption commands.
-- `windows/runner/flutter_window.cpp` - Hosts the Flutter view inside the custom Win32 shell and maps the `toggleMaximize` method-channel call to `Win32Window::MaximizeOrRestore()`; it does not add a repaint fallback around the native transition.
-- `lib/widgets/desktop_window_controls.dart` / `lib/services/window_controls.dart` - Draw the app-owned top-right controls and send maximize/restore requests over the native method channel.
+- `windows/runner/win32_window.cpp` - Creates the main host with the Flutter-default `WS_OVERLAPPEDWINDOW` style, resizes the hosted Flutter child in `WM_SIZE`, and requests native rounded corners in `UpdateTheme`. It does not override non-client calculation, hit-testing, or standard minimize/maximize/drag commands; the registered `window_manager` plugin owns those behaviors.
+- `windows/runner/flutter_window.cpp` - Hosts the Flutter view and owns project-specific tray/close/exit behavior. Its custom method channel no longer exposes minimize, maximize, drag, or maximized-state methods, and it leaves initial visibility to Dart so the frame is hidden before the first visible window frame.
+- `lib/app/app_entry_io.dart` - Initializes `window_manager`, applies `TitleBarStyle.hidden` to the main Windows window before `runApp`, then shows/focuses the window after Flutter's first frame.
+- `lib/widgets/desktop_window_controls.dart` / `lib/services/window_controls.dart` - Draw the app-owned controls. On Windows, normal minimize/maximize/drag/state operations route through `window_manager`, and `WindowListener` events keep the maximize icon synchronized; Linux retains the custom method channel.
 
 #### Gotchas
 
 - Native DWM rounded corners are a Windows 11-era shell feature. On Windows 10 / Windows Server 2022 build 20348, the `DWMWA_WINDOW_CORNER_PREFERENCE` call is ignored even though it compiles, so the main window stays square.
 - Even on Windows 11, fully custom borderless windows can be less reliable than standard framed windows for OS-drawn corners. The current code requests rounded corners but does not implement a manual `SetWindowRgn` or transparent-window mask fallback.
-- Do not replace the main host style with `WS_POPUP`. Although `ShowWindow(SW_MAXIMIZE)` is a Win32 API, popup windows do not receive the complete standard top-level maximize/work-area behavior and previously covered the taskbar. Manual `WM_GETMINMAXINFO`, a white background brush, and `ForceRedraw()` only changed the exposed resize region from black to white; they did not restore the native transition.
-- Keep `WS_CLIPCHILDREN` on the host so parent repainting excludes the Flutter child surface during resize. Maximized `WM_NCCALCSIZE` still compensates for the standard invisible resize frame; removing that compensation clips content at the monitor edges.
+- Keep one owner for Windows non-client behavior. `window_manager` already handles hidden-titlebar `WM_NCCALCSIZE`, maximum-size constraints, frame refresh, and native animated system commands. Duplicating those cases in `Win32Window::MessageHandler` causes ordering conflicts because plugin delegates run before the runner handler.
+- Do not replace the main host style with `WS_POPUP`, add runner-side white/black background fallbacks, or reintroduce runner `ForceRedraw()` calls around maximize. Those attempts either lose the standard taskbar work area or merely recolor the unpainted transition instead of letting the plugin/DWM path retain the rendered surface.
 - An earlier diagnostic machine reported Windows Server 2022 build 20348, where missing rounded corners were expected. The 2026-07-17 static diagnosis ran on Windows 11 Pro build 26100 and identified the relevant code path independently of that older shell limitation.
 
 ### Feature: Windows Mount Presentation / Drive Letters

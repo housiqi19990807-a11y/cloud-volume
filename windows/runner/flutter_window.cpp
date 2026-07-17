@@ -54,20 +54,6 @@ bool FlutterWindow::OnCreate() {
   InitializeTrayIcon();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    // Guard against the window being closed before the first frame lands, which
-    // would dereference a torn-down window from the engine's frame callback.
-    if (GetHandle() != nullptr) {
-      EnsureVisible();
-    }
-  });
-
-  // Some sessions on Windows never receive the SetNextFrameCallback invocation
-  // (e.g. the engine restored a cached surface or the callback raced the very
-  // first frame). Always show the host window explicitly as a safety net so the
-  // app never boots into a hidden window that the user can only reach via tray.
-  EnsureVisible();
-
   return true;
 }
 
@@ -158,16 +144,6 @@ void FlutterWindow::RegisterWindowChannel() {
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                  result) {
         const auto& method = call.method_name();
-        if (method == "minimize") {
-          Minimize();
-          result->Success();
-          return;
-        }
-        if (method == "toggleMaximize") {
-          MaximizeOrRestore();
-          result->Success(flutter::EncodableValue(IsWindowMaximized()));
-          return;
-        }
         if (method == "close") {
           Close();
           result->Success();
@@ -186,15 +162,6 @@ void FlutterWindow::RegisterWindowChannel() {
         if (method == "hideForExit") {
           HideForExit();
           result->Success();
-          return;
-        }
-        if (method == "startDrag") {
-          StartDrag();
-          result->Success();
-          return;
-        }
-        if (method == "isMaximized") {
-          result->Success(flutter::EncodableValue(IsWindowMaximized()));
           return;
         }
         if (method == "shouldConfirmClose") {
@@ -284,18 +251,6 @@ void FlutterWindow::RestoreFromTray() {
     ShowWindow(GetHandle(), SW_SHOWNORMAL);
   }
   SetForegroundWindow(GetHandle());
-}
-
-void FlutterWindow::EnsureVisible() {
-  // Centralized "make sure the host window is on screen" helper. Covers both
-  // the first-frame startup path and any future restore-from-hidden flow so we
-  // never end up with a tray-only app after a relaunch.
-  const HWND handle = GetHandle();
-  if (handle == nullptr) {
-    return;
-  }
-  ShowWindow(handle, SW_SHOWNORMAL);
-  SetForegroundWindow(handle);
 }
 
 void FlutterWindow::ShowTrayContextMenu(POINT anchor) {

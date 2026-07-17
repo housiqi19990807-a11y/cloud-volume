@@ -32,7 +32,6 @@ class FlutterWindow : public Win32Window {
   void HideToTray();
   void HideForExit();
   void RestoreFromTray();
-  void EnsureVisible();
   void ShowTrayContextMenu(POINT anchor);
   bool HandleTrayCommand(UINT command_id);
   void CloseViaChannel();
@@ -45,8 +44,7 @@ class FlutterWindow : public Win32Window {
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
 
-  // The window-control channel keeps the Flutter chrome lightweight while the
-  // native host still owns window state transitions.
+  // The project channel owns tray/exit requests not covered by window_manager.
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       window_channel_;
 

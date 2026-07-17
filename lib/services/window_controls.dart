@@ -1,10 +1,11 @@
-// Desktop window-control channel keeps custom chrome in Flutter while the
-// native runner still owns the actual window state transitions.
+// Desktop window controls use window_manager for normal Windows chrome while
+// the project channel retains tray/exit behavior and the Linux fallback.
 
 import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:remote_storage/platform/platform_info.dart';
+import 'package:window_manager/window_manager.dart';
 
 typedef CloseRequestHandler = Future<void> Function();
 typedef ExitRequestHandler = Future<void> Function();
@@ -56,16 +57,30 @@ class WindowControls {
 
   static Future<void> minimize() async {
     if (!supported) return;
+    if (isWindowsPlatform) {
+      await windowManager.minimize();
+      return;
+    }
     await _channel.invokeMethod<void>('minimize');
   }
 
   static Future<bool> toggleMaximize() async {
     if (!supported) return false;
+    if (isWindowsPlatform) {
+      final maximized = await windowManager.isMaximized();
+      if (maximized) {
+        await windowManager.unmaximize();
+      } else {
+        await windowManager.maximize();
+      }
+      return !maximized;
+    }
     return await _channel.invokeMethod<bool>('toggleMaximize') ?? false;
   }
 
   static Future<bool> isMaximized() async {
     if (!supported) return false;
+    if (isWindowsPlatform) return windowManager.isMaximized();
     return await _channel.invokeMethod<bool>('isMaximized') ?? false;
   }
 
@@ -102,6 +117,10 @@ class WindowControls {
 
   static Future<void> startDrag() async {
     if (!supported) return;
+    if (isWindowsPlatform) {
+      await windowManager.startDragging();
+      return;
+    }
     await _channel.invokeMethod<void>('startDrag');
   }
 }

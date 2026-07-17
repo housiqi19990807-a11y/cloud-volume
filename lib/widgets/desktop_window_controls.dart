@@ -9,6 +9,7 @@ import 'package:remote_storage/services/window_controls.dart';
 import 'package:remote_storage/services/app_exit_cleanup.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/app_modal.dart';
+import 'package:window_manager/window_manager.dart';
 
 class DesktopWindowControls extends StatefulWidget {
   const DesktopWindowControls({super.key});
@@ -17,7 +18,8 @@ class DesktopWindowControls extends StatefulWidget {
   State<DesktopWindowControls> createState() => _DesktopWindowControlsState();
 }
 
-class _DesktopWindowControlsState extends State<DesktopWindowControls> {
+class _DesktopWindowControlsState extends State<DesktopWindowControls>
+    with WindowListener {
   bool _maximized = false;
   bool _busy = false;
 
@@ -29,13 +31,28 @@ class _DesktopWindowControlsState extends State<DesktopWindowControls> {
     // the same confirmation flow as the in-app close button.
     WindowControls.registerCloseRequestHandler(_handleCloseRequest);
     WindowControls.registerExitRequestHandler(_handleExitRequest);
+    if (isWindowsPlatform) windowManager.addListener(this);
   }
 
   @override
   void dispose() {
     WindowControls.registerCloseRequestHandler(null);
     WindowControls.registerExitRequestHandler(null);
+    if (isWindowsPlatform) windowManager.removeListener(this);
     super.dispose();
+  }
+
+  @override
+  void onWindowMaximize() => _setMaximized(true);
+
+  @override
+  void onWindowUnmaximize() => _setMaximized(false);
+
+  @override
+  void onWindowRestore() => unawaited(_refreshMaximized());
+
+  void _setMaximized(bool value) {
+    if (mounted && _maximized != value) setState(() => _maximized = value);
   }
 
   Future<void> _handleCloseRequest() => _confirmClose();
