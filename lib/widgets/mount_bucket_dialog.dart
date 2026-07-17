@@ -1,8 +1,10 @@
 // Mount settings dialog separates access mode from platform-specific presentation.
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/widgets/mount_engine_picker.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 enum _MountPresentation { driveLetter, path }
@@ -12,6 +14,8 @@ Future<MountBucketOptions?> showMountBucketDialog(
   required String bucket,
   bool showWindowsMountMode = false,
   List<String> availableDriveLetters = const <String>[],
+  WindowsMountEngine? currentEngine,
+  bool winFspAvailable = false,
 }) {
   return showAppModal<MountBucketOptions?>(
     context: context,
@@ -19,6 +23,8 @@ Future<MountBucketOptions?> showMountBucketDialog(
       bucket: bucket,
       showWindowsMountMode: showWindowsMountMode,
       availableDriveLetters: availableDriveLetters,
+      currentEngine: currentEngine,
+      winFspAvailable: winFspAvailable,
     ),
   );
 }
@@ -28,11 +34,15 @@ class _MountBucketDialog extends StatefulWidget {
     required this.bucket,
     required this.showWindowsMountMode,
     required this.availableDriveLetters,
+    required this.currentEngine,
+    required this.winFspAvailable,
   });
 
   final String bucket;
   final bool showWindowsMountMode;
   final List<String> availableDriveLetters;
+  final WindowsMountEngine? currentEngine;
+  final bool winFspAvailable;
 
   @override
   State<_MountBucketDialog> createState() => _MountBucketDialogState();
@@ -43,6 +53,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
   bool _readOnly = false;
   late _MountPresentation _presentation;
   String? _driveLetter;
+  WindowsMountEngine? _engine;
 
   @override
   void initState() {
@@ -52,6 +63,12 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
         ? _MountPresentation.driveLetter
         : _MountPresentation.path;
     _driveLetter = hasDrive ? widget.availableDriveLetters.first : null;
+    // When WinFsp is not installed the picker hides it; fall back to Cloud
+    // Files so the selected value always reflects something mountable.
+    _engine = (widget.currentEngine == WindowsMountEngine.winFsp &&
+            !widget.winFspAvailable)
+        ? WindowsMountEngine.cloudFiles
+        : widget.currentEngine;
   }
 
   @override
@@ -79,6 +96,15 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
               ),
               sublabel: const Text('关闭时允许在挂载目录中新增、修改和删除文件。'),
             ),
+            if (widget.showWindowsMountMode && _engine != null) ...[
+              const SizedBox(height: 18),
+              MountEnginePicker(
+                theme: theme,
+                engine: _engine!,
+                winFspAvailable: widget.winFspAvailable,
+                onChanged: (value) => setState(() => _engine = value),
+              ),
+            ],
             if (widget.showWindowsMountMode) ...[
               const SizedBox(height: 18),
               _FieldLabel(text: '挂载模式', theme: theme),
@@ -133,7 +159,8 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                       ),
                     )
                     .toList(growable: false),
-                onChanged: (value) => setState(() => _driveLetter = value),
+                onChanged: (value) =>
+                    setState(() => _driveLetter = value),
               ),
               const SizedBox(height: 10),
               Row(
@@ -185,6 +212,8 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                             mountPath: usesPath ? _mountPath : '',
                             readOnly: _readOnly,
                             driveLetter: usesPath ? '' : _driveLetter ?? '',
+                            windowsMountEngine:
+                                widget.showWindowsMountMode ? _engine : null,
                           ),
                         )
                       : null,
@@ -287,3 +316,4 @@ String _presentationLabel(_MountPresentation value) {
     _MountPresentation.path => '路径挂载',
   };
 }
+

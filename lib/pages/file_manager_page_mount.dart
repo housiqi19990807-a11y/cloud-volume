@@ -154,38 +154,38 @@ extension _FileManagerPageMount on _FileManagerPageState {
       return;
     }
     final config = targetBucket.config;
+    final winFspInstalled = isWindowsPlatform &&
+        widget.api is WindowsWinFspQuery &&
+        await (widget.api as WindowsWinFspQuery).listWindowsWinFspAvailable();
+    if (!mounted) return;
+    final currentEngine = config.windowsMountEngine;
     final winFspEnabled = isWindowsPlatform &&
-        config.windowsMountEngine == WindowsMountEngine.winFsp;
-    if (winFspEnabled && widget.api is WindowsWinFspQuery) {
-      final available = await (widget.api as WindowsWinFspQuery)
-          .listWindowsWinFspAvailable();
-      if (!mounted) return;
-      if (!available) {
-        final shouldInstall = await showAppConfirmModal(
-          context: context,
-          title: const Text('需要安装 WinFsp'),
-          description: const Text(
-            '当前挂载引擎为 WinFsp 虚拟文件系统，但本机尚未安装 WinFsp 驱动。应用已内嵌安装包，是否现在安装？（会弹出 UAC 确认）',
-          ),
-          confirmLabel: '安装并继续',
-          cancelLabel: '取消',
-        );
-        if (shouldInstall != true) return;
-        try {
-          final installed = await (widget.api as WindowsWinFspQuery)
-              .installWindowsWinFsp();
-          if (!mounted) return;
-          if (!installed) {
-            _showPageMessage(
-              title: 'WinFsp 安装未完成',
-              message: '驱动仍不可见，可能需要重启后再试，或在设置中切换回 Cloud Files 引擎。',
-            );
-            return;
-          }
-        } catch (error) {
-          _showPageError(error);
+        currentEngine == WindowsMountEngine.winFsp;
+    if (winFspEnabled && !winFspInstalled) {
+      final shouldInstall = await showAppConfirmModal(
+        context: context,
+        title: const Text('需要安装 WinFsp'),
+        description: const Text(
+          '当前挂载引擎为 WinFsp 虚拟文件系统，但本机尚未安装 WinFsp 驱动。应用已内嵌安装包，是否现在安装？（会弹出 UAC 确认）',
+        ),
+        confirmLabel: '安装并继续',
+        cancelLabel: '取消',
+      );
+      if (shouldInstall != true) return;
+      try {
+        final installed =
+            await (widget.api as WindowsWinFspQuery).installWindowsWinFsp();
+        if (!mounted) return;
+        if (!installed) {
+          _showPageMessage(
+            title: 'WinFsp 安装未完成',
+            message: '驱动仍不可见，可能需要重启后再试，或在设置中切换回 Cloud Files 引擎。',
+          );
           return;
         }
+      } catch (error) {
+        _showPageError(error);
+        return;
       }
     }
     // WinFsp exposes a real virtual volume, so drive letters are always offered.
@@ -211,14 +211,33 @@ extension _FileManagerPageMount on _FileManagerPageState {
       bucket: targetBucket.bucket.name,
       showWindowsMountMode: supportsDriveLetters,
       availableDriveLetters: availableDriveLetters,
+      currentEngine: currentEngine,
+      winFspAvailable: winFspInstalled,
     );
     if (options == null) {
       return;
     }
+    // Persist an engine change chosen from the mount dialog before mounting,
+    // so the backend picks the right kernel and the setting sticks for next time.
+    var mountConfig = targetBucket.config;
+    if (options.windowsMountEngine != null &&
+        options.windowsMountEngine != mountConfig.windowsMountEngine) {
+      try {
+        final saved = await widget.api.saveConfig(
+          mountConfig.copyWith(windowsMountEngine: options.windowsMountEngine),
+        );
+        if (!mounted) return;
+        mountConfig = saved.config;
+        widget.onRefresh();
+      } catch (error) {
+        _showPageError(error);
+        return;
+      }
+    }
     setState(() => _mountBusyBuckets.add(targetBucket.id));
     try {
       final status = await widget.api.mountBucket(
-        targetBucket.config,
+        mountConfig,
         targetBucket.bucket.name,
         options,
       );

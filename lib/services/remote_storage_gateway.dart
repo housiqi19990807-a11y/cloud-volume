@@ -393,11 +393,17 @@ class MountBucketOptions {
     this.mountPath = '',
     this.readOnly = false,
     this.driveLetter = '',
+    this.windowsMountEngine,
   });
 
   final String mountPath;
   final bool readOnly;
   final String driveLetter;
+
+  /// Optional Windows mount engine override chosen from the mount dialog.
+  /// When null the backend uses the persisted config value. Non-null values
+  /// are persisted by the caller before mounting.
+  final WindowsMountEngine? windowsMountEngine;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
