@@ -11,6 +11,20 @@ import (
 	storageconfig "remote-storage/go/config"
 )
 
+// singleObjectCallOptions returns per-call options for low-level single-object
+// APIs (CopyObject, HeadObject, DeleteObject, placeholder PutObject) inside
+// multi-object sweeps. The wider retry budget keeps a flaky gateway from
+// aborting a whole tree operation, without changing global client behavior for
+// listing, uploads, or presigning.
+func singleObjectCallOptions() []func(*s3.Options) {
+	retryer := newSingleObjectRetryer()
+	return []func(*s3.Options){
+		func(options *s3.Options) {
+			options.Retryer = retryer
+		},
+	}
+}
+
 // NewClient creates an S3 client from the stored configuration.
 func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
 	credProvider := awsCreds.NewStaticCredentialsProvider(

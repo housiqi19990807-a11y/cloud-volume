@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- S3 删除/移动/重命名容错：软删除（移入回收站）、复制、移动和重命名时，逐对象的 CopyObject、目录占位符 PutObject、HeadObject 与源对象 DeleteObject 现在使用单次调用的扩展重试预算（5 次尝试、退避上限 15s），并对 S3 兼容网关偶发的非可重试错误（如 CopyObject 的 InvalidArgument 毛刺、连接重置）再做少量间隔重试。网关或代理返回 502 HTML 错误页等瞬时故障时，单个对象不再直接中止整个目录的删除/移动操作。
 - Windows window chrome: the existing `window_manager` integration now solely owns hidden-titlebar non-client handling plus native maximize/restore/minimize/drag commands. The runner keeps the default overlapped style and only owns tray/exit behavior, removing the competing popup/frame implementations that exposed black or white resize frames and could show a native title bar. The window class now registers a light-surface background brush, so the maximize/restore transition no longer flashes black before Flutter presents the resized frame (a transparent/layered window cannot work with the Direct3D Flutter child).
 - Windows 构建：移除 `winfsp` build tag 门槛——WinFsp 引擎现在随每个 Windows CGO bridge 构建一起编译。`third_party/winfsp/inc/fuse` 头文件已入库，`run_windows.ps1`、`build_desktop_packages.sh`、`windows/CMakeLists.txt` 与 `Makefile bridge-windows` 都会设置 `CPATH` 指向它，CI 与本地构建都会默认带上 WinFsp 引擎。
 - 测试：修复 `transfers_page_batch_actions_test.dart` 和 `widget_test.dart` 中 fake API 实现遗漏的方法签名，使此前被跳过的 4 个测试重新通过。

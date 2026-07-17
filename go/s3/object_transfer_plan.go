@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -59,10 +58,7 @@ func buildObjectTransferPlan(
 		}
 	}
 	if !isDirectory && plan.totalBytes == 0 {
-		head, err := client.HeadObject(ctx, &s3.HeadObjectInput{
-			Bucket: &bucket,
-			Key:    aws.String(sourceKey),
-		})
+		head, err := headObjectResilient(ctx, client, bucket, sourceKey)
 		if err == nil && head.ContentLength != nil && *head.ContentLength > 0 {
 			plan.totalBytes = *head.ContentLength
 			if len(plan.entries) == 1 {

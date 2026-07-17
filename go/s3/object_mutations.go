@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-
 	storageconfig "remote-storage/go/config"
 )
 
@@ -77,16 +74,7 @@ func DeleteObjectHardContext(
 	if len(keys) == 0 {
 		return nil
 	}
-	for _, objectKey := range keys {
-		_, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{
-			Bucket: &bucket,
-			Key:    aws.String(objectKey),
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return deleteObjectKeysHard(ctx, client, bucket, keys)
 }
 
 // DeleteObjectHardContextWithTask permanently removes an object tree while reporting task status.

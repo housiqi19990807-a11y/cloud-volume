@@ -5,7 +5,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -66,18 +65,12 @@ func executeObjectCopyPlan(
 			nextKey += strings.TrimPrefix(*entry.Key, plan.sourcePrefix)
 		}
 		if isDirectory && isDirectoryPlaceholderKey(*entry.Key) {
-			if err := putDirectoryPlaceholder(ctx, client, bucket, nextKey); err != nil {
+			if err := putDirectoryPlaceholderResilient(ctx, client, bucket, nextKey); err != nil {
 				return err
 			}
 			continue
 		}
-		copySource := encodeCopySource(bucket, *entry.Key)
-		_, err := client.CopyObject(ctx, &s3.CopyObjectInput{
-			Bucket:     &bucket,
-			Key:        aws.String(nextKey),
-			CopySource: aws.String(copySource),
-		})
-		if err != nil {
+		if err := copyObjectResilient(ctx, client, bucket, *entry.Key, nextKey); err != nil {
 			return err
 		}
 		task.advance(entry)
