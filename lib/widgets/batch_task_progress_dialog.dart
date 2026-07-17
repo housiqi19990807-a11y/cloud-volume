@@ -61,82 +61,87 @@ class BatchTaskProgressDialog extends StatelessWidget {
           0,
           (sum, task) => sum + task.itemsCompleted,
         );
-        final progress = totalBytes > 0
+        final progress = totalItems > 0
+            ? (completedItems / totalItems).clamp(0.0, 1.0)
+            : totalBytes > 0
             ? (completedBytes / totalBytes).clamp(0.0, 1.0)
             : allFinished
             ? 1.0
             : null;
-       final resolvedMode = mode ?? _modeForTasks(tasks);
+        final resolvedMode = mode ?? _modeForTasks(tasks);
 
         // Enter confirms: close when finished, run-in-background while active.
         return Focus(
           autofocus: true,
           child: CallbackShortcuts(
             bindings: {
-              const SingleActivator(LogicalKeyboardKey.enter):
-                  allFinished ? onClose : onRunInBackground,
+              const SingleActivator(LogicalKeyboardKey.enter): allFinished
+                  ? onClose
+                  : onRunInBackground,
             },
             child: ShadDialog(
-          title: Text(
-            allFinished ? resolvedMode.doneTitle : resolvedMode.runningTitle,
-          ),
-          description: Text(
-            resolvedMode.description(
-              totalCount: tasks.length,
-              activeCount: activeCount,
-              failedCount: failedCount,
-              allFinished: allFinished,
-            ),
-          ),
-          child: SizedBox(
-            width: 480,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _SummaryCard(
-                  currentPathLabel: currentPathLabel,
+              title: Text(
+                allFinished
+                    ? resolvedMode.doneTitle
+                    : resolvedMode.runningTitle,
+              ),
+              description: Text(
+                resolvedMode.description(
                   totalCount: tasks.length,
                   activeCount: activeCount,
                   failedCount: failedCount,
-                  progress: progress,
-                  completedBytes: completedBytes,
-                  totalBytes: totalBytes,
-                  completedItems: completedItems,
-                  totalItems: totalItems,
-                  totalSpeed: totalSpeed,
                   allFinished: allFinished,
-                  mode: resolvedMode,
                 ),
-                const SizedBox(height: 14),
-                if (tasks.isNotEmpty)
-                  _TaskList(tasks: tasks, mode: resolvedMode),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+              ),
+              child: SizedBox(
+                width: 480,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (allFinished)
-                      ShadButton.outline(
-                        onPressed: onClose,
-                        child: const Text('关闭'),
-                      )
-                    else ...[
-                      ShadButton.destructive(
-                        onPressed: () => _cancelActiveTasks(tasks),
-                        child: Text(resolvedMode.cancelLabel),
-                      ),
-                      const SizedBox(width: 10),
-                      ShadButton(
-                        onPressed: onRunInBackground,
-                        child: const Text('后台运行'),
-                      ),
-                    ],
+                    _SummaryCard(
+                      currentPathLabel: currentPathLabel,
+                      totalCount: tasks.length,
+                      activeCount: activeCount,
+                      failedCount: failedCount,
+                      progress: progress,
+                      completedBytes: completedBytes,
+                      totalBytes: totalBytes,
+                      completedItems: completedItems,
+                      totalItems: totalItems,
+                      totalSpeed: totalSpeed,
+                      allFinished: allFinished,
+                      mode: resolvedMode,
+                    ),
+                    const SizedBox(height: 14),
+                    if (tasks.isNotEmpty)
+                      _TaskList(tasks: tasks, mode: resolvedMode),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (allFinished)
+                          ShadButton.outline(
+                            onPressed: onClose,
+                            child: const Text('关闭'),
+                          )
+                        else ...[
+                          ShadButton.destructive(
+                            onPressed: () => _cancelActiveTasks(tasks),
+                            child: Text(resolvedMode.cancelLabel),
+                          ),
+                          const SizedBox(width: 10),
+                          ShadButton(
+                            onPressed: onRunInBackground,
+                            child: const Text('后台运行'),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
-             ],
-           ),
-         ),
-          ),
+              ),
+            ),
           ),
         );
       },
@@ -257,7 +262,7 @@ class _SummaryCard extends StatelessWidget {
               if (totalBytes > 0)
                 _metaChip(theme, _bytesText(completedBytes, totalBytes)),
               if (totalItems > 0)
-                _metaChip(theme, '$completedItems / $totalItems 个文件'),
+                _metaChip(theme, '$completedItems / $totalItems 个对象'),
             ],
           ),
         ],
@@ -412,7 +417,7 @@ class _TaskList extends StatelessWidget {
       parts.add('等待选择保存位置');
     }
     if (task.totalItems > 0) {
-      parts.add('${task.itemsCompleted} / ${task.totalItems} 个文件');
+      parts.add('${task.itemsCompleted} / ${task.totalItems} 个对象');
     } else if (task.statusDetail == 'scanning') {
       parts.add('正在扫描文件');
     }

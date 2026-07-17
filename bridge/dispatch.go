@@ -199,6 +199,7 @@ type objectMutationArgs struct {
 	Key         string                            `json:"key"`
 	IsDirectory bool                              `json:"isDirectory"`
 	TaskID      string                            `json:"taskId"`
+	Permanent   bool                              `json:"permanent"`
 }
 
 type renameObjectArgs struct {
@@ -295,7 +296,14 @@ func deleteObject(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if err := storageops.ForConfig(input.Config).DeleteObject(
+	backend := storageops.ForConfig(input.Config)
+	// A permanent delete skips the trash routing and hard-deletes the tree
+	// even when the bucket has soft delete enabled.
+	deleteFn := backend.DeleteObject
+	if input.Permanent {
+		deleteFn = backend.DeleteObjectHard
+	}
+	if err := deleteFn(
 		context.Background(),
 		input.Bucket,
 		input.Key,

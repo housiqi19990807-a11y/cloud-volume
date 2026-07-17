@@ -45,7 +45,7 @@ func DeleteObjectContextWithTask(
 	ctx, cancel = context.WithCancel(ctx)
 	startTransfer(taskID, "delete", bucket, key, "", 0, cancel)
 	defer func() { finishTransfer(taskID, err) }()
-	return MoveObjectToTrashContext(ctx, cfg, bucket, key, isDirectory)
+	return MoveObjectToTrashContextWithTask(ctx, cfg, bucket, key, isDirectory, taskID)
 }
 
 // DeleteObjectHard permanently removes either a single object or all objects under a prefix.
@@ -66,7 +66,28 @@ func DeleteObjectHardContext(
 	key string,
 	isDirectory bool,
 ) error {
+	return DeleteObjectHardContextProgress(ctx, cfg, bucket, key, isDirectory, "")
+}
+
+// DeleteObjectHardContextProgress permanently removes an object tree without
+// registering a new transfer task, advancing per-item progress on
+// progressTaskID when set so the delete sweep shows a determinate bar.
+func DeleteObjectHardContextProgress(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket,
+	key string,
+	isDirectory bool,
+	progressTaskID string,
+) error {
 	client := NewClient(cfg)
+	if progressTaskID != "" {
+		entries, err := mutationEntriesWithProgress(ctx, client, bucket, key, isDirectory, progressTaskID)
+		if err != nil {
+			return err
+		}
+		return deleteEntriesHardWithTask(ctx, client, bucket, entries, progressTaskID)
+	}
 	keys, err := mutationKeys(ctx, client, bucket, key, isDirectory)
 	if err != nil {
 		return err
@@ -96,7 +117,7 @@ func DeleteObjectHardContextWithTask(
 	ctx, cancel = context.WithCancel(ctx)
 	startTransfer(taskID, "delete", bucket, key, "", 0, cancel)
 	defer func() { finishTransfer(taskID, err) }()
-	return DeleteObjectHardContext(ctx, cfg, bucket, key, isDirectory)
+	return DeleteObjectHardContextProgress(ctx, cfg, bucket, key, isDirectory, taskID)
 }
 
 // RenameObject emulates rename by copying to a sibling key and removing the source.
@@ -150,7 +171,7 @@ func RenameObjectContext(
 	); err != nil {
 		return err
 	}
-	return DeleteObjectHardContext(ctx, cfg, bucket, key, isDirectory)
+	return DeleteObjectHardContextProgress(ctx, cfg, bucket, key, isDirectory, "")
 }
 
 func renamedKeyTarget(key string, isDirectory bool, newName string) (string, error) {

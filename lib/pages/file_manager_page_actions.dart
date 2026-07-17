@@ -357,9 +357,15 @@ extension _FileManagerPageActions on _FileManagerPageState {
         );
       } else if (action == FileObjectAction.delete) {
         if (!mounted) return;
-        final confirmed = await showDeleteObjectDialog(context, object);
-        if (!confirmed) return;
-        final tasks = _queueObjectDeletes(<ObjectInfo>[object]);
+        final choice = await showDeleteObjectDialog(
+          context,
+          object,
+          trashEnabled: _activeBucketTrashEnabled,
+        );
+        if (!choice.confirmed) return;
+        final tasks = _queueObjectDeletes(<ObjectInfo>[
+          object,
+        ], permanent: choice.permanent);
         await _showDeleteProgressDialogForTasks(tasks);
         return;
       }

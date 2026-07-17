@@ -33,6 +33,20 @@ func MoveObjectToTrashContext(
 	key string,
 	isDirectory bool,
 ) error {
+	return MoveObjectToTrashContextWithTask(ctx, cfg, bucket, key, isDirectory, "")
+}
+
+// MoveObjectToTrashContextWithTask soft-deletes an object tree while advancing
+// per-item progress on the given task. The copy-to-trash phase and the source
+// cleanup share one item total so the bar moves steadily to 100%.
+func MoveObjectToTrashContextWithTask(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+	key string,
+	isDirectory bool,
+	taskID string,
+) error {
 	client := NewClient(cfg)
 	if ctx == nil {
 		ctx = Ctx()
@@ -56,7 +70,7 @@ func MoveObjectToTrashContext(
 	if isDirectory {
 		targetKey = ensureRemoteDirSuffix(targetKey)
 	}
-	if err := MoveObjectContext(ctx, cfg, bucket, sourceKey, targetKey, isDirectory); err != nil {
+	if err := MoveObjectContextWithTask(ctx, cfg, bucket, sourceKey, targetKey, isDirectory, taskID); err != nil {
 		return err
 	}
 

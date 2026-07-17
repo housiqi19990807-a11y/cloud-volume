@@ -170,11 +170,15 @@ extension _FileManagerPageSelection on _FileManagerPageState {
       return;
     }
     final selected = _selectedObjects;
-    final confirmed = await showDeleteObjectsDialog(context, selected.length);
-    if (!confirmed) {
+    final choice = await showDeleteObjectsDialog(
+      context,
+      selected.length,
+      trashEnabled: _activeBucketTrashEnabled,
+    );
+    if (!choice.confirmed) {
       return;
     }
-    final tasks = _queueObjectDeletes(selected);
+    final tasks = _queueObjectDeletes(selected, permanent: choice.permanent);
     await _showDeleteProgressDialogForTasks(tasks);
   }
 }

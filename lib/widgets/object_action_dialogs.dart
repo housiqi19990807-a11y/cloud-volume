@@ -6,6 +6,87 @@ import 'package:remote_storage/models/trash_item.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/app_modal.dart';
 
+// DeleteDialogChoice carries the user's delete confirmation plus whether the
+// objects should bypass the trash and be removed permanently.
+class DeleteDialogChoice {
+  const DeleteDialogChoice({required this.confirmed, required this.permanent});
+
+  final bool confirmed;
+  final bool permanent;
+}
+
+// DeleteDialogBody renders the shared confirm body: target label, an optional
+// permanent-delete switch (only when the bucket soft-deletes to trash), and
+// the cancel/delete actions.
+class DeleteDialogBody extends StatefulWidget {
+  const DeleteDialogBody({
+    super.key,
+    required this.targetLabel,
+    required this.trashEnabled,
+    required this.actionLabel,
+  });
+
+  final String targetLabel;
+  final bool trashEnabled;
+  final String actionLabel;
+
+  @override
+  State<DeleteDialogBody> createState() => _DeleteDialogBodyState();
+}
+
+class _DeleteDialogBodyState extends State<DeleteDialogBody> {
+  bool _permanent = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 380,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          if (widget.targetLabel.isNotEmpty) ...[
+            Text(
+              widget.targetLabel,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (widget.trashEnabled) ...[
+            ShadSwitch(
+              value: _permanent,
+              onChanged: (value) => setState(() => _permanent = value),
+              label: const Text('永久删除'),
+              sublabel: const Text('不移入回收站，删除后无法恢复'),
+            ),
+            const SizedBox(height: 18),
+          ] else
+            const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ShadButton.outline(
+                onPressed: () => Navigator.of(context).pop(
+                  const DeleteDialogChoice(confirmed: false, permanent: false),
+                ),
+                child: const Text('取消'),
+              ),
+              const SizedBox(width: 10),
+              ShadButton.destructive(
+                onPressed: () => Navigator.of(context).pop(
+                  DeleteDialogChoice(confirmed: true, permanent: _permanent),
+                ),
+                child: Text(widget.actionLabel),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 enum FileObjectAction { open, download, share, copy, move, rename, delete }
 
 enum FileSelectionAction {
@@ -193,84 +274,56 @@ Future<String?> showObjectTargetPathDialog(
   }
 }
 
-Future<bool> showDeleteObjectDialog(
+Future<DeleteDialogChoice> showDeleteObjectDialog(
   BuildContext context,
-  ObjectInfo object,
-) async {
-  return await showAppModal<bool>(
+  ObjectInfo object, {
+  required bool trashEnabled,
+}) async {
+  return await showAppModal<DeleteDialogChoice>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('删除'),
           description: Text(
-            object.isDir ? '将删除整个目录及其内容。此操作不可撤销。' : '将删除这个文件。此操作不可撤销。',
+            trashEnabled
+                ? object.isDir
+                      ? '将把整个目录及其内容移入回收站。'
+                      : '将把这个文件移入回收站。'
+                : object.isDir
+                ? '将删除整个目录及其内容。此操作不可撤销。'
+                : '将删除这个文件。此操作不可撤销。',
           ),
-          child: SizedBox(
-            width: 380,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                Text(
-                  object.displayName,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ShadButton.outline(
-                      onPressed: () => Navigator.of(dialogContext).pop(false),
-                      child: const Text('取消'),
-                    ),
-                    const SizedBox(width: 10),
-                    ShadButton.destructive(
-                      onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: const Text('删除'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          child: DeleteDialogBody(
+            targetLabel: object.displayName,
+            trashEnabled: trashEnabled,
+            actionLabel: '删除',
           ),
         ),
       ) ??
-      false;
+      const DeleteDialogChoice(confirmed: false, permanent: false);
 }
 
-Future<bool> showDeleteObjectsDialog(BuildContext context, int count) async {
-  return await showAppModal<bool>(
+Future<DeleteDialogChoice> showDeleteObjectsDialog(
+  BuildContext context,
+  int count, {
+  required bool trashEnabled,
+}) async {
+  return await showAppModal<DeleteDialogChoice>(
         context: context,
         builder: (dialogContext) => ShadDialog(
           title: const Text('批量删除'),
-          description: Text('将删除选中的 $count 个项目。此操作不可撤销。'),
-          child: SizedBox(
-            width: 380,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ShadButton.outline(
-                      onPressed: () => Navigator.of(dialogContext).pop(false),
-                      child: const Text('取消'),
-                    ),
-                    const SizedBox(width: 10),
-                    ShadButton.destructive(
-                      onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: const Text('删除'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          description: Text(
+            trashEnabled
+                ? '将把选中的 $count 个项目移入回收站。'
+                : '将删除选中的 $count 个项目。此操作不可撤销。',
+          ),
+          child: DeleteDialogBody(
+            targetLabel: '',
+            trashEnabled: trashEnabled,
+            actionLabel: '删除',
           ),
         ),
       ) ??
-      false;
+      const DeleteDialogChoice(confirmed: false, permanent: false);
 }
 
 Future<bool> showDeleteTrashItemDialog(

@@ -68,12 +68,13 @@ func executeObjectCopyPlan(
 			if err := putDirectoryPlaceholderResilient(ctx, client, bucket, nextKey); err != nil {
 				return err
 			}
+			advanceTransferTaskProgress(task, entry)
 			continue
 		}
 		if err := copyObjectResilient(ctx, client, bucket, *entry.Key, nextKey); err != nil {
 			return err
 		}
-		task.advance(entry)
+		advanceTransferTaskProgress(task, entry)
 	}
 	return nil
 }

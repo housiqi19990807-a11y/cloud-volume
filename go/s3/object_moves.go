@@ -67,6 +67,8 @@ func MoveObjectContext(
 }
 
 // MoveObjectContextWithTask copies and deletes through a tracked task-aware path.
+// Item totals for the copy phase are reported up front so delete sweeps that
+// reuse the same task keep a single consistent item bar across both phases.
 func MoveObjectContextWithTask(
 	ctx context.Context,
 	cfg storageconfig.RemoteStorageConfig,
@@ -77,6 +79,11 @@ func MoveObjectContextWithTask(
 	taskID string,
 ) (err error) {
 	client := NewClient(cfg)
+	if taskID != "" {
+		if _, planErr := mutationEntriesWithProgress(ctx, client, bucket, sourceKey, isDirectory, taskID); planErr != nil {
+			return planErr
+		}
+	}
 	plan, err := buildObjectTransferPlan(
 		ctx,
 		client,
@@ -108,7 +115,7 @@ func MoveObjectContextWithTask(
 	); err != nil {
 		return err
 	}
-	return DeleteObjectHardContext(runCtx, cfg, bucket, sourceKey, isDirectory)
+	return deleteEntriesHardWithTask(runCtx, client, bucket, plan.entries, taskID)
 }
 
 func ensureRemoteDirSuffix(value string) string {

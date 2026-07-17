@@ -73,14 +73,16 @@ mixin _RemoteStorageDesktopStorageApiMixin
     String bucket,
     String key,
     bool isDirectory,
-    String taskId,
-  ) async {
+    String taskId, {
+    bool permanent = false,
+  }) async {
     await runBridgeCall('delete_object', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'key': key,
       'isDirectory': isDirectory,
       'taskId': taskId,
+      'permanent': permanent,
     });
   }
 

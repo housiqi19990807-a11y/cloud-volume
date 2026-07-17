@@ -165,7 +165,7 @@ class _FakeApi implements RemoteStorageGateway {
       const AuthSessionState.desktop();
 
   @override
- Future<BridgeBuildInfo> getBuildInfo() async => const BridgeBuildInfo();
+  Future<BridgeBuildInfo> getBuildInfo() async => const BridgeBuildInfo();
 
   @override
   Future<SystemProxyInfo?> resolveSystemProxy() async => null;
@@ -334,8 +334,9 @@ class _FakeApi implements RemoteStorageGateway {
     String bucket,
     String key,
     bool isDirectory,
-    String taskId,
-  ) async {}
+    String taskId, {
+    bool permanent = false,
+  }) async {}
 
   @override
   Future<List<TrashItem>> listTrash(

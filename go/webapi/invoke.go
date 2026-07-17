@@ -29,6 +29,7 @@ type invokeEnvelope struct {
 	SourceKey   string                            `json:"sourceKey"`
 	TargetKey   string                            `json:"targetKey"`
 	TaskID      string                            `json:"taskId"`
+	Permanent   bool                              `json:"permanent"`
 	TrashID     string                            `json:"trashId"`
 	DurationSec int                               `json:"durationSec"`
 	ID          string                            `json:"id"`
@@ -220,7 +221,13 @@ func (s *Server) invokeMethod(
 		}
 		return map[string]any{"ok": true}, http.StatusOK, err
 	case "delete_object":
-		err := storageops.ForConfig(config).DeleteObject(
+		backend := storageops.ForConfig(config)
+		// A permanent delete bypasses trash routing even when soft delete is on.
+		deleteFn := backend.DeleteObject
+		if input.Permanent {
+			deleteFn = backend.DeleteObjectHard
+		}
+		err := deleteFn(
 			ctx,
 			input.Bucket,
 			input.Key,

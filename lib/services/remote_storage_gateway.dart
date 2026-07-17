@@ -137,8 +137,9 @@ abstract class RemoteStorageGateway {
     String bucket,
     String key,
     bool isDirectory,
-    String taskId,
-  );
+    String taskId, {
+    bool permanent = false,
+  });
   Future<void> renameObject(
     RemoteStorageConfig config,
     String bucket,

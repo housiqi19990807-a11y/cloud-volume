@@ -16,11 +16,6 @@ func deleteObjectKeysHard(
 	bucket string,
 	keys []string,
 ) error {
-	for _, objectKey := range keys {
-		if err := deleteObjectKeyResilient(ctx, client, bucket, objectKey); err != nil {
-			return err
-		}
-	}
-	return nil
+	return deleteObjectKeysHardWithTask(ctx, client, bucket, keys, "")
 }
 

@@ -302,8 +302,9 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
     String bucket,
     String key,
     bool isDirectory,
-    String taskId,
-  ) async => throw UnimplementedError();
+    String taskId, {
+    bool permanent = false,
+  }) async => throw UnimplementedError();
 
   @override
   Future<void> renameObject(

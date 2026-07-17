@@ -17,6 +17,37 @@ func mutationEntries(
 	key string,
 	isDirectory bool,
 ) ([]types.Object, error) {
+	return mutationEntriesWithProgress(ctx, client, bucket, key, isDirectory, "")
+}
+
+// mutationEntriesWithProgress enumerates objects like mutationEntries and, when
+// taskID is set, reports TotalItems immediately so the UI can render a
+// determinate item bar while the sweep runs.
+func mutationEntriesWithProgress(
+	ctx context.Context,
+	client *s3.Client,
+	bucket,
+	key string,
+	isDirectory bool,
+	taskID string,
+) ([]types.Object, error) {
+	entries, err := listMutationEntries(ctx, client, bucket, key, isDirectory)
+	if err != nil {
+		return nil, err
+	}
+	if taskID != "" && len(entries) > 0 {
+		AddTransferItems(taskID, int64(len(entries)))
+	}
+	return entries, nil
+}
+
+func listMutationEntries(
+	ctx context.Context,
+	client *s3.Client,
+	bucket,
+	key string,
+	isDirectory bool,
+) ([]types.Object, error) {
 	if !isDirectory {
 		return []types.Object{{Key: aws.String(key)}}, nil
 	}

@@ -46,16 +46,11 @@ func buildObjectTransferPlan(
 		sourcePrefix: sourceKey,
 		targetPrefix: targetKey,
 		entries:      entries,
-		totalBytes:   0,
+		totalBytes:   sumTransferEntrySizes(entries),
 	}
 	if isDirectory {
 		plan.sourcePrefix = ensureRemoteDirSuffix(sourceKey)
 		plan.targetPrefix = ensureRemoteDirSuffix(targetKey)
-	}
-	for _, entry := range entries {
-		if entry.Size != nil && *entry.Size > 0 {
-			plan.totalBytes += *entry.Size
-		}
 	}
 	if !isDirectory && plan.totalBytes == 0 {
 		head, err := headObjectResilient(ctx, client, bucket, sourceKey)

@@ -5,7 +5,10 @@
 part of 'file_manager_page.dart';
 
 extension _FileManagerPageObjectDeletes on _FileManagerPageState {
-  List<TransferTask> _queueObjectDeletes(List<ObjectInfo> objects) {
+  List<TransferTask> _queueObjectDeletes(
+    List<ObjectInfo> objects, {
+    bool permanent = false,
+  }) {
     if (_activeBucket == null ||
         _activeBucketEntry == null ||
         objects.isEmpty) {
@@ -37,7 +40,14 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
         .toList(growable: false);
     final futures = <Future<Object?>>[];
     for (var index = 0; index < targets.length; index++) {
-      futures.add(_runDeleteTask(bucketEntry, targets[index], tasks[index]));
+      futures.add(
+        _runDeleteTask(
+          bucketEntry,
+          targets[index],
+          tasks[index],
+          permanent: permanent,
+        ),
+      );
     }
     unawaited(() async {
       final errors = await Future.wait(futures);
@@ -61,8 +71,9 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
   Future<Object?> _runDeleteTask(
     FileManagerBucketEntry bucket,
     ObjectInfo object,
-    TransferTask task,
-  ) async {
+    TransferTask task, {
+    bool permanent = false,
+  }) async {
     try {
       await widget.api.deleteObject(
         bucket.config,
@@ -70,6 +81,7 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
         object.key,
         object.isDir,
         task.id,
+        permanent: permanent,
       );
       await FileAccessService.instance.evictCacheForObject(
         api: widget.api,
