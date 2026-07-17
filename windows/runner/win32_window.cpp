@@ -115,7 +115,13 @@ const wchar_t* WindowClassRegistrar::GetWindowClass() {
     window_class.hInstance = GetModuleHandle(nullptr);
     window_class.hIcon =
         LoadIcon(window_class.hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
-    window_class.hbrBackground = 0;
+    // Fill freshly exposed pixels with the app's light-surface tone while the
+    // resized Flutter surface prepares its next frame. With no background
+    // brush (0) the transition area flashes black before the first maximized
+    // frame is presented. A layered/transparent window is not an option here:
+    // the hosted Direct3D/Flutter child cannot composite through it, so the
+    // opaque surface-matching brush is the only reliable fix.
+    window_class.hbrBackground = CreateSolidBrush(RGB(0xF8, 0xFA, 0xFF));
     window_class.lpszMenuName = nullptr;
     window_class.lpfnWndProc = Win32Window::WndProc;
     RegisterClass(&window_class);
