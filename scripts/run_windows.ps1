@@ -474,17 +474,20 @@ try {
   }
 
   New-Item -ItemType Directory -Force -Path $bridgeDir | Out-Null
+  # The WinFsp FUSE headers under third_party/winfsp/inc/fuse are required to
+  # compile the cgofuse backend. The WinFsp engine is now compiled in by every
+  # Windows CGO build (no build tag), so we only point cgo at the headers when
+  # they are vendored in the repo; a missing header directory fails loudly so
+  # developers notice instead of shipping a bridge without the WinFsp engine.
   $winFspInc = Join-Path $repoRootPath 'third_party\winfsp\inc\fuse'
-  $winFspTags = @()
   if (Test-Path -LiteralPath (Join-Path $winFspInc 'fuse_common.h')) {
     $env:CPATH = $winFspInc
-    $winFspTags = @('-tags', 'winfsp')
-    Write-Host "WinFsp headers found at $winFspInc; building bridge with -tags winfsp"
+    Write-Host "WinFsp headers found at $winFspInc; building bridge with the WinFsp engine."
   } else {
-    Write-Host 'WinFsp headers not found; building bridge without the WinFsp engine (Cloud Files still works).'
+    throw "WinFsp FUSE headers not found at $winFspInc. The headers are vendored under third_party\winfsp\inc\fuse; restore them from git (git checkout -- third_party/winfsp) before building the Windows bridge."
   }
   Invoke-NativeCommand -Name 'go bridge build' -Command {
-    & $go build -buildvcs=false -buildmode=c-shared @winFspTags -o $bridgeDll ./bridge
+    & $go build -buildvcs=false -buildmode=c-shared -o $bridgeDll ./bridge
   }
 
  if ($Build) {

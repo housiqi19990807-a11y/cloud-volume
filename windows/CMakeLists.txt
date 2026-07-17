@@ -113,6 +113,7 @@ add_custom_target(remote_storage_bridge ALL
     "CGO_ENABLED=1"
     "CC=${WINDOWS_BRIDGE_CC_NAME}"
     "CXX=${WINDOWS_BRIDGE_CXX_NAME}"
+    "CPATH=${REPO_ROOT_DIR}/third_party/winfsp/inc/fuse"
     ${GO_EXECUTABLE} build -buildmode=c-shared -o "${WINDOWS_BRIDGE_OUTPUT}" ./bridge
   BYPRODUCTS
     "${WINDOWS_BRIDGE_OUTPUT}"

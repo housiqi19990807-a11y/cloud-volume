@@ -62,7 +62,8 @@ bridge-linux:
 bridge-windows:
 ifeq ($(HOST_PLATFORM),windows)
 	@mkdir -p $(BRIDGE_DIR)
-	$(BRIDGE_GO_ENV) go build -buildmode=c-shared -ldflags "$(BRIDGE_LDFLAGS)" -o $(WINDOWS_BRIDGE_OUT) ./bridge
+	WINFSP_INC := $(CURDIR)/third_party/winfsp/inc/fuse
+	$(BRIDGE_GO_ENV) CPATH="$(WINFSP_INC)" go build -buildmode=c-shared -ldflags "$(BRIDGE_LDFLAGS)" -o $(WINDOWS_BRIDGE_OUT) ./bridge
 else
 	@echo "bridge-windows must be run on a Windows host."
 	@exit 1

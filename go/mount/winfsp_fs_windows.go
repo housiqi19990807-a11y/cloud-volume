@@ -1,4 +1,4 @@
-//go:build windows && cgo && winfsp
+//go:build windows && cgo
 
 // winfsp_fs implements cgofuse's FileSystemInterface on top of bucketAccess.
 // Reads/writes reuse the same cache + writeback pipeline that powers the

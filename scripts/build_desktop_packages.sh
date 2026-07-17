@@ -330,11 +330,19 @@ build_windows() {
   require_cmd go
   require_cmd powershell.exe
   mkdir -p "$ROOT_DIR/bin/bridge" "$OUTPUT_DIR"
+  # The WinFsp FUSE headers must be visible to cgo (via CPATH) so cgofuse
+  # compiles. The headers are vendored under third_party/winfsp/inc/fuse and
+  # the WinFsp engine is compiled into every Windows CGO build of the bridge.
+  local winfsp_inc
+  winfsp_inc="$ROOT_DIR/third_party/winfsp/inc/fuse"
+  [[ -f "$winfsp_inc/fuse_common.h" ]] \
+    || fail "WinFsp FUSE headers missing at $winfsp_inc (needed to build the bridge with the WinFsp engine)"
   (
     cd "$ROOT_DIR"
     if [[ -n "${BRIDGE_CC:-}" ]]; then
       export CC="$BRIDGE_CC"
     fi
+    export CPATH="$winfsp_inc"
     go build -buildmode=c-shared -ldflags "-X main.buildArch=$ARCH" -o bin/bridge/remote_storage_bridge.dll ./bridge
     flutter build windows --release \
       --dart-define APP_VERSION_LABEL=$VERSION \

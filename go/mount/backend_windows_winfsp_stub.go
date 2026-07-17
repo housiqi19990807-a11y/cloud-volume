@@ -3,10 +3,9 @@
 // Without CGO the WinFsp virtual file system engine stays unavailable; the
 // selector reports a clear error instead of silently falling back, so the
 // settings UI and mount dialog can guide the user to Cloud Files / WebDAV.
-//
-// A second stub variant (windows && cgo && !winfsp) covers the common case
-// where the bridge is built with CGO for Cloud Files but WinFsp headers are
-// not installed, so the default dev/release build never needs WinFsp.
+// The cgo build always compiles the real WinFsp backend in, so the only
+// remaining stub path is a pure-Go (CGO_ENABLED=0) Windows build, which also
+// cannot host the Cloud Files provider.
 package mount
 
 import (
@@ -16,7 +15,7 @@ import (
 )
 
 func newWindowsWinFspBackend(cfg storageconfig.RemoteStorageConfig) (mountBackend, error) {
-	return nil, fmt.Errorf("WinFsp engine requires CGO_ENABLED=1 and the `winfsp` build tag")
+	return nil, fmt.Errorf("WinFsp engine requires a CGO build of the bridge (CGO_ENABLED=1)")
 }
 
 func cleanupManagedWindowsWinFspArtifacts() error {

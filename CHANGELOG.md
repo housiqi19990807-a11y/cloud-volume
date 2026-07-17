@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Windows 构建：移除 `winfsp` build tag 门槛——WinFsp 引擎现在随每个 Windows CGO bridge 构建一起编译。`third_party/winfsp/inc/fuse` 头文件已入库，`run_windows.ps1`、`build_desktop_packages.sh`、`windows/CMakeLists.txt` 与 `Makefile bridge-windows` 都会设置 `CPATH` 指向它，CI 与本地构建都会默认带上 WinFsp 引擎。
 - 测试：修复 `transfers_page_batch_actions_test.dart` 和 `widget_test.dart` 中 fake API 实现遗漏的方法签名，使此前被跳过的 4 个测试重新通过。
 - Windows 挂载高级设置：新增挂载内核选择（Cloud Files 默认 / WinFsp 虚拟文件系统）。WinFsp 模式在 Explorer 中呈现真实卷，可自定义虚拟总容量；驱动缺失时设置页和挂载弹窗都会提示并支持一键静默安装（仓库已内嵌 `winfsp.msi`，约 2.1 MB）。
 - Windows 构建：bridge 在检测到 `third_party/winfsp/inc/fuse` 头文件时自动加上 `-tags winfsp` 构建 WinFsp 引擎；未安装 WinFsp 时默认构建仅保留 Cloud Files，不影响现有开发流程。

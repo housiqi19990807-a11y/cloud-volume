@@ -1,4 +1,4 @@
-//go:build windows && cgo && winfsp
+//go:build windows && cgo
 
 // WinFsp FS helpers keep Stat/error mapping out of the main FS method file so
 // both stay under the project line limit.

@@ -1,4 +1,4 @@
-//go:build windows && cgo && winfsp
+//go:build windows && cgo
 
 // Windows WinFsp backend hosts the cgofuse virtual file system on top of the
 // existing bucketAccess read/write pipeline. Unlike Cloud Files it reports a
