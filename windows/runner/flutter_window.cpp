@@ -138,16 +138,6 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       }
       break;
 
-    case WM_SIZE: {
-      const LRESULT result =
-          Win32Window::MessageHandler(hwnd, message, wparam, lparam);
-      if (flutter_controller_ && wparam != SIZE_MINIMIZED) {
-        // Present a frame for the new surface promptly during maximize/restore.
-        flutter_controller_->ForceRedraw();
-      }
-      return result;
-    }
-
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
