@@ -14,7 +14,11 @@ type objectTransferPlan struct {
 	sourcePrefix string
 	targetPrefix string
 	entries      []types.Object
-	totalBytes   int64
+	// deleteKeys holds the source keys to remove after the copy phase. It is
+	// derived from entries at plan build time so a slow prefix enumeration can
+	// never observe objects already deleted mid-sweep and silently skip them.
+	deleteKeys []string
+	totalBytes int64
 }
 
 func buildObjectTransferPlan(
@@ -46,6 +50,7 @@ func buildObjectTransferPlan(
 		sourcePrefix: sourceKey,
 		targetPrefix: targetKey,
 		entries:      entries,
+		deleteKeys:   transferEntryKeys(entries),
 		totalBytes:   sumTransferEntrySizes(entries),
 	}
 	if isDirectory {

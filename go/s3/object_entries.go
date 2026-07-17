@@ -76,6 +76,19 @@ func listMutationEntries(
 	return entries, nil
 }
 
+// transferEntryKeys flattens entry keys once at plan time for the post-copy
+// source cleanup sweep.
+func transferEntryKeys(entries []types.Object) []string {
+	keys := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Key == nil {
+			continue
+		}
+		keys = append(keys, *entry.Key)
+	}
+	return keys
+}
+
 func mutationKeys(
 	ctx context.Context,
 	client *s3.Client,
@@ -87,12 +100,5 @@ func mutationKeys(
 	if err != nil {
 		return nil, err
 	}
-	keys := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Key == nil {
-			continue
-		}
-		keys = append(keys, *entry.Key)
-	}
-	return keys, nil
+	return transferEntryKeys(entries), nil
 }

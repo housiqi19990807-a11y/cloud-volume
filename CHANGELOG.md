@@ -3,6 +3,7 @@
 ## Unreleased
 - 删除体验：文件管理页的删除确认拟态框新增「永久删除」开关（仅在桶开启回收站时显示），勾选后绕过回收站直接彻底删除；未勾选时按桶设置移入回收站，弹窗文案也随是否启用回收站区分「移入回收站/不可撤销」。
 - 删除体验：目录删除（软删除、永久删除、彻底删除回收站项、跨目录移动/重命名的源清理）现在按对象数实时上报进度，批量删除进度拟态框与任务队列显示确定的进度条和「已处理 / 总数 个对象」，不再一直是无限加载状态。
+- 移动/重命名修复：复制完成后的源对象清理改为删除「枚举时记录的完整 key 列表」，不再依赖任何二次前缀列举，修复移动或重命名目录后旧位置偶发残留文件/目录的问题。
 - S3 删除/移动/重命名容错：软删除（移入回收站）、复制、移动和重命名时，逐对象的 CopyObject、目录占位符 PutObject、HeadObject 与源对象 DeleteObject 现在使用单次调用的扩展重试预算（5 次尝试、退避上限 15s），并对 S3 兼容网关偶发的非可重试错误（如 CopyObject 的 InvalidArgument 毛刺、连接重置）再做少量间隔重试。网关或代理返回 502 HTML 错误页等瞬时故障时，单个对象不再直接中止整个目录的删除/移动操作。
 - Windows window chrome: the existing `window_manager` integration now solely owns hidden-titlebar non-client handling plus native maximize/restore/minimize/drag commands. The runner keeps the default overlapped style and only owns tray/exit behavior, removing the competing popup/frame implementations that exposed black or white resize frames and could show a native title bar. The window class now registers a light-surface background brush, so the maximize/restore transition no longer flashes black before Flutter presents the resized frame (a transparent/layered window cannot work with the Direct3D Flutter child).
 - Windows 构建：移除 `winfsp` build tag 门槛——WinFsp 引擎现在随每个 Windows CGO bridge 构建一起编译。`third_party/winfsp/inc/fuse` 头文件已入库，`run_windows.ps1`、`build_desktop_packages.sh`、`windows/CMakeLists.txt` 与 `Makefile bridge-windows` 都会设置 `CPATH` 指向它，CI 与本地构建都会默认带上 WinFsp 引擎。

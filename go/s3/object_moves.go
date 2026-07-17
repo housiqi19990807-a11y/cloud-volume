@@ -115,7 +115,10 @@ func MoveObjectContextWithTask(
 	); err != nil {
 		return err
 	}
-	return deleteEntriesHardWithTask(runCtx, client, bucket, plan.entries, taskID)
+	// Delete the keys captured when the plan was built. Re-listing the source
+	// prefix here can observe keys that were already removed mid-sweep and
+	// silently skip them, which previously left stale objects behind on moves.
+	return deleteObjectKeysHardWithTask(runCtx, client, bucket, plan.deleteKeys, taskID)
 }
 
 func ensureRemoteDirSuffix(value string) string {
