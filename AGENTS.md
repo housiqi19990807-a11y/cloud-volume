@@ -171,16 +171,16 @@ The Windows host removes the native title bar and uses app-owned chrome, while s
 
 #### Key files
 
-- `windows/runner/win32_window.cpp` - Defines `GetBorderlessWindowStyle()` as `WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU`, handles custom hit-testing and `WM_NCCALCSIZE`, resizes the hosted Flutter child in `WM_SIZE`, and calls `DwmSetWindowAttribute(..., DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)` in `UpdateTheme`. It currently has no `WM_GETMINMAXINFO` handler to constrain a maximized popup window to the monitor work area.
-- `windows/runner/flutter_window.cpp` - Hosts the Flutter view inside the custom Win32 shell and maps the `toggleMaximize` method-channel call directly to `Win32Window::MaximizeOrRestore()`.
+- `windows/runner/win32_window.cpp` - Defines `GetBorderlessWindowStyle()` as `WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU`, handles custom hit-testing and `WM_NCCALCSIZE`, constrains maximized bounds to the active monitor's `rcWork` in `WM_GETMINMAXINFO`, resizes the hosted Flutter child in `WM_SIZE`, and calls `DwmSetWindowAttribute(..., DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)` in `UpdateTheme`. The host class uses a white background brush matching the light app shell so newly exposed resize regions do not flash black.
+- `windows/runner/flutter_window.cpp` - Hosts the Flutter view inside the custom Win32 shell, maps the `toggleMaximize` method-channel call directly to `Win32Window::MaximizeOrRestore()`, and calls `ForceRedraw()` after non-minimized `WM_SIZE` handling so the resized surface presents promptly.
 - `lib/widgets/desktop_window_controls.dart` / `lib/services/window_controls.dart` - Draw the app-owned top-right controls and send maximize/restore requests over the native method channel.
 
 #### Gotchas
 
 - Native DWM rounded corners are a Windows 11-era shell feature. On Windows 10 / Windows Server 2022 build 20348, the `DWMWA_WINDOW_CORNER_PREFERENCE` call is ignored even though it compiles, so the main window stays square.
 - Even on Windows 11, fully custom borderless/popup windows can be less reliable than standard overlapped windows for OS-drawn corners. The current code requests rounded corners but does not implement a manual `SetWindowRgn` or transparent-window mask fallback.
-- `ShowWindow(..., SW_MAXIMIZE)` on the current `WS_POPUP` host has no `WM_GETMINMAXINFO` correction. `WM_NCCALCSIZE` only removes the invisible resize frame from the client area; it does not select `MONITORINFO.rcWork`. Consequently, Windows can maximize the outer popup to the full monitor rectangle and cover the taskbar.
-- During that maximize transition, `WM_SIZE` immediately calls `MoveWindow` on the Flutter child with repaint enabled. The larger Flutter surface needs a later compositor frame, while the parent window class has no background brush and no explicit transitional paint path. The newly exposed area can therefore appear black until Flutter presents the resized frame. Correct work-area bounds should be fixed first; persistent flashing then needs resize/paint synchronization rather than a Dart-side delay.
+- `ShowWindow(..., SW_MAXIMIZE)` on a `WS_POPUP` host must be paired with `WM_GETMINMAXINFO`: use `MonitorFromWindow`, set `ptMaxPosition` relative to `rcMonitor`, and size from `rcWork`. Do not re-add maximized `WM_NCCALCSIZE` frame insets after applying exact work-area bounds, or visible gaps return around the client.
+- During maximize/restore, `WM_SIZE` immediately resizes the Flutter child. Keep the neutral host background brush and the post-resize `ForceRedraw()` call so the outer window never exposes an unpainted black region while Flutter prepares the resized surface.
 - An earlier diagnostic machine reported Windows Server 2022 build 20348, where missing rounded corners were expected. The 2026-07-17 static diagnosis ran on Windows 11 Pro build 26100 and identified the relevant code path independently of that older shell limitation.
 
 ### Feature: Windows Mount Presentation / Drive Letters

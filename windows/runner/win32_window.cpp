@@ -116,7 +116,9 @@ const wchar_t* WindowClassRegistrar::GetWindowClass() {
     window_class.hInstance = GetModuleHandle(nullptr);
     window_class.hIcon =
         LoadIcon(window_class.hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
-    window_class.hbrBackground = 0;
+    // Match the light Flutter shell while a resized surface prepares its frame.
+    window_class.hbrBackground =
+        static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH));
     window_class.lpszMenuName = nullptr;
     window_class.lpfnWndProc = Win32Window::WndProc;
     RegisterClass(&window_class);
@@ -198,19 +200,29 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_GETMINMAXINFO: {
+      auto* minmax = reinterpret_cast<MINMAXINFO*>(lparam);
+      MONITORINFO monitor_info = {};
+      monitor_info.cbSize = sizeof(monitor_info);
+      const HMONITOR monitor =
+          MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      if (minmax != nullptr && monitor != nullptr &&
+          GetMonitorInfo(monitor, &monitor_info)) {
+        const RECT& work = monitor_info.rcWork;
+        const RECT& bounds = monitor_info.rcMonitor;
+        minmax->ptMaxPosition.x = work.left - bounds.left;
+        minmax->ptMaxPosition.y = work.top - bounds.top;
+        minmax->ptMaxSize.x = work.right - work.left;
+        minmax->ptMaxSize.y = work.bottom - work.top;
+        return 0;
+      }
+      break;
+    }
+
     case WM_NCCALCSIZE:
       if (wparam == TRUE) {
-        auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
-        if (params != nullptr && IsZoomed(hwnd)) {
-          const UINT dpi = GetDpiForWindow(hwnd);
-          const int frame_x = GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
-                              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-          const int frame_y = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
-                              GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-          params->rgrc[0].left += frame_x;
-          params->rgrc[0].right -= frame_x;
-          params->rgrc[0].bottom -= frame_y;
-        }
+        // The maximized outer bounds are already constrained to rcWork above,
+        // so the whole window can remain client content without frame insets.
         return 0;
       }
       break;
