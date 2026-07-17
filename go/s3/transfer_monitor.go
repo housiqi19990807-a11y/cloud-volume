@@ -26,6 +26,10 @@ type TransferSnapshot struct {
 	TotalBytes                int64   `json:"totalBytes"`
 	ItemsCompleted            int64   `json:"itemsCompleted,omitempty"`
 	TotalItems                int64   `json:"totalItems,omitempty"`
+	// PlannedItems remembers the work units discovered so far for two-phase
+	// sweeps (copy + source cleanup) so a second enumeration can reset the
+	// running total instead of double-counting.
+	PlannedItems              int64   `json:"-"`
 	CurrentFileKey            string  `json:"currentFileKey,omitempty"`
 	CurrentFileBytesCompleted int64   `json:"currentFileBytesCompleted,omitempty"`
 	CurrentFileTotalBytes     int64   `json:"currentFileTotalBytes,omitempty"`
@@ -38,6 +42,9 @@ type transferState struct {
 	startedAt time.Time
 	updatedAt time.Time
 	cancel    context.CancelFunc
+	// phaseItems tracks per-phase item contributions so re-planning a phase
+	// adjusts the running total instead of adding it twice.
+	phaseItems map[string]int64
 }
 
 type transferMonitor struct {
@@ -206,7 +213,65 @@ func AddTransferItems(id string, deltaItems int64) {
 		return
 	}
 	task.snapshot.TotalItems += deltaItems
+	task.snapshot.PlannedItems += deltaItems
 	task.updatedAt = time.Now()
+}
+
+// PlanTransferPhaseItems declares the item count for one phase of a sweep.
+// Calling it again for the same phase replaces that phase's contribution, so
+// enumerating the same tree twice (progress pre-scan + transfer plan) never
+// inflates the total. A sweep that enumerates two different trees (for example
+// copy-to-trash then delete-source) calls it with distinct phases and the
+// totals add up.
+func PlanTransferPhaseItems(id string, phase string, items int64) {
+	if items <= 0 {
+		return
+	}
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	if task.phaseItems == nil {
+		task.phaseItems = map[string]int64{}
+	}
+	previous := task.phaseItems[phase]
+	task.phaseItems[phase] = items
+	task.snapshot.TotalItems += items - previous
+	task.snapshot.PlannedItems += items - previous
+	task.updatedAt = time.Now()
+}
+
+// resetTransferPhaseItems removes all phase contributions from the running
+// total. Multi-phase sweeps that keep advancing one task call this between
+// phases so the bar restarts at 0/N for each phase instead of accumulating
+// "2N / N" style counts. PlannedItems is kept so phase sizing still works.
+func resetTransferPhaseItems(id string) {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return
+	}
+	task.phaseItems = nil
+	task.snapshot.TotalItems = 0
+	task.updatedAt = time.Now()
+}
+
+// PlannedTransferItems returns how many work units a sweep has already
+// declared for the task, so a later phase can size itself relative to it.
+func PlannedTransferItems(id string) int64 {
+	globalTransferMonitor.mu.Lock()
+	defer globalTransferMonitor.mu.Unlock()
+
+	task, ok := globalTransferMonitor.tasks[id]
+	if !ok {
+		return 0
+	}
+	return task.snapshot.PlannedItems
 }
 
 // AdvanceTransferItems increments the completed item count after file uploads finish.
@@ -286,6 +351,12 @@ func finishTransfer(id string, err error) {
 		return
 	}
 	task.snapshot.Status = "done"
+	// Show a clean "total / total" state: sweeps may over-plan phases (for
+	// example sizing the source-cleanup phase from the copy-phase listing
+	// before the trash-move target enumeration).
+	if task.snapshot.TotalItems > 0 {
+		task.snapshot.ItemsCompleted = task.snapshot.TotalItems
+	}
 	if task.snapshot.TotalBytes > 0 && task.snapshot.StatusDetail != "mount_read" {
 		task.snapshot.BytesCompleted = task.snapshot.TotalBytes
 	}

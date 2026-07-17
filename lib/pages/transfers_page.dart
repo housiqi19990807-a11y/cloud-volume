@@ -223,7 +223,8 @@ class _TransfersPageState extends State<TransfersPage> {
     }
   }
 
-  bool _isRemovableFinished(TransferTask task) => task.isFinished && !task.isDirectoryChild;
+  bool _isRemovableFinished(TransferTask task) =>
+      task.isFinished && !task.isDirectoryChild;
 
   void _clearSelectionMaybe() {
     // No-op hook; kept for symmetry with future auto-clear on filter changes.
@@ -514,6 +515,20 @@ class _TransfersPageState extends State<TransfersPage> {
             : task.totalBytes > 0
             ? '等待同步到远端  ${formatBytes(task.totalBytes)}'
             : '等待同步到远端',
+        createdAtLabel,
+      ]);
+    }
+    if (task.totalItems > 0) {
+      // Item-based sweeps (delete/move source cleanup) restart the bar per
+      // phase, so clamp completed to the running total for a clean label.
+      final completed = task.itemsCompleted > task.totalItems
+          ? task.totalItems
+          : task.itemsCompleted;
+      final itemLabel =
+          '${task.typeLabel}  $completed / ${task.totalItems} 个对象';
+      return _joinSubtitleParts([
+        itemLabel,
+        task.progressTargetLabel,
         createdAtLabel,
       ]);
     }

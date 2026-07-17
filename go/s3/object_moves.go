@@ -79,11 +79,6 @@ func MoveObjectContextWithTask(
 	taskID string,
 ) (err error) {
 	client := NewClient(cfg)
-	if taskID != "" {
-		if _, planErr := mutationEntriesWithProgress(ctx, client, bucket, sourceKey, isDirectory, taskID); planErr != nil {
-			return planErr
-		}
-	}
 	plan, err := buildObjectTransferPlan(
 		ctx,
 		client,
@@ -94,6 +89,9 @@ func MoveObjectContextWithTask(
 	)
 	if err != nil || len(plan.entries) == 0 {
 		return err
+	}
+	if taskID != "" {
+		PlanTransferPhaseItems(taskID, transferPhaseCopy, int64(len(plan.entries)))
 	}
 	runCtx, task := beginObjectTransferTask(
 		ctx,
@@ -118,6 +116,13 @@ func MoveObjectContextWithTask(
 	// Delete the keys captured when the plan was built. Re-listing the source
 	// prefix here can observe keys that were already removed mid-sweep and
 	// silently skip them, which previously left stale objects behind on moves.
+	// The cleanup is its own progress phase: reset the item bar so it shows
+	// 0/N for the deletions instead of accumulating past the copy total.
+	if taskID != "" {
+		resetTransferPhaseItems(taskID)
+		PlanTransferPhaseItems(taskID, transferPhaseDelete, int64(len(plan.deleteKeys)))
+		SetTransferStatusDetail(taskID, "deleting")
+	}
 	return deleteObjectKeysHardWithTask(runCtx, client, bucket, plan.deleteKeys, taskID)
 }
 

@@ -262,7 +262,10 @@ class _SummaryCard extends StatelessWidget {
               if (totalBytes > 0)
                 _metaChip(theme, _bytesText(completedBytes, totalBytes)),
               if (totalItems > 0)
-                _metaChip(theme, '$completedItems / $totalItems 个对象'),
+                _metaChip(
+                  theme,
+                  '${completedItems > totalItems ? totalItems : completedItems} / $totalItems 个对象',
+                ),
             ],
           ),
         ],
@@ -416,8 +419,17 @@ class _TaskList extends StatelessWidget {
     if (task.statusDetail == 'selecting_path') {
       parts.add('等待选择保存位置');
     }
+    final isDeleteSweep = task.isDelete && task.statusDetail == 'deleting';
+    if (isDeleteSweep) {
+      parts.add('正在删除源对象');
+    }
     if (task.totalItems > 0) {
-      parts.add('${task.itemsCompleted} / ${task.totalItems} 个对象');
+      // Multi-phase sweeps restart the item bar per phase, so completed can
+      // briefly exceed the running total; clamp to avoid "2N / N" labels.
+      final completed = task.itemsCompleted > task.totalItems
+          ? task.totalItems
+          : task.itemsCompleted;
+      parts.add('$completed / ${task.totalItems} 个对象');
     } else if (task.statusDetail == 'scanning') {
       parts.add('正在扫描文件');
     }

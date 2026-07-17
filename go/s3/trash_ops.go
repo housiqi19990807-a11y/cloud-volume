@@ -64,6 +64,12 @@ func MoveObjectToTrashContextWithTask(
 	if len(keys) == 0 {
 		return nil
 	}
+	// Size the trash-move's cleanup phase from the source listing. When the
+	// copy phase later enumerates the (possibly wider) target tree, it resets
+	// this estimate so items never run past the total.
+	if taskID != "" {
+		PlanTransferPhaseItems(taskID, transferPhaseDelete, int64(len(keys)))
+	}
 
 	trashID := uuid.NewString()
 	targetKey := trashObjectTarget(cfg, trashID, sourceKey)

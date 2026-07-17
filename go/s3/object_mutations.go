@@ -86,6 +86,7 @@ func DeleteObjectHardContextProgress(
 		if err != nil {
 			return err
 		}
+		SetTransferStatusDetail(progressTaskID, "deleting")
 		return deleteEntriesHardWithTask(ctx, client, bucket, entries, progressTaskID)
 	}
 	keys, err := mutationKeys(ctx, client, bucket, key, isDirectory)
