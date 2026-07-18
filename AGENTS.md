@@ -506,8 +506,9 @@ Shared upload/download queue backing both manual file operations and sync-genera
 
 #### Key files
 
-- `lib/state/transfer_queue.dart` — Core `TransferQueue` singleton. Polling (not streaming): `pollNow()` (:425) calls `api.listTransferJobs()`, `refreshFromSnapshots` (:302) merges `TransferSnapshot` fields into `TransferTask` (`bytesCompleted`/`totalBytes`/`itemsCompleted`/`totalItems`/`speedBytes`/…, :338-377). `_ensurePolling` (:436) picks `_activePollInterval` = 700 ms while `hasRunning`, `_idlePollInterval` = 2 s otherwise (:26-27).
-- `lib/state/transfer_task.dart` — `TransferTask` model; `TransferKind { upload, download, copy, move, delete, appUpdate }` (:8); `progress` getter = `bytesCompleted/totalBytes`, 0 when `totalBytes<=0` (:150). Note the queue's `startTask` creates a pending local task optimistically, but `refreshFromSnapshots` overwrites all progress fields from Go snapshots — Go is authoritative.
+- `lib/state/transfer_queue.dart` — Core `TransferQueue` singleton. Polling (not streaming): `pollNow()` calls `api.listTransferJobs()`, `refreshFromSnapshots` merges `TransferSnapshot` fields into `TransferTask` (`bytesCompleted`/`totalBytes`/`itemsCompleted`/`totalItems`/`speedBytes`/…). `_ensurePolling` picks `_activePollInterval` = 700 ms while `hasRunning`, `_idlePollInterval` = 2 s otherwise.
+- `lib/state/transfer_queue_lifecycle.dart` — API binding, task creation, and terminal success/failure/cancel transitions; successful completion normalizes both byte and item progress.
+- `lib/state/transfer_task.dart` — `TransferTask` model; `TransferKind { upload, download, copy, move, delete, appUpdate }`; `progress` getter = `bytesCompleted/totalBytes`, or 0 when `totalBytes<=0`. `transfer_queue_lifecycle.dart` creates pending local tasks optimistically, while `refreshFromSnapshots` overwrites progress fields from Go snapshots — Go remains authoritative during active work.
 - `lib/models/transfer_job.dart` — `TransferSnapshot.fromJson` mirror of Go JSON.
 - `go/s3/transfer_monitor.go` — `TransferSnapshot` struct (:15) JSON: `id,type,bucket,key,localPath,targetPath,status,statusDetail,createdAt,bytesCompleted,totalBytes,itemsCompleted,totalItems,currentFileKey,currentFileBytesCompleted,currentFileTotalBytes,speedBytes,error`. `startTransfer` (:54) sets status running + TotalBytes (default StatusDetail "uploading"); `advanceTransfer` (:246) adds bytes + computes `speedBytes = completed/elapsed`; also `AddTransferTotal`/`AddTransferItems`/`AdvanceTransferItems`, `finishTransfer` (:263; when TotalBytes>0 sets completed=total). Exposed via bridge `list_transfer_jobs` (`bridge/dispatch.go:98`, handler :394 -> `s3ops.ListTransferSnapshots()` recent-first :330) and `go/webapi/invoke.go:316`.
 - `lib/state/transfer_queue_*.dart` — Split concerns: metrics, sync, local progress, foreground, storage, directory children.
@@ -517,6 +518,7 @@ Shared upload/download queue backing both manual file operations and sync-genera
 #### Gotchas
 
 - A task with `totalBytes==0` renders indeterminate (modal) or plain "删除中" text (transfers row); setting `totalBytes>0` via `startTransfer`/`AddTransferTotal` + `advanceTransfer` immediately turns the modal summary bar and transfers subtitle into real percentage/bytes — no UI change needed.
+- Successful local completion must normalize both progress dimensions: Go `finishTransfer` already sets `BytesCompleted = TotalBytes` and `ItemsCompleted = TotalItems` before the bridge returns, and Flutter `TransferQueue.markTaskDone` mirrors that invariant immediately. Without the item normalization, the last-polled count (for example `10 / 20`) could remain visible after the status changed to `done` until idle polling refreshed the authoritative snapshot about 2 seconds later.
 
 ### Feature: Mount Cache Sync from External Mutations (挂载缓存外部失效)
 

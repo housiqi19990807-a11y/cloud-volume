@@ -15,6 +15,7 @@ part 'transfer_queue_storage.dart';
 part 'transfer_queue_sync.dart';
 part 'transfer_queue_metrics.dart';
 part 'transfer_queue_local_progress.dart';
+part 'transfer_queue_lifecycle.dart';
 part 'transfer_queue_foreground.dart';
 part 'transfer_queue_directory_children.dart';
 
@@ -45,93 +46,12 @@ class TransferQueue extends ChangeNotifier {
   List<TransferTask> get tasks => List.unmodifiable(_tasks);
   Iterable<TransferTask> get taskView => _tasks;
   bool get hasRunning => _tasks.any((task) => task.isRunning || task.isPending);
+
   /// True while a normal upload/download is pending or running (blocks app update).
   bool get hasActiveFileTransfers =>
       _tasks.any((task) => task.isActiveFileTransfer);
   int get runningCount =>
       _tasks.where((task) => task.isRunning || task.isPending).length;
-
-  void bindApi(RemoteStorageGateway api) {
-    _api = api;
-    unawaited(restorePersistedTransferQueueState(this).then((_) => pollNow()));
-    _ensurePolling();
-  }
-
-  TransferTask startTask({
-    String? id,
-    required TransferKind kind,
-    required String bucket,
-    required String key,
-    required String localPath,
-    String targetPath = '',
-  }) {
-    if (id != null && _tasksById.containsKey(id)) {
-      return _tasksById[id]!;
-    }
-    final task = TransferTask(
-      id: id ?? 'transfer_${DateTime.now().microsecondsSinceEpoch}_${_seed++}',
-      kind: kind,
-      bucket: bucket,
-      key: key,
-      localPath: localPath,
-      targetPath: targetPath,
-    );
-    _tasks.insert(0, task);
-    _tasksById[task.id] = task;
-    _rebuildMountWritebackCounts();
-    scheduleTransferQueuePersist(this);
-    _scheduleNotifyListeners();
-    _ensurePolling();
-    return task;
-  }
-
-  void markTaskFailed(String id, Object error) {
-    final task = _taskById(id);
-    if (task == null) return;
-    if (task.status == TransferStatus.canceled ||
-        _cancelRequestedIds.remove(id)) {
-      markTaskCanceled(id);
-      return;
-    }
-    task.status = TransferStatus.failed;
-    task.statusDetail = '';
-    task.error = error.toString();
-    task.speedBytes = 0;
-    _rebuildMountWritebackCounts();
-    scheduleTransferQueuePersist(this);
-    _scheduleNotifyListeners();
-    _ensurePolling();
-  }
-
-  void markTaskDone(String id) {
-    final task = _taskById(id);
-    if (task == null) return;
-    _cancelRequestedIds.remove(id);
-    task.status = TransferStatus.done;
-    task.statusDetail = '';
-    task.speedBytes = 0;
-    task.bytesCompleted = task.totalBytes > 0
-        ? task.totalBytes
-        : task.bytesCompleted;
-    _rebuildMountWritebackCounts();
-    scheduleTransferQueuePersist(this);
-    _scheduleNotifyListeners();
-    _ensurePolling();
-  }
-
-  void markTaskCanceled(String id) {
-    final task = _taskById(id);
-    if (task == null) return;
-    _cancelRequestedIds.remove(id);
-    task.status = TransferStatus.canceled;
-    task.statusDetail = '';
-    task.speedBytes = 0;
-    task.error = null;
-    _rebuildMountWritebackCounts();
-    scheduleTransferQueuePersist(this);
-    _scheduleNotifyListeners();
-    _ensurePolling();
-  }
 
   bool canCancelTask(String id) => _canCancelTask(_taskById(id));
 
