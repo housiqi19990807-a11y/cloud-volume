@@ -471,7 +471,7 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
 - `lib/widgets/file_manager_bucket_browser.dart` — Presentational list/grid:
   - list: `ListView.builder` (~L189+)
   - grid: `GridView.count` (~L79+)
-- `lib/models/file_manager_bucket_entry.dart` / `lib/models/s3_objects.dart` (`BucketInfo`) — UI row models; no order field.
+- `lib/models/file_manager_bucket_entry.dart` / `lib/models/s3_objects.dart` (`BucketInfo`) — UI row models; `BucketInfo` carries optional provider `quotaBytes` / `usedBytes` metadata and has no order field.
 - Same aggregation pattern also used by `file_sync_tasks_page_actions.dart` for remote picker buckets.
 
 #### Bucket custom quota (implemented 2026-07-18)
@@ -479,16 +479,19 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
 - `go/config/config.go` adds `BucketSettings.CustomQuotaBytes` (`customQuotaBytes` JSON / `custom_quota_bytes` TOML). `go/config/config_bucket_settings.go` normalizes negative values to zero and returns the override through `BucketSettingsFor`; zero means unset. Bucket-specific normalization was split out of `config.go` to keep the main file below the hand-written 500-line limit.
 - `lib/models/bucket_settings.dart` mirrors the optional field, accepts camelCase and snake_case JSON, omits zero from serialized output, and clamps legacy negative values to zero. `RemoteStorageConfig.bucketSettingsFor` carries it into resolved bucket settings; `lib/models/remote_storage_config_enums.dart` now owns the imported/re-exported persistence enums so the main config model stays below 500 lines.
 - `lib/widgets/bucket_settings_dialog.dart` edits the quota in GB, accepts decimals, converts to bytes, and treats zero/blank as unset. The value is informational only and does not enforce an upload limit.
-- `lib/widgets/file_manager_bucket_browser.dart` uses the existing `FileListTile` size column as a responsive “配额” column and shows `--` when unset; grid items show `配额 <value>` only when configured. `lib/utils/transfer_format.dart` formats TB values as well as smaller units.
+- `lib/widgets/file_manager_bucket_browser.dart` uses the existing `FileListTile` size column as a responsive “配额” column. It prefers `CustomQuotaBytes`, falls back to `BucketInfo.quotaBytes`, and shows `--` when neither exists; grid items use the same resolution. `lib/utils/transfer_format.dart` formats TB values as well as smaller units.
 - `go/mount/mount_capacity.go` resolves mounted capacity with bucket `CustomQuotaBytes` first and a backend fallback second. WinFsp passes its global `windowsWinFspCapacityGB` as fallback; Linux FUSE has no fallback and preserves its previous zeroed Statfs when quota is unset.
 - `go/mount/backend_windows_winfsp_cgo.go` snapshots the resolved capacity when a session starts; `winfsp_fs_windows.go` reports it as total/free/available blocks. `go/mount/linux_fuse_nodes.go` implements `NodeStatfser` and reports the same bucket quota. Both use 4096-byte blocks and mirror total into free/available because remote usage is unknown; changing quota requires a remount.
 - Cloud Files and WebDAV mounts do not use an app-owned Statfs callback, so their reported capacity is controlled by the host filesystem/client and is not changed by custom quota.
 - `test/bucket_quota_test.dart` covers legacy/current JSON, decimal input, invalid input, and list values. `go/config/config_bucket_settings_test.go`, `go/mount/mount_capacity_test.go`, `go/mount/winfsp_statfs_windows_test.go`, and the Linux Statfs test cover normalization, precedence, and filesystem block output.
 
-#### Remote quota feasibility (exploration 2026-07-18)
+#### Remote quota discovery (implemented 2026-07-18)
 
 - Generic S3 `ListBuckets` does not provide quota or usage. A reliable S3 quota requires a provider-specific management API; recursively summing objects is expensive, incomplete under pagination/versioning, and is not a quota.
-- Baidu Pan's pinned xpan client exposes account-level `Client.Quota()` (`total`, `used`, `free`). WebDAV may expose RFC `DAV:quota-used-bytes` and `DAV:quota-available-bytes`, but server support is optional. Neither remote quota path is currently wired into the bucket list.
+- `go/s3.BucketInfo` is the shared bridge payload and carries optional `quotaBytes` / `usedBytes`. Flutter `BucketInfo.fromJson` mirrors both values; the list only renders total quota today, while used bytes are retained for future capacity UI.
+- `go/storage/webdav_quota.go` performs a depth-0 RFC 4331 PROPFIND against the mapped root, parses `DAV:quota-used-bytes` and `DAV:quota-available-bytes`, and reports total as used + available. Support is optional; HTTP/XML/missing-property failures are logged and `ListBuckets` still returns the mapped root without quota.
+- `go/storage/baidu_pan_backend.go` calls the pinned xpan client's account-level `Client.Quota()` and maps `total` / `used` into `BucketInfo`. Token refresh and per-account proxy behavior continue through `withBaiduPanClient`; quota failure is logged and degrades to an unannotated bucket instead of blocking the file manager.
+- `go/storage/webdav_backend_test.go` covers successful WebDAV quota mapping and unsupported-property fallback. `test/bucket_quota_test.dart` covers provider JSON parsing plus custom/provider/unset display precedence.
 - Future remote quota should remain optional and distinguish its source from the current custom display value. Unsupported providers must stay unknown rather than reporting zero, and quota failures must not fail bucket loading.
 
 #### Reorder patterns

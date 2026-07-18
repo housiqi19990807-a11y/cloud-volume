@@ -1,13 +1,28 @@
 // S3 bucket and object models for the file manager UI.
 
 class BucketInfo {
-  const BucketInfo({required this.name});
+  const BucketInfo({
+    required this.name,
+    this.quotaBytes = 0,
+    this.usedBytes = 0,
+  });
 
   factory BucketInfo.fromJson(Map<String, dynamic> json) {
-    return BucketInfo(name: (json['name'] ?? '').toString());
+    return BucketInfo(
+      name: (json['name'] ?? '').toString(),
+      quotaBytes: _nonNegativeBucketBytes(json['quotaBytes']),
+      usedBytes: _nonNegativeBucketBytes(json['usedBytes']),
+    );
   }
 
   final String name;
+  final int quotaBytes;
+  final int usedBytes;
+}
+
+int _nonNegativeBucketBytes(dynamic value) {
+  final parsed = value is num ? value.toInt() : int.tryParse('$value');
+  return parsed != null && parsed > 0 ? parsed : 0;
 }
 
 class ObjectInfo {

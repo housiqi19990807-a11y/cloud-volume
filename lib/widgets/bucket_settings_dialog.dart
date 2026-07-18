@@ -78,7 +78,7 @@ Future<RemoteStorageConfig?> showBucketSettingsDialog(
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    quotaError ?? '0 或留空表示未设置，仅用于列表展示。',
+                    quotaError ?? '0 或留空时显示服务端配额（如支持）。',
                     style: TextStyle(
                       fontSize: 12,
                       color: quotaError == null

@@ -16,7 +16,9 @@ const bucketListTimeout = 15 * time.Second
 
 // BucketInfo holds bucket metadata returned to the Flutter layer.
 type BucketInfo struct {
-	Name string `json:"name"`
+	Name       string `json:"name"`
+	QuotaBytes int64  `json:"quotaBytes,omitempty"`
+	UsedBytes  int64  `json:"usedBytes,omitempty"`
 }
 
 // ListBuckets returns all buckets accessible by the configured credentials.

@@ -360,9 +360,10 @@ class FileManagerBucketBrowser extends StatelessWidget {
     FileManagerBucketEntry bucket, {
     bool includePrefix = false,
   }) {
-    final bytes = bucket.config
+    final customBytes = bucket.config
         .bucketSettingsFor(bucket.bucket.name)
         .customQuotaBytes;
+    final bytes = customBytes > 0 ? customBytes : bucket.bucket.quotaBytes;
     if (bytes <= 0) return includePrefix ? '' : '--';
     final value = formatBytes(bytes);
     return includePrefix ? '配额 $value' : value;

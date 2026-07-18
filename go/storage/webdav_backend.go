@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,8 +31,16 @@ func NewWebDAVBackend(cfg storageconfig.RemoteStorageConfig) Backend {
 	}
 }
 
-func (b webDAVBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
-	return []BucketInfo{{Name: b.cfg.MappedBucketLabel()}}, nil
+func (b webDAVBackend) ListBuckets(ctx context.Context) ([]BucketInfo, error) {
+	bucket := BucketInfo{Name: b.cfg.MappedBucketLabel()}
+	quotaBytes, usedBytes, err := b.quota(ctx)
+	if err != nil {
+		log.Printf("[storage/webdav] quota unavailable endpoint=%q err=%v", b.cfg.Endpoint, err)
+		return []BucketInfo{bucket}, nil
+	}
+	bucket.QuotaBytes = quotaBytes
+	bucket.UsedBytes = usedBytes
+	return []BucketInfo{bucket}, nil
 }
 
 func (b webDAVBackend) ListObjectsPage(
@@ -417,13 +426,16 @@ func (r webDAVResponse) firstProp() webDAVProp {
 }
 
 type webDAVProps struct {
-	Prop webDAVProp `xml:"prop"`
+	Prop   webDAVProp `xml:"prop"`
+	Status string     `xml:"status"`
 }
 
 type webDAVProp struct {
-	ResourceType  webDAVResourceType `xml:"resourcetype"`
-	ContentLength string             `xml:"getcontentlength"`
-	LastModified  string             `xml:"getlastmodified"`
+	ResourceType        webDAVResourceType `xml:"resourcetype"`
+	ContentLength       string             `xml:"getcontentlength"`
+	LastModified        string             `xml:"getlastmodified"`
+	QuotaAvailableBytes string             `xml:"quota-available-bytes"`
+	QuotaUsedBytes      string             `xml:"quota-used-bytes"`
 }
 
 type webDAVResourceType struct {

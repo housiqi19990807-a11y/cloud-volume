@@ -31,6 +31,17 @@ void main() {
     expect(formatBytes(1536 * _gibibyte), '1.5 TB');
   });
 
+  test('bucket info parses provider quota fields', () {
+    final bucket = BucketInfo.fromJson(const <String, dynamic>{
+      'name': 'remote-root',
+      'quotaBytes': 20 * _gibibyte,
+      'usedBytes': 7 * _gibibyte,
+    });
+
+    expect(bucket.quotaBytes, 20 * _gibibyte);
+    expect(bucket.usedBytes, 7 * _gibibyte);
+  });
+
   testWidgets('bucket settings saves a decimal GB quota', (tester) async {
     RemoteStorageConfig? selected;
     await _openSettings(tester, onSelected: (value) => selected = value);
@@ -59,7 +70,7 @@ void main() {
     expect(find.text('桶设置'), findsOneWidget);
   });
 
-  testWidgets('bucket list shows configured and unset quota values', (
+  testWidgets('bucket list shows custom, provider, and unset quota values', (
     tester,
   ) async {
     final configured = RemoteStorageConfig.empty().copyWith(
@@ -81,7 +92,8 @@ void main() {
             child: FileManagerBucketBrowser(
               buckets: <FileManagerBucketEntry>[
                 _entry('bucket-a', configured),
-                _entry('bucket-b', configured),
+                _entry('bucket-b', configured, quotaBytes: 20 * _gibibyte),
+                _entry('bucket-c', configured),
               ],
               isGrid: false,
               gridIconSize: 56,
@@ -99,6 +111,7 @@ void main() {
 
     expect(find.text('配额'), findsOneWidget);
     expect(find.text('1.5 TB'), findsOneWidget);
+    expect(find.text('20.0 GB'), findsOneWidget);
     expect(find.text('--'), findsOneWidget);
   });
 }
@@ -131,9 +144,13 @@ Future<void> _openSettings(
   await tester.pumpAndSettle();
 }
 
-FileManagerBucketEntry _entry(String bucket, RemoteStorageConfig config) {
+FileManagerBucketEntry _entry(
+  String bucket,
+  RemoteStorageConfig config, {
+  int quotaBytes = 0,
+}) {
   return FileManagerBucketEntry.fromBucketInfo(
-    bucket: BucketInfo(name: bucket),
+    bucket: BucketInfo(name: bucket, quotaBytes: quotaBytes),
     profileName: 'profile-a',
     sourceLabel: '账号 A',
     config: config,
