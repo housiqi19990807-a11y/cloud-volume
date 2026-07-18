@@ -7,7 +7,7 @@ extension FileManagerBucketQuota on FileManagerBucketBrowser {
     bool includePrefix = false,
   }) {
     final bytes = _quotaTotalBytes(bucket);
-    if (bytes <= 0) return includePrefix ? '' : '--';
+    if (bytes <= 0) return '未设置额度';
     if (!includePrefix) return _fullQuotaLabel(bucket, bytes);
     if (!bucket.bucket.quotaKnown) return '配额 ${formatBytes(bytes)}';
     return '已用 ${_compactQuotaLabel(bucket, bytes)}';
@@ -25,7 +25,15 @@ extension FileManagerBucketQuota on FileManagerBucketBrowser {
     final theme = ShadTheme.of(context);
     final totalBytes = _quotaTotalBytes(bucket);
     if (totalBytes <= 0) {
-      return _quotaValueText('--', theme.colorScheme.mutedForeground);
+      return AppTooltip(
+        message: '尚未设置总额度，可在桶设置中配置自定义额度',
+        child: _quotaUsageColumn(
+          theme: theme,
+          label: '未设置额度',
+          progress: 0,
+          progressColor: theme.colorScheme.mutedForeground,
+        ),
+      );
     }
     final label = _fullQuotaLabel(bucket, totalBytes);
     final progress = _quotaProgress(bucket, totalBytes);
@@ -37,31 +45,25 @@ extension FileManagerBucketQuota on FileManagerBucketBrowser {
       message: bucket.bucket.quotaKnown
           ? '已用 ${formatBytes(bucket.bucket.usedBytes)}，总配额 ${formatBytes(totalBytes)}（$percent%）'
           : '总配额 ${formatBytes(totalBytes)}；服务端未提供已用空间',
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _quotaValueText(label, theme.colorScheme.mutedForeground),
-          const SizedBox(height: 4),
-          _quotaProgressBar(
-            theme: theme,
-            progress: progress,
-            progressColor: progressColor,
-          ),
-        ],
+      child: _quotaUsageColumn(
+        theme: theme,
+        label: label,
+        progress: progress,
+        progressColor: progressColor,
       ),
     );
   }
 
-  Widget? _bucketGridQuotaProgress(
+  Widget _bucketGridQuotaProgress(
     BuildContext context,
     FileManagerBucketEntry bucket,
   ) {
     final totalBytes = _quotaTotalBytes(bucket);
-    if (totalBytes <= 0) return null;
     final theme = ShadTheme.of(context);
     final progress = _quotaProgress(bucket, totalBytes);
-    final color = bucket.bucket.quotaKnown && progress >= 0.95
+    final color = totalBytes <= 0
+        ? theme.colorScheme.mutedForeground
+        : bucket.bucket.quotaKnown && progress >= 0.95
         ? theme.colorScheme.destructive
         : theme.colorScheme.primary;
     return SizedBox(
@@ -71,6 +73,27 @@ extension FileManagerBucketQuota on FileManagerBucketBrowser {
         progress: progress,
         progressColor: color,
       ),
+    );
+  }
+
+  Widget _quotaUsageColumn({
+    required ShadThemeData theme,
+    required String label,
+    required double progress,
+    required Color progressColor,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _quotaValueText(label, theme.colorScheme.mutedForeground),
+        const SizedBox(height: 4),
+        _quotaProgressBar(
+          theme: theme,
+          progress: progress,
+          progressColor: progressColor,
+        ),
+      ],
     );
   }
 
@@ -98,7 +121,7 @@ extension FileManagerBucketQuota on FileManagerBucketBrowser {
   }
 
   double _quotaProgress(FileManagerBucketEntry bucket, int totalBytes) {
-    if (!bucket.bucket.quotaKnown) return 0;
+    if (totalBytes <= 0 || !bucket.bucket.quotaKnown) return 0;
     return (bucket.bucket.usedBytes / totalBytes).clamp(0.0, 1.0);
   }
 
