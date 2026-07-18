@@ -73,11 +73,22 @@ func (b *windowsWinFspBackend) Initialize(session *mountSession) error {
 }
 
 func (b *windowsWinFspBackend) Start(session *mountSession) error {
+	defaultCapacityBytes := uint64(b.cfg.WindowsWinFspCapacityGB) * mountBytesPerGiB
+	capacityBytes := resolvedMountCapacityBytes(
+		b.cfg,
+		session.bucket,
+		defaultCapacityBytes,
+	)
+	capacitySource := "windows_default"
+	if b.cfg.BucketSettingsFor(session.bucket).CustomQuotaBytes > 0 {
+		capacitySource = "bucket_custom"
+	}
 	log.Printf(
-		"[mount/winfsp] start bucket=%q path=%q capacity_gb=%d read_only=%t",
+		"[mount/winfsp] start bucket=%q path=%q capacity_bytes=%d capacity_source=%q read_only=%t",
 		session.bucket,
 		session.mountPath,
-		b.cfg.WindowsWinFspCapacityGB,
+		capacityBytes,
+		capacitySource,
 		session.readOnly,
 	)
 
@@ -88,7 +99,6 @@ func (b *windowsWinFspBackend) Start(session *mountSession) error {
 		}
 	}
 
-	capacityBytes := uint64(b.cfg.WindowsWinFspCapacityGB) * 1024 * 1024 * 1024
 	fs := newWinFspBucketFS(
 		session.access,
 		session.mountName,

@@ -95,10 +95,7 @@ func (fs *winFspBucketFS) Destroy() {
 // chosen size. Free space mirrors capacity because the real backend is a
 // remote object store, not a bounded disk.
 func (fs *winFspBucketFS) Statfs(_ string, stat *fuse.Statfs_t) int {
-	blocks := uint64(0)
-	if fs.capacity > 0 && winFspBlockBytes > 0 {
-		blocks = fs.capacity / winFspBlockBytes
-	}
+	blocks := mountCapacityBlocks(fs.capacity, winFspBlockBytes)
 	stat.Bsize = winFspBlockBytes
 	stat.Frsize = winFspBlockBytes
 	stat.Blocks = blocks

@@ -24,6 +24,7 @@ type linuxFuseNode struct {
 var _ gofusefs.NodeLookuper = (*linuxFuseNode)(nil)
 var _ gofusefs.NodeReaddirer = (*linuxFuseNode)(nil)
 var _ gofusefs.NodeGetattrer = (*linuxFuseNode)(nil)
+var _ gofusefs.NodeStatfser = (*linuxFuseNode)(nil)
 var _ gofusefs.NodeSetattrer = (*linuxFuseNode)(nil)
 var _ gofusefs.NodeOpener = (*linuxFuseNode)(nil)
 var _ gofusefs.NodeCreater = (*linuxFuseNode)(nil)
@@ -95,6 +96,32 @@ func (n *linuxFuseNode) Getattr(
 		return gofusefs.ToErrno(err)
 	}
 	fillLinuxFuseLocalAttr(&out.Attr, fileInfoFromObject(info), info.IsDir)
+	return 0
+}
+
+// Statfs projects the bucket's display quota into Linux filesystem statistics.
+func (n *linuxFuseNode) Statfs(
+	_ context.Context,
+	out *fuse.StatfsOut,
+) syscall.Errno {
+	capacityBytes := resolvedMountCapacityBytes(
+		n.access.config,
+		n.access.bucket,
+		0,
+	)
+	if capacityBytes == 0 {
+		return 0
+	}
+	const blockBytes uint64 = 4096
+	blocks := mountCapacityBlocks(capacityBytes, blockBytes)
+	out.Bsize = uint32(blockBytes)
+	out.Frsize = uint32(blockBytes)
+	out.Blocks = blocks
+	out.Bfree = blocks
+	out.Bavail = blocks
+	out.Files = 1 << 32
+	out.Ffree = 1 << 32
+	out.NameLen = 255
 	return 0
 }
 
