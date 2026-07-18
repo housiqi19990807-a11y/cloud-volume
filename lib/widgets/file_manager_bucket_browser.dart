@@ -175,7 +175,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                       SizedBox(
                         width: quotaW,
                         child: Text(
-                          '配额',
+                          '已用 / 配额',
                           textAlign: TextAlign.right,
                           style: headerTextStyle,
                         ),
@@ -348,7 +348,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
         ),
         title: bucket.bucket.name,
         subtitleLabel: showSource ? '' : bucket.sourceLabel,
-        sizeLabel: showQuota ? _bucketQuotaLabel(bucket) : '',
+        sizeWidget: showQuota ? _bucketQuotaUsage(context, bucket) : null,
         sizeColumnWidthOverride: quotaW,
         onTap: () => _handleBucketTap(bucket),
         showDivider: index != buckets.length - 1,

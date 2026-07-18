@@ -117,10 +117,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('配额'), findsOneWidget);
-    expect(find.text('1.5 TB'), findsOneWidget);
+    expect(find.text('已用 / 配额'), findsOneWidget);
+    expect(find.text('-- / 1.5 TB'), findsOneWidget);
     expect(find.text('7.0 GB / 20.0 GB'), findsOneWidget);
     expect(find.text('--'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
   });
 }
 

@@ -13,6 +13,7 @@ class FileListTile extends StatefulWidget {
     required this.title,
     this.subtitleLabel = '',
     this.sizeLabel = '',
+    this.sizeWidget,
     this.statusWidget,
     this.modifiedLabel = '',
     required this.onTap,
@@ -36,6 +37,7 @@ class FileListTile extends StatefulWidget {
   final String title;
   final String subtitleLabel;
   final String sizeLabel;
+  final Widget? sizeWidget;
   final Widget? statusWidget;
   final String modifiedLabel;
   final VoidCallback onTap;
@@ -68,7 +70,9 @@ class _FileListTileState extends State<FileListTile> {
     final dimmed = widget.dimmed;
     final interactive = !dimmed && !widget.deleting;
     final showSizeColumn =
-        widget.sizeColumnWidthOverride > 0 || widget.sizeLabel.isNotEmpty;
+        widget.sizeColumnWidthOverride > 0 ||
+        widget.sizeLabel.isNotEmpty ||
+        widget.sizeWidget != null;
     final titleColor = widget.deleting
         ? theme.colorScheme.mutedForeground
         : dimmed
@@ -92,9 +96,7 @@ class _FileListTileState extends State<FileListTile> {
       // unmounted while hovered, because onExit may not fire — the field then
       // stays true and the hand never clears. A constant cursor per row kind
       // has no state to get stuck.
-      cursor: interactive
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
+      cursor: interactive ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: interactive ? (_) => setState(() => _hovered = true) : null,
       onExit: (_) => setState(() {
         _hovered = false;
@@ -171,13 +173,15 @@ class _FileListTileState extends State<FileListTile> {
                 const SizedBox(width: 12),
                 SizedBox(
                   width: widget.sizeColumnWidthOverride,
-                  child: Text(
-                    widget.sizeLabel,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(fontSize: 11.5, color: metaColor),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child:
+                      widget.sizeWidget ??
+                      Text(
+                        widget.sizeLabel,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: 11.5, color: metaColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                 ),
               ],
               if (widget.statusWidget != null) ...[
