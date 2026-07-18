@@ -74,7 +74,8 @@ S3 账号支持 endpoint、access key、secret key、region、path-style URL 和
 - 通用设置“应用更新”区的 GitHub 下载加速镜像新增“测试镜像可用性”按钮，对当前选中镜像包裹真实 Release asset URL 做 HEAD 探测，直接显示镜像是否支持大文件下载，避免一键更新时下载停滞在 0B。一键更新使用镜像前也会自动预检，失败时给出明确提示并保留任务可取消。
 
 - 通用设置顶部提供“检测更新”、“一键更新”和“GitHub 下载”。“检测更新”会读取 GitHub 最新 Release 信息（API 直连，单次最长约 30 秒并带有限重试）；发现新版本后桌面端可直接点击“一键更新”在应用内自动下载安装包并替换旧版本，安装完成后自动重启，无需手动卸载重装或执行命令行命令。Web 端仍跳转 GitHub 下载页。一键更新下载安装包完成后会做双重完整性校验：先比对本地文件大小与 GitHub Release asset 的 `size`，再用 asset 的 `digest`（`sha256:<hex>`）对落盘文件做 SHA-256 全文校验；任意一项不一致（多为加速镜像返回截断内容或错误页）时给出明确提示并清理残留文件，避免用坏包安装导致后续 `hdiutil`/解压报“映像数据已损坏”。本地缓存的安装包再次命中时也走同样的校验，不会反复复用坏包。下载过程中若遇到 GitHub 加速镜像在中段断流（常见报错 `stream error … INTERNAL_ERROR … received from peer`），会自动按已下载字节用 HTTP Range 续传重试，最多 5 次。
-- Windows 一键更新优先使用绿色版 `yunjuan-windows-amd64.zip`，启动临时 updater 脚本等待当前进程退出，解压覆盖当前应用目录并重新启动 `cloud-volume.exe`；如果 Release 只有 Inno Setup `installer.exe`，仍会回退到静默安装器更新。
+- Windows 一键更新优先使用绿色版 `yunjuan-windows-amd64.zip`，启动独立 updater 等待 Flutter 主进程和守护启动器退出，解压覆盖当前应用目录并重新启动 `cloud-volume.exe`；如果 Release 只有 Inno Setup `installer.exe`，仍会回退到静默安装器更新。
+- Windows 发布包以 `cloud-volume.exe` 作为用户入口和守护启动器，实际 Flutter 主程序是同目录下的 `cloud-volume-app.exe`。主程序无法创建、在首个窗口出现前失败或运行中异常退出时，守护会在 `~/.cloud-volume/runtime/crashes/` 生成报告并弹窗提示；报告包含退出码、Windows/CPU 架构、关键程序文件的 SHA-256、bridge 日志尾部和最近一次 updater 日志，提交前可先检查其中的本地路径信息。正常关闭和应用更新不会弹出崩溃提示。
 - 一键更新在传输队列仍有进行中的上传/下载时会先等待其完成，再开始下载安装包。
 
 ## 运行方式
@@ -124,7 +125,7 @@ Windows 本地启动前提：
 - 需要可用的 MinGW-style C toolchain 供 Go `c-shared` bridge 使用，推荐 `MSYS2 UCRT64` 的 `gcc/g++`。
 - 双击 `scripts\run_windows_debug.bat` 可按 Debug 模式启动 Windows 桌面端；双击 `scripts\build_windows.bat` 可一键构建 Release 包。Release 构建会写入 `git describe --tags --always --dirty` 版本标签，便于应用内更新正常比较；需要手动指定本地版本时可传 `-Version 1.2.3`。命令行也可以直接运行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_windows.ps1`；如果只想构建不启动，可用 `-Build`，现在也兼容 `--build`。
 
-Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll`，并把它复制到生成出的 runner 目录，生成的主程序文件名为 `cloud-volume.exe`，避免构建后 exe 因缺少 bridge 而无法启动。
+Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll` 和 `cloud-volume-crash-reporter.exe`，并复制到 runner 目录。Release 目录中的 `cloud-volume.exe` 是守护启动器，`cloud-volume-app.exe` 是 Flutter 主程序；构建脚本会在打包前检查两者、报告器、updater 和 bridge 是否齐全。
 Windows 调试启动不再依赖系统 `sqlite3.dll`。预览/打开文件用到的缓存索引现在通过 Go bridge 写入现有 bbolt `config.db`，Flutter 前端不再引入 `sqflite_common_ffi` / `sqlite3` 原生依赖，避免新机器缺少 SQLite 动态库导致界面闪退。
 排查点击文件预览卡顿时，先在 设置 → 通用 → 日志设置 把日志等级切到“调试”，再在 `~/.cloud-volume/runtime/logs/bridge.log` 搜索 `[app/preview]`；日志会显示 `headObject`、cache index、缓存文件校验、下载任务和读取预览 bytes 的分段耗时。未手动设置时，开发调试版默认采集调试日志，正式发布版默认保持安静；采集结束后可切回“安静”或“常规”，避免正式环境长期写入高频诊断日志。
 如果本机配置了 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，请确保 `NO_PROXY` 包含 `127.0.0.1,localhost`；仓库自带的 `scripts/run_windows.ps1` 会自动补上这两个值，避免 `flutter run` 通过代理去连接本地 Dart VM service 而导致调试连接提前断开。

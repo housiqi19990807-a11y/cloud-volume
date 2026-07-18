@@ -16,9 +16,24 @@ add_executable(${BINARY_NAME} WIN32
   "runner.exe.manifest"
 )
 
+# The public executable stays small and independent of Flutter. It starts the
+# app process, waits for it, and invokes the crash reporter on abnormal exit.
+add_executable(cloud_volume_launcher WIN32
+  "crash_launcher.cpp"
+  "Runner.rc"
+  "runner.exe.manifest"
+)
+set_target_properties(cloud_volume_launcher PROPERTIES OUTPUT_NAME "cloud-volume")
+if(POLICY CMP0091)
+  set_property(TARGET cloud_volume_launcher PROPERTY MSVC_RUNTIME_LIBRARY
+    "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 # Apply the standard set of build settings. This can be removed for applications
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
+apply_standard_settings(cloud_volume_launcher)
+target_compile_options(cloud_volume_launcher PRIVATE "/utf-8")
 
 # Add preprocessor definitions for the build version.
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION=\"${FLUTTER_VERSION}\"")
@@ -29,12 +44,16 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_BUILD=${FLUTT
 
 # Disable Windows macros that collide with C++ standard library functions.
 target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
+target_compile_definitions(cloud_volume_launcher PRIVATE "NOMINMAX")
+target_compile_definitions(cloud_volume_launcher PRIVATE
+  "ORIGINAL_FILENAME=\"cloud-volume.exe\"")
 
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(cloud_volume_launcher PRIVATE "user32.lib")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

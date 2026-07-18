@@ -1,10 +1,13 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
 project(remote_storage LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "cloud-volume")
+set(BINARY_NAME "cloud-volume-app")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -50,6 +53,9 @@ endfunction()
 set(REPO_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
 set(BRIDGE_OUTPUT_DIR "${REPO_ROOT_DIR}/bin/bridge")
 set(WINDOWS_BRIDGE_OUTPUT "${BRIDGE_OUTPUT_DIR}/remote_storage_bridge.dll")
+set(WINDOWS_REPORTER_OUTPUT_DIR "${REPO_ROOT_DIR}/bin/watchdog")
+set(WINDOWS_REPORTER_OUTPUT
+  "${WINDOWS_REPORTER_OUTPUT_DIR}/cloud-volume-crash-reporter.exe")
 
 find_program(GO_EXECUTABLE NAMES go REQUIRED)
 
@@ -122,6 +128,19 @@ add_custom_target(remote_storage_bridge ALL
   COMMENT "Building Windows Go bridge"
   VERBATIM)
 
+# Build the crash reporter independently from the Flutter process. The public
+# launcher can invoke it even when the Windows loader cannot start the app.
+add_custom_target(cloud_volume_crash_reporter ALL
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${WINDOWS_REPORTER_OUTPUT_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E env
+    "CGO_ENABLED=0"
+    ${GO_EXECUTABLE} build -buildvcs=false -ldflags=-H=windowsgui
+      -o "${WINDOWS_REPORTER_OUTPUT}" ./cmd/cloud-volume-crash-reporter
+  BYPRODUCTS "${WINDOWS_REPORTER_OUTPUT}"
+  WORKING_DIRECTORY "${REPO_ROOT_DIR}"
+  COMMENT "Building Windows crash reporter"
+  VERBATIM)
+
 # Flutter library and tool build rules.
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
@@ -129,6 +148,7 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 add_dependencies(${BINARY_NAME} remote_storage_bridge)
+add_dependencies(cloud_volume_launcher cloud_volume_crash_reporter)
 
 
 # Generated plugin build rules, which manage building the plugins and adding
@@ -148,7 +168,8 @@ set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 
-install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
+install(TARGETS ${BINARY_NAME} cloud_volume_launcher
+  RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
@@ -158,6 +179,10 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 install(FILES "${WINDOWS_BRIDGE_OUTPUT}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+install(FILES "${WINDOWS_REPORTER_OUTPUT}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 if(PLUGIN_BUNDLED_LIBRARIES)

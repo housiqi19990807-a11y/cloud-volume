@@ -133,7 +133,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
   window.SetQuitOnClose(true);
 
-  // Single-instance guard: if another cloud-volume.exe is already running,
+  // Single-instance guard: if another cloud-volume-app.exe is already running,
   // bail out instead of spawning a second tray icon + engine. A named mutex
   // held for the lifetime of this process is the standard lightweight check.
   HANDLE singleton_mutex = ::CreateMutex(nullptr, TRUE, L"CloudVolume.Singleton");

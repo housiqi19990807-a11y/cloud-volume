@@ -320,6 +320,7 @@ func installWindowsZip(dlPath string) error {
 		return fmt.Errorf("resolve current executable: %w", err)
 	}
 	installDir := filepath.Dir(currentExe)
+	relaunchExe := appRelaunchExecutable(currentExe)
 
 	// Prefer the updater EXE already in the install directory (shipped with
 	// the current build). If it's missing (old version pre-updater), fall back
@@ -335,7 +336,7 @@ func installWindowsZip(dlPath string) error {
 		"-zip", dlPath,
 		"-install-dir", installDir,
 		"-pid", fmt.Sprintf("%d", os.Getpid()),
-		"-exe-name", filepath.Base(currentExe),
+		"-exe-name", filepath.Base(relaunchExe),
 	)
 	cmd.SysProcAttr = windowsHiddenProcessAttrs()
 	if err := cmd.Start(); err != nil {

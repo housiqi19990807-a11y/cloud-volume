@@ -44,8 +44,14 @@ if (-not $SkipBuild) {
 }
 
 # Step 2: Verify the release bundle exists.
-if (-not (Test-Path "$releaseDir\cloud-volume.exe")) {
-  throw "cloud-volume.exe not found in $releaseDir. Run without -SkipBuild."
+foreach ($requiredFile in @(
+  'cloud-volume.exe',
+  'cloud-volume-app.exe',
+  'cloud-volume-crash-reporter.exe'
+)) {
+  if (-not (Test-Path (Join-Path $releaseDir $requiredFile))) {
+    throw "$requiredFile not found in $releaseDir. Run without -SkipBuild."
+  }
 }
 
 # Step 3: Resolve ISCC.exe.

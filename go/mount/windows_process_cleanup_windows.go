@@ -13,8 +13,8 @@ import (
 	"strings"
 )
 
-// CleanupStaleWindowsProcesses kills leftover cloud-volume.exe processes that
-// were launched from this repository's Windows runner output.
+// CleanupStaleWindowsProcesses kills leftover launcher and Flutter app
+// processes that were launched from this repository's Windows runner output.
 func CleanupStaleWindowsProcesses() (int, error) {
 	exePath, err := exec.LookPath("powershell")
 	if err != nil {
@@ -39,7 +39,7 @@ $runnerDirs = @()
 foreach ($globDir in Get-ChildItem -Path $targetGlob -Directory -ErrorAction SilentlyContinue) {
   $runnerDirs += $globDir.FullName.ToLowerInvariant()
 }
-$processes = Get-CimInstance Win32_Process -Filter "Name = 'cloud-volume.exe'"
+$processes = Get-CimInstance Win32_Process -Filter "Name = 'cloud-volume.exe' OR Name = 'cloud-volume-app.exe'"
 foreach ($process in $processes) {
   if ($process.ProcessId -eq $currentPid) { continue }
   $path = $process.ExecutablePath

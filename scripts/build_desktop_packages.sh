@@ -357,10 +357,16 @@ build_windows() {
   zip_path="$OUTPUT_DIR/$ARTIFACT_PREFIX-windows-$ARCH.zip"
   [[ -d "$release_dir" ]] || fail "Windows release directory not found: $release_dir"
   [[ -f "$bridge_dll" ]] || fail "Windows bridge was not built: $bridge_dll"
+  [[ -f "$release_dir/cloud-volume.exe" ]] \
+    || fail "Windows watchdog launcher was not built: $release_dir/cloud-volume.exe"
+  [[ -f "$release_dir/cloud-volume-app.exe" ]] \
+    || fail "Windows Flutter app was not built: $release_dir/cloud-volume-app.exe"
+  [[ -f "$release_dir/cloud-volume-crash-reporter.exe" ]] \
+    || fail "Windows crash reporter was not built: $release_dir/cloud-volume-crash-reporter.exe"
 
   cp "$bridge_dll" "$release_dir/remote_storage_bridge.dll"
-  # Build the standalone updater EXE into the release dir so green-package
-  # auto-updates show a progress dialog instead of relying on PowerShell.
+  # Build the standalone updater EXE into the release dir for green-package
+  # replacement after the watched Flutter process exits.
   go build -ldflags "-H windowsgui" -o "$release_dir/cloud-volume-updater.exe" ./cmd/cloud-volume-updater
   local release_dir_win zip_path_win
   release_dir_win="$(to_windows_path "$release_dir")"

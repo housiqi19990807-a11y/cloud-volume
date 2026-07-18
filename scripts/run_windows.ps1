@@ -502,6 +502,16 @@ try {
     Invoke-NativeCommand -Name 'go build updater' -Command {
       & $go build -ldflags "-H windowsgui" -o $updaterExe ./cmd/cloud-volume-updater
     }
+    foreach ($requiredFile in @(
+      'cloud-volume.exe',
+      'cloud-volume-app.exe',
+      'cloud-volume-crash-reporter.exe',
+      'cloud-volume-updater.exe'
+    )) {
+      if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $requiredFile) -PathType Leaf)) {
+        throw "Windows release bundle is missing $requiredFile in $releaseDir."
+      }
+    }
  } else {
    Invoke-NativeCommand -Name 'flutter run windows' -Command {
      & $flutter run -d windows --dart-define "APP_VERSION_LABEL=$versionLabel"
