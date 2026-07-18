@@ -36,10 +36,12 @@ void main() {
       'name': 'remote-root',
       'quotaBytes': 20 * _gibibyte,
       'usedBytes': 7 * _gibibyte,
+      'quotaKnown': true,
     });
 
     expect(bucket.quotaBytes, 20 * _gibibyte);
     expect(bucket.usedBytes, 7 * _gibibyte);
+    expect(bucket.quotaKnown, isTrue);
   });
 
   testWidgets('bucket settings saves a decimal GB quota', (tester) async {
@@ -92,7 +94,13 @@ void main() {
             child: FileManagerBucketBrowser(
               buckets: <FileManagerBucketEntry>[
                 _entry('bucket-a', configured),
-                _entry('bucket-b', configured, quotaBytes: 20 * _gibibyte),
+                _entry(
+                  'bucket-b',
+                  configured,
+                  quotaBytes: 20 * _gibibyte,
+                  usedBytes: 7 * _gibibyte,
+                  quotaKnown: true,
+                ),
                 _entry('bucket-c', configured),
               ],
               isGrid: false,
@@ -111,7 +119,7 @@ void main() {
 
     expect(find.text('配额'), findsOneWidget);
     expect(find.text('1.5 TB'), findsOneWidget);
-    expect(find.text('20.0 GB'), findsOneWidget);
+    expect(find.text('7.0 GB / 20.0 GB'), findsOneWidget);
     expect(find.text('--'), findsOneWidget);
   });
 }
@@ -148,9 +156,16 @@ FileManagerBucketEntry _entry(
   String bucket,
   RemoteStorageConfig config, {
   int quotaBytes = 0,
+  int usedBytes = 0,
+  bool quotaKnown = false,
 }) {
   return FileManagerBucketEntry.fromBucketInfo(
-    bucket: BucketInfo(name: bucket, quotaBytes: quotaBytes),
+    bucket: BucketInfo(
+      name: bucket,
+      quotaBytes: quotaBytes,
+      usedBytes: usedBytes,
+      quotaKnown: quotaKnown,
+    ),
     profileName: 'profile-a',
     sourceLabel: '账号 A',
     config: config,

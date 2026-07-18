@@ -40,6 +40,7 @@ func (b webDAVBackend) ListBuckets(ctx context.Context) ([]BucketInfo, error) {
 	}
 	bucket.QuotaBytes = quotaBytes
 	bucket.UsedBytes = usedBytes
+	bucket.QuotaKnown = true
 	return []BucketInfo{bucket}, nil
 }
 

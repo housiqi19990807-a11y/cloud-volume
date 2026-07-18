@@ -15,12 +15,13 @@ import 'package:remote_storage/widgets/app_tooltip.dart';
 
 part 'file_manager_bucket_source_actions.dart';
 part 'file_manager_bucket_browser_actions.dart';
+part 'file_manager_bucket_quota.dart';
 
 const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
   static const double _bucketActionColumnWidth = 244;
-  static const double _bucketQuotaColumnWidth = 96;
+  static const double _bucketQuotaColumnWidth = 136;
   static const double _bucketSourceColumnWidth = 172;
   static const double _bucketActionHeaderInset = 14;
 
@@ -354,19 +355,6 @@ class FileManagerBucketBrowser extends StatelessWidget {
         trailing: trailing,
       ),
     );
-  }
-
-  String _bucketQuotaLabel(
-    FileManagerBucketEntry bucket, {
-    bool includePrefix = false,
-  }) {
-    final customBytes = bucket.config
-        .bucketSettingsFor(bucket.bucket.name)
-        .customQuotaBytes;
-    final bytes = customBytes > 0 ? customBytes : bucket.bucket.quotaBytes;
-    if (bytes <= 0) return includePrefix ? '' : '--';
-    final value = formatBytes(bytes);
-    return includePrefix ? '配额 $value' : value;
   }
 
   Widget _wrapGridBucketWithContextMenu(

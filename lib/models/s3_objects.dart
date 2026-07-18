@@ -5,6 +5,7 @@ class BucketInfo {
     required this.name,
     this.quotaBytes = 0,
     this.usedBytes = 0,
+    this.quotaKnown = false,
   });
 
   factory BucketInfo.fromJson(Map<String, dynamic> json) {
@@ -12,12 +13,14 @@ class BucketInfo {
       name: (json['name'] ?? '').toString(),
       quotaBytes: _nonNegativeBucketBytes(json['quotaBytes']),
       usedBytes: _nonNegativeBucketBytes(json['usedBytes']),
+      quotaKnown: json['quotaKnown'] == true,
     );
   }
 
   final String name;
   final int quotaBytes;
   final int usedBytes;
+  final bool quotaKnown;
 }
 
 int _nonNegativeBucketBytes(dynamic value) {

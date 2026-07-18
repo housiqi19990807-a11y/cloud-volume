@@ -64,6 +64,7 @@ func (b baiduPanBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
 	}
 	bucket.QuotaBytes = int64(quota.Total)
 	bucket.UsedBytes = int64(quota.Used)
+	bucket.QuotaKnown = true
 	return []BucketInfo{bucket}, nil
 }
 

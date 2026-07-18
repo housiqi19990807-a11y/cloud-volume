@@ -19,6 +19,7 @@ type BucketInfo struct {
 	Name       string `json:"name"`
 	QuotaBytes int64  `json:"quotaBytes,omitempty"`
 	UsedBytes  int64  `json:"usedBytes,omitempty"`
+	QuotaKnown bool   `json:"quotaKnown,omitempty"`
 }
 
 // ListBuckets returns all buckets accessible by the configured credentials.
