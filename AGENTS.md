@@ -465,7 +465,7 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
 - `lib/pages/file_manager_page_sources.dart` — Multi-account aggregation:
   1. for each `widget.profiles` → `loadProfile` + `listBuckets(config)`
   2. wrap as `FileManagerBucketEntry` (`id = profileName::bucket.name`)
-  3. **client sort** `sourceLabel` then `bucket.name` (overwrites provider order)
+  3. apply persisted `listBucketOrder()` when present; otherwise keep account/profile order and sort bucket names within each account
 - `lib/pages/file_manager_page_bucket_view.dart` — Builds `FileManagerBucketBrowser` from `_filteredBuckets`.
 - `lib/pages/file_manager_page_state.dart` — `_filteredBuckets` filters by search only; preserves load order.
 - `lib/widgets/file_manager_bucket_browser.dart` — Presentational list/grid:
@@ -473,6 +473,20 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
   - grid: `GridView.count` (~L79+)
 - `lib/models/file_manager_bucket_entry.dart` / `lib/models/s3_objects.dart` (`BucketInfo`) — UI row models; no order field.
 - Same aggregation pattern also used by `file_sync_tasks_page_actions.dart` for remote picker buckets.
+
+#### Bucket custom quota (implemented 2026-07-18)
+
+- `go/config/config.go` adds `BucketSettings.CustomQuotaBytes` (`customQuotaBytes` JSON / `custom_quota_bytes` TOML). `go/config/config_bucket_settings.go` normalizes negative values to zero and returns the override through `BucketSettingsFor`; zero means unset. Bucket-specific normalization was split out of `config.go` to keep the main file below the hand-written 500-line limit.
+- `lib/models/bucket_settings.dart` mirrors the optional field, accepts camelCase and snake_case JSON, omits zero from serialized output, and clamps legacy negative values to zero. `RemoteStorageConfig.bucketSettingsFor` carries it into resolved bucket settings; `lib/models/remote_storage_config_enums.dart` now owns the imported/re-exported persistence enums so the main config model stays below 500 lines.
+- `lib/widgets/bucket_settings_dialog.dart` edits the quota in GB, accepts decimals, converts to bytes, and treats zero/blank as unset. The value is informational only and does not enforce an upload limit.
+- `lib/widgets/file_manager_bucket_browser.dart` uses the existing `FileListTile` size column as a responsive “配额” column and shows `--` when unset; grid items show `配额 <value>` only when configured. `lib/utils/transfer_format.dart` formats TB values as well as smaller units.
+- `test/bucket_quota_test.dart` covers legacy/current JSON, decimal input, invalid input, and list values. `go/config/config_bucket_settings_test.go` covers normalization and per-bucket resolution.
+
+#### Remote quota feasibility (exploration 2026-07-18)
+
+- Generic S3 `ListBuckets` does not provide quota or usage. A reliable S3 quota requires a provider-specific management API; recursively summing objects is expensive, incomplete under pagination/versioning, and is not a quota.
+- Baidu Pan's pinned xpan client exposes account-level `Client.Quota()` (`total`, `used`, `free`). WebDAV may expose RFC `DAV:quota-used-bytes` and `DAV:quota-available-bytes`, but server support is optional. Neither remote quota path is currently wired into the bucket list.
+- Future remote quota should remain optional and distinguish its source from the current custom display value. Unsupported providers must stay unknown rather than reporting zero, and quota failures must not fail bucket loading.
 
 #### Reorder patterns
 

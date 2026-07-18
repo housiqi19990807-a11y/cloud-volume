@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
+import 'package:remote_storage/utils/transfer_format.dart';
 import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
@@ -19,6 +20,7 @@ const String _bucketContextMenuGroup = 'file_manager_bucket_browser';
 
 class FileManagerBucketBrowser extends StatelessWidget {
   static const double _bucketActionColumnWidth = 244;
+  static const double _bucketQuotaColumnWidth = 96;
   static const double _bucketSourceColumnWidth = 172;
   static const double _bucketActionHeaderInset = 14;
 
@@ -94,7 +96,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                       size: gridIconSize,
                     ),
                     title: bucket.bucket.name,
-                    subtitle: '',
+                    subtitle: _bucketQuotaLabel(bucket, includePrefix: true),
                     contentWidth: gridIconSize + 12,
                     onTap: () => _handleBucketTap(bucket),
                   ),
@@ -107,17 +109,26 @@ class FileManagerBucketBrowser extends StatelessWidget {
   }
 
   /// 桶列表列宽随容器收缩：窄屏隐藏「来源/操作」列，名称占满剩余宽度。
-  (double sourceW, double actionW, bool showSource, bool showActions)
-      _bucketListColumns(double maxWidth) {
-    final showActions = showActionColumn && maxWidth >= 620;
-    final showSource = maxWidth >= 480;
+  (
+    double quotaW,
+    double sourceW,
+    double actionW,
+    bool showQuota,
+    bool showSource,
+    bool showActions,
+  )
+  _bucketListColumns(double maxWidth) {
+    final showActions = showActionColumn && maxWidth >= 720;
+    final showSource = maxWidth >= 560;
+    final showQuota = maxWidth >= 420;
+    final quotaW = showQuota ? _bucketQuotaColumnWidth : 0.0;
     final sourceW = showSource
         ? (maxWidth >= 920 ? _bucketSourceColumnWidth : 108.0)
         : 0.0;
     final actionW = showActions
         ? (maxWidth >= 1000 ? _bucketActionColumnWidth : 104.0)
         : 0.0;
-    return (sourceW, actionW, showSource, showActions);
+    return (quotaW, sourceW, actionW, showQuota, showSource, showActions);
   }
 
   Widget _buildList(BuildContext context) {
@@ -129,10 +140,12 @@ class FileManagerBucketBrowser extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final cols = _bucketListColumns(constraints.maxWidth);
-        final sourceW = cols.$1;
-        final actionW = cols.$2;
-        final showSource = cols.$3;
-        final showActions = cols.$4;
+        final quotaW = cols.$1;
+        final sourceW = cols.$2;
+        final actionW = cols.$3;
+        final showQuota = cols.$4;
+        final showSource = cols.$5;
+        final showActions = cols.$6;
 
         return ShadCard(
           padding: const EdgeInsets.all(4),
@@ -144,10 +157,9 @@ class FileManagerBucketBrowser extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: ShadTheme.of(context)
-                          .colorScheme
-                          .border
-                          .withValues(alpha: 0.75),
+                      color: ShadTheme.of(
+                        context,
+                      ).colorScheme.border.withValues(alpha: 0.75),
                       width: 0.8,
                     ),
                   ),
@@ -157,6 +169,17 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     SizedBox(width: listIconSize + 12),
                     const SizedBox(width: 12),
                     Expanded(child: Text('名称', style: headerTextStyle)),
+                    if (showQuota) ...[
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: quotaW,
+                        child: Text(
+                          '配额',
+                          textAlign: TextAlign.right,
+                          style: headerTextStyle,
+                        ),
+                      ),
+                    ],
                     if (showSource) ...[
                       const SizedBox(width: 16),
                       SizedBox(
@@ -191,6 +214,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
                 child: _buildBucketRows(
                   showSource: showSource,
                   showActions: showActions,
+                  showQuota: showQuota,
+                  quotaW: quotaW,
                   sourceW: sourceW,
                   actionW: actionW,
                 ),
@@ -205,6 +230,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
   Widget _buildBucketRows({
     required bool showSource,
     required bool showActions,
+    required bool showQuota,
+    required double quotaW,
     required double sourceW,
     required double actionW,
   }) {
@@ -232,6 +259,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
               index: index,
               showSource: showSource,
               showActions: showActions,
+              showQuota: showQuota,
+              quotaW: quotaW,
               sourceW: sourceW,
               actionW: actionW,
               showDragHandle: true,
@@ -252,6 +281,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
             index: index,
             showSource: showSource,
             showActions: showActions,
+            showQuota: showQuota,
+            quotaW: quotaW,
             sourceW: sourceW,
             actionW: actionW,
             showDragHandle: false,
@@ -267,6 +298,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
     required int index,
     required bool showSource,
     required bool showActions,
+    required bool showQuota,
+    required double quotaW,
     required double sourceW,
     required double actionW,
     required bool showDragHandle,
@@ -290,7 +323,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
               moreMenuItems: _buildBucketMenuItems(bucket),
             ),
           )
-        : null;
+        : const SizedBox.shrink();
     return _wrapBucketWithContextMenu(
       bucket,
       FileListTile(
@@ -314,13 +347,25 @@ class FileManagerBucketBrowser extends StatelessWidget {
         ),
         title: bucket.bucket.name,
         subtitleLabel: showSource ? '' : bucket.sourceLabel,
-        sizeLabel: '',
-        sizeColumnWidthOverride: 0,
+        sizeLabel: showQuota ? _bucketQuotaLabel(bucket) : '',
+        sizeColumnWidthOverride: quotaW,
         onTap: () => _handleBucketTap(bucket),
         showDivider: index != buckets.length - 1,
         trailing: trailing,
       ),
     );
+  }
+
+  String _bucketQuotaLabel(
+    FileManagerBucketEntry bucket, {
+    bool includePrefix = false,
+  }) {
+    final bytes = bucket.config
+        .bucketSettingsFor(bucket.bucket.name)
+        .customQuotaBytes;
+    if (bytes <= 0) return includePrefix ? '' : '--';
+    final value = formatBytes(bytes);
+    return includePrefix ? '配额 $value' : value;
   }
 
   Widget _wrapGridBucketWithContextMenu(

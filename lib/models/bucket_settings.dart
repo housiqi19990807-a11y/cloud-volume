@@ -10,6 +10,13 @@ bool? _bucketBoolFromDynamic(Object? value) {
   return null;
 }
 
+int _bucketIntFromDynamic(Object? value) {
+  final parsed = value is int
+      ? value
+      : int.tryParse(value?.toString().trim() ?? '') ?? 0;
+  return parsed < 0 ? 0 : parsed;
+}
+
 String normalizeTrashDirectoryValue(String value) {
   final trimmed = value.trim().replaceAll(RegExp(r'^/+|/+$'), '');
   if (trimmed.isEmpty) {
@@ -26,6 +33,7 @@ class BucketSettings {
     required this.readOnly,
     required this.trashEnabled,
     required this.trashDirectory,
+    this.customQuotaBytes = 0,
   });
 
   factory BucketSettings.fromJson(Map<String, dynamic> json) {
@@ -38,12 +46,16 @@ class BucketSettings {
       ),
       trashDirectory: (json['trashDirectory'] ?? json['trash_directory'] ?? '')
           .toString(),
+      customQuotaBytes: _bucketIntFromDynamic(
+        json['customQuotaBytes'] ?? json['custom_quota_bytes'],
+      ),
     );
   }
 
   final bool readOnly;
   final bool? trashEnabled;
   final String trashDirectory;
+  final int customQuotaBytes;
 
   bool get isTrashEnabled => trashEnabled == true;
 
@@ -55,6 +67,9 @@ class BucketSettings {
     if (trashDirectory.trim().isNotEmpty) {
       result['trashDirectory'] = normalizeTrashDirectoryValue(trashDirectory);
     }
+    if (customQuotaBytes > 0) {
+      result['customQuotaBytes'] = customQuotaBytes;
+    }
     return result;
   }
 
@@ -63,6 +78,7 @@ class BucketSettings {
     bool? trashEnabled,
     bool clearTrashEnabled = false,
     String? trashDirectory,
+    int? customQuotaBytes,
   }) {
     return BucketSettings(
       readOnly: readOnly ?? this.readOnly,
@@ -70,6 +86,7 @@ class BucketSettings {
           ? null
           : (trashEnabled ?? this.trashEnabled),
       trashDirectory: trashDirectory ?? this.trashDirectory,
+      customQuotaBytes: customQuotaBytes ?? this.customQuotaBytes,
     );
   }
 }

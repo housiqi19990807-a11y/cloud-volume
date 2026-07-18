@@ -11,6 +11,9 @@ String formatBytesPerSecond(double bytesPerSecond) {
 }
 
 String formatBytes(int bytes) {
+  if (bytes >= 1024 * 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024 * 1024 * 1024)).toStringAsFixed(1)} TB';
+  }
   if (bytes >= 1024 * 1024 * 1024) {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }

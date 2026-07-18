@@ -1,9 +1,6 @@
 package config
 
-import (
-	"path"
-	"strings"
-)
+import "strings"
 
 // RemoteStorageConfig stores account connection values persisted to TOML.
 type RemoteStorageConfig struct {
@@ -51,9 +48,10 @@ type RemoteStorageConfig struct {
 }
 
 type BucketSettings struct {
-	ReadOnly       bool   `json:"readOnly" toml:"read_only"`
-	TrashEnabled   *bool  `json:"trashEnabled,omitempty" toml:"trash_enabled,omitempty"`
-	TrashDirectory string `json:"trashDirectory" toml:"trash_directory"`
+	ReadOnly         bool   `json:"readOnly" toml:"read_only"`
+	TrashEnabled     *bool  `json:"trashEnabled,omitempty" toml:"trash_enabled,omitempty"`
+	TrashDirectory   string `json:"trashDirectory" toml:"trash_directory"`
+	CustomQuotaBytes int64  `json:"customQuotaBytes,omitempty" toml:"custom_quota_bytes,omitempty"`
 }
 
 const (
@@ -364,70 +362,6 @@ func normalizeMountMetadataCacheSeconds(value int) int {
 	}
 }
 
-func normalizeTrashDirectoryName(value string) string {
-	trimmed := strings.Trim(strings.TrimSpace(value), "/")
-	if trimmed == "" {
-		return ".trash"
-	}
-	cleaned := strings.TrimPrefix(path.Clean("/"+trimmed), "/")
-	if cleaned == "" || cleaned == "." {
-		return ".trash"
-	}
-	if !strings.Contains(cleaned, "/") && !strings.HasPrefix(cleaned, ".") {
-		return "." + cleaned
-	}
-	return cleaned
-}
-
-func normalizeBucketSettings(settings map[string]BucketSettings) map[string]BucketSettings {
-	result := map[string]BucketSettings{}
-	for bucket, setting := range settings {
-		cleanBucket := strings.TrimSpace(bucket)
-		if cleanBucket == "" {
-			continue
-		}
-		if strings.TrimSpace(setting.TrashDirectory) != "" {
-			setting.TrashDirectory = normalizeTrashDirectoryName(setting.TrashDirectory)
-		}
-		result[cleanBucket] = setting
-	}
-	return result
-}
-
-func (c RemoteStorageConfig) BucketSettingsFor(bucket string) BucketSettings {
-	normalized := c.Normalized()
-	setting := BucketSettings{
-		TrashDirectory: normalized.TrashDirectoryName,
-	}
-	if normalized.StorageType == StorageTypeS3 {
-		enabled := true
-		setting.TrashEnabled = &enabled
-	} else {
-		enabled := false
-		setting.TrashEnabled = &enabled
-	}
-	if override, ok := normalized.BucketSettings[strings.TrimSpace(bucket)]; ok {
-		if override.TrashEnabled != nil {
-			setting.TrashEnabled = override.TrashEnabled
-		}
-		if strings.TrimSpace(override.TrashDirectory) != "" {
-			setting.TrashDirectory = normalizeTrashDirectoryName(override.TrashDirectory)
-		}
-		setting.ReadOnly = override.ReadOnly
-	}
-	return setting
-}
-
-func (c RemoteStorageConfig) WithBucketSettingsApplied(bucket string) RemoteStorageConfig {
-	normalized := c.Normalized()
-	normalized.TrashDirectoryName = normalized.BucketSettingsFor(bucket).TrashDirectory
-	return normalized
-}
-
-func (s BucketSettings) IsTrashEnabled() bool {
-	return s.TrashEnabled != nil && *s.TrashEnabled
-}
-
 func normalizeWindowsMountMode(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case WindowsMountModeCloudFilesDirect:
@@ -509,27 +443,4 @@ func normalizeProxyType(t string) string {
 	default:
 		return ProxyTypeHTTP
 	}
-}
-
-// TrashDirectoryAliases returns all reserved bucket-trash roots that should be hidden and protected.
-func TrashDirectoryAliases(value string) []string {
-	primary := normalizeTrashDirectoryName(value)
-	aliases := []string{primary}
-	parent := path.Dir(primary)
-	base := path.Base(primary)
-	aliasBase := ""
-	switch base {
-	case ".trash":
-		aliasBase = ".Trash"
-	case ".Trash":
-		aliasBase = ".trash"
-	}
-	if aliasBase != "" {
-		alias := aliasBase
-		if parent != "." && parent != "" {
-			alias = path.Join(parent, aliasBase)
-		}
-		aliases = append(aliases, alias)
-	}
-	return aliases
 }
