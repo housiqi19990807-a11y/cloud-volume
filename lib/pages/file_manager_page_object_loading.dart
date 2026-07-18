@@ -34,6 +34,7 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
     FileManagerBucketEntry bucketEntry,
     String prefix, {
     bool forceRefresh = false,
+    Set<String> suppressObjectKeys = const <String>{},
   }) async {
     final mayWaitForBaiduRetry =
         bucketEntry.config.storageType == StorageType.baiduPan &&
@@ -68,11 +69,22 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
         _FileManagerPageState._listPageSize,
         forceRefresh: forceRefresh,
       );
+      final pageItems = suppressObjectKeys.isEmpty
+          ? page.items
+          : page.items
+                .where((object) => !suppressObjectKeys.contains(object.key))
+                .toList(growable: false);
+      if (suppressObjectKeys.isNotEmpty) {
+        // A successful delete is authoritative even if the provider briefly
+        // returns a stale row. Drop the raw page cache so later navigation
+        // rechecks the backend instead of resurrecting that stale snapshot.
+        _invalidateObjectListingCache(bucketId: bucketEntry.id, prefix: prefix);
+      }
       if (!mounted) return false;
       setState(() {
-        final visibleKeys = page.items.map((object) => object.key).toSet();
+        final visibleKeys = pageItems.map((object) => object.key).toSet();
         _activeBucketEntry = bucketEntry;
-        _objects = page.items;
+        _objects = pageItems;
         _trashItems = null;
         _prefix = prefix;
         _breadcrumbs = prefix.split('/').where((s) => s.isNotEmpty).toList();
@@ -223,10 +235,16 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
 
   Future<bool> _reloadObjectsAfterBucketMutation(
     FileManagerBucketEntry bucketEntry,
-    String prefix,
-  ) {
+    String prefix, {
+    Set<String> suppressObjectKeys = const <String>{},
+  }) {
     _invalidateObjectListingCache(bucketId: bucketEntry.id);
-    return _loadObjects(bucketEntry, prefix, forceRefresh: true);
+    return _loadObjects(
+      bucketEntry,
+      prefix,
+      forceRefresh: true,
+      suppressObjectKeys: suppressObjectKeys,
+    );
   }
 
   void _afterObjectListingLoaded(

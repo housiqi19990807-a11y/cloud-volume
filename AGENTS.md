@@ -530,18 +530,21 @@ Shared upload/download queue backing both manual file operations and sync-genera
 - `bridge/dispatch_object_transfer.go` — `copyObject` 调 `NotifyExternalUpload(TargetKey)`；`moveObject` 调 `NotifyExternalRename(SourceKey, TargetKey)`。
 - `go/webapi/invoke.go` — webapi 同名 mutation 同步接入（`delete_object`/`rename_object`/`copy_object`/`move_object`/`create_directory`），仅在 `err == nil` 时调用。
 - `go/mount/external_invalidation_test.go` — 覆盖 delete/upload/rename 对 `listCache`/`objectCache`/`localEntries`/`deletedPaths` 的失效，以及 cfg 不匹配/无 session 时的 no-op。
+- `lib/pages/file_manager_page_object_deletes.dart` — 删除 API 成功后立即从 `_objects`、`_selectedObjectKeys` 和 `_deletingObjectKeys` 移除该 key；批次结束时把成功 key 传给写后刷新，失败 key 恢复成普通可操作行。
+- `lib/pages/file_manager_page_object_loading.dart` — `_loadObjects(... suppressObjectKeys:)` 过滤本批次已确认删除、但提供方短暂重新返回的旧 key，并丢弃对应原始页缓存，让后续导航重新请求后端。
+- `test/file_manager_delete_state_test.dart` — 回归覆盖“删除成功，但 force-refresh 仍返回旧目录”的场景，确保行和删除标记都收敛。
 
 #### Gotchas
 
 - `InvalidateListCacheForPrefix`（仅清 `listCache`）不足以反映外部变更——`mergeLocalFiles` 会用过期 `localEntries` 把幽灵重新塞回列表，`hiddenByDeleteLocked` 也会用过期 tombstone 隐藏本应显示的对象。外部 mutation 必须用 `NotifyExternal*` 这组完整语义（同时清 `objectCache`/`localFiles`/`localEntries`/`deletedPaths`）。
-- `_deletingObjectKeys.removeWhere((key) => !visibleKeys.contains(key))` 依赖刷新后的列表不再含被删 key。只有挂载缓存被正确失效后，`ListMountedObjectPage` 才会重新 `fetchDirectory` 拿到不含该 key 的列表，从而清掉"删除中"标记。
+- 不要只依赖 `_deletingObjectKeys.removeWhere((key) => !visibleKeys.contains(key))` 收敛状态：S3/挂载刷新可能短暂返回旧目录，导致成功任务永久显示“删除中”。删除 API 成功必须主动清 key/移除行，随后的写后刷新再用成功 key 抑制一次陈旧响应。
 - `uploadDirectory` 是 `go func()` 异步：启动时先 `NotifyExternalUpload(parentDirectoryOf(Key))` 让父目录可见，goroutine 完成后再 `NotifyExternalUpload(Key, isDir=true)` 刷新目录内容。
 
 #### Data flow
 
 1. 界面操作 → bridge `delete_object` 等 → `storageops.ForConfig(cfg).XxxObject(...)` 改远端。
 2. 成功后 bridge 调 `bucketmount.NotifyExternal*(cfg, bucket, path, isDir)` → `globalManager.notifyExternalMutation` → 匹配 session → `bucketAccess.MarkExternalDelete/InvalidateExternalUpload/InvalidateExternalRename`。
-3. 下一次 `list_object_page(forceRefresh)` 或挂载点 `listDirectory` 重新 `fetchDirectory`，列表不含被删 key → 界面清"删除中"标记、挂载点幽灵消失。
+3. Flutter 收到删除成功后立即移除行和“删除中”标记；批次 `list_object_page(forceRefresh)` 使用成功 key 过滤一次陈旧响应并丢弃该页缓存。挂载点下一次 `listDirectory` 重新 `fetchDirectory`，由 tombstone/远端结果共同隐藏已删 key。
 
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)
 

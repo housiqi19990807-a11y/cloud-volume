@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- 删除状态修复：文件或目录删除成功后，文件管理列表立即移除对应行并清理“删除中”状态；即使紧接着的远端/挂载列表刷新短暂返回旧 key，也不会让已完成的删除重新卡在列表中。
 - 挂载容量：桶级自定义配额现在同步到 Windows WinFsp 与 Linux FUSE 的 `Statfs` 总容量/可用容量；WinFsp 在桶未设置配额时继续使用 Windows 高级设置中的全局虚拟容量。Cloud Files/WebDAV 不走应用自有 `Statfs`，不受影响；修改配额后重新挂载生效。
 - 文件管理：桶列表新增“配额”列，网格卡片也会显示已配置容量；“桶设置”新增自定义配额（GB）输入，支持小数并按桶持久化。0 或留空表示未设置，列表显示 `--`；该值仅用于容量标注，不会限制上传。
 - Windows 启动可靠性：发布包新增独立 `cloud-volume.exe` 启动器/守护进程，实际 Flutter 主程序改为 `cloud-volume-app.exe`。即使主程序在 Windows Loader、Flutter 引擎或首个窗口创建前异常退出，守护仍会记录退出码，生成包含系统版本、关键二进制 SHA-256、bridge 日志尾部和最近 updater 日志的崩溃报告到 `~/.cloud-volume/runtime/crashes/`，并提示用户检查后提交给开发者；正常退出和应用更新的退出码为 0，不弹崩溃提示。

@@ -15,6 +15,7 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
       return const <TransferTask>[];
     }
     final bucketEntry = _activeBucketEntry!;
+    final listingPrefix = _prefix;
     final targets = objects
         .where((object) => !_deletingObjectKeys.contains(object.key))
         .toList();
@@ -51,10 +52,20 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
     }
     unawaited(() async {
       final errors = await Future.wait(futures);
-      if (!mounted || _activeBucketId != bucketEntry.id) {
+      if (!mounted ||
+          _activeBucketId != bucketEntry.id ||
+          _prefix != listingPrefix) {
         return;
       }
-      await _reloadObjectsAfterBucketMutation(bucketEntry, _prefix);
+      final deletedKeys = <String>{
+        for (var index = 0; index < errors.length; index++)
+          if (errors[index] == null) targets[index].key,
+      };
+      await _reloadObjectsAfterBucketMutation(
+        bucketEntry,
+        listingPrefix,
+        suppressObjectKeys: deletedKeys,
+      );
       final failures = errors.whereType<Object>().toList(growable: false);
       if (failures.isNotEmpty) {
         _showPageMessage(
@@ -90,6 +101,7 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
         object: object,
       );
       TransferQueue.instance.markTaskDone(task.id);
+      _completeObjectDeleteInView(bucket.id, object.key);
       return null;
     } catch (error) {
       TransferQueue.instance.markTaskFailed(task.id, error);
@@ -98,5 +110,21 @@ extension _FileManagerPageObjectDeletes on _FileManagerPageState {
       }
       return error;
     }
+  }
+
+  void _completeObjectDeleteInView(String bucketId, String objectKey) {
+    if (!mounted || _activeBucketId != bucketId) {
+      return;
+    }
+    setState(() {
+      _deletingObjectKeys.remove(objectKey);
+      _selectedObjectKeys.remove(objectKey);
+      final objects = _objects;
+      if (objects != null) {
+        _objects = objects
+            .where((object) => object.key != objectKey)
+            .toList(growable: false);
+      }
+    });
   }
 }
