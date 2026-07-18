@@ -175,6 +175,29 @@ Windows release bundles separate the public launcher from the Flutter process so
 - The launcher can diagnose a missing app, loader failure, Flutter engine failure, or later native crash. It cannot diagnose corruption that prevents the launcher itself from loading; its imports therefore stay limited to Windows system libraries and it has no Flutter/Go runtime dependency.
 - Reports may contain local paths from logs. Keep the user review warning and the 64 KiB tail limit when extending diagnostics; do not collect credentials or full configuration files.
 
+### Feature: Desktop Application Icons
+
+Desktop platforms share the same cloud-and-drive brand artwork, while each platform packages it in the format and silhouette expected by its shell.
+
+#### Key files
+
+- `assets/brand/yunjuan_app_icon.svg` - Editable brand artwork shared by the app icon family. It does not contain the platform-specific Windows corner mask.
+- `macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png` - Opaque 1024px raster used as the input for Windows icon generation; macOS applies its own displayed app-icon silhouette.
+- `scripts/generate_windows_app_icon.ps1` - Applies a transparent rounded-square mask with a default 22.5% radius, downsamples the masked master with high-quality filtering, and writes PNG-backed ICO layers at 16, 20, 24, 32, 40, 48, 64, 128, and 256px.
+- `windows/runner/resources/app_icon.ico` / `windows/runner/Runner.rc` - Generated Windows icon and the runner resource binding consumed by the launcher, Flutter app, taskbar, Start menu, and Explorer.
+
+#### Data flow
+
+1. Update the editable brand artwork and regenerate the macOS 1024px raster when the artwork itself changes.
+2. Run `powershell -ExecutionPolicy Bypass -File .\scripts\generate_windows_app_icon.ps1` from the repository root.
+3. Commit the regenerated `windows/runner/resources/app_icon.ico`; Windows resource compilation embeds it through `Runner.rc`.
+
+#### Gotchas
+
+- The macOS 1024px PNG has opaque white corner pixels. Do not copy it directly into an ICO and expect Windows to apply the macOS silhouette; Windows needs real alpha in the rounded corners.
+- Keep the rounded mask in the generator rather than baking it into `yunjuan_app_icon.svg`, so macOS and other platforms retain control of their own presentation.
+- Keep the small ICO layers. A single 256px PNG forces Windows to rescale at runtime and makes the rounded silhouette and brand details less predictable at taskbar sizes.
+
 ### Feature: Desktop Window Close / Tray Exit
 
 The custom desktop chrome routes close actions through Flutter so Windows can offer "hide to tray" versus "exit" without losing OS-level close gestures.
