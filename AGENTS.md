@@ -1019,7 +1019,7 @@ Windows mounts can now choose between the Cloud Files shell (default) and a WinF
 - `go/mount/windows_winfsp_embedded_windows.go` — `//go:embed embedded/winfsp.msi` ships the ~2.1 MB WinFsp installer inside the bridge.
 - `go/mount/windows_winfsp_install_windows.go` — `InstallWindowsWinFsp` prefers the side-by-side `{app}\winfsp\winfsp.msi` (shipped by the installer), otherwise writes the embedded MSI to temp, then elevates `msiexec /i ... /qn /norestart` via PowerShell `Start-Process -Verb RunAs -Wait` and re-probes availability.
 - `go/mount/winfsp_backend_windows_test.go` / `go/mount/winfsp_statfs_windows_test.go` — unit tests for path classification and Explorer-facing Statfs blocks (no mounted driver needed).
-- `bridge/dispatch_mount.go` / `bridge/dispatch.go` — bridge methods `list_windows_winfsp_available` and `install_windows_winfsp`.
+- `bridge/dispatch.go` / `bridge/dispatch_mount_winfsp_windows.go` / `bridge/dispatch_mount_winfsp_other.go` — the common dispatcher delegates platform-specific WinFsp routing before its portable switch. Windows registers and implements `list_windows_winfsp_available` / `install_windows_winfsp`; non-Windows builds leave both methods unhandled so they resolve to the standard unsupported-method error without importing Windows mount symbols.
 - `lib/services/remote_storage_gateway.dart` — `WindowsWinFspQuery` interface (`listWindowsWinFspAvailable` + `installWindowsWinFsp`).
 - `lib/services/remote_storage_api_desktop_storage.dart` — desktop bridge implementation of `WindowsWinFspQuery`.
 - `lib/widgets/windows_settings_sections.dart` — `WindowsMountEngineSection`: engine dropdown (WinFsp option hidden when driver missing), inline note + "安装 WinFsp" button when absent, capacity input shown only for WinFsp.
@@ -1036,6 +1036,7 @@ Windows mounts can now choose between the Cloud Files shell (default) and a WinF
 
 #### Gotchas
 
+- Bridge dispatch is built on every desktop platform. Keep WinFsp cases inside `dispatch_mount_winfsp_windows.go`; the matching `!windows` file must leave those method names unhandled. Putting the cases in the common `dispatch.go` switch or calling `WindowsWinFspAvailable` / `InstallWindowsWinFsp` from `dispatch_mount.go` breaks `go test ./...` and macOS `make run` while compiling the bridge.
 - The WinFsp engine is compiled into every Windows CGO bridge build (no `winfsp` build tag). Only the pure-Go (`CGO_ENABLED=0`) path hits the stub and reports the engine unavailable, which also cannot host Cloud Files. The UI hides the WinFsp option at runtime when `WindowsWinFspAvailable()` reports the driver DLL is not installed.
 - cgofuse's cgo variant (`host_cgo.go`) requires the WinFsp fuse headers via `CPATH` (it hard-codes `-I/usr/local/include/winfsp` which only works under xgo/docker). Missing headers fail the bridge build with `fatal error: 'fuse_common.h' file not found`; the build scripts therefore fail fast instead of silently building a bridge without the WinFsp engine.
 - WinFsp is a user-mode driver, not a kernel one; the embedded MSI is per-machine and needs a UAC elevation. `InstallWindowsWinFsp` surfaces elevation cancellation (exit 1223) as an error so the UI can fall back gracefully.

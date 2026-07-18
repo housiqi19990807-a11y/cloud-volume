@@ -76,21 +76,6 @@ func listAvailableDriveLetters() (any, error) {
 	return bucketmount.AvailableWindowsDriveLetters()
 }
 
-func listWindowsWinFspAvailable() (any, error) {
-	return map[string]any{"available": bucketmount.WindowsWinFspAvailable()}, nil
-}
-
-func installWindowsWinFsp() (any, error) {
-	log.Printf("[bridge/mount] install windows winfsp")
-	if err := bucketmount.InstallWindowsWinFsp(); err != nil {
-		return nil, err
-	}
-	return map[string]any{
-		"ok":        true,
-		"available": bucketmount.WindowsWinFspAvailable(),
-	}, nil
-}
-
 func cleanupStaleWindowsProcesses() (any, error) {
 	log.Printf("[bridge/mount] cleanup stale windows processes")
 	count, err := bucketmount.CleanupStaleWindowsProcesses()

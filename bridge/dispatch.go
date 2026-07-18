@@ -14,6 +14,10 @@ import (
 
 // invokeBridgeMethod translates JSON RPC-like method names into typed Go operations.
 func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
+	if result, handled, err := invokeWindowsWinFspBridgeMethod(method); handled {
+		return result, err
+	}
+
 	switch method {
 	case "get_build_info":
 		return getBuildInfo()
@@ -116,10 +120,6 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return getActiveMountCount()
 	case "list_available_drive_letters":
 		return listAvailableDriveLetters()
-	case "list_windows_winfsp_available":
-		return listWindowsWinFspAvailable()
-	case "install_windows_winfsp":
-		return installWindowsWinFsp()
 	case "cleanup_stale_windows_processes":
 		return cleanupStaleWindowsProcesses()
 	case "get_cache_stats":
