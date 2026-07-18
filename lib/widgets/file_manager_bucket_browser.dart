@@ -98,6 +98,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
                     ),
                     title: bucket.bucket.name,
                     subtitle: _bucketQuotaLabel(bucket, includePrefix: true),
+                    footer: _bucketGridQuotaProgress(context, bucket),
                     contentWidth: gridIconSize + 12,
                     onTap: () => _handleBucketTap(bucket),
                   ),
