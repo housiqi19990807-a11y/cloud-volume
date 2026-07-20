@@ -17,6 +17,7 @@ import (
 	xpanuser "github.com/lfhy/xpan/user"
 
 	storageconfig "remote-storage/go/config"
+	bridgelog "remote-storage/go/logging"
 )
 
 type baiduPanBackend struct {
@@ -52,20 +53,34 @@ func (b baiduPanBackend) bucketConfig(bucket string) storageconfig.RemoteStorage
 func (b baiduPanBackend) ListBuckets(context.Context) ([]BucketInfo, error) {
 	bucket := BucketInfo{Name: baiduPanBucketLabel(b.cfg)}
 	quota, err := withBaiduPanClient(b.cfg, func(client *xpanclient.Client) (*xpanuser.QuotaRes, error) {
-		return client.Quota(&xpanuser.QuotaReq{})
+		return fetchBaiduPanQuota(client)
 	})
 	if err != nil {
-		log.Printf("[storage/baidu-pan] quota unavailable bucket=%q err=%v", bucket.Name, err)
+		bridgelog.Errorf(
+			"[storage/baidu-pan] quota unavailable bucket=%q err=%v",
+			bucket.Name,
+			err,
+		)
 		return []BucketInfo{bucket}, nil
 	}
 	if quota == nil {
-		log.Printf("[storage/baidu-pan] quota unavailable bucket=%q err=empty response", bucket.Name)
+		bridgelog.Errorf(
+			"[storage/baidu-pan] quota unavailable bucket=%q err=empty response",
+			bucket.Name,
+		)
 		return []BucketInfo{bucket}, nil
 	}
 	bucket.QuotaBytes = int64(quota.Total)
 	bucket.UsedBytes = int64(quota.Used)
 	bucket.QuotaKnown = true
 	return []BucketInfo{bucket}, nil
+}
+
+func fetchBaiduPanQuota(client *xpanclient.Client) (*xpanuser.QuotaRes, error) {
+	return client.Quota(&xpanuser.QuotaReq{
+		Checkfree:   xpantypes.BoolIntTrue,
+		Checkexpire: xpantypes.BoolIntTrue,
+	})
 }
 
 func (b baiduPanBackend) ListObjectsPage(

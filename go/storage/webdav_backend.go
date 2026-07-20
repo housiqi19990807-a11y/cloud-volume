@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"strings"
 
 	storageconfig "remote-storage/go/config"
+	bridgelog "remote-storage/go/logging"
 )
 
 type webDAVBackend struct {
@@ -35,7 +35,11 @@ func (b webDAVBackend) ListBuckets(ctx context.Context) ([]BucketInfo, error) {
 	bucket := BucketInfo{Name: b.cfg.MappedBucketLabel()}
 	quotaBytes, usedBytes, err := b.quota(ctx)
 	if err != nil {
-		log.Printf("[storage/webdav] quota unavailable endpoint=%q err=%v", b.cfg.Endpoint, err)
+		bridgelog.Errorf(
+			"[storage/webdav] quota unavailable endpoint=%q err=%v",
+			b.cfg.Endpoint,
+			err,
+		)
 		return []BucketInfo{bucket}, nil
 	}
 	bucket.QuotaBytes = quotaBytes
