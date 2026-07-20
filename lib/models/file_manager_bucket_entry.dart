@@ -32,4 +32,14 @@ class FileManagerBucketEntry {
   final String profileName;
   final String sourceLabel;
   final RemoteStorageConfig config;
+
+  FileManagerBucketEntry withBucketInfo(BucketInfo value) {
+    return FileManagerBucketEntry(
+      id: id,
+      bucket: value,
+      profileName: profileName,
+      sourceLabel: sourceLabel,
+      config: config,
+    );
+  }
 }

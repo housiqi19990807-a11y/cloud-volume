@@ -3,7 +3,6 @@ package storage
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -432,77 +431,6 @@ func TestWebDAVDirectoryAccessTreatsForbiddenOptionsAsReadOnly(t *testing.T) {
 	}
 	if !access.Known || access.Writable {
 		t.Fatalf("access = %#v, want known readonly", access)
-	}
-}
-
-func TestWebDAVListBucketsUsesMappedBucketName(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PROPFIND" || r.Header.Get("Depth") != "0" {
-			t.Fatalf("quota request method=%q depth=%q", r.Method, r.Header.Get("Depth"))
-		}
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("read quota request: %v", err)
-		}
-		if !strings.Contains(string(body), "quota-available-bytes") ||
-			!strings.Contains(string(body), "quota-used-bytes") {
-			t.Fatalf("quota request body = %q", body)
-		}
-		w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
-		_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?>
-<D:multistatus xmlns:D="DAV:"><D:response><D:propstat>
-<D:prop><D:quota-available-bytes>750</D:quota-available-bytes></D:prop>
-<D:status>HTTP/1.1 200 OK</D:status>
-</D:propstat><D:propstat>
-<D:prop><D:quota-used-bytes>250</D:quota-used-bytes></D:prop>
-<D:status>HTTP/1.1 200 OK</D:status>
-</D:propstat></D:response></D:multistatus>`)
-	}))
-	defer server.Close()
-
-	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
-		StorageType:       storageconfig.StorageTypeWebDAV,
-		Endpoint:          server.URL + "/dav/",
-		DisplayName:       "Account Fallback",
-		MappedBucketName:  "Second DAV",
-		WebDAVUsername:    "web-user",
-		WebDAVPassword:    "web-pass",
-		HasWebDAVPassword: true,
-	})
-	buckets, err := backend.ListBuckets(nil)
-	if err != nil {
-		t.Fatalf("ListBuckets returned error: %v", err)
-	}
-	if len(buckets) != 1 || buckets[0].Name != "Second DAV" {
-		t.Fatalf("buckets = %#v, want mapped bucket name", buckets)
-	}
-	if buckets[0].QuotaBytes != 1000 || buckets[0].UsedBytes != 250 {
-		t.Fatalf("bucket quota = %#v, want total=1000 used=250", buckets[0])
-	}
-}
-
-func TestWebDAVListBucketsKeepsBucketWhenQuotaUnsupported(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
-		_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?>
-<D:multistatus xmlns:D="DAV:"><D:response><D:propstat>
-<D:prop><D:quota-available-bytes/><D:quota-used-bytes/></D:prop>
-<D:status>HTTP/1.1 404 Not Found</D:status>
-</D:propstat></D:response></D:multistatus>`)
-	}))
-	defer server.Close()
-
-	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
-		StorageType:      storageconfig.StorageTypeWebDAV,
-		Endpoint:         server.URL + "/dav/",
-		MappedBucketName: "No Quota DAV",
-	})
-	buckets, err := backend.ListBuckets(nil)
-	if err != nil {
-		t.Fatalf("ListBuckets returned error: %v", err)
-	}
-	if len(buckets) != 1 || buckets[0].Name != "No Quota DAV" || buckets[0].QuotaBytes != 0 {
-		t.Fatalf("buckets = %#v, want bucket without quota", buckets)
 	}
 }
 

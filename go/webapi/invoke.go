@@ -186,6 +186,9 @@ func (s *Server) invokeMethod(
 	case "list_buckets":
 		result, err := storageops.ForConfig(config).ListBuckets(ctx)
 		return result, http.StatusOK, err
+	case "get_bucket_quota":
+		result, err := storageops.GetBucketQuota(ctx, config, input.Bucket)
+		return result, http.StatusOK, err
 	case "list_object_page":
 		if config.Normalized().StorageType != storageconfig.StorageTypeWebDAV {
 			if page, handled, err := bucketmount.ListMountedObjectPage(

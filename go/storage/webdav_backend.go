@@ -32,20 +32,33 @@ func NewWebDAVBackend(cfg storageconfig.RemoteStorageConfig) Backend {
 }
 
 func (b webDAVBackend) ListBuckets(ctx context.Context) ([]BucketInfo, error) {
-	bucket := BucketInfo{Name: b.cfg.MappedBucketLabel()}
+	return []BucketInfo{{Name: b.cfg.MappedBucketLabel()}}, nil
+}
+
+func (b webDAVBackend) BucketQuota(
+	ctx context.Context,
+	bucketName string,
+) (BucketInfo, error) {
+	bucket := BucketInfo{Name: bucketName}
 	quotaBytes, usedBytes, err := b.quota(ctx)
 	if err != nil {
 		bridgelog.Errorf(
-			"[storage/webdav] quota unavailable endpoint=%q err=%v",
+			"[storage/webdav] quota request failed endpoint=%q err=%v",
 			b.cfg.Endpoint,
 			err,
 		)
-		return []BucketInfo{bucket}, nil
+		return bucket, err
 	}
 	bucket.QuotaBytes = quotaBytes
 	bucket.UsedBytes = usedBytes
 	bucket.QuotaKnown = true
-	return []BucketInfo{bucket}, nil
+	bridgelog.Infof(
+		"[storage/webdav] quota request success endpoint=%q total_bytes=%d used_bytes=%d",
+		b.cfg.Endpoint,
+		bucket.QuotaBytes,
+		bucket.UsedBytes,
+	)
+	return bucket, nil
 }
 
 func (b webDAVBackend) ListObjectsPage(

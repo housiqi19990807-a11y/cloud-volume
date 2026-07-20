@@ -301,6 +301,11 @@ abstract interface class ActiveMountQuery {
   Future<int> getActiveMountCount();
 }
 
+/// Optional provider-capacity lookup used after the initial bucket list renders.
+abstract interface class BucketQuotaQuery {
+  Future<BucketInfo> getBucketQuota(RemoteStorageConfig config, String bucket);
+}
+
 /// Optional Windows capability used to populate Cloud Files drive choices.
 abstract interface class AvailableDriveLetterQuery {
   Future<List<String>> listAvailableDriveLetters();

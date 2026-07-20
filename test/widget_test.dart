@@ -1,5 +1,6 @@
 // Widget tests verify the app boots and shows the Chinese bootstrap UI.
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -84,58 +85,114 @@ void main() {
     TransferQueue.instance.resetForTest();
     SyncProfileNotifier.instance.stop();
   });
+
+  testWidgets('bucket quota refreshes after the initial list renders', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final quota = Completer<BucketInfo>();
+    final config = RemoteStorageConfig.empty().copyWith(
+      endpoint: 'https://pan.baidu.com',
+      storageType: StorageType.baiduPan,
+      providerType: StorageProviderType.baiduPan,
+      displayName: '百度账号',
+      mappedBucketName: '百度网盘',
+      accessKeyId: 'test-access-token',
+      secretAccessKey: 'test-refresh-token',
+      hasSecretAccessKey: true,
+    );
+    final api = _FakeApi(
+      configured: true,
+      configOverride: config,
+      buckets: const <BucketInfo>[BucketInfo(name: '百度网盘')],
+      quotaResult: quota.future,
+    );
+
+    await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => api));
+    await tester.pumpAndSettle();
+    expect(find.text('未设置额度'), findsOneWidget);
+    expect(api.quotaRequestCount, 1);
+
+    quota.complete(
+      const BucketInfo(
+        name: '百度网盘',
+        quotaBytes: 20 * 1024 * 1024 * 1024,
+        usedBytes: 7 * 1024 * 1024 * 1024,
+        quotaKnown: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('7.0 GB / 20.0 GB'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    TransferQueue.instance.resetForTest();
+    SyncProfileNotifier.instance.stop();
+  });
 }
 
 /// Minimal fake API that does not need the Go bridge.
-class _FakeApi implements RemoteStorageGateway {
-  _FakeApi({required this.configured});
+class _FakeApi implements RemoteStorageGateway, BucketQuotaQuery {
+  _FakeApi({
+    required this.configured,
+    this.configOverride,
+    this.buckets = const <BucketInfo>[],
+    this.quotaResult,
+  });
+
   final bool configured;
+  final RemoteStorageConfig? configOverride;
+  final List<BucketInfo> buckets;
+  final Future<BucketInfo>? quotaResult;
+  int quotaRequestCount = 0;
 
   @override
   Future<BootstrapState> loadBootstrapState() async => BootstrapState(
     configPath: '/tmp/.remote-storage/config.toml',
     configured: configured,
-    config: configured
-        ? const RemoteStorageConfig(
-            endpoint: 'https://s3.example.com',
-            storageType: StorageType.s3,
-            providerType: StorageProviderType.s3,
-            displayName: 'Test Account',
-            mappedBucketName: 'Test Account',
-            region: 'us-east-1',
-            bucket: 'test-bucket',
-            accessKeyId: 'AKIA_TEST',
-            secretAccessKey: 'secret_test',
-            hasSecretAccessKey: true,
-            webdavUsername: 'webdav-user',
-            webdavPassword: '',
-            hasWebdavPassword: true,
-            rootPrefix: '',
-            defaultDownloadDirectory: '',
-            cacheDirectory: '',
-            resolvedCacheDirectory: '/tmp/.remote-storage/cache',
-            hideDotFiles: true,
-            fileOpenMode: FileOpenMode.doubleClick,
-            trashDirectoryName: '.trash',
-            trashRetentionDays: -1,
-            bucketSettings: <String, BucketSettings>{},
-            writebackQuietSeconds: 10,
-            mountMetadataCacheSeconds: 60,
-            usePathStyle: true,
-            windowsMountMode: WindowsMountMode.cloudFilesCached,
-            windowsThisPcEntryEnabled: false,
-            windowsWritebackConcurrency: 4,
-            cacheAutoCleanupEnabled: false,
-            cacheMaxSizeMb: 0,
-            cacheMaxAgeDays: 0,
-            proxyMode: 'system',
-            proxyType: 'http',
-            proxyHost: '',
-            proxyPort: '',
-            proxyUsername: '',
-            proxyPassword: '',
-          )
-        : RemoteStorageConfig.empty(),
+    config:
+        configOverride ??
+        (configured
+            ? const RemoteStorageConfig(
+                endpoint: 'https://s3.example.com',
+                storageType: StorageType.s3,
+                providerType: StorageProviderType.s3,
+                displayName: 'Test Account',
+                mappedBucketName: 'Test Account',
+                region: 'us-east-1',
+                bucket: 'test-bucket',
+                accessKeyId: 'AKIA_TEST',
+                secretAccessKey: 'secret_test',
+                hasSecretAccessKey: true,
+                webdavUsername: 'webdav-user',
+                webdavPassword: '',
+                hasWebdavPassword: true,
+                rootPrefix: '',
+                defaultDownloadDirectory: '',
+                cacheDirectory: '',
+                resolvedCacheDirectory: '/tmp/.remote-storage/cache',
+                hideDotFiles: true,
+                fileOpenMode: FileOpenMode.doubleClick,
+                trashDirectoryName: '.trash',
+                trashRetentionDays: -1,
+                bucketSettings: <String, BucketSettings>{},
+                writebackQuietSeconds: 10,
+                mountMetadataCacheSeconds: 60,
+                usePathStyle: true,
+                windowsMountMode: WindowsMountMode.cloudFilesCached,
+                windowsThisPcEntryEnabled: false,
+                windowsWritebackConcurrency: 4,
+                cacheAutoCleanupEnabled: false,
+                cacheMaxSizeMb: 0,
+                cacheMaxAgeDays: 0,
+                proxyMode: 'system',
+                proxyType: 'http',
+                proxyHost: '',
+                proxyPort: '',
+                proxyUsername: '',
+                proxyPassword: '',
+              )
+            : RemoteStorageConfig.empty()),
   );
 
   @override
@@ -216,7 +273,17 @@ class _FakeApi implements RemoteStorageGateway {
   Future<int> cleanupStaleWindowsProcesses() async => 0;
 
   @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async => [];
+  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async =>
+      buckets;
+
+  @override
+  Future<BucketInfo> getBucketQuota(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async {
+    quotaRequestCount += 1;
+    return quotaResult ?? BucketInfo(name: bucket);
+  }
 
   @override
   Future<void> saveProfile(String name, RemoteStorageConfig config) async {}

@@ -20,6 +20,7 @@ import 'package:remote_storage/services/remote_storage_gateway.dart';
 
 part 'remote_storage_api_web_objects.dart';
 part 'remote_storage_api_web_paging.dart';
+part 'remote_storage_api_web_transfers.dart';
 
 class RemoteStorageRequestException implements Exception {
   const RemoteStorageRequestException(this.message);
@@ -31,20 +32,25 @@ class RemoteStorageRequestException implements Exception {
 }
 
 class RemoteStorageApi
-    with _RemoteStorageWebObjectApiMixin, _RemoteStorageWebPagingApiMixin
-    implements RemoteStorageGateway {
+    with
+        _RemoteStorageWebObjectApiMixin,
+        _RemoteStorageWebPagingApiMixin,
+        _RemoteStorageWebTransferApiMixin
+    implements RemoteStorageGateway, BucketQuotaQuery {
   RemoteStorageApi({http.Client? client}) : _client = client ?? http.Client();
 
   static Future<RemoteStorageApi> bootstrap() async {
     return RemoteStorageApi();
   }
 
+  @override
   final http.Client _client;
 
   @override
   RemoteStorageCapabilities get capabilities =>
       const RemoteStorageCapabilities.web();
 
+  @override
   Uri _apiUri(String path, [Map<String, String>? queryParameters]) {
     return Uri.base.resolveUri(
       Uri(
@@ -69,6 +75,7 @@ class RemoteStorageApi
     return _decodeResponse(response);
   }
 
+  @override
   dynamic _decodeResponse(http.Response response) {
     final payload = _tryDecodeJson(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -306,106 +313,6 @@ class RemoteStorageApi
       return result.map((e) => e.toString()).toList();
     }
     return const <String>[];
-  }
-
-  @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
-    final result = await _invoke('list_buckets');
-    return _parseList(result, (m) => BucketInfo.fromJson(m));
-  }
-
-  @override
-  Future<void> uploadFile(
-    RemoteStorageConfig config,
-    String bucket,
-    String key,
-    String localPath,
-    String taskId,
-  ) {
-    throw UnsupportedError('Web 端上传使用浏览器内存文件，不走本地路径');
-  }
-
-  @override
-  Future<void> uploadDirectory(
-    RemoteStorageConfig config,
-    String bucket,
-    String prefix,
-    String localPath,
-    String taskId,
-  ) {
-    throw UnsupportedError('Web 端暂不支持本地目录上传');
-  }
-
-  @override
-  Future<void> uploadBytes(
-    RemoteStorageConfig config,
-    String bucket,
-    String key,
-    Uint8List bytes,
-    String taskId, {
-    String fileName = '',
-  }) async {
-    final request = http.MultipartRequest(
-      'POST',
-      _apiUri('/api/upload', {'bucket': bucket, 'key': key, 'taskId': taskId}),
-    );
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: fileName.isEmpty ? key.split('/').last : fileName,
-      ),
-    );
-    final streamed = await _client.send(request);
-    final response = await http.Response.fromStream(streamed);
-    _decodeResponse(response);
-  }
-
-  @override
-  Future<void> downloadFile(
-    RemoteStorageConfig config,
-    String bucket,
-    String key,
-    String localPath,
-    String taskId,
-  ) {
-    throw UnsupportedError('Web 端下载使用浏览器地址，不写入本地路径');
-  }
-
-  @override
-  Uri? objectDownloadUri(String bucket, String key, {bool inline = false}) {
-    return _apiUri('/api/download', <String, String>{
-      'bucket': bucket,
-      'key': key,
-      if (inline) 'inline': '1',
-    });
-  }
-
-  @override
-  Uri? webDavUri(String bucket) {
-    return _apiUri('/webdav/$bucket/');
-  }
-
-  @override
-  Future<void> cancelTransfer(String taskId) async {
-    await _invoke('cancel_transfer', <String, dynamic>{'taskId': taskId});
-  }
-
-  @override
-  Future<bool> triggerTransfer(String taskId) async {
-    final result = await _invoke('trigger_transfer', <String, dynamic>{
-      'taskId': taskId,
-    });
-    if (result is Map<String, dynamic>) {
-      return result['ok'] == true;
-    }
-    return result == true;
-  }
-
-  @override
-  Future<List<TransferSnapshot>> listTransferJobs() async {
-    final result = await _invoke('list_transfer_jobs');
-    return _parseList(result, (m) => TransferSnapshot.fromJson(m));
   }
 
   @override

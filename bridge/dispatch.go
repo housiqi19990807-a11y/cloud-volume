@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	storageconfig "remote-storage/go/config"
+	bridgelog "remote-storage/go/logging"
 	bucketmount "remote-storage/go/mount"
 	s3ops "remote-storage/go/s3"
 	storageops "remote-storage/go/storage"
@@ -57,6 +58,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 	// Storage operations.
 	case "list_buckets":
 		return listBuckets(args)
+	case "get_bucket_quota":
+		return getBucketQuota(args)
 	case "list_objects":
 		return listObjects(args)
 	case "list_object_page":
@@ -235,6 +238,11 @@ func listBuckets(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
+	bridgelog.Infof(
+		"[bridge/storage] list_buckets storage_type=%q profile=%q",
+		input.Config.StorageType,
+		input.Config.DisplayName,
+	)
 	return storageops.ForConfig(input.Config).ListBuckets(context.Background())
 }
 

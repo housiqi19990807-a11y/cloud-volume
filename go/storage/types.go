@@ -47,6 +47,11 @@ type Backend interface {
 	StreamObjectToHTTP(context.Context, string, string, bool, http.ResponseWriter) error
 }
 
+// BucketQuotaProvider exposes optional remote capacity without delaying bucket discovery.
+type BucketQuotaProvider interface {
+	BucketQuota(context.Context, string) (BucketInfo, error)
+}
+
 // MountPrefetchPolicy lets slower backends opt out of directory preview prefetch.
 type MountPrefetchPolicy interface {
 	SupportsMountPrefetch() bool
@@ -64,6 +69,20 @@ func SupportsMountPrefetch(backend Backend) bool {
 		return true
 	}
 	return policy.SupportsMountPrefetch()
+}
+
+// GetBucketQuota resolves optional provider capacity for a previously listed bucket.
+func GetBucketQuota(
+	ctx context.Context,
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+) (BucketInfo, error) {
+	backend := ForConfig(cfg)
+	provider, ok := backend.(BucketQuotaProvider)
+	if !ok {
+		return BucketInfo{Name: bucket}, nil
+	}
+	return provider.BucketQuota(ctx, bucket)
 }
 
 func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {

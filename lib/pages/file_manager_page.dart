@@ -59,6 +59,7 @@ part 'file_manager_page_object_loading.dart';
 part 'file_manager_page_object_deletes.dart';
 part 'file_manager_page_paging.dart';
 part 'file_manager_page_preview.dart';
+part 'file_manager_page_quota.dart';
 part 'file_manager_page_restore_sync.dart';
 part 'file_manager_page_selected_actions.dart';
 part 'file_manager_page_state.dart';
@@ -142,6 +143,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _trashHasMore = false;
   bool _pagingTrash = false;
   int _seenObjectListingMutationVersion = 0;
+  int _bucketQuotaRefreshGeneration = 0;
   final Map<String, _PendingUploadRefresh> _pendingUploadRefreshes =
       <String, _PendingUploadRefresh>{};
 
@@ -193,6 +195,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
   }
 
   Future<bool> _loadBuckets() async {
+    final quotaGeneration = ++_bucketQuotaRefreshGeneration;
     _beginLoading(message: '加载存储桶...');
     try {
       final bucketEntries = await _loadBucketEntries();
@@ -225,6 +228,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       }
       if (bucketEntries.isNotEmpty) {
         unawaited(_refreshBucketMountStatuses(bucketEntries));
+        unawaited(_refreshBucketQuotas(bucketEntries, quotaGeneration));
       }
       return true;
     } catch (e) {

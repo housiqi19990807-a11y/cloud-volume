@@ -5,6 +5,7 @@ mixin _RemoteStorageDesktopStorageApiMixin
     implements
         RemoteStorageGateway,
         ActiveMountQuery,
+        BucketQuotaQuery,
         AvailableDriveLetterQuery,
         WindowsWinFspQuery {
   Future<dynamic> runBridgeCall(
@@ -22,6 +23,18 @@ mixin _RemoteStorageDesktopStorageApiMixin
       'config': config.toJson(),
     });
     return parseBridgeList(result, (m) => BucketInfo.fromJson(m));
+  }
+
+  @override
+  Future<BucketInfo> getBucketQuota(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async {
+    final result = await runBridgeCall('get_bucket_quota', <String, dynamic>{
+      'config': config.toJson(),
+      'bucket': bucket,
+    });
+    return BucketInfo.fromJson(result as Map<String, dynamic>);
   }
 
   @override
