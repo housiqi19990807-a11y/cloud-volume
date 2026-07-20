@@ -132,6 +132,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   final Set<String> _deletingObjectKeys = <String>{};
   final Map<_ObjectListingCacheKey, ObjectListPage> _objectListingCache =
       <_ObjectListingCacheKey, ObjectListPage>{};
+  final Map<String, _BucketQuotaCacheValue> _bucketQuotaCache =
+      <String, _BucketQuotaCacheValue>{};
   Timer? _loadingDetailTimer;
   Timer? _mountStatusRefreshTimer;
   bool _mountStatusRefreshInFlight = false;

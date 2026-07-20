@@ -23,6 +23,7 @@ import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
+import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 
 void main() {
   setUp(() {
@@ -208,6 +209,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('7.0 GB / 20.0 GB'), findsOneWidget);
+    await tester.tap(find.text('百度网盘'));
+    await tester.pumpAndSettle();
+    final breadcrumb = tester.widget<FileManagerBreadcrumbBar>(
+      find.byType(FileManagerBreadcrumbBar),
+    );
+    breadcrumb.onOpenBucketList();
+    await tester.pumpAndSettle();
+    expect(api.quotaRequestCount, 1);
     expect(find.text('7.0 GB / 20.0 GB'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());

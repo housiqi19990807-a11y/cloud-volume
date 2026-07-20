@@ -8,7 +8,9 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
     final generation = ++_bucketQuotaRefreshGeneration;
     _beginLoading(message: '加载存储桶...');
     try {
-      final bucketEntries = await _loadBucketEntries();
+      final bucketEntries = _applyCachedBucketQuotas(
+        await _loadBucketEntries(),
+      );
       if (!mounted || generation != _bucketQuotaRefreshGeneration) {
         return false;
       }
