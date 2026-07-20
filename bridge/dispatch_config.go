@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 
 	storageconfig "remote-storage/go/config"
 	storageops "remote-storage/go/storage"
@@ -169,7 +170,16 @@ func deleteProfile(args json.RawMessage) (any, error) {
 	if err := storageconfig.DeleteProfile(input.Name); err != nil {
 		return nil, err
 	}
-	return map[string]any{"ok": true}, nil
+	// Cascade: remove any directory-sync tasks that referenced this account so
+	// they do not keep running against a profile that no longer exists. Best
+	// effort — a failure here must not un-delete the account.
+	cascadeMsg := ""
+	if scheduler, err := syncStore(); err == nil {
+		if removed, err := scheduler.DeleteByAccount(input.Name); err == nil && removed > 0 {
+			cascadeMsg = fmt.Sprintf("（已删除 %d 个关联同步任务）", removed)
+		}
+	}
+	return map[string]any{"ok": true, "cascade": cascadeMsg}, nil
 }
 
 func reorderProfiles(args json.RawMessage) (any, error) {

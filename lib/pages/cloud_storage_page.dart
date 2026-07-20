@@ -83,9 +83,14 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   Future<void> _delete(ProfileInfo profile) async {
     setState(() => _busy = true);
     try {
-      await widget.api.deleteProfile(profile.name);
+      final result =
+          await widget.api.deleteProfile(profile.name) as Map<String, dynamic>?;
       if (!mounted) return;
-      showAppToast(context, title: '账号已退出', message: _profileTitle(profile));
+      final cascade = (result?['cascade'] ?? '').toString();
+      final message = cascade.isEmpty
+          ? _profileTitle(profile)
+          : '${_profileTitle(profile)} $cascade';
+      showAppToast(context, title: '账号已退出', message: message);
       widget.onRefresh();
     } catch (error) {
       if (mounted) showAppErrorToast(context, message: error.toString());

@@ -274,8 +274,9 @@ class RemoteStorageApi
   }
 
   @override
-  Future<void> deleteProfile(String name) async {
+  Future<Map<String, dynamic>> deleteProfile(String name) async {
     await _invoke('delete_profile', <String, dynamic>{'name': name});
+    return const <String, dynamic>{};
   }
 
   @override

@@ -164,8 +164,10 @@ void main() {
     );
     await tester.tap(find.text('提交授权码'));
     await tester.pumpAndSettle();
-    expect(find.text('编辑账号'), findsNothing);
-    expect(api.savedProfiles['baidu-profile']?.accessKeyId, 'new-baidu-access');
+    // Editing no longer auto-saves on Baidu re-auth. The dialog now advances
+    // to the bucket-visibility step so the user can confirm and save once.
+    expect(find.text('桶列表显示设置'), findsOneWidget);
+    expect(api.savedProfiles['baidu-profile'], isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -402,7 +404,7 @@ class _FakeApi implements RemoteStorageGateway {
   }
 
   @override
-  Future<void> deleteProfile(String name) async {}
+  Future<Map<String, dynamic>> deleteProfile(String name) async => const <String, dynamic>{};
 
   @override
   Future<BootstrapState> resetUserConfig() async => BootstrapState(

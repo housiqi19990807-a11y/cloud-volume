@@ -226,8 +226,12 @@ class RemoteStorageApi
   }
 
   @override
-  Future<void> deleteProfile(String name) async {
-    await runBridgeCall('delete_profile', <String, dynamic>{'name': name});
+  Future<Map<String, dynamic>> deleteProfile(String name) async {
+    final result = await runBridgeCall(
+      'delete_profile',
+      <String, dynamic>{'name': name},
+    );
+    return (result as Map<String, dynamic>?) ?? const <String, dynamic>{};
   }
 
   @override

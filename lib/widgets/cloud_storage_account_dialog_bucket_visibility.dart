@@ -1,4 +1,9 @@
 // ignore_for_file: library_private_types_in_public_api
+// Step 3 of the new-account wizard: per-bucket visibility + presentation.
+// Uses a hand-rolled check box (Container + Lucide check) instead of
+// Material's Checkbox, because this step renders inside a ShadDialog whose
+// subtree has no Material ancestor — Material Checkbox would throw
+// "No Material widget found" here. The look matches StorageProtocolCard.
 part of 'cloud_storage_account_dialog.dart';
 
 // Step 3 keeps the allowlist and per-bucket presentation choices together.
@@ -136,11 +141,11 @@ class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
         children: [
           Row(
             children: [
-              Checkbox(
+              _BucketSelectionCheckbox(
                 value: selected,
                 onChanged: (value) {
                   widget.self.markDirty(() {
-                    if (value == true) {
+                    if (value) {
                       widget.self._bucketViews[widget.bucket.name] =
                           const BucketViewSettings();
                     } else {
@@ -149,6 +154,7 @@ class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
                   });
                 },
               ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   widget.bucket.name,
@@ -195,6 +201,69 @@ class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// A hand-rolled check box used on the bucket-visibility step.
+///
+/// Material's [Checkbox] requires a `Material` ancestor to render ink
+/// splashes, but step 3 renders inside a [ShadDialog] whose subtree has none,
+/// so it throws "No Material widget found". This widget renders the same
+/// 18×18 rounded square + Lucide check using plain [Container] / [DecoratedBox]
+/// and stays consistent with [StorageProtocolCard]'s selected chrome.
+class _BucketSelectionCheckbox extends StatefulWidget {
+  const _BucketSelectionCheckbox({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  State<_BucketSelectionCheckbox> createState() =>
+      _BucketSelectionCheckboxState();
+}
+
+class _BucketSelectionCheckboxState extends State<_BucketSelectionCheckbox> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    const size = 18.0;
+    final fill = widget.value
+        ? theme.colorScheme.primary
+        : (_hovered
+            ? theme.colorScheme.mutedForeground.withValues(alpha: 0.15)
+            : Colors.transparent);
+    final border = widget.value
+        ? theme.colorScheme.primary
+        : theme.colorScheme.border;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onChanged(!widget.value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: border, width: 1.5),
+          ),
+          child: widget.value
+              ? Icon(
+                  LucideIcons.check,
+                  size: 14,
+                  color: theme.colorScheme.primaryForeground,
+                )
+              : null,
+        ),
       ),
     );
   }

@@ -96,17 +96,49 @@ func (s Store) Upsert(profile SyncProfile) error {
 	return s.SaveAll(profiles)
 }
 
-// Delete removes a profile by ID.
+// Delete removes a profile by ID. A fresh slice is allocated (instead of
+// reusing the source backing array) so concurrent readers cannot observe
+// stale entries after SaveAll rewrites the document.
 func (s Store) Delete(id string) error {
 	profiles, err := s.LoadAll()
 	if err != nil {
 		return err
 	}
-	out := profiles[:0]
+	out := make([]SyncProfile, 0, len(profiles))
 	for _, p := range profiles {
 		if p.ID != id {
 			out = append(out, p)
 		}
 	}
 	return s.SaveAll(out)
+}
+
+// DeleteByAccount removes every sync profile that references the given
+// account profile name. It returns the number of profiles removed so callers
+// (e.g. account deletion) can report cascade counts.
+func (s Store) DeleteByAccount(accountProfile string) (int, error) {
+	target := strings.TrimSpace(accountProfile)
+	if target == "" {
+		return 0, nil
+	}
+	profiles, err := s.LoadAll()
+	if err != nil {
+		return 0, err
+	}
+	out := make([]SyncProfile, 0, len(profiles))
+	removed := 0
+	for _, p := range profiles {
+		if strings.TrimSpace(p.AccountProfile) == target {
+			removed++
+			continue
+		}
+		out = append(out, p)
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	if err := s.SaveAll(out); err != nil {
+		return 0, err
+	}
+	return removed, nil
 }

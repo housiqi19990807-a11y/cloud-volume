@@ -238,3 +238,18 @@ func (s *Scheduler) SaveProfile(profile SyncProfile) error {
 func (s *Scheduler) DeleteProfile(id string) error {
 	return s.store.Delete(id)
 }
+
+// DeleteByAccount removes every sync profile that references the given
+// account profile name and stops any runners that were active for them.
+// Returns the number of profiles removed. Used when an account is deleted so
+// its orphaned sync tasks do not keep running.
+func (s *Scheduler) DeleteByAccount(accountProfile string) (int, error) {
+	removed, err := s.store.DeleteByAccount(accountProfile)
+	if err != nil {
+		return 0, err
+	}
+	if removed > 0 {
+		s.Reload()
+	}
+	return removed, nil
+}

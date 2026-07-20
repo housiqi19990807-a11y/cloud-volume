@@ -96,7 +96,7 @@ abstract class RemoteStorageGateway {
   Future<RemoteStorageConfig> loadProfile(String name);
   Future<List<ProfileInfo>> listProfiles();
   Future<void> saveProfile(String name, RemoteStorageConfig config);
-  Future<void> deleteProfile(String name);
+  Future<Map<String, dynamic>> deleteProfile(String name);
   Future<BootstrapState> resetUserConfig();
   Future<BootstrapState> setActiveProfile(String name);
   Future<void> reorderProfiles(List<String> names);
