@@ -405,7 +405,7 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 - `lib/services/account_editor_presenter.dart` — Single presentation entry for account add/edit: opens the debug sub-window only when `preferModalSubWindows` allows it; otherwise uses `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`.
 - `lib/pages/cloud_storage_page.dart` — Account management delegates add/edit presentation to `account_editor_presenter.dart`.
 - `lib/pages/file_manager_page_sources.dart` / `file_manager_page_bucket_loading.dart` — Source failures carry their exact `profileName`; only the newest load generation may publish an error, preventing overlapping startup reloads from replacing the failed-account target with the active/first account.
-- `lib/pages/file_manager_page_account_editor.dart` — Bucket-list authentication recovery uses that failed profile and delegates to the same account editor presenter, so it never enters the first-run setup page or edits an unrelated account.
+- `lib/pages/file_manager_page_object_loading.dart` records `bucketEntry.profileName` when entering a bucket fails before `_activeBucketEntry` is committed. `file_manager_page_account_editor.dart` uses either that clicked-bucket profile or the bucket-list source failure and delegates to the shared presenter, so recovery never enters the first-run setup page or edits an unrelated first account.
 - `lib/widgets/cloud_storage_account_dialog.dart` — Wizard/edit UI; dual-mode `asDialog` (default true).
 - `lib/widgets/cloud_storage_account_dialog_steps.dart` — `stepProtocolPicker` / `stepConnectionFields` + protocol field builders.
 - `lib/models/cloud_storage_account_draft.dart` / `lib/utils/account_config_builder.dart` / `lib/utils/account_profile_name.dart` — Draft, config build, profile key.
@@ -420,7 +420,7 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 1. User clicks "新增账号" or row "编辑" in `CloudStoragePage`.
 2. **Default:** `account_editor_presenter.dart` opens `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`; save via page `_saveNewAccount` / `_saveEditedAccount` → `api.saveProfile` → `onRefresh`.
 3. **Debug only:** if `AccountEditorWindowService.openEditor` is supported, spawn OS sub-window; save notifies creator via `account_editor_saved`, then closes the child.
-4. File-manager bucket-list recovery identifies the failed profile and uses the same presenter in edit mode; it saves via `api.saveProfile` and refreshes the bootstrap session.
+4. File-manager recovery identifies either the failed bucket-list source or the exact clicked bucket whose object listing failed, then uses the same presenter in edit mode; it saves via `api.saveProfile` and refreshes the bootstrap session.
 
 #### Go / bridge account storage (exploration 2026-07-11)
 

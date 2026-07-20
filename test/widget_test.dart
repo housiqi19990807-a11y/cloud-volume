@@ -86,7 +86,7 @@ void main() {
     SyncProfileNotifier.instance.stop();
   });
 
-  testWidgets('bucket load recovery opens the account editor modal', (
+  testWidgets('object load recovery edits the clicked bucket account', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -134,10 +134,16 @@ void main() {
         's3-profile': s3Config,
         'baidu-profile': baiduConfig,
       },
-      failingStorageType: StorageType.baiduPan,
+      bucketsByStorageType: const <StorageType, List<BucketInfo>>{
+        StorageType.s3: <BucketInfo>[BucketInfo(name: 's3-bucket')],
+        StorageType.baiduPan: <BucketInfo>[BucketInfo(name: '百度网盘')],
+      },
+      failingObjectStorageType: StorageType.baiduPan,
     );
 
     await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('百度网盘'));
     await tester.pumpAndSettle();
     expect(find.text('重新配置认证信息'), findsOneWidget);
 
@@ -207,7 +213,8 @@ class _FakeApi implements RemoteStorageGateway {
     this.quotaResult,
     this.profiles = const <ProfileInfo>[],
     this.profileConfigs = const <String, RemoteStorageConfig>{},
-    this.failingStorageType,
+    this.bucketsByStorageType = const <StorageType, List<BucketInfo>>{},
+    this.failingObjectStorageType,
   });
 
   final bool configured;
@@ -216,7 +223,8 @@ class _FakeApi implements RemoteStorageGateway {
   final Future<BucketInfo>? quotaResult;
   final List<ProfileInfo> profiles;
   final Map<String, RemoteStorageConfig> profileConfigs;
-  final StorageType? failingStorageType;
+  final Map<StorageType, List<BucketInfo>> bucketsByStorageType;
+  final StorageType? failingObjectStorageType;
   int quotaRequestCount = 0;
 
   @override
@@ -348,10 +356,7 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
-    if (config.storageType == failingStorageType) {
-      throw StateError('bucket listing failed');
-    }
-    return buckets;
+    return bucketsByStorageType[config.storageType] ?? buckets;
   }
 
   @override
@@ -440,7 +445,12 @@ class _FakeApi implements RemoteStorageGateway {
     String nextToken,
     int pageSize, {
     bool forceRefresh = false,
-  }) async => const ObjectListPage(items: <ObjectInfo>[], nextToken: '');
+  }) async {
+    if (config.storageType == failingObjectStorageType) {
+      throw StateError('object listing failed');
+    }
+    return const ObjectListPage(items: <ObjectInfo>[], nextToken: '');
+  }
 
   @override
   Future<void> reorderProfiles(List<String> names) async {}
