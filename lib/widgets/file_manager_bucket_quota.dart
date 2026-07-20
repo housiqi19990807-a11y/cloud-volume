@@ -1,18 +1,7 @@
 part of 'file_manager_bucket_browser.dart';
 
-// Bucket quota labels share provider usage while adapting to list and grid widths.
+// Bucket quota helpers render provider/custom usage in list mode only.
 extension FileManagerBucketQuota on FileManagerBucketBrowser {
-  String _bucketQuotaLabel(
-    FileManagerBucketEntry bucket, {
-    bool includePrefix = false,
-  }) {
-    final bytes = _quotaTotalBytes(bucket);
-    if (bytes <= 0) return '未设置额度';
-    if (!includePrefix) return _fullQuotaLabel(bucket, bytes);
-    if (!bucket.bucket.quotaKnown) return '配额 ${formatBytes(bytes)}';
-    return '已用 ${_compactQuotaLabel(bucket, bytes)}';
-  }
-
   String _fullQuotaLabel(FileManagerBucketEntry bucket, int totalBytes) {
     if (!bucket.bucket.quotaKnown) return '用量未知 · ${formatBytes(totalBytes)}';
     return '${formatBytes(bucket.bucket.usedBytes)} / ${formatBytes(totalBytes)}';
@@ -50,28 +39,6 @@ extension FileManagerBucketQuota on FileManagerBucketBrowser {
         label: label,
         progress: progress,
         progressColor: progressColor,
-      ),
-    );
-  }
-
-  Widget _bucketGridQuotaProgress(
-    BuildContext context,
-    FileManagerBucketEntry bucket,
-  ) {
-    final totalBytes = _quotaTotalBytes(bucket);
-    final theme = ShadTheme.of(context);
-    final progress = _quotaProgress(bucket, totalBytes);
-    final color = totalBytes <= 0
-        ? theme.colorScheme.mutedForeground
-        : bucket.bucket.quotaKnown && progress >= 0.95
-        ? theme.colorScheme.destructive
-        : theme.colorScheme.primary;
-    return SizedBox(
-      width: 64,
-      child: _quotaProgressBar(
-        theme: theme,
-        progress: progress,
-        progressColor: color,
       ),
     );
   }
@@ -133,31 +100,5 @@ extension FileManagerBucketQuota on FileManagerBucketBrowser {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
-  }
-
-  String _compactQuotaLabel(FileManagerBucketEntry bucket, int totalBytes) {
-    final unit = _quotaUnit(totalBytes);
-    final scale = _quotaUnitScale(unit);
-    final used = (bucket.bucket.usedBytes / scale).toStringAsFixed(1);
-    final total = (totalBytes / scale).toStringAsFixed(1);
-    return '$used/$total $unit';
-  }
-
-  String _quotaUnit(int bytes) {
-    if (bytes >= 1024 * 1024 * 1024 * 1024) return 'TB';
-    if (bytes >= 1024 * 1024 * 1024) return 'GB';
-    if (bytes >= 1024 * 1024) return 'MB';
-    if (bytes >= 1024) return 'KB';
-    return 'B';
-  }
-
-  double _quotaUnitScale(String unit) {
-    return switch (unit) {
-      'TB' => 1024 * 1024 * 1024 * 1024,
-      'GB' => 1024 * 1024 * 1024,
-      'MB' => 1024 * 1024,
-      'KB' => 1024,
-      _ => 1,
-    };
   }
 }

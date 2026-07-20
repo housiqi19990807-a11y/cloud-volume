@@ -1,4 +1,4 @@
-// Bucket quota tests cover JSON compatibility, settings input, and list display.
+// Bucket quota tests cover JSON compatibility, settings input, and list/card display.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -122,6 +122,44 @@ void main() {
     expect(find.text('7.0 GB / 20.0 GB'), findsOneWidget);
     expect(find.text('未设置额度'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsNWidgets(3));
+  });
+
+  testWidgets('bucket grid omits quota without overflowing compact cards', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ShadApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 480,
+            height: 360,
+            child: FileManagerBucketBrowser(
+              buckets: <FileManagerBucketEntry>[
+                _entry(
+                  '百度网盘',
+                  RemoteStorageConfig.empty(),
+                  quotaBytes: 20 * _gibibyte,
+                  usedBytes: 7 * _gibibyte,
+                  quotaKnown: true,
+                ),
+              ],
+              isGrid: true,
+              gridIconSize: 72,
+              listIconSize: 24,
+              onOpenBucket: (_) {},
+              mountStatuses: const <String, BucketMountStatus>{},
+              busyBuckets: const <String>{},
+              showActionColumn: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('已用 7.0/20.0 GB'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 }
 
