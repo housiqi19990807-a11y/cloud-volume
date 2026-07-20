@@ -63,6 +63,18 @@ class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
   }
 
   @override
+  void didUpdateWidget(covariant _BucketVisibilityRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Keep the local editors in sync when the parent supplies a fresh view
+    // mapping (e.g. after re-entering step 3 with a previously saved draft).
+    if (oldWidget.bucket.name != widget.bucket.name) {
+      final view = widget.self._bucketViews[widget.bucket.name];
+      _displayController.text = view?.displayName ?? '';
+      _prefixController.text = view?.rootPrefix ?? '';
+    }
+  }
+
+  @override
   void dispose() {
     _displayController.dispose();
     _prefixController.dispose();
@@ -80,8 +92,13 @@ class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
   }
 
   Future<void> _chooseDirectory() async {
-    final config = widget.self._draftConfig().copyWith(
+    // Build a draft without the bucket-view map so the picker browses the
+    // account's real root (honouring any account-level RootPrefix) rather than
+    // a synthetic view-prefixed tree.
+    final draft = widget.self._draftConfig();
+    final config = draft.copyWith(
       bucketViews: const <String, BucketViewSettings>{},
+      rootPrefix: draft.rootPrefix,
     );
     final entry = FileManagerBucketEntry.fromBucketInfo(
       bucket: widget.bucket,

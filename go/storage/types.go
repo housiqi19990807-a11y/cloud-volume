@@ -71,6 +71,14 @@ func SupportsMountPrefetch(backend Backend) bool {
 	return policy.SupportsMountPrefetch()
 }
 
+// IsScoped reports whether backend is a scopedBackend wrapper. Mount layer
+// uses this to assert it cleared RootPrefix before ForConfig (otherwise the
+// mount's own prefix translation would double-prefix provider keys).
+func IsScoped(backend Backend) bool {
+	_, ok := backend.(interface{ Root() string })
+	return ok
+}
+
 // GetBucketQuota resolves optional provider capacity for a previously listed bucket.
 func GetBucketQuota(
 	ctx context.Context,

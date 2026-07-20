@@ -53,7 +53,13 @@ func newBucketAccess(
 	bucket string,
 ) (*bucketAccess, error) {
 	cfg = cfg.Normalized()
-	backend := storageops.ForConfig(cfg)
+	// The mount layer translates between virtual paths and provider keys using
+	// its own rootPrefix below. Storage's scopedBackend would apply the same
+	// prefix a second time, so build the backend from a config with RootPrefix
+	// cleared and let bucketAccess own all prefix translation.
+	backendCfg := cfg
+	backendCfg.RootPrefix = ""
+	backend := storageops.ForConfig(backendCfg)
 	metadataCacheTTL := time.Duration(cfg.MountMetadataCacheSeconds) * time.Second
 	if cfg.MountMetadataCacheSeconds < 0 {
 		metadataCacheTTL = 0

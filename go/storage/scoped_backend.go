@@ -1,4 +1,15 @@
 // scoped_backend.go applies an account bucket-view root to every object call.
+//
+// Bucket visibility (which buckets appear in the UI) is intentionally NOT
+// enforced here — that filtering lives in the higher-level bucket loaders
+// (file_manager_page_sources, file_sync_tasks_page_actions, global_trash_page)
+// because visibility is a presentation concern and ListBuckets must still
+// return the real provider set for sync, mount, and quota flows.
+//
+// This wrapper only narrows the object-key namespace: when an account has a
+// non-empty RootPrefix, ForConfig wraps the chosen backend so that every
+// object call uses the provider key <root>/<view-relative-key> and then
+// translates listings/head results back to view-relative keys.
 package storage
 
 import (
@@ -17,6 +28,10 @@ type scopedBackend struct {
 	root string
 }
 
+// scopeKey joins the view root and a view-relative key into the provider key
+// space. Leading/trailing slashes on both inputs are collapsed; an empty key
+// under a non-empty root returns the root itself (with trailing slash) so
+// directory-style listings target the right prefix.
 func scopeKey(root, key string) string {
 	root = strings.Trim(strings.TrimSpace(root), "/")
 	key = strings.Trim(strings.TrimSpace(key), "/")
@@ -122,9 +137,15 @@ func (b scopedBackend) ListTrashPage(ctx context.Context, bucket, token string, 
 	if err != nil {
 		return page, err
 	}
-	items := page.Items[:0]
+	// Allocate a fresh slice: the underlying provider may reuse page.Items
+	// across calls (cached listings or the trash index), so writing back into
+	// its backing array would corrupt shared state.
+	items := make([]TrashItem, 0, len(page.Items))
 	root := strings.Trim(b.root, "/") + "/"
 	for _, item := range page.Items {
+		// Trash is stored under the provider's global trash directory, but the
+		// scoped view only shows entries that lived under the view's root, and
+		// exposes their OriginalKey relative to that root.
 		if strings.HasPrefix(strings.TrimLeft(item.OriginalKey, "/"), root) {
 			item.OriginalKey = strings.TrimPrefix(strings.TrimLeft(item.OriginalKey, "/"), root)
 			items = append(items, item)
@@ -133,9 +154,18 @@ func (b scopedBackend) ListTrashPage(ctx context.Context, bucket, token string, 
 	page.Items = items
 	return page, nil
 }
+
+// RestoreTrashItem translates the scoped (view-relative) identity back to the
+// provider's scoped identity before delegating. Trash is stored under the
+// provider's global trash directory with OriginalKey recorded relative to the
+// view root, so restore must hand the underlying backend the same trashID plus
+// the provider-scoped root it expects.
 func (b scopedBackend) RestoreTrashItem(ctx context.Context, bucket, id string) error {
 	return b.Backend.RestoreTrashItem(ctx, bucket, id)
 }
+
+// DeleteTrashItem mirrors RestoreTrashItem: trashIDs are provider-scoped, so
+// delegation is direct and only the listing path strips the root prefix.
 func (b scopedBackend) DeleteTrashItem(ctx context.Context, bucket, id string) error {
 	return b.Backend.DeleteTrashItem(ctx, bucket, id)
 }
@@ -165,6 +195,13 @@ func (b scopedBackend) UploadFilePrefix(ctx context.Context, bucket, key, local 
 }
 
 func (b scopedBackend) SupportsMountPrefetch() bool { return SupportsMountPrefetch(b.Backend) }
+
+// Root exposes the configured view root. The mount layer clears RootPrefix
+// before calling ForConfig and owns prefix translation itself, so a non-empty
+// Root here is the signal that an unscoped caller (webapi, sync, trash UI)
+// requested view-relative keys.
+func (b scopedBackend) Root() string { return b.root }
+
 func (b scopedBackend) DirectoryUploadConcurrency() int {
 	if v, ok := b.Backend.(interface{ DirectoryUploadConcurrency() int }); ok {
 		return v.DirectoryUploadConcurrency()
