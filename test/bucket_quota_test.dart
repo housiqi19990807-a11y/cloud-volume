@@ -161,6 +161,39 @@ void main() {
     expect(find.text('已用 7.0/20.0 GB'), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
+
+  testWidgets('compact bucket list keeps the operation column', (tester) async {
+    await tester.pumpWidget(
+      ShadApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 520,
+            height: 300,
+            child: FileManagerBucketBrowser(
+              buckets: <FileManagerBucketEntry>[
+                _entry('百度网盘', RemoteStorageConfig.empty()),
+              ],
+              isGrid: false,
+              gridIconSize: 72,
+              listIconSize: 24,
+              onOpenBucket: (_) {},
+              onMountBucket: (_) {},
+              onConfigureBucket: (_) {},
+              mountStatuses: const <String, BucketMountStatus>{},
+              busyBuckets: const <String>{},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('操作'), findsOneWidget);
+    expect(find.text('已用 / 配额'), findsOneWidget);
+    expect(find.text('来源'), findsNothing);
+    expect(find.byType(ShadIconButton), findsNWidgets(3));
+  });
 }
 
 Future<void> _openSettings(

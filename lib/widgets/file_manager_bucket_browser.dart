@@ -109,7 +109,7 @@ class FileManagerBucketBrowser extends StatelessWidget {
     );
   }
 
-  /// 桶列表列宽随容器收缩：窄屏隐藏「来源/操作」列，名称占满剩余宽度。
+  /// 桶列表列宽随容器收缩：优先保留操作，窄屏先收起独立来源列。
   (
     double quotaW,
     double sourceW,
@@ -119,8 +119,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
     bool showActions,
   )
   _bucketListColumns(double maxWidth) {
-    final showActions = showActionColumn && maxWidth >= 720;
-    final showSource = maxWidth >= 560;
+    final showActions = showActionColumn;
+    final showSource = maxWidth >= 720;
     final showQuota = maxWidth >= 420;
     final quotaW = showQuota ? _bucketQuotaColumnWidth : 0.0;
     final sourceW = showSource

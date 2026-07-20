@@ -499,6 +499,7 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
 - `lib/widgets/file_manager_bucket_browser.dart` — Presentational list/grid:
   - list: `ListView.builder` (~L189+)
   - grid: `GridView.count` (~L79+)
+  - responsive list columns prioritize the action cell: the independent source column collapses below 720px (source remains in the name subtitle), quota collapses below 420px, and actions remain whenever `showActionColumn` is enabled
 - `lib/models/file_manager_bucket_entry.dart` / `lib/models/s3_objects.dart` (`BucketInfo`) — UI row models; `BucketInfo` carries optional provider `quotaBytes` / `usedBytes` metadata plus `quotaKnown` (so a real zero-used account is distinguishable from an unsupported query) and has no order field.
 - Same aggregation pattern also used by `file_sync_tasks_page_actions.dart` for remote picker buckets.
 
