@@ -1,8 +1,7 @@
 part of 'remote_storage_api_web.dart';
 
 // Web bucket metadata and browser transfer calls share the HTTP API transport.
-mixin _RemoteStorageWebTransferApiMixin
-    implements RemoteStorageGateway, BucketQuotaQuery {
+mixin _RemoteStorageWebTransferApiMixin implements RemoteStorageGateway {
   http.Client get _client;
 
   Uri _apiUri(String path, [Map<String, String>? queryParameters]);

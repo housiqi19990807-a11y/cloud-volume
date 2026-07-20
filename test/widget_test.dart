@@ -132,7 +132,7 @@ void main() {
 }
 
 /// Minimal fake API that does not need the Go bridge.
-class _FakeApi implements RemoteStorageGateway, BucketQuotaQuery {
+class _FakeApi implements RemoteStorageGateway {
   _FakeApi({
     required this.configured,
     this.configOverride,

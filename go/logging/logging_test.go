@@ -62,3 +62,23 @@ func TestDebugfHonorsLevel(t *testing.T) {
 		t.Fatalf("debug line missing at debug level: %q", buf.String())
 	}
 }
+
+func TestSilentLevelStillWritesErrors(t *testing.T) {
+	var buf bytes.Buffer
+	oldFlags := log.Flags()
+	log.SetFlags(0)
+	defer log.SetFlags(oldFlags)
+	ConfigureOutput(&buf)
+	SetLevel(LevelSilent)
+
+	Infof("hidden routine detail")
+	Errorf("visible failure")
+
+	output := buf.String()
+	if strings.Contains(output, "hidden routine detail") {
+		t.Fatalf("info line was written at silent level: %q", output)
+	}
+	if !strings.Contains(output, "visible failure") {
+		t.Fatalf("error line was filtered at silent level: %q", output)
+	}
+}

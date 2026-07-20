@@ -55,9 +55,12 @@ class AppLog {
 
   static Future<AppLogLevel> loadLevel() async {
     final prefs = await SharedPreferences.getInstance();
-    _level = AppLogLevel.fromStorage(
+    final stored = AppLogLevel.fromStorage(
       prefs.getString(kAppLogLevelPreferenceKey),
     );
+    // `make run` is a diagnostic build: never inherit a persisted release
+    // setting that would hide the bridge call sequence being investigated.
+    _level = kDebugMode ? AppLogLevel.debug : stored;
     await _syncBackendLevel(_level);
     return _level;
   }
@@ -88,7 +91,8 @@ class AppLog {
   }) async {
     final text = message.trim();
     if (text.isEmpty) return;
-    if (_level == AppLogLevel.silent || level.priority > _level.priority) {
+    if (level != AppLogLevel.error &&
+        (_level == AppLogLevel.silent || level.priority > _level.priority)) {
       return;
     }
     if (kDebugMode) {

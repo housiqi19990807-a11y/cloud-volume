@@ -5,7 +5,6 @@ mixin _RemoteStorageDesktopStorageApiMixin
     implements
         RemoteStorageGateway,
         ActiveMountQuery,
-        BucketQuotaQuery,
         AvailableDriveLetterQuery,
         WindowsWinFspQuery {
   Future<dynamic> runBridgeCall(

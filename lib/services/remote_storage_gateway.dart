@@ -103,6 +103,7 @@ abstract class RemoteStorageGateway {
   Future<void> reorderBuckets(List<String> ids);
   Future<List<String>> listBucketOrder();
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config);
+  Future<BucketInfo> getBucketQuota(RemoteStorageConfig config, String bucket);
   Future<List<ObjectInfo>> listObjects(
     RemoteStorageConfig config,
     String bucket,
@@ -299,11 +300,6 @@ abstract class RemoteStorageGateway {
 /// Optional desktop capability for warning before exit unmounts active roots.
 abstract interface class ActiveMountQuery {
   Future<int> getActiveMountCount();
-}
-
-/// Optional provider-capacity lookup used after the initial bucket list renders.
-abstract interface class BucketQuotaQuery {
-  Future<BucketInfo> getBucketQuota(RemoteStorageConfig config, String bucket);
 }
 
 /// Optional Windows capability used to populate Cloud Files drive choices.

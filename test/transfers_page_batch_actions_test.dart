@@ -239,6 +239,12 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
       throw UnimplementedError();
 
   @override
+  Future<BucketInfo> getBucketQuota(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async => BucketInfo(name: bucket);
+
+  @override
   Future<List<ObjectInfo>> listObjects(
     RemoteStorageConfig config,
     String bucket,

@@ -3,6 +3,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -12,6 +13,7 @@ import (
 	xpantypes "github.com/lfhy/xpan/types"
 
 	storageconfig "remote-storage/go/config"
+	bridgelog "remote-storage/go/logging"
 )
 
 const (
@@ -100,14 +102,29 @@ func withBaiduPanClient[T any](
 	if err == nil || !shouldRefreshBaiduPanToken(err) || state.refreshToken == "" {
 		return result, err
 	}
+	bridgelog.Infof(
+		"[storage/baidu-pan] authentication expired profile=%q; refreshing OAuth token",
+		cfg.DisplayName,
+	)
 	baiduPanSDKMu.Lock()
 	refreshed, refreshErr := refreshBaiduPanStateLocked(state)
 	if refreshErr != nil {
 		baiduPanSDKMu.Unlock()
-		return zero, err
+		bridgelog.Errorf(
+			"[storage/baidu-pan] OAuth token refresh failed profile=%q err=%v",
+			cfg.DisplayName,
+			refreshErr,
+		)
+		return zero, fmt.Errorf("refresh Baidu Pan OAuth token: %w", refreshErr)
 	}
 	rememberBaiduPanState(baiduPanSessionKeys(cfg, state), refreshed)
-	persistBaiduPanState(cfg, refreshed)
+	if persistErr := persistBaiduPanState(cfg, refreshed); persistErr != nil {
+		bridgelog.Errorf(
+			"[storage/baidu-pan] persist refreshed OAuth token failed profile=%q err=%v",
+			cfg.DisplayName,
+			persistErr,
+		)
+	}
 	baiduPanSDKMu.Unlock()
 
 	// Rebuild client with refreshed token.
@@ -118,7 +135,15 @@ func withBaiduPanClient[T any](
 		AccessToken:  refreshed.accessToken,
 		RefreshToken: refreshed.refreshToken,
 	})
-	return fn(refreshedClient)
+	result, retryErr := fn(refreshedClient)
+	if retryErr != nil {
+		bridgelog.Errorf(
+			"[storage/baidu-pan] request retry after OAuth refresh failed profile=%q err=%v",
+			cfg.DisplayName,
+			retryErr,
+		)
+	}
+	return result, retryErr
 }
 
 func baiduPanStateForConfig(cfg storageconfig.RemoteStorageConfig) baiduPanAuthState {
@@ -220,27 +245,43 @@ func baiduPanSessionKeys(
 func persistBaiduPanState(
 	cfg storageconfig.RemoteStorageConfig,
 	state baiduPanAuthState,
-) {
-	activeName, err := storageconfig.ActiveProfileName()
+) error {
+	profiles, err := storageconfig.ListProfiles()
 	if err != nil {
-		return
+		return err
 	}
-	current, err := storageconfig.LoadProfile(activeName)
-	if err != nil {
-		return
-	}
-	current = current.Normalized()
 	base := cfg.Normalized()
+	for _, profile := range profiles {
+		current, loadErr := storageconfig.LoadProfile(profile.Name)
+		if loadErr != nil {
+			return loadErr
+		}
+		current = current.Normalized()
+		if !sameStoredBaiduPanProfile(current, base) {
+			continue
+		}
+		current.AccessKeyID = state.accessToken
+		current.SecretAccessKey = state.refreshToken
+		current.HasSecretAccessKey = state.refreshToken != ""
+		return storageconfig.SaveProfile(profile.Name, current)
+	}
+	return nil
+}
+
+func sameStoredBaiduPanProfile(
+	current storageconfig.RemoteStorageConfig,
+	base storageconfig.RemoteStorageConfig,
+) bool {
 	if current.StorageType != storageconfig.StorageTypeBaiduPan ||
 		current.StorageType != base.StorageType ||
 		current.DisplayName != base.DisplayName ||
 		current.Endpoint != base.Endpoint {
-		return
+		return false
 	}
-	current.AccessKeyID = state.accessToken
-	current.SecretAccessKey = state.refreshToken
-	current.HasSecretAccessKey = state.refreshToken != ""
-	_ = storageconfig.SaveProfile(activeName, current)
+	accessMatches := base.AccessKeyID != "" && current.AccessKeyID == base.AccessKeyID
+	refreshMatches := base.SecretAccessKey != "" &&
+		current.SecretAccessKey == base.SecretAccessKey
+	return accessMatches || refreshMatches
 }
 
 func shouldRefreshBaiduPanToken(err error) bool {
@@ -260,5 +301,6 @@ func shouldRefreshBaiduPanToken(err error) bool {
 	text := strings.ToLower(err.Error())
 	return strings.Contains(text, "token") ||
 		strings.Contains(text, "expired") ||
-		strings.Contains(text, "invalid")
+		strings.Contains(text, "invalid") ||
+		strings.Contains(text, "用户未登录")
 }

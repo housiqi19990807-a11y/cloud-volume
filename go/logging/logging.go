@@ -81,7 +81,9 @@ func (l Level) Label() string {
 // Enabled reports whether a line at level should be emitted.
 func Enabled(level Level) bool {
 	current := CurrentLevel()
-	return current != LevelSilent && level <= current
+	// Backend failures are never discarded. Silent only suppresses routine
+	// diagnostics; it must not turn a caught error into an invisible failure.
+	return level == LevelError || (current != LevelSilent && level <= current)
 }
 
 // ConfigureOutput installs a filtering writer behind the standard logger.

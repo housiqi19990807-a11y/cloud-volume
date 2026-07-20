@@ -4,33 +4,37 @@ part of 'file_manager_page.dart';
 
 // Remote quota refresh is deliberately second-stage so bucket discovery stays responsive.
 extension _FileManagerPageQuota on _FileManagerPageState {
+  void _scheduleBucketQuotaRefresh(
+    List<FileManagerBucketEntry> entries,
+    int generation,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || generation != _bucketQuotaRefreshGeneration) return;
+      unawaited(_refreshBucketQuotas(entries, generation));
+    });
+  }
+
   Future<void> _refreshBucketQuotas(
     List<FileManagerBucketEntry> entries,
     int generation,
   ) async {
-    final api = widget.api;
-    if (api is! BucketQuotaQuery) return;
-    final quotaApi = api as BucketQuotaQuery;
-
-    final candidates = entries
-        .where(
-          (entry) =>
-              entry.config.storageType == StorageType.baiduPan ||
-              entry.config.storageType == StorageType.webdav,
-        )
-        .toList(growable: false);
-    if (candidates.isEmpty) return;
-
     final results = await Future.wait<MapEntry<String, BucketInfo>?>(
-      candidates.map((entry) async {
+      entries.map((entry) async {
         try {
-          final quota = await quotaApi.getBucketQuota(
+          final quota = await widget.api.getBucketQuota(
             entry.config,
             entry.bucket.name,
           );
           return MapEntry(entry.id, quota);
-        } catch (_) {
-          // The Go backend records the error; capacity is optional in the UI.
+        } catch (error) {
+          // Bridge setup failures happen before Go can log, so record them here.
+          unawaited(
+            AppLog.error(
+              'quota refresh failed profile=${entry.profileName} '
+              'bucket=${entry.bucket.name} error=$error',
+              tag: 'quota',
+            ),
+          );
           return null;
         }
       }),

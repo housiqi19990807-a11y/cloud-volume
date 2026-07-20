@@ -228,7 +228,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
       }
       if (bucketEntries.isNotEmpty) {
         unawaited(_refreshBucketMountStatuses(bucketEntries));
-        unawaited(_refreshBucketQuotas(bucketEntries, quotaGeneration));
+        _scheduleBucketQuotaRefresh(bucketEntries, quotaGeneration);
       }
       return true;
     } catch (e) {

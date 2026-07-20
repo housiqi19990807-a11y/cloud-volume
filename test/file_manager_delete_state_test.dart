@@ -105,6 +105,12 @@ class _StaleDeleteApi implements RemoteStorageGateway {
       const <BucketInfo>[BucketInfo(name: 'bucket-a')];
 
   @override
+  Future<BucketInfo> getBucketQuota(
+    RemoteStorageConfig config,
+    String bucket,
+  ) async => BucketInfo(name: bucket);
+
+  @override
   Future<List<String>> listBucketOrder() async => const <String>[];
 
   @override

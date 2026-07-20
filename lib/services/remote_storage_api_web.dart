@@ -36,7 +36,7 @@ class RemoteStorageApi
         _RemoteStorageWebObjectApiMixin,
         _RemoteStorageWebPagingApiMixin,
         _RemoteStorageWebTransferApiMixin
-    implements RemoteStorageGateway, BucketQuotaQuery {
+    implements RemoteStorageGateway {
   RemoteStorageApi({http.Client? client}) : _client = client ?? http.Client();
 
   static Future<RemoteStorageApi> bootstrap() async {

@@ -132,7 +132,7 @@ class _SettingsLogSectionState extends State<SettingsLogSection> {
 
   String _descriptionFor(AppLogLevel level) {
     return switch (level) {
-      AppLogLevel.silent => '不采集应用诊断日志，适合正式版日常使用。',
+      AppLogLevel.silent => '仅保留失败和异常，不采集常规诊断日志。',
       AppLogLevel.error => '只记录失败和异常，适合低噪音问题采集。',
       AppLogLevel.info => '记录关键操作和错误，适合常规排查。',
       AppLogLevel.debug => '记录详细耗时和内部步骤，适合临时复现问题。',
