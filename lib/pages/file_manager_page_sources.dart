@@ -7,7 +7,13 @@ extension _FileManagerPageSources on _FileManagerPageState {
     final sources = await _loadBucketSources();
     final entries = <FileManagerBucketEntry>[];
     for (final source in sources) {
-      final buckets = await widget.api.listBuckets(source.config);
+      final List<BucketInfo> buckets;
+      try {
+        buckets = await widget.api.listBuckets(source.config);
+      } catch (_) {
+        _failedBucketProfileName = source.profileName;
+        rethrow;
+      }
       for (final bucket in buckets) {
         entries.add(
           FileManagerBucketEntry.fromBucketInfo(
@@ -67,12 +73,17 @@ extension _FileManagerPageSources on _FileManagerPageState {
     }
     return Future.wait(
       widget.profiles.map((profile) async {
-        final config = await widget.api.loadProfile(profile.name);
-        return _BucketSourceConfig(
-          profileName: profile.name,
-          sourceLabel: _sourceLabelForConfig(config),
-          config: config,
-        );
+        try {
+          final config = await widget.api.loadProfile(profile.name);
+          return _BucketSourceConfig(
+            profileName: profile.name,
+            sourceLabel: _sourceLabelForConfig(config),
+            config: config,
+          );
+        } catch (_) {
+          _failedBucketProfileName = profile.name;
+          rethrow;
+        }
       }),
     );
   }

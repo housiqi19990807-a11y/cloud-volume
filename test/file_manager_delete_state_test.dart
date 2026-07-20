@@ -35,7 +35,6 @@ void main() {
             api: api,
             config: RemoteStorageConfig.empty(),
             profiles: const [],
-            onEditConfig: () {},
             onRefresh: () {},
           ),
         ),

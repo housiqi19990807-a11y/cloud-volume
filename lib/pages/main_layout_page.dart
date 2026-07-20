@@ -289,7 +289,6 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           api: widget.api,
           config: widget.state.config,
           profiles: widget.state.profiles,
-          onEditConfig: widget.onEditConfig,
           onRefresh: widget.onRefresh,
           pendingSyncRemoteOpen: _pendingSyncRemoteOpen,
           onPendingSyncRemoteOpenConsumed: _clearPendingSyncRemoteOpen,

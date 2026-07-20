@@ -402,7 +402,9 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 - Historical note: `4ce325f9` / `4483c276` used hand-tuned per-step `resizeKeepingWindowCenter` sizes (fragile). `a4197b1d` temporarily used fixed window + scroll. Current approach measures shrink-wrapped form content (`MeasureSize`) and resizes with `fitModalSubWindowToContentSize`. Sync editor still uses discrete step sizes + `resizeKeepingWindowCenter`.
 
 **Default modal path:**
-- `lib/pages/cloud_storage_page.dart` — Opens `showAppModal` + `CloudStorageAccountDialog(asDialog: true)` unless debug sub-window is supported.
+- `lib/services/account_editor_presenter.dart` — Single presentation entry for account add/edit: opens the debug sub-window only when `preferModalSubWindows` allows it; otherwise uses `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`.
+- `lib/pages/cloud_storage_page.dart` — Account management delegates add/edit presentation to `account_editor_presenter.dart`.
+- `lib/pages/file_manager_page_account_editor.dart` — Bucket-list authentication recovery delegates to the same account editor presenter, so it never enters the first-run setup page.
 - `lib/widgets/cloud_storage_account_dialog.dart` — Wizard/edit UI; dual-mode `asDialog` (default true).
 - `lib/widgets/cloud_storage_account_dialog_steps.dart` — `stepProtocolPicker` / `stepConnectionFields` + protocol field builders.
 - `lib/models/cloud_storage_account_draft.dart` / `lib/utils/account_config_builder.dart` / `lib/utils/account_profile_name.dart` — Draft, config build, profile key.
@@ -415,8 +417,9 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 
 #### Data flow
 1. User clicks "新增账号" or row "编辑" in `CloudStoragePage`.
-2. **Default:** `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`; save via page `_saveNewAccount` / `_saveEditedAccount` → `api.saveProfile` → `onRefresh`.
+2. **Default:** `account_editor_presenter.dart` opens `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`; save via page `_saveNewAccount` / `_saveEditedAccount` → `api.saveProfile` → `onRefresh`.
 3. **Debug only:** if `AccountEditorWindowService.openEditor` is supported, spawn OS sub-window; save notifies creator via `account_editor_saved`, then closes the child.
+4. File-manager bucket-list recovery identifies the failed profile and uses the same presenter in edit mode; it saves via `api.saveProfile` and refreshes the bootstrap session.
 
 #### Go / bridge account storage (exploration 2026-07-11)
 
@@ -790,7 +793,7 @@ Catalogued 2026-07-14. Presentation is always in-app `showAppModal*` unless note
 
 | Modal | Entry / widget | Opened from | Notes |
 |-------|----------------|-------------|-------|
-| Account editor | `CloudStorageAccountDialog` | `cloud_storage_page.dart` add/edit | Compact in-app max width **520**. Main form keeps connection fields only; path-style + proxy open nested **高级设置** modal (`showAppModal`, max **420**). Content-fit resize only in sub-window. |
+| Account editor | `CloudStorageAccountDialog` | `account_editor_presenter.dart` from account management or file-manager recovery | Compact in-app max width **520**. Main form keeps connection fields only; path-style + proxy open nested **高级设置** modal (`showAppModal`, max **420**). Content-fit resize only in sub-window. |
 | Sync profile editor | `FileSyncProfileEditor` | `file_sync_tasks_page_actions.dart` add/edit | Comfortable max width **600**. **3-step** wizard: 同步两端 → 同步策略 → 高级设置（排除规则 / 启用）. Nested remote picker. |
 | Remote directory picker | `showRemoteDirectoryPicker` / `RemoteDirectoryPickerDialog` | Sync editor step 1 | Comfortable max width **640**, body height **480**. Via `showDesktopOverlayOrDialog`. |
 

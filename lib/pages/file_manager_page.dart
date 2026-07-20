@@ -16,6 +16,7 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/services/file_access_service.dart';
+import 'package:remote_storage/services/account_editor_presenter.dart';
 import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/desktop_file_transfer_service.dart';
 import 'package:remote_storage/services/clipboard_shortcut_channel.dart';
@@ -51,6 +52,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/app_modal.dart';
 
 part 'file_manager_page_actions.dart';
+part 'file_manager_page_account_editor.dart';
 part 'file_manager_page_access.dart';
 part 'file_manager_page_bucket_policy.dart';
 part 'file_manager_page_bucket_view.dart';
@@ -80,7 +82,6 @@ class FileManagerPage extends StatefulWidget {
     required this.api,
     required this.config,
     required this.profiles,
-    required this.onEditConfig,
     required this.onRefresh,
     this.homeView = FileManagerHomeView.files,
     this.pendingSyncRemoteOpen,
@@ -90,7 +91,6 @@ class FileManagerPage extends StatefulWidget {
   final RemoteStorageGateway api;
   final RemoteStorageConfig config;
   final List<ProfileInfo> profiles;
-  final VoidCallback onEditConfig;
   final VoidCallback onRefresh;
   final FileManagerHomeView homeView;
   final SyncRemoteOpenRequest? pendingSyncRemoteOpen;
@@ -142,8 +142,8 @@ class _FileManagerPageState extends State<FileManagerPage> {
   String _trashNextToken = '';
   bool _trashHasMore = false;
   bool _pagingTrash = false;
-  int _seenObjectListingMutationVersion = 0;
-  int _bucketQuotaRefreshGeneration = 0;
+  int _seenObjectListingMutationVersion = 0, _bucketQuotaRefreshGeneration = 0;
+  String? _failedBucketProfileName;
   final Map<String, _PendingUploadRefresh> _pendingUploadRefreshes =
       <String, _PendingUploadRefresh>{};
 
@@ -196,6 +196,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
 
   Future<bool> _loadBuckets() async {
     final quotaGeneration = ++_bucketQuotaRefreshGeneration;
+    _failedBucketProfileName = null;
     _beginLoading(message: '加载存储桶...');
     try {
       final bucketEntries = await _loadBucketEntries();
@@ -406,7 +407,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
                 _loadObjects(_activeBucketEntry!, _prefix, forceRefresh: true),
               ),
         secondaryActionLabel: _activeBucket == null ? '重新配置认证信息' : null,
-        onSecondaryAction: _activeBucket == null ? widget.onEditConfig : null,
+        onSecondaryAction: _activeBucket == null
+            ? () => unawaited(_showFailedAccountEditor())
+            : null,
       );
     }
     if (_activeBucket == null) return _buildBucketView(theme);

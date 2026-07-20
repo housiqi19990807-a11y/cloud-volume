@@ -3,15 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
-import 'package:remote_storage/services/account_editor_window_service.dart';
+import 'package:remote_storage/services/account_editor_presenter.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/account_profile_name.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
-import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_list.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:remote_storage/services/app_modal.dart';
 
 class CloudStoragePage extends StatefulWidget {
   const CloudStoragePage({
@@ -125,20 +123,14 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   }
 
   Future<void> _showAddAccountDialog() async {
-    final ok = await AccountEditorWindowService.instance.openEditor(
+    await showAccountEditor(
+      context: context,
+      api: widget.api,
       onSaved: widget.onRefresh,
+      onSave: _saveNewAccount,
+      onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+      onAuthorizeBaiduPan: _authorizeBaiduPan,
     );
-    if (!ok) {
-      if (!mounted) return;
-      await showAppModal<void>(
-        context: context,
-        builder: (_) => CloudStorageAccountDialog(
-          onSave: _saveNewAccount,
-          onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-          onAuthorizeBaiduPan: _authorizeBaiduPan,
-        ),
-      );
-    }
   }
 
   Future<void> _showEditAccountDialog(ProfileInfo profile) async {
@@ -147,25 +139,17 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       final config = await widget.api.loadProfile(profile.name);
       if (!mounted) return;
       setState(() => _busy = false);
-      final ok = await AccountEditorWindowService.instance.openEditor(
-        initialConfigJson: config.toJson(),
+      await showAccountEditor(
+        context: context,
+        api: widget.api,
+        initialConfig: config,
         profileName: profile.name,
         editing: true,
         onSaved: widget.onRefresh,
+        onSave: (cfg) => _saveEditedAccount(profile, cfg),
+        onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
+        onAuthorizeBaiduPan: _authorizeBaiduPan,
       );
-      if (!ok) {
-        if (!mounted) return;
-        await showAppModal<void>(
-          context: context,
-          builder: (_) => CloudStorageAccountDialog(
-            initialConfig: config,
-            editing: true,
-            onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
-            onAuthorizeBaiduPan: _authorizeBaiduPan,
-            onSave: (cfg) => _saveEditedAccount(profile, cfg),
-          ),
-        );
-      }
     } catch (error) {
       if (mounted) showAppErrorToast(context, message: error.toString());
     } finally {

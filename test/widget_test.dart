@@ -86,6 +86,41 @@ void main() {
     SyncProfileNotifier.instance.stop();
   });
 
+  testWidgets('bucket load recovery opens the account editor modal', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final api = _FakeApi(
+      configured: true,
+      profiles: const <ProfileInfo>[
+        ProfileInfo(
+          name: 'default',
+          displayName: 'Test Account',
+          storageType: StorageType.s3,
+          providerType: StorageProviderType.s3,
+          endpoint: 'https://s3.example.com',
+          accessKeyId: 'test-access',
+          active: true,
+        ),
+      ],
+      listBucketsError: true,
+    );
+
+    await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => api));
+    await tester.pumpAndSettle();
+    expect(find.text('重新配置认证信息'), findsOneWidget);
+
+    await tester.tap(find.text('重新配置认证信息'));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑账号'), findsOneWidget);
+    expect(find.text('添加存储账号'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    TransferQueue.instance.resetForTest();
+    SyncProfileNotifier.instance.stop();
+  });
+
   testWidgets('bucket quota refreshes after the initial list renders', (
     tester,
   ) async {
@@ -138,12 +173,16 @@ class _FakeApi implements RemoteStorageGateway {
     this.configOverride,
     this.buckets = const <BucketInfo>[],
     this.quotaResult,
+    this.profiles = const <ProfileInfo>[],
+    this.listBucketsError = false,
   });
 
   final bool configured;
   final RemoteStorageConfig? configOverride;
   final List<BucketInfo> buckets;
   final Future<BucketInfo>? quotaResult;
+  final List<ProfileInfo> profiles;
+  final bool listBucketsError;
   int quotaRequestCount = 0;
 
   @override
@@ -193,6 +232,7 @@ class _FakeApi implements RemoteStorageGateway {
                 proxyPassword: '',
               )
             : RemoteStorageConfig.empty()),
+    profiles: profiles,
   );
 
   @override
@@ -273,8 +313,10 @@ class _FakeApi implements RemoteStorageGateway {
   Future<int> cleanupStaleWindowsProcesses() async => 0;
 
   @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async =>
-      buckets;
+  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
+    if (listBucketsError) throw StateError('bucket listing failed');
+    return buckets;
+  }
 
   @override
   Future<BucketInfo> getBucketQuota(
@@ -560,7 +602,7 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<RemoteStorageConfig> loadProfile(String name) async =>
-      RemoteStorageConfig.empty();
+      configOverride ?? RemoteStorageConfig.empty();
 
   @override
   Future<List<ProfileInfo>> listProfiles() async => [];
