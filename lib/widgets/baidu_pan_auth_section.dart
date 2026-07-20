@@ -107,6 +107,7 @@ class BaiduPanAuthSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           CloudStorageTechnicalInput(
+            key: const ValueKey<String>('baidu-pan-auth-code'),
             controller: codeController,
             placeholder: const Text('粘贴百度授权页显示的授权码'),
           ),

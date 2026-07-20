@@ -421,6 +421,7 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 2. **Default:** `account_editor_presenter.dart` opens `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`; save via page `_saveNewAccount` / `_saveEditedAccount` → `api.saveProfile` → `onRefresh`.
 3. **Debug only:** if `AccountEditorWindowService.openEditor` is supported, spawn OS sub-window; save notifies creator via `account_editor_saved`, then closes the child.
 4. File-manager recovery identifies either the failed bucket-list source or the exact clicked bucket whose object listing failed, then uses the same presenter in edit mode; it saves via `api.saveProfile` and refreshes the bootstrap session.
+5. Baidu OAuth success in `CloudStorageAccountDialog` immediately reuses `_submit`, so the new credentials are persisted through the same save callback and the in-app modal or debug sub-window closes after saving.
 
 #### Go / bridge account storage (exploration 2026-07-11)
 

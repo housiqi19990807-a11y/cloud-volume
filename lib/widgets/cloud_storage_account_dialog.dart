@@ -443,6 +443,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
           _nameController.text = config.displayName;
         }
       });
+      await _submit();
     } catch (error) {
       if (!mounted) return;
       setState(() => _baiduAuthErrorText = describeBridgeError(error));

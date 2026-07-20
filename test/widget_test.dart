@@ -139,6 +139,10 @@ void main() {
         StorageType.baiduPan: <BucketInfo>[BucketInfo(name: '百度网盘')],
       },
       failingObjectStorageType: StorageType.baiduPan,
+      baiduAuthorizationResult: baiduConfig.copyWith(
+        accessKeyId: 'new-baidu-access',
+        secretAccessKey: 'new-baidu-refresh',
+      ),
     );
 
     await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => api));
@@ -152,6 +156,15 @@ void main() {
     expect(find.text('编辑账号'), findsOneWidget);
     expect(find.text('百度账号'), findsOneWidget);
     expect(find.text('添加存储账号'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('baidu-pan-auth-code')),
+      'authorization-code',
+    );
+    await tester.tap(find.text('提交授权码'));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑账号'), findsNothing);
+    expect(api.savedProfiles['baidu-profile']?.accessKeyId, 'new-baidu-access');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -215,6 +228,7 @@ class _FakeApi implements RemoteStorageGateway {
     this.profileConfigs = const <String, RemoteStorageConfig>{},
     this.bucketsByStorageType = const <StorageType, List<BucketInfo>>{},
     this.failingObjectStorageType,
+    this.baiduAuthorizationResult,
   });
 
   final bool configured;
@@ -225,7 +239,10 @@ class _FakeApi implements RemoteStorageGateway {
   final Map<String, RemoteStorageConfig> profileConfigs;
   final Map<StorageType, List<BucketInfo>> bucketsByStorageType;
   final StorageType? failingObjectStorageType;
+  final RemoteStorageConfig? baiduAuthorizationResult;
   int quotaRequestCount = 0;
+  final Map<String, RemoteStorageConfig> savedProfiles =
+      <String, RemoteStorageConfig>{};
 
   @override
   Future<BootstrapState> loadBootstrapState() async => BootstrapState(
@@ -346,7 +363,7 @@ class _FakeApi implements RemoteStorageGateway {
   Future<RemoteStorageConfig> authorizeBaiduPan(
     String displayName,
     String code,
-  ) async => throw UnimplementedError();
+  ) async => baiduAuthorizationResult ?? (throw UnimplementedError());
 
   @override
   Future<void> cleanupMounts() async {}
@@ -369,7 +386,9 @@ class _FakeApi implements RemoteStorageGateway {
   }
 
   @override
-  Future<void> saveProfile(String name, RemoteStorageConfig config) async {}
+  Future<void> saveProfile(String name, RemoteStorageConfig config) async {
+    savedProfiles[name] = config;
+  }
 
   @override
   Future<void> deleteProfile(String name) async {}
