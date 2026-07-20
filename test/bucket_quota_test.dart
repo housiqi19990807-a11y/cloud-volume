@@ -14,6 +14,22 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 const int _gibibyte = 1024 * 1024 * 1024;
 
 void main() {
+  test('bucket view settings preserve dynamic-all and allowlist JSON', () {
+    final dynamicAll = RemoteStorageConfig.empty();
+    expect(dynamicAll.bucketViews, isEmpty);
+    final selected = dynamicAll.copyWith(
+      bucketViews: const <String, BucketViewSettings>{
+        'bucket-a': BucketViewSettings(
+          displayName: '照片',
+          rootPrefix: '/archive/2026/',
+        ),
+      },
+    );
+    final decoded = RemoteStorageConfig.fromJson(selected.toJson());
+    expect(decoded.bucketViews['bucket-a']?.displayName, '照片');
+    expect(decoded.bucketViews['bucket-a']?.rootPrefix, 'archive/2026');
+  });
+
   test('bucket settings parse legacy and custom quota JSON', () {
     final legacy = BucketSettings.fromJson(const <String, dynamic>{});
     final configured = BucketSettings.fromJson(const <String, dynamic>{

@@ -1,0 +1,184 @@
+// ignore_for_file: library_private_types_in_public_api
+part of 'cloud_storage_account_dialog.dart';
+
+// Step 3 keeps the allowlist and per-bucket presentation choices together.
+Widget stepBucketVisibility({
+  required ShadThemeData theme,
+  required _CloudStorageAccountDialogState self,
+}) {
+  if (self._loadingBuckets) {
+    return const Center(child: CircularProgressIndicator());
+  }
+  final all = self._availableBuckets;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        '桶列表显示设置',
+        style: theme.textTheme.h4.copyWith(fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        '不选择任何桶表示动态显示全部桶，之后新增的桶也会自动出现。选择后将只显示选中的桶。',
+        style: TextStyle(
+          fontSize: 12,
+          color: theme.colorScheme.mutedForeground,
+        ),
+      ),
+      const SizedBox(height: 14),
+      if (all.isEmpty)
+        Text('当前账号没有可用桶。', style: theme.textTheme.small)
+      else
+        for (final bucket in all) ...[
+          _BucketVisibilityRow(bucket: bucket, self: self),
+          if (bucket != all.last) const SizedBox(height: 8),
+        ],
+    ],
+  );
+}
+
+class _BucketVisibilityRow extends StatefulWidget {
+  const _BucketVisibilityRow({required this.bucket, required this.self});
+
+  final BucketInfo bucket;
+  final _CloudStorageAccountDialogState self;
+
+  @override
+  State<_BucketVisibilityRow> createState() => _BucketVisibilityRowState();
+}
+
+class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
+  late final TextEditingController _displayController;
+  late final TextEditingController _prefixController;
+
+  bool get selected => widget.self._bucketViews.containsKey(widget.bucket.name);
+
+  @override
+  void initState() {
+    super.initState();
+    final view = widget.self._bucketViews[widget.bucket.name];
+    _displayController = TextEditingController(text: view?.displayName ?? '');
+    _prefixController = TextEditingController(text: view?.rootPrefix ?? '');
+  }
+
+  @override
+  void dispose() {
+    _displayController.dispose();
+    _prefixController.dispose();
+    super.dispose();
+  }
+
+  void _sync() {
+    if (!selected) return;
+    widget.self.markDirty(() {
+      widget.self._bucketViews[widget.bucket.name] = BucketViewSettings(
+        displayName: _displayController.text,
+        rootPrefix: _prefixController.text,
+      );
+    });
+  }
+
+  Future<void> _chooseDirectory() async {
+    final config = widget.self._draftConfig().copyWith(
+      bucketViews: const <String, BucketViewSettings>{},
+    );
+    final entry = FileManagerBucketEntry.fromBucketInfo(
+      bucket: widget.bucket,
+      profileName: 'new-account',
+      sourceLabel: config.displayName,
+      config: config,
+    );
+    final selected = await showRemoteDirectoryPicker(
+      context: context,
+      api: widget.self.widget.api,
+      buckets: <FileManagerBucketEntry>[entry],
+      initial: RemoteDirectoryResult(
+        bucket: widget.bucket.name,
+        prefix: _prefixController.text,
+        profileName: entry.profileName,
+        config: config,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    _prefixController.text = selected.prefix;
+    _sync();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Checkbox(
+                value: selected,
+                onChanged: (value) {
+                  widget.self.markDirty(() {
+                    if (value == true) {
+                      widget.self._bucketViews[widget.bucket.name] =
+                          const BucketViewSettings();
+                    } else {
+                      widget.self._bucketViews.remove(widget.bucket.name);
+                    }
+                  });
+                },
+              ),
+              Expanded(
+                child: Text(
+                  widget.bucket.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          if (selected) ...[
+            const SizedBox(height: 6),
+            CloudStorageLabeledField(
+              label: '显示名称（可选）',
+              child: ShadInput(
+                controller: _displayController,
+                placeholder: Text(widget.bucket.name),
+                onChanged: (_) => _sync(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            CloudStorageLabeledField(
+              label: '子目录（可选）',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ShadInput(
+                      controller: _prefixController,
+                      placeholder: const Text('桶根目录'),
+                      onChanged: (_) => _sync(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ShadButton.outline(
+                    onPressed: _chooseDirectory,
+                    child: const Row(
+                      children: [
+                        Icon(LucideIcons.folderOpen, size: 16),
+                        SizedBox(width: 4),
+                        Text('选择'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

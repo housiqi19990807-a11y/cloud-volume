@@ -170,8 +170,8 @@ Widget stepConnectionFields({
             isBaiduPan
                 ? '例如：我的百度网盘'
                 : isWebDav
-                    ? '例如：IHEP WebDAV'
-                    : '例如：对象存储账号',
+                ? '例如：IHEP WebDAV'
+                : '例如：对象存储账号',
           ),
           onChanged: (_) => self._syncMappedBucketName(),
         ),
@@ -205,8 +205,8 @@ Widget stepConnectionFields({
         isBaiduPan
             ? '代理等可选项在高级设置中配置。'
             : isWebDav
-                ? '代理等可选项在高级设置中配置。'
-                : '路径风格访问、代理等可选项在高级设置中配置。',
+            ? '代理等可选项在高级设置中配置。'
+            : '路径风格访问、代理等可选项在高级设置中配置。',
         style: TextStyle(
           fontSize: 12,
           color: theme.colorScheme.mutedForeground,
@@ -231,9 +231,7 @@ Future<void> _openAccountAdvancedSettings(
         builder: (dialogContext, setDialogState) {
           return ShadDialog(
             title: const Text('高级设置'),
-            description: Text(
-              isS3 ? '路径风格访问与此账号的代理策略。' : '此账号的代理策略。',
-            ),
+            description: Text(isS3 ? '路径风格访问与此账号的代理策略。' : '此账号的代理策略。'),
             constraints: const BoxConstraints(maxWidth: 480),
             child: SizedBox(
               width: 440,
@@ -391,9 +389,7 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
       child: CloudStorageSecretInput(
         controller: self._secretKeyController,
         placeholder: Text(
-          self.widget.editing
-              ? '留空则保留当前 Secret Key'
-              : 'Secret Access Key',
+          self.widget.editing ? '留空则保留当前 Secret Key' : 'Secret Access Key',
         ),
       ),
     ),
@@ -427,9 +423,7 @@ List<Widget> _webdavFields(_CloudStorageAccountDialogState self) {
         child: CloudStorageSecretInput(
           controller: self._webdavPasswordController,
           placeholder: Text(
-            self.widget.editing
-                ? '留空则保留当前 WebDAV 密码'
-                : '输入 WebDAV 登录密码',
+            self.widget.editing ? '留空则保留当前 WebDAV 密码' : '输入 WebDAV 登录密码',
           ),
         ),
       ),
@@ -441,14 +435,14 @@ List<Widget> _webdavFields(_CloudStorageAccountDialogState self) {
 List<Widget> _baiduPanFields(_CloudStorageAccountDialogState self) {
   final label =
       self._authorizedBaiduConfig?.displayName.trim().isNotEmpty == true
-          ? self._authorizedBaiduConfig!.displayName
-          : self._nameController.text.trim();
+      ? self._authorizedBaiduConfig!.displayName
+      : self._nameController.text.trim();
   return [
     BaiduPanAuthSection(
       accountLabel: label,
       authorized:
           self._authorizedBaiduConfig?.accessKeyId.trim().isNotEmpty == true &&
-              self._authorizedBaiduConfig?.hasSecretAccessKey == true,
+          self._authorizedBaiduConfig?.hasSecretAccessKey == true,
       codeController: self._baiduAuthCodeController,
       authUrl: self._baiduAuthUrl,
       openingBrowser: self._openingBaiduAuthPage,

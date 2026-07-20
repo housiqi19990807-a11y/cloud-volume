@@ -36,6 +36,8 @@ Future<void> showAccountEditor({
       onStartBaiduPanAuthorization:
           onStartBaiduPanAuthorization ?? api.startBaiduPanAuthorization,
       onAuthorizeBaiduPan: onAuthorizeBaiduPan ?? api.authorizeBaiduPan,
+      onListBuckets: api.listBuckets,
+      api: api,
     ),
   );
 }

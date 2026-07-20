@@ -84,5 +84,6 @@ RemoteStorageConfig buildAccountConfig(
     proxyPort: draft.proxyPort,
     proxyUsername: draft.proxyUsername,
     proxyPassword: draft.proxyPassword,
+    bucketViews: draft.bucketViews,
   );
 }

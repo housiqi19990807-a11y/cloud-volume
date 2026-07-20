@@ -30,11 +30,8 @@ class AccountEditorWindowApp extends StatelessWidget {
         DesktopWindowMethodHost.ensureInstalled();
         return defaultRemoteStorageApiFactory();
       },
-      contentBuilder: (context, api, close) => _AccountEditorContent(
-        api: api,
-        args: args,
-        close: close,
-      ),
+      contentBuilder: (context, api, close) =>
+          _AccountEditorContent(api: api, args: args, close: close),
     );
   }
 }
@@ -80,7 +77,8 @@ class _AccountEditorContentState extends State<_AccountEditorContent> {
 
   Future<bool> _onSave(RemoteStorageConfig config) async {
     try {
-      final profileName = widget.args.profileName ??
+      final profileName =
+          widget.args.profileName ??
           generateAccountProfileName(config.displayName, config.storageType);
       await widget.api.saveProfile(profileName, config);
       if (!mounted) return false;
@@ -133,6 +131,8 @@ class _AccountEditorContentState extends State<_AccountEditorContent> {
       },
       onStartBaiduPanAuthorization: _startBaiduPanAuthorization,
       onAuthorizeBaiduPan: _authorizeBaiduPan,
+      onListBuckets: widget.api.listBuckets,
+      api: widget.api,
     );
   }
 }

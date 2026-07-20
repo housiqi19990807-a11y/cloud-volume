@@ -4,62 +4,72 @@ part of 'file_sync_tasks_page.dart';
 // 与设置页解耦——这里是同步配置的唯一 CRUD 入口。
 extension _FileSyncTasksActions on _FileSyncTasksPageState {
   // 加载所有账号下的桶列表，供编辑器选择目标桶。逻辑与文件管理页一致。
-    Future<void> _loadBuckets() async {
-      markDirty(() => _loadingBuckets = true);
-      try {
-        final entries = <FileManagerBucketEntry>[];
-        final sources = <_BucketSource>[];
-        if (widget.profiles.isEmpty) {
-          sources.add(_BucketSource(
+  Future<void> _loadBuckets() async {
+    markDirty(() => _loadingBuckets = true);
+    try {
+      final entries = <FileManagerBucketEntry>[];
+      final sources = <_BucketSource>[];
+      if (widget.profiles.isEmpty) {
+        sources.add(
+          _BucketSource(
             profileName: 'default',
             sourceLabel: _sourceLabel(widget.config),
             config: widget.config,
-          ));
-        } else {
-          for (final profile in widget.profiles) {
-            final config = await widget.api.loadProfile(profile.name);
-            sources.add(_BucketSource(
+          ),
+        );
+      } else {
+        for (final profile in widget.profiles) {
+          final config = await widget.api.loadProfile(profile.name);
+          sources.add(
+            _BucketSource(
               profileName: profile.name,
               sourceLabel: _sourceLabel(config),
               config: config,
-            ));
-          }
+            ),
+          );
         }
-        for (final source in sources) {
-          final buckets = await widget.api.listBuckets(source.config);
-          for (final bucket in buckets) {
-            entries.add(FileManagerBucketEntry.fromBucketInfo(
+      }
+      for (final source in sources) {
+        final buckets = await widget.api.listBuckets(source.config);
+        for (final bucket in buckets) {
+          final views = source.config.bucketViews;
+          final view = views[bucket.name];
+          if (views.isNotEmpty && view == null) continue;
+          entries.add(
+            FileManagerBucketEntry.fromBucketInfo(
               bucket: bucket,
               profileName: source.profileName,
               sourceLabel: source.sourceLabel,
               config: source.config,
-            ));
-          }
+              view: view,
+            ),
+          );
         }
-        entries.sort((a, b) {
-          final sc = a.sourceLabel.compareTo(b.sourceLabel);
-          return sc != 0 ? sc : a.bucket.name.compareTo(b.bucket.name);
-        });
-        if (mounted) markDirty(() => _buckets = entries);
-      } catch (_) {
-        // 桶列表加载失败时静默，编辑器会显示空桶提示。
-      } finally {
-        if (mounted) markDirty(() => _loadingBuckets = false);
       }
+      entries.sort((a, b) {
+        final sc = a.sourceLabel.compareTo(b.sourceLabel);
+        return sc != 0 ? sc : a.label.compareTo(b.label);
+      });
+      if (mounted) markDirty(() => _buckets = entries);
+    } catch (_) {
+      // 桶列表加载失败时静默，编辑器会显示空桶提示。
+    } finally {
+      if (mounted) markDirty(() => _loadingBuckets = false);
     }
+  }
 
   String _sourceLabel(dynamic config) {
-      if (config is! RemoteStorageConfig) return '账号';
-      final c = config;
-      final name = c.displayName.trim().isNotEmpty
-          ? c.displayName.trim()
-          : c.storageType == StorageType.baiduPan
-          ? '百度网盘'
-          : c.storageType == StorageType.webdav
-          ? c.webdavUsername.trim()
-          : c.accessKeyId.trim();
-      return name.isEmpty ? '账号' : name;
-    }
+    if (config is! RemoteStorageConfig) return '账号';
+    final c = config;
+    final name = c.displayName.trim().isNotEmpty
+        ? c.displayName.trim()
+        : c.storageType == StorageType.baiduPan
+        ? '百度网盘'
+        : c.storageType == StorageType.webdav
+        ? c.webdavUsername.trim()
+        : c.accessKeyId.trim();
+    return name.isEmpty ? '账号' : name;
+  }
 
   Future<void> _addProfile() async {
     final ok = await SyncEditorWindowService.instance.openEditor(

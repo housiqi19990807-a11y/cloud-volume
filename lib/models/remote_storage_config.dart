@@ -1,8 +1,10 @@
 // Remote storage config models keep backend JSON shape away from page widgets.
 import 'bucket_settings.dart';
+import 'bucket_view_settings.dart';
 import 'remote_storage_config_enums.dart';
 
 export 'bucket_settings.dart';
+export 'bucket_view_settings.dart';
 export 'remote_storage_config_enums.dart';
 
 bool? _boolFromDynamic(Object? value) {
@@ -47,6 +49,7 @@ class RemoteStorageConfig {
     required this.trashDirectoryName,
     required this.trashRetentionDays,
     required this.bucketSettings,
+    required this.bucketViews,
     required this.writebackQuietSeconds,
     required this.mountMetadataCacheSeconds,
     required this.usePathStyle,
@@ -90,6 +93,7 @@ class RemoteStorageConfig {
       trashDirectoryName: '.trash',
       trashRetentionDays: -1,
       bucketSettings: <String, BucketSettings>{},
+      bucketViews: <String, BucketViewSettings>{},
       writebackQuietSeconds: 10,
       mountMetadataCacheSeconds: 60,
       usePathStyle: true,
@@ -184,8 +188,11 @@ class RemoteStorageConfig {
                   '.trash')
               .toString(),
       trashRetentionDays: trashRetentionDays == 0 ? 30 : trashRetentionDays,
-      bucketSettings: _bucketSettingsFromJson(
+      bucketSettings: bucketSettingsMapFromJson(
         json['bucketSettings'] ?? json['bucket_settings'],
+      ),
+      bucketViews: bucketViewsMapFromJson(
+        json['bucketViews'] ?? json['bucket_views'],
       ),
       writebackQuietSeconds:
           _intFromDynamic(
@@ -272,6 +279,7 @@ class RemoteStorageConfig {
   final String trashDirectoryName;
   final int trashRetentionDays;
   final Map<String, BucketSettings> bucketSettings;
+  final Map<String, BucketViewSettings> bucketViews;
   final int writebackQuietSeconds;
   final int mountMetadataCacheSeconds;
   final bool usePathStyle;
@@ -368,6 +376,9 @@ class RemoteStorageConfig {
       'bucketSettings': bucketSettings.map(
         (key, value) => MapEntry(key.trim(), value.toJson()),
       ),
+      'bucketViews': bucketViews.map(
+        (key, value) => MapEntry(key.trim(), value.toJson()),
+      ),
       'writebackQuietSeconds': writebackQuietSeconds,
       'mountMetadataCacheSeconds': mountMetadataCacheSeconds,
       'usePathStyle': usePathStyle,
@@ -411,6 +422,7 @@ class RemoteStorageConfig {
     String? trashDirectoryName,
     int? trashRetentionDays,
     Map<String, BucketSettings>? bucketSettings,
+    Map<String, BucketViewSettings>? bucketViews,
     int? writebackQuietSeconds,
     int? mountMetadataCacheSeconds,
     bool? usePathStyle,
@@ -454,6 +466,7 @@ class RemoteStorageConfig {
       trashDirectoryName: trashDirectoryName ?? this.trashDirectoryName,
       trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
       bucketSettings: bucketSettings ?? this.bucketSettings,
+      bucketViews: bucketViews ?? this.bucketViews,
       writebackQuietSeconds:
           writebackQuietSeconds ?? this.writebackQuietSeconds,
       mountMetadataCacheSeconds:
@@ -478,22 +491,5 @@ class RemoteStorageConfig {
       proxyUsername: proxyUsername ?? this.proxyUsername,
       proxyPassword: proxyPassword ?? this.proxyPassword,
     );
-  }
-
-  static Map<String, BucketSettings> _bucketSettingsFromJson(Object? value) {
-    if (value is! Map) {
-      return const <String, BucketSettings>{};
-    }
-    final result = <String, BucketSettings>{};
-    for (final entry in value.entries) {
-      final key = entry.key.toString().trim();
-      if (key.isEmpty || entry.value is! Map) {
-        continue;
-      }
-      result[key] = BucketSettings.fromJson(
-        Map<String, dynamic>.from(entry.value as Map),
-      );
-    }
-    return result;
   }
 }

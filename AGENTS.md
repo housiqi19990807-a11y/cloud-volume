@@ -384,9 +384,10 @@ Presets apply when the field is empty or still a known preset; user-typed custom
 
 Lists configured storage accounts and lets users add, edit, or remove them. **Default:** add/edit opens as an **in-app app modal** (`showAppModal` + `CloudStorageAccountDialog(asDialog: true)`). **Debug only:** with `preferModalSubWindows`, desktop can still spawn the detached OS sub-window.
 
-**Two-step wizard (current, 2026-07-11):** New accounts use a 2-step guided flow:
+**Three-step wizard (current, 2026-07-20):** New accounts use a 3-step guided flow:
 - **Step 0「选择协议」:** Large selectable cards for S3 / WebDAV / 百度网盘. Selecting a card updates `_storageType` without navigating.
 - **Step 1「连接信息」:** Name field + protocol-specific connection fields + `AccountProxySection`.
+- **Step 2「桶列表显示设置」:** Live provider buckets can be selected as an allowlist; each selected bucket can receive a display alias and remote root prefix. Empty selection is dynamic-all.
 - **Edit mode** does **not** use the wizard; it renders a single-screen connection form (`_buildEditContent`) with Cancel/Save only.
 - Step navigation is only `_next` / `_back` (no step tabs / `_goToStep` on account editor).
 
@@ -408,6 +409,7 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 - `lib/pages/file_manager_page_object_loading.dart` records `bucketEntry.profileName` when entering a bucket fails before `_activeBucketEntry` is committed. `file_manager_page_account_editor.dart` uses either that clicked-bucket profile or the bucket-list source failure and delegates to the shared presenter, so recovery never enters the first-run setup page or edits an unrelated first account.
 - `lib/widgets/cloud_storage_account_dialog.dart` — Wizard/edit UI; dual-mode `asDialog` (default true).
 - `lib/widgets/cloud_storage_account_dialog_steps.dart` — `stepProtocolPicker` / `stepConnectionFields` + protocol field builders.
+- `lib/widgets/cloud_storage_account_dialog_bucket_loading.dart` / `cloud_storage_account_dialog_bucket_visibility.dart` — Fetch live buckets and edit the third-step allowlist/alias/prefix settings.
 - `lib/models/cloud_storage_account_draft.dart` / `lib/utils/account_config_builder.dart` / `lib/utils/account_profile_name.dart` — Draft, config build, profile key.
 
 **Debug sub-window architecture (retained):**
@@ -421,7 +423,7 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 2. **Default:** `account_editor_presenter.dart` opens `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`; save via page `_saveNewAccount` / `_saveEditedAccount` → `api.saveProfile` → `onRefresh`.
 3. **Debug only:** if `AccountEditorWindowService.openEditor` is supported, spawn OS sub-window; save notifies creator via `account_editor_saved`, then closes the child.
 4. File-manager recovery identifies either the failed bucket-list source or the exact clicked bucket whose object listing failed, then uses the same presenter in edit mode; it saves via `api.saveProfile` and refreshes the bootstrap session.
-5. Baidu OAuth success in `CloudStorageAccountDialog` immediately reuses `_submit`, so the new credentials are persisted through the same save callback and the in-app modal or debug sub-window closes after saving.
+5. Baidu OAuth success retains the authorized draft for a new account and advances to bucket visibility; edit mode still reuses `_submit` immediately so recovery behavior remains unchanged.
 
 #### Go / bridge account storage (exploration 2026-07-11)
 
@@ -440,11 +442,12 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
 - `bridge/dispatch.go` — method switch for config/profile/storage methods.
 - `go/s3/buckets.go` — live `ListBuckets` → `[]BucketInfo{Name}`; S3 provider order, no local reorder.
 - `go/storage/webdav_backend.go` / `go/storage/baidu_pan_backend.go` — single synthetic bucket (`MappedBucketLabel` / Baidu label).
-- Flutter aggregation sort (not Go): `lib/pages/file_manager_page_sources.dart` sorts combined buckets by `sourceLabel` then `bucket.name`.
+- Flutter aggregation: `lib/pages/file_manager_page_sources.dart` filters non-empty `bucketViews` allowlists, builds effective per-entry configs, then applies persisted bucket order (fallback profile order + bucket label).
 
 **JSON schemas (Go → Flutter)**
-- Account/profile full config (`RemoteStorageConfig`): `endpoint`, `storageType`, `providerType`, `displayName`, `mappedBucketName`, `region`, `bucket`, `accessKeyId`, `secretAccessKey`, `hasSecretAccessKey`, `webdavUsername`, `webdavPassword`, `hasWebdavPassword`, `rootPrefix`, `defaultDownloadDirectory`, `cacheDirectory`, `resolvedCacheDirectory`, `hideDotFiles`, `fileOpenMode`, `trashDirectoryName`, `trashRetentionDays`, `bucketSettings` (map), mount/cache/proxy fields. **No order/sort field.**
+- Account/profile full config (`RemoteStorageConfig`): `endpoint`, `storageType`, `providerType`, `displayName`, `mappedBucketName`, `region`, `bucket`, `accessKeyId`, `secretAccessKey`, `hasSecretAccessKey`, `webdavUsername`, `webdavPassword`, `hasWebdavPassword`, `rootPrefix`, `defaultDownloadDirectory`, `cacheDirectory`, `resolvedCacheDirectory`, `hideDotFiles`, `fileOpenMode`, `trashDirectoryName`, `trashRetentionDays`, `bucketSettings` (map), `bucketViews` (allowlist map), mount/cache/proxy fields. **No inline order/sort field.**
 - Per-bucket overrides (`BucketSettings`): `readOnly`, `trashEnabled?`, `trashDirectory`. Map key is bucket name; **map has no order**.
+- Per-bucket view (`BucketViewSettings`): `displayName`, `rootPrefix`. Map key is the immutable provider bucket name; an empty parent map means dynamic-all.
 - Profile summary (`ProfileInfo`): `name`, `displayName`, `storageType`, `providerType`, `endpoint`, `accessKeyId`, `active`. **No order field.**
 - Bootstrap (`BootstrapState`): `configPath`, `configured`, `config`, `profiles[]`.
 - Live bucket row (`BucketInfo`): only `name`.
@@ -503,15 +506,14 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
 - `lib/models/file_manager_bucket_entry.dart` / `lib/models/s3_objects.dart` (`BucketInfo`) — UI row models; `BucketInfo` carries optional provider `quotaBytes` / `usedBytes` metadata plus `quotaKnown` (so a real zero-used account is distinguishable from an unsupported query) and has no order field.
 - Same aggregation pattern also used by `file_sync_tasks_page_actions.dart` for remote picker buckets.
 
-#### Storage account bucket visibility (exploration 2026-07-20)
+#### Storage account bucket visibility (implemented 2026-07-20)
 
-- Product semantics confirmed 2026-07-20: an empty bucket-view selection means dynamic “show all buckets”, including buckets created by the provider later. Once at least one bucket is selected/configured, the saved entries become an explicit allowlist and unselected buckets stay hidden. The initial editor therefore shows no checked buckets and must explain that no selection means all; clearing the final selection returns to dynamic-all mode.
-- Onboarding flow clarified 2026-07-20: bucket visibility is an additional step inside the new-account wizard, not a second modal after saving. The wizard becomes protocol selection → connection/OAuth → bucket visibility/path selection; the final step saves the complete profile and closes the shared modal. Baidu OAuth success should populate the authenticated draft and advance within the same modal so the visibility step can be completed before the final save.
-- `RemoteStorageConfig.mappedBucketName` is a single virtual label used by the WebDAV and Baidu Pan backends; it cannot represent per-bucket aliases or selections. `RemoteStorageConfig.rootPrefix` is one account-level prefix and is currently consumed by mount path translation, not by the Flutter bucket aggregation as a per-entry view.
-- `lib/pages/cloud_storage_page.dart` saves a new account as soon as `CloudStorageAccountDialog` returns. Baidu authorization currently calls `_submit()` after the authorization code is accepted; the planned third wizard step must change that add-account path to retain the authorized draft and advance in the same modal, then save/close only from the bucket-visibility step. Editing/recovery behavior remains separate unless the feature explicitly extends it.
-- `lib/widgets/remote_directory_picker_dialog.dart` already provides the shared bucket/remote-directory browser and returns `(bucket, prefix, profileName, config)`. It can be reused for per-bucket path editing, but its current single-result flow is not a multi-selection editor.
-- `lib/pages/file_manager_page_sources.dart` loads every provider bucket and creates `FileManagerBucketEntry`; `lib/pages/file_manager_page_object_loading.dart` and the mutation/trash/mount extensions pass `entry.bucket.name` plus user-visible prefixes directly to the gateway. A bucket-view feature therefore needs a persisted per-bucket view model (enabled, display name, selected remote prefix) and one path-resolution boundary shared by listing, mutations, trash, quota, and mounts; changing only the rendered title is incorrect.
-- S3 returns many real buckets, while WebDAV and Baidu Pan return one synthetic bucket (`MappedBucketLabel` / `baiduPanBucketLabel`). The selection UI can use the same model for all three, with the synthetic root as the sole selectable row for WebDAV/Baidu.
+- `RemoteStorageConfig.bucketViews` / Go `BucketViews` is a map keyed by provider bucket name. An empty map means dynamic-all and includes buckets created later; a non-empty map is the explicit allowlist. `BucketViewSettings` carries `displayName` and `rootPrefix`; normalization lives in `lib/models/bucket_view_settings.dart` and `go/config/config_bucket_views.go`.
+- `lib/widgets/cloud_storage_account_dialog.dart` now runs protocol → connection/OAuth → bucket visibility. `cloud_storage_account_dialog_bucket_loading.dart` validates the draft and fetches live buckets, while `cloud_storage_account_dialog_bucket_visibility.dart` owns selection, alias input, and the shared `remote_directory_picker_dialog.dart` entry. Baidu OAuth retains the authorized draft and advances instead of saving immediately. `account_editor_presenter.dart` and `account_editor_window_app.dart` pass the same gateway in modal and debug sub-window modes.
+- S3 returns real buckets; WebDAV and Baidu return their existing single synthetic bucket, so all providers use the same selection UI and persistence model. Clearing the final checkbox returns to dynamic-all mode.
+- `lib/pages/file_manager_page_sources.dart` and `file_sync_tasks_page_actions.dart` filter provider results only when the map is non-empty. `FileManagerBucketEntry` keeps the provider bucket name as its stable operation/id value, exposes the alias through `label`, and builds an effective config whose account prefix and selected bucket prefix are joined. Bucket list, breadcrumb, remote picker, and mount messaging use the alias without changing backend identifiers.
+- `go/storage/scoped_backend.go` is the shared object-path boundary. `storage.ForConfig` wraps S3/WebDAV/Baidu when `RootPrefix` is non-empty; list/head results are translated back to view-relative keys, and listing, mutations, transfers, trash, streaming, directory access, and partial uploads translate outgoing keys. Mounts continue to consume the same effective `RootPrefix` through their existing config path. Global trash filters the allowlist and uses the effective per-bucket config.
+- Tests: `go/config/config_bucket_views_test.go`, `go/storage/scoped_backend_test.go`, and `test/bucket_quota_test.dart` cover normalization, dynamic-all versus allowlist JSON, and virtual path translation.
 
 #### Bucket custom quota (implemented 2026-07-18)
 

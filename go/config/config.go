@@ -4,39 +4,40 @@ import "strings"
 
 // RemoteStorageConfig stores account connection values persisted to TOML.
 type RemoteStorageConfig struct {
-	Endpoint                    string                    `json:"endpoint" toml:"endpoint"`
-	StorageType                 string                    `json:"storageType" toml:"storage_type"`
-	ProviderType                string                    `json:"providerType" toml:"provider_type"`
-	DisplayName                 string                    `json:"displayName" toml:"display_name"`
-	MappedBucketName            string                    `json:"mappedBucketName" toml:"mapped_bucket_name"`
-	Region                      string                    `json:"region" toml:"region"`
-	Bucket                      string                    `json:"bucket" toml:"bucket"`
-	AccessKeyID                 string                    `json:"accessKeyId" toml:"access_key_id"`
-	SecretAccessKey             string                    `json:"secretAccessKey" toml:"secret_access_key"`
-	HasSecretAccessKey          bool                      `json:"hasSecretAccessKey" toml:"-"`
-	WebDAVUsername              string                    `json:"webdavUsername" toml:"webdav_username"`
-	WebDAVPassword              string                    `json:"webdavPassword" toml:"webdav_password"`
-	HasWebDAVPassword           bool                      `json:"hasWebdavPassword" toml:"-"`
-	RootPrefix                  string                    `json:"rootPrefix" toml:"root_prefix"`
-	DefaultDownloadDirectory    string                    `json:"defaultDownloadDirectory" toml:"default_download_directory"`
-	CacheDirectory              string                    `json:"cacheDirectory" toml:"cache_directory"`
-	ResolvedCacheDirectory      string                    `json:"resolvedCacheDirectory" toml:"-"`
-	HideDotFiles                bool                      `json:"hideDotFiles" toml:"hide_dot_files"`
-	FileOpenMode                string                    `json:"fileOpenMode" toml:"file_open_mode"`
-	TrashDirectoryName          string                    `json:"trashDirectoryName" toml:"trash_directory_name"`
-	TrashRetentionDays          int                       `json:"trashRetentionDays" toml:"trash_retention_days"`
-	BucketSettings              map[string]BucketSettings `json:"bucketSettings" toml:"bucket_settings"`
-	WritebackQuietSeconds       int                       `json:"writebackQuietSeconds" toml:"writeback_quiet_seconds"`
-	MountMetadataCacheSeconds   int                       `json:"mountMetadataCacheSeconds" toml:"mount_metadata_cache_seconds"`
-	UsePathStyle                bool                      `json:"usePathStyle" toml:"use_path_style"`
-	WindowsMountMode            string                    `json:"windowsMountMode" toml:"windows_mount_mode"`
-	WindowsMountEngine          string                    `json:"windowsMountEngine" toml:"windows_mount_engine"`
-	WindowsWinFspCapacityGB     int                       `json:"windowsWinFspCapacityGb" toml:"windows_winfsp_capacity_gb"`
-	WindowsThisPcEntryEnabled   bool                      `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
-	WindowsWritebackConcurrency int                       `json:"windowsWritebackConcurrency" toml:"windows_writeback_concurrency"`
-	CacheAutoCleanupEnabled     bool                      `json:"cacheAutoCleanupEnabled" toml:"cache_auto_cleanup_enabled"`
-	CacheMaxSizeMB              int                       `json:"cacheMaxSizeMb" toml:"cache_max_size_mb"`
-	CacheMaxAgeDays             int                       `json:"cacheMaxAgeDays" toml:"cache_max_age_days"`
+	Endpoint                    string                        `json:"endpoint" toml:"endpoint"`
+	StorageType                 string                        `json:"storageType" toml:"storage_type"`
+	ProviderType                string                        `json:"providerType" toml:"provider_type"`
+	DisplayName                 string                        `json:"displayName" toml:"display_name"`
+	MappedBucketName            string                        `json:"mappedBucketName" toml:"mapped_bucket_name"`
+	Region                      string                        `json:"region" toml:"region"`
+	Bucket                      string                        `json:"bucket" toml:"bucket"`
+	AccessKeyID                 string                        `json:"accessKeyId" toml:"access_key_id"`
+	SecretAccessKey             string                        `json:"secretAccessKey" toml:"secret_access_key"`
+	HasSecretAccessKey          bool                          `json:"hasSecretAccessKey" toml:"-"`
+	WebDAVUsername              string                        `json:"webdavUsername" toml:"webdav_username"`
+	WebDAVPassword              string                        `json:"webdavPassword" toml:"webdav_password"`
+	HasWebDAVPassword           bool                          `json:"hasWebdavPassword" toml:"-"`
+	RootPrefix                  string                        `json:"rootPrefix" toml:"root_prefix"`
+	DefaultDownloadDirectory    string                        `json:"defaultDownloadDirectory" toml:"default_download_directory"`
+	CacheDirectory              string                        `json:"cacheDirectory" toml:"cache_directory"`
+	ResolvedCacheDirectory      string                        `json:"resolvedCacheDirectory" toml:"-"`
+	HideDotFiles                bool                          `json:"hideDotFiles" toml:"hide_dot_files"`
+	FileOpenMode                string                        `json:"fileOpenMode" toml:"file_open_mode"`
+	TrashDirectoryName          string                        `json:"trashDirectoryName" toml:"trash_directory_name"`
+	TrashRetentionDays          int                           `json:"trashRetentionDays" toml:"trash_retention_days"`
+	BucketSettings              map[string]BucketSettings     `json:"bucketSettings" toml:"bucket_settings"`
+	BucketViews                 map[string]BucketViewSettings `json:"bucketViews" toml:"bucket_views"`
+	WritebackQuietSeconds       int                           `json:"writebackQuietSeconds" toml:"writeback_quiet_seconds"`
+	MountMetadataCacheSeconds   int                           `json:"mountMetadataCacheSeconds" toml:"mount_metadata_cache_seconds"`
+	UsePathStyle                bool                          `json:"usePathStyle" toml:"use_path_style"`
+	WindowsMountMode            string                        `json:"windowsMountMode" toml:"windows_mount_mode"`
+	WindowsMountEngine          string                        `json:"windowsMountEngine" toml:"windows_mount_engine"`
+	WindowsWinFspCapacityGB     int                           `json:"windowsWinFspCapacityGb" toml:"windows_winfsp_capacity_gb"`
+	WindowsThisPcEntryEnabled   bool                          `json:"windowsThisPcEntryEnabled" toml:"windows_this_pc_entry_enabled"`
+	WindowsWritebackConcurrency int                           `json:"windowsWritebackConcurrency" toml:"windows_writeback_concurrency"`
+	CacheAutoCleanupEnabled     bool                          `json:"cacheAutoCleanupEnabled" toml:"cache_auto_cleanup_enabled"`
+	CacheMaxSizeMB              int                           `json:"cacheMaxSizeMb" toml:"cache_max_size_mb"`
+	CacheMaxAgeDays             int                           `json:"cacheMaxAgeDays" toml:"cache_max_age_days"`
 
 	// Global proxy settings apply to all outbound HTTP/S3/WebDAV traffic.
 	ProxyMode     string `json:"proxyMode" toml:"proxy_mode"`         // "system" (default), "direct", "custom"
@@ -52,6 +53,13 @@ type BucketSettings struct {
 	TrashEnabled     *bool  `json:"trashEnabled,omitempty" toml:"trash_enabled,omitempty"`
 	TrashDirectory   string `json:"trashDirectory" toml:"trash_directory"`
 	CustomQuotaBytes int64  `json:"customQuotaBytes,omitempty" toml:"custom_quota_bytes,omitempty"`
+}
+
+// BucketViewSettings maps a visible provider bucket to its local label/root.
+// An empty RemoteStorageConfig.BucketViews map means dynamic visibility of all buckets.
+type BucketViewSettings struct {
+	DisplayName string `json:"displayName" toml:"display_name"`
+	RootPrefix  string `json:"rootPrefix" toml:"root_prefix"`
 }
 
 const (
@@ -100,6 +108,7 @@ func DefaultConfig() RemoteStorageConfig {
 		TrashDirectoryName:          ".trash",
 		TrashRetentionDays:          -1,
 		BucketSettings:              map[string]BucketSettings{},
+		BucketViews:                 map[string]BucketViewSettings{},
 		WritebackQuietSeconds:       defaultWritebackQuietSeconds,
 		MountMetadataCacheSeconds:   defaultMountMetadataCacheSeconds,
 		UsePathStyle:                true,
@@ -139,6 +148,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		TrashDirectoryName:          normalizeTrashDirectoryName(c.TrashDirectoryName),
 		TrashRetentionDays:          normalizeTrashRetentionDays(c.TrashRetentionDays),
 		BucketSettings:              normalizeBucketSettings(c.BucketSettings),
+		BucketViews:                 normalizeBucketViews(c.BucketViews),
 		WritebackQuietSeconds:       normalizeWritebackQuietSeconds(c.WritebackQuietSeconds),
 		MountMetadataCacheSeconds:   normalizeMountMetadataCacheSeconds(c.MountMetadataCacheSeconds),
 		UsePathStyle:                c.UsePathStyle,

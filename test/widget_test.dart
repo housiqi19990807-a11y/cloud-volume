@@ -284,6 +284,7 @@ class _FakeApi implements RemoteStorageGateway {
                 trashDirectoryName: '.trash',
                 trashRetentionDays: -1,
                 bucketSettings: <String, BucketSettings>{},
+                bucketViews: <String, BucketViewSettings>{},
                 writebackQuietSeconds: 10,
                 mountMetadataCacheSeconds: 60,
                 usePathStyle: true,

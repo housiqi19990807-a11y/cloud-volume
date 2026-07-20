@@ -1,13 +1,16 @@
-// 新增/编辑账号弹窗：两步式引导（选择接入协议 → 配置连接信息）。
+// 新增账号弹窗：三步式引导（协议 → 连接/OAuth → 桶列表显示）；编辑保持单页。
 // 子窗口模式（asDialog: false）返回裸内容并用 MeasureSize 按内容自适应窗口尺寸；
 // 默认应用内 ShadDialog；Debug 子窗口用 asDialog:false。编辑模式不走向导。
 // 字段构建与协议选择卡片在 part 文件 cloud_storage_account_dialog_steps.dart 中。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/cloud_storage_account_draft.dart';
+import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/services/desktop_sub_window_modal.dart';
 import 'package:remote_storage/services/app_modal.dart';
+import 'package:remote_storage/services/remote_storage_gateway.dart';
 import 'package:remote_storage/utils/account_config_builder.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/account_proxy_section.dart';
@@ -15,11 +18,14 @@ import 'package:remote_storage/widgets/baidu_pan_auth_section.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:remote_storage/widgets/measure_size.dart';
+import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 export 'package:remote_storage/models/cloud_storage_account_draft.dart';
 
 part 'cloud_storage_account_dialog_steps.dart';
+part 'cloud_storage_account_dialog_bucket_visibility.dart';
+part 'cloud_storage_account_dialog_bucket_loading.dart';
 
 /// 账号管理页使用的新增/编辑账号对话框。
 ///
@@ -30,6 +36,8 @@ class CloudStorageAccountDialog extends StatefulWidget {
     required this.onSave,
     required this.onStartBaiduPanAuthorization,
     required this.onAuthorizeBaiduPan,
+    required this.onListBuckets,
+    required this.api,
     this.initialConfig,
     this.editing = false,
     this.asDialog = true,
@@ -46,6 +54,9 @@ class CloudStorageAccountDialog extends StatefulWidget {
   final Future<String> Function() onStartBaiduPanAuthorization;
   final Future<RemoteStorageConfig> Function(String displayName, String code)
   onAuthorizeBaiduPan;
+  final Future<List<BucketInfo>> Function(RemoteStorageConfig config)
+  onListBuckets;
+  final RemoteStorageGateway api;
   final RemoteStorageConfig? initialConfig;
   final bool editing;
 
@@ -94,6 +105,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   bool _authorizingBaidu = false;
   bool _mappedBucketNameEdited = false;
   bool _usePathStyle = true;
+  List<BucketInfo> _availableBuckets = const [];
+  Map<String, BucketViewSettings> _bucketViews = <String, BucketViewSettings>{};
+  bool _loadingBuckets = false;
 
   // Wizard state — step 0 = protocol picker, step 1 = connection fields.
   int _step = 0;
@@ -116,6 +130,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _accessKeyController.text = config.accessKeyId;
     _webdavUsernameController.text = config.webdavUsername;
     _usePathStyle = config.usePathStyle;
+    _bucketViews = Map<String, BucketViewSettings>.from(config.bucketViews);
     _proxyMode = config.proxyMode;
     _proxyType = config.proxyType;
     _proxyHostController.text = config.proxyHost;
@@ -200,7 +215,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
 
   // -- Step navigation --------------------------------------------------------
 
-  void _next() {
+  Future<void> _next() async {
     if (_step < 1) {
       setState(() {
         _errorText = null;
@@ -208,7 +223,15 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       });
       return;
     }
-    _submit();
+    if (_step == 1) {
+      if (widget.editing) {
+        await _submit();
+      } else {
+        await _loadBucketsForVisibility();
+      }
+      return;
+    }
+    await _submit();
   }
 
   void _back() {
@@ -230,9 +253,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       if (!widget.asDialog) return _wrapMeasured(content);
       return ShadDialog(
         title: const Text('编辑账号'),
-        description: const Text(
-          '修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。',
-        ),
+        description: const Text('修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。'),
         constraints: const BoxConstraints(maxWidth: 640),
         scrollable: true,
         child: content,
@@ -301,12 +322,15 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   Widget _buildStepBody(ShadThemeData theme) {
     return switch (_step) {
       0 => stepProtocolPicker(theme: theme, self: this),
-      _ => stepConnectionFields(theme: theme, self: this),
+      1 => _loadingBuckets
+          ? const Center(child: CircularProgressIndicator())
+          : stepConnectionFields(theme: theme, self: this),
+      _ => stepBucketVisibility(theme: theme, self: this),
     };
   }
 
   Widget _buildNavButtons(ShadThemeData theme) {
-    final isLast = _step == 1;
+    final isLast = _step == 2;
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -331,7 +355,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
           const SizedBox(width: 10),
         ],
         ShadButton(
-          onPressed: _saving ? null : _next,
+          onPressed: _saving || _loadingBuckets ? null : _next,
           child: _saving
               ? const Text('保存中...')
               : Row(
@@ -377,28 +401,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       _saving = true;
       _errorText = null;
     });
-    final config = buildAccountConfig(
-      CloudStorageAccountDraft(
-        storageType: _storageType,
-        name: _nameController.text.trim(),
-        mappedBucketName: _mappedBucketNameController.text.trim(),
-        endpoint: _endpointController.text,
-        region: _regionController.text,
-        accessKey: _accessKeyController.text,
-        secretKey: _secretKeyController.text,
-        usePathStyle: _usePathStyle,
-        webdavUsername: _webdavUsernameController.text,
-        webdavPassword: _webdavPasswordController.text,
-        proxyMode: _proxyMode,
-        proxyType: _proxyType,
-        proxyHost: _proxyHostController.text.trim(),
-        proxyPort: _proxyPortController.text.trim(),
-        proxyUsername: _proxyUsernameController.text.trim(),
-        proxyPassword: _proxyPasswordController.text,
-      ),
-      existing: widget.initialConfig,
-      authorizedBaiduConfig: _authorizedBaiduConfig,
-    );
+    final config = _draftConfig();
     final saved = await widget.onSave(config);
     if (!mounted) return;
     if (saved) {
@@ -443,7 +446,11 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
           _nameController.text = config.displayName;
         }
       });
-      await _submit();
+      if (widget.editing) {
+        await _submit();
+      } else {
+        await _loadBucketsForVisibility();
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _baiduAuthErrorText = describeBridgeError(error));

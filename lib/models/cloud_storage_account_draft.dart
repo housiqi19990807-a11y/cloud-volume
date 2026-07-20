@@ -22,6 +22,7 @@ class CloudStorageAccountDraft {
     this.proxyPort = '',
     this.proxyUsername = '',
     this.proxyPassword = '',
+    this.bucketViews = const <String, BucketViewSettings>{},
   });
 
   final StorageType storageType;
@@ -40,4 +41,5 @@ class CloudStorageAccountDraft {
   final String proxyPort;
   final String proxyUsername;
   final String proxyPassword;
+  final Map<String, BucketViewSettings> bucketViews;
 }

@@ -17,12 +17,16 @@ extension _FileManagerPageSources on _FileManagerPageState {
         );
       }
       for (final bucket in buckets) {
+        final views = source.config.bucketViews;
+        final view = views[bucket.name];
+        if (views.isNotEmpty && view == null) continue;
         entries.add(
           FileManagerBucketEntry.fromBucketInfo(
             bucket: bucket,
             profileName: source.profileName,
             sourceLabel: source.sourceLabel,
             config: source.config,
+            view: view,
           ),
         );
       }
@@ -58,7 +62,7 @@ extension _FileManagerPageSources on _FileManagerPageState {
       if (leftSource != rightSource) {
         return leftSource.compareTo(rightSource);
       }
-      return left.bucket.name.compareTo(right.bucket.name);
+      return left.label.compareTo(right.label);
     });
     return entries;
   }

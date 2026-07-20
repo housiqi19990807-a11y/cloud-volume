@@ -10,6 +10,8 @@ class FileManagerBucketEntry {
     required this.profileName,
     required this.sourceLabel,
     required this.config,
+    this.displayName = '',
+    this.rootPrefix = '',
   });
 
   factory FileManagerBucketEntry.fromBucketInfo({
@@ -17,13 +19,22 @@ class FileManagerBucketEntry {
     required String profileName,
     required String sourceLabel,
     required RemoteStorageConfig config,
+    BucketViewSettings? view,
   }) {
+    final configuredPrefix = view?.rootPrefix.trim() ?? '';
+    final accountPrefix = config.rootPrefix.trim();
+    final effectivePrefix = <String>[
+      accountPrefix,
+      configuredPrefix,
+    ].where((part) => part.isNotEmpty).join('/');
     return FileManagerBucketEntry(
       id: '$profileName::${bucket.name}',
       bucket: bucket,
       profileName: profileName,
       sourceLabel: sourceLabel,
-      config: config,
+      config: config.copyWith(rootPrefix: effectivePrefix),
+      displayName: view?.displayName.trim() ?? '',
+      rootPrefix: configuredPrefix,
     );
   }
 
@@ -32,6 +43,10 @@ class FileManagerBucketEntry {
   final String profileName;
   final String sourceLabel;
   final RemoteStorageConfig config;
+  final String displayName;
+  final String rootPrefix;
+
+  String get label => displayName.isEmpty ? bucket.name : displayName;
 
   FileManagerBucketEntry withBucketInfo(BucketInfo value) {
     return FileManagerBucketEntry(
@@ -40,6 +55,8 @@ class FileManagerBucketEntry {
       profileName: profileName,
       sourceLabel: sourceLabel,
       config: config,
+      displayName: displayName,
+      rootPrefix: rootPrefix,
     );
   }
 }

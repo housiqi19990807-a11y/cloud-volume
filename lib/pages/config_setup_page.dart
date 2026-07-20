@@ -225,6 +225,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       trashDirectoryName: widget.initialState.config.trashDirectoryName,
       trashRetentionDays: widget.initialState.config.trashRetentionDays,
       bucketSettings: widget.initialState.config.bucketSettings,
+      bucketViews: widget.initialState.config.bucketViews,
       writebackQuietSeconds: widget.initialState.config.writebackQuietSeconds,
       mountMetadataCacheSeconds:
           widget.initialState.config.mountMetadataCacheSeconds,

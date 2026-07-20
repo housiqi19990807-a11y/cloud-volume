@@ -7,7 +7,7 @@ part of 'file_manager_page.dart';
 extension _FileManagerPageMount on _FileManagerPageState {
   void _showMountUnavailableMessage([FileManagerBucketEntry? bucket]) {
     final entry = bucket ?? _activeBucketEntry;
-    final bucketLabel = entry?.bucket.name.trim() ?? '';
+    final bucketLabel = entry?.label.trim() ?? '';
     final title = bucketLabel.isEmpty ? '挂载不可用' : '“$bucketLabel”暂时不能挂载';
     final message = !widget.api.capabilities.supportsMounts
         ? '当前运行环境暂不支持桌面挂载。'
@@ -154,13 +154,14 @@ extension _FileManagerPageMount on _FileManagerPageState {
       return;
     }
     final config = targetBucket.config;
-    final winFspInstalled = isWindowsPlatform &&
+    final winFspInstalled =
+        isWindowsPlatform &&
         widget.api is WindowsWinFspQuery &&
         await (widget.api as WindowsWinFspQuery).listWindowsWinFspAvailable();
     if (!mounted) return;
     final currentEngine = config.windowsMountEngine;
-    final winFspEnabled = isWindowsPlatform &&
-        currentEngine == WindowsMountEngine.winFsp;
+    final winFspEnabled =
+        isWindowsPlatform && currentEngine == WindowsMountEngine.winFsp;
     if (winFspEnabled && !winFspInstalled) {
       final shouldInstall = await showAppConfirmModal(
         context: context,
@@ -173,8 +174,8 @@ extension _FileManagerPageMount on _FileManagerPageState {
       );
       if (shouldInstall != true) return;
       try {
-        final installed =
-            await (widget.api as WindowsWinFspQuery).installWindowsWinFsp();
+        final installed = await (widget.api as WindowsWinFspQuery)
+            .installWindowsWinFsp();
         if (!mounted) return;
         if (!installed) {
           _showPageMessage(

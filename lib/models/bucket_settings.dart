@@ -90,3 +90,16 @@ class BucketSettings {
     );
   }
 }
+
+Map<String, BucketSettings> bucketSettingsMapFromJson(Object? value) {
+  if (value is! Map) return const <String, BucketSettings>{};
+  final result = <String, BucketSettings>{};
+  for (final entry in value.entries) {
+    final key = entry.key.toString().trim();
+    if (key.isEmpty || entry.value is! Map) continue;
+    result[key] = BucketSettings.fromJson(
+      Map<String, dynamic>.from(entry.value as Map),
+    );
+  }
+  return result;
+}

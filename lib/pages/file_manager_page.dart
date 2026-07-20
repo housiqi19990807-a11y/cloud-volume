@@ -284,7 +284,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         ],
         FileManagerBreadcrumbBar(
           theme: theme,
-          activeBucket: _activeBucket,
+          activeBucket: _activeBucketLabel,
           breadcrumbs: _breadcrumbs,
           onOpenBucketList: () => unawaited(_loadBuckets()),
           onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucketEntry!)),

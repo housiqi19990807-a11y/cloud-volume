@@ -116,7 +116,8 @@ class _RemoteDirectoryPickerDialogState
     if (widget.initial != null) {
       final init = widget.initial!;
       _activeBucket = widget.buckets.firstWhere(
-        (b) => b.bucket.name == init.bucket && b.profileName == init.profileName,
+        (b) =>
+            b.bucket.name == init.bucket && b.profileName == init.profileName,
         orElse: () => widget.buckets.first,
       );
       _prefix = init.prefix;
@@ -136,7 +137,7 @@ class _RemoteDirectoryPickerDialogState
   /// 面包屑路径段：桶名 + 当前目录层级。
   List<String> get _breadcrumbs {
     if (_activeBucket == null) return [];
-    final parts = <String>[_activeBucket!.bucket.name];
+    final parts = <String>[_activeBucket!.label];
     if (_prefix.isNotEmpty) {
       parts.addAll(_prefix.split('/').where((s) => s.isNotEmpty));
     }
@@ -223,9 +224,7 @@ class _RemoteDirectoryPickerDialogState
         children: [
           if (!widget.asDialog) ...[
             Text(
-              _activeBucket == null
-                  ? '选择一个存储桶进入。'
-                  : '浏览目录后点击「选择当前目录」确认。',
+              _activeBucket == null ? '选择一个存储桶进入。' : '浏览目录后点击「选择当前目录」确认。',
               style: TextStyle(
                 fontSize: 12,
                 color: theme.colorScheme.mutedForeground,
@@ -248,9 +247,7 @@ class _RemoteDirectoryPickerDialogState
     return ShadDialog(
       title: const Text('选择远端目录'),
       description: Text(
-        _activeBucket == null
-            ? '选择一个存储桶进入。'
-            : '浏览目录后点击「选择当前目录」确认。',
+        _activeBucket == null ? '选择一个存储桶进入。' : '浏览目录后点击「选择当前目录」确认。',
       ),
       constraints: const BoxConstraints(maxWidth: 640),
       child: body,
@@ -264,14 +261,16 @@ class _RemoteDirectoryPickerDialogState
     final crumbs = _breadcrumbs;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary,
-        ),
+      decoration: BoxDecoration(color: theme.colorScheme.secondary),
       child: Row(
         children: [
           for (int i = 0; i < crumbs.length; i++) ...[
             if (i > 0) ...[
-              Icon(LucideIcons.chevronRight, size: 12, color: theme.colorScheme.mutedForeground),
+              Icon(
+                LucideIcons.chevronRight,
+                size: 12,
+                color: theme.colorScheme.mutedForeground,
+              ),
               const SizedBox(width: 4),
             ],
             GestureDetector(
@@ -280,7 +279,9 @@ class _RemoteDirectoryPickerDialogState
                 crumbs[i],
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: i == crumbs.length - 1 ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: i == crumbs.length - 1
+                      ? FontWeight.w600
+                      : FontWeight.normal,
                   color: i == crumbs.length - 1
                       ? theme.colorScheme.foreground
                       : theme.colorScheme.primary,
@@ -305,9 +306,19 @@ class _RemoteDirectoryPickerDialogState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.alertCircle, size: 32, color: theme.colorScheme.destructive),
+            Icon(
+              LucideIcons.alertCircle,
+              size: 32,
+              color: theme.colorScheme.destructive,
+            ),
             const SizedBox(height: 8),
-            Text(_error!, style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground)),
+            Text(
+              _error!,
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.mutedForeground,
+              ),
+            ),
           ],
         ),
       );
@@ -320,7 +331,10 @@ class _RemoteDirectoryPickerDialogState
       return Center(
         child: Text(
           '没有可用的存储桶。',
-          style: TextStyle(fontSize: 12, color: theme.colorScheme.mutedForeground),
+          style: TextStyle(
+            fontSize: 12,
+            color: theme.colorScheme.mutedForeground,
+          ),
         ),
       );
     }
@@ -339,7 +353,7 @@ class _RemoteDirectoryPickerDialogState
         assetPath: 'assets/icons/whitesur/places/network-server-balanced.svg',
         size: 20,
       ),
-      title: entry.bucket.name,
+      title: entry.label,
       sizeLabel: entry.sourceLabel,
       onTap: () => _enterBucket(entry),
       showDivider: false,
@@ -358,7 +372,6 @@ class _RemoteDirectoryPickerDialogState
     _loadObjects();
   }
 
-  
   Widget _dirTile(ShadThemeData theme, ObjectInfo obj) {
     final isParent = obj.key == '../';
     final name = isParent ? '..' : obj.displayName;
@@ -367,8 +380,11 @@ class _RemoteDirectoryPickerDialogState
           ? SizedBox.square(
               dimension: 20,
               child: Center(
-                child: Icon(Icons.arrow_upward_rounded,
-                    size: 12, color: theme.colorScheme.primary),
+                child: Icon(
+                  Icons.arrow_upward_rounded,
+                  size: 12,
+                  color: theme.colorScheme.primary,
+                ),
               ),
             )
           : LocalCloudPanFileIcon(name: name, isDirectory: true, size: 20),
@@ -421,10 +437,7 @@ class _RemoteDirectoryPickerDialogState
         // 右侧：取消 / 选择当前目录。
         Row(
           children: [
-            ShadButton.outline(
-              onPressed: _cancel,
-              child: const Text('取消'),
-            ),
+            ShadButton.outline(onPressed: _cancel, child: const Text('取消')),
             const SizedBox(width: 8),
             ShadButton(
               onPressed: _activeBucket == null ? null : _confirm,

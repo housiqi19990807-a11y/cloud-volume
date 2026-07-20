@@ -91,11 +91,16 @@ func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {
 		cfg = storageconfig.ResolveProxyConfig(cfg, globalProxy)
 	}
 	normalized := cfg.Normalized()
+	var backend Backend
 	if normalized.StorageType == storageconfig.StorageTypeWebDAV {
-		return NewWebDAVBackend(normalized)
+		backend = NewWebDAVBackend(normalized)
+	} else if normalized.StorageType == storageconfig.StorageTypeBaiduPan {
+		backend = newBaiduPanBackend(normalized)
+	} else {
+		backend = s3Backend{cfg: normalized}
 	}
-	if normalized.StorageType == storageconfig.StorageTypeBaiduPan {
-		return newBaiduPanBackend(normalized)
+	if normalized.RootPrefix != "" {
+		return scopedBackend{Backend: backend, root: normalized.RootPrefix}
 	}
-	return s3Backend{cfg: normalized}
+	return backend
 }

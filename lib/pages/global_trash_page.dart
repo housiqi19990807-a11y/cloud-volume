@@ -110,6 +110,11 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       final buckets = await widget.api.listBuckets(widget.config);
       final bucketNames = buckets
           .map((bucket) => bucket.name)
+          .where(
+            (name) =>
+                widget.config.bucketViews.isEmpty ||
+                widget.config.bucketViews.containsKey(name),
+          )
           .where(widget.config.bucketTrashEnabled)
           .toList(growable: false);
       if (!mounted) {
@@ -171,7 +176,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
 
   Future<_BucketTrashLoadResult> _loadBucketFirstPage(String bucket) async {
     final page = await widget.api.listTrashPage(
-      widget.config,
+      _configForBucket(bucket),
       bucket,
       '',
       _pageSize,
@@ -183,6 +188,16 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
           .map((item) => GlobalTrashBrowserEntry(bucket: bucket, item: item))
           .toList(growable: false),
     );
+  }
+
+  RemoteStorageConfig _configForBucket(String bucket) {
+    final view = widget.config.bucketViews[bucket];
+    if (view == null || view.rootPrefix.trim().isEmpty) return widget.config;
+    final prefix = <String>[
+      widget.config.rootPrefix.trim(),
+      view.rootPrefix.trim(),
+    ].where((part) => part.isNotEmpty).join('/');
+    return widget.config.copyWith(rootPrefix: prefix);
   }
 
   Future<void> _switchBucket(String bucket) async {
@@ -252,7 +267,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     _loadingMore = true;
     try {
       final page = await widget.api.listTrashPage(
-        widget.config,
+        _configForBucket(bucket),
         bucket,
         _nextToken,
         _pageSize,
@@ -296,7 +311,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   Future<void> _restoreEntry(GlobalTrashBrowserEntry entry) async {
     await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.restoreTrashItem(
-        widget.config,
+        _configForBucket(entry.bucket),
         entry.bucket,
         entry.item.id,
       );
@@ -313,7 +328,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     }
     await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.deleteTrashItem(
-        widget.config,
+        _configForBucket(entry.bucket),
         entry.bucket,
         entry.item.id,
       );
@@ -331,7 +346,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     await _runBusy(targets, () async {
       for (final entry in targets) {
         await widget.api.restoreTrashItem(
-          widget.config,
+          _configForBucket(entry.bucket),
           entry.bucket,
           entry.item.id,
         );
@@ -363,7 +378,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     await _runBusy(targets, () async {
       for (final entry in targets) {
         await widget.api.deleteTrashItem(
-          widget.config,
+          _configForBucket(entry.bucket),
           entry.bucket,
           entry.item.id,
         );
@@ -390,7 +405,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       _selectedIds.clear();
     });
     try {
-      await widget.api.clearTrash(widget.config, bucket);
+      await widget.api.clearTrash(_configForBucket(bucket), bucket);
       if (!mounted) {
         return;
       }

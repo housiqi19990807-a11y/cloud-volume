@@ -5,6 +5,8 @@ part of 'file_manager_page.dart';
 extension _FileManagerPageDerivedState on _FileManagerPageState {
   String? get _activeBucket => _activeBucketEntry?.bucket.name;
 
+  String? get _activeBucketLabel => _activeBucketEntry?.label;
+
   String? get _activeBucketId => _activeBucketEntry?.id;
 
   RemoteStorageConfig get _activeConfig =>
@@ -28,7 +30,7 @@ extension _FileManagerPageDerivedState on _FileManagerPageState {
     return buckets
         .where(
           (bucket) =>
-              bucket.bucket.name.toLowerCase().contains(_searchText) ||
+              bucket.label.toLowerCase().contains(_searchText) ||
               bucket.sourceLabel.toLowerCase().contains(_searchText),
         )
         .toList(growable: false);
