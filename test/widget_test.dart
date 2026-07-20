@@ -90,20 +90,51 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
+    final s3Config = RemoteStorageConfig.empty().copyWith(
+      endpoint: 'https://s3.example.com',
+      displayName: 'S3 Account',
+      mappedBucketName: 'S3 Account',
+      accessKeyId: 's3-access',
+      secretAccessKey: 's3-secret',
+      hasSecretAccessKey: true,
+    );
+    final baiduConfig = RemoteStorageConfig.empty().copyWith(
+      endpoint: 'https://pan.baidu.com',
+      storageType: StorageType.baiduPan,
+      providerType: StorageProviderType.baiduPan,
+      displayName: '百度账号',
+      mappedBucketName: '百度网盘',
+      accessKeyId: 'baidu-access',
+      secretAccessKey: 'baidu-refresh',
+      hasSecretAccessKey: true,
+    );
     final api = _FakeApi(
       configured: true,
+      configOverride: s3Config,
       profiles: const <ProfileInfo>[
         ProfileInfo(
-          name: 'default',
-          displayName: 'Test Account',
+          name: 's3-profile',
+          displayName: 'S3 Account',
           storageType: StorageType.s3,
           providerType: StorageProviderType.s3,
           endpoint: 'https://s3.example.com',
-          accessKeyId: 'test-access',
+          accessKeyId: 's3-access',
           active: true,
         ),
+        ProfileInfo(
+          name: 'baidu-profile',
+          displayName: '百度账号',
+          storageType: StorageType.baiduPan,
+          providerType: StorageProviderType.baiduPan,
+          endpoint: 'https://pan.baidu.com',
+          accessKeyId: 'baidu-access',
+        ),
       ],
-      listBucketsError: true,
+      profileConfigs: <String, RemoteStorageConfig>{
+        's3-profile': s3Config,
+        'baidu-profile': baiduConfig,
+      },
+      failingStorageType: StorageType.baiduPan,
     );
 
     await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => api));
@@ -113,6 +144,7 @@ void main() {
     await tester.tap(find.text('重新配置认证信息'));
     await tester.pumpAndSettle();
     expect(find.text('编辑账号'), findsOneWidget);
+    expect(find.text('百度账号'), findsOneWidget);
     expect(find.text('添加存储账号'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -174,7 +206,8 @@ class _FakeApi implements RemoteStorageGateway {
     this.buckets = const <BucketInfo>[],
     this.quotaResult,
     this.profiles = const <ProfileInfo>[],
-    this.listBucketsError = false,
+    this.profileConfigs = const <String, RemoteStorageConfig>{},
+    this.failingStorageType,
   });
 
   final bool configured;
@@ -182,7 +215,8 @@ class _FakeApi implements RemoteStorageGateway {
   final List<BucketInfo> buckets;
   final Future<BucketInfo>? quotaResult;
   final List<ProfileInfo> profiles;
-  final bool listBucketsError;
+  final Map<String, RemoteStorageConfig> profileConfigs;
+  final StorageType? failingStorageType;
   int quotaRequestCount = 0;
 
   @override
@@ -314,7 +348,9 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
-    if (listBucketsError) throw StateError('bucket listing failed');
+    if (config.storageType == failingStorageType) {
+      throw StateError('bucket listing failed');
+    }
     return buckets;
   }
 
@@ -602,7 +638,7 @@ class _FakeApi implements RemoteStorageGateway {
 
   @override
   Future<RemoteStorageConfig> loadProfile(String name) async =>
-      configOverride ?? RemoteStorageConfig.empty();
+      profileConfigs[name] ?? configOverride ?? RemoteStorageConfig.empty();
 
   @override
   Future<List<ProfileInfo>> listProfiles() async => [];

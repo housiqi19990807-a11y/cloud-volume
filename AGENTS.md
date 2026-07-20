@@ -404,7 +404,8 @@ Lists configured storage accounts and lets users add, edit, or remove them. **De
 **Default modal path:**
 - `lib/services/account_editor_presenter.dart` — Single presentation entry for account add/edit: opens the debug sub-window only when `preferModalSubWindows` allows it; otherwise uses `showAppModal` + `CloudStorageAccountDialog(asDialog: true)`.
 - `lib/pages/cloud_storage_page.dart` — Account management delegates add/edit presentation to `account_editor_presenter.dart`.
-- `lib/pages/file_manager_page_account_editor.dart` — Bucket-list authentication recovery delegates to the same account editor presenter, so it never enters the first-run setup page.
+- `lib/pages/file_manager_page_sources.dart` / `file_manager_page_bucket_loading.dart` — Source failures carry their exact `profileName`; only the newest load generation may publish an error, preventing overlapping startup reloads from replacing the failed-account target with the active/first account.
+- `lib/pages/file_manager_page_account_editor.dart` — Bucket-list authentication recovery uses that failed profile and delegates to the same account editor presenter, so it never enters the first-run setup page or edits an unrelated account.
 - `lib/widgets/cloud_storage_account_dialog.dart` — Wizard/edit UI; dual-mode `asDialog` (default true).
 - `lib/widgets/cloud_storage_account_dialog_steps.dart` — `stepProtocolPicker` / `stepConnectionFields` + protocol field builders.
 - `lib/models/cloud_storage_account_draft.dart` / `lib/utils/account_config_builder.dart` / `lib/utils/account_profile_name.dart` — Draft, config build, profile key.

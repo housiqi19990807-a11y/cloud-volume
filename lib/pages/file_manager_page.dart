@@ -55,6 +55,7 @@ part 'file_manager_page_actions.dart';
 part 'file_manager_page_account_editor.dart';
 part 'file_manager_page_access.dart';
 part 'file_manager_page_bucket_policy.dart';
+part 'file_manager_page_bucket_loading.dart';
 part 'file_manager_page_bucket_view.dart';
 part 'file_manager_page_mount.dart';
 part 'file_manager_page_object_loading.dart';
@@ -191,54 +192,6 @@ class _FileManagerPageState extends State<FileManagerPage> {
     final pending = widget.pendingSyncRemoteOpen;
     if (pending != null && pending != oldWidget.pendingSyncRemoteOpen) {
       schedulePendingSyncRemoteOpen(pending);
-    }
-  }
-
-  Future<bool> _loadBuckets() async {
-    final quotaGeneration = ++_bucketQuotaRefreshGeneration;
-    _failedBucketProfileName = null;
-    _beginLoading(message: '加载存储桶...');
-    try {
-      final bucketEntries = await _loadBucketEntries();
-      if (!mounted) return false;
-      setState(() {
-        _objectListingCache.clear();
-        _buckets = bucketEntries;
-        _activeBucketEntry = null;
-        _objects = null;
-        _trashItems = null;
-        _prefix = '';
-        _breadcrumbs = [];
-        _showTrash = false;
-        _objectsNextToken = '';
-        _objectsHasMore = false;
-        _pagingObjects = false;
-        _directoryAccess = null;
-        _checkingDirectoryAccess = false;
-        _trashNextToken = '';
-        _trashHasMore = false;
-        _pagingTrash = false;
-        _bucketMountStatuses.clear();
-        _mountBusyBuckets.clear();
-        _selectedObjectKeys.clear();
-        _deletingObjectKeys.clear();
-        _endLoading();
-      });
-      if (_contentScrollController.hasClients) {
-        _contentScrollController.jumpTo(0);
-      }
-      if (bucketEntries.isNotEmpty) {
-        unawaited(_refreshBucketMountStatuses(bucketEntries));
-        _scheduleBucketQuotaRefresh(bucketEntries, quotaGeneration);
-      }
-      return true;
-    } catch (e) {
-      if (!mounted) return false;
-      setState(() {
-        _error = describeBridgeError(e);
-        _endLoading();
-      });
-      return false;
     }
   }
 

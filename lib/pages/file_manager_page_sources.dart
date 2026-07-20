@@ -10,9 +10,11 @@ extension _FileManagerPageSources on _FileManagerPageState {
       final List<BucketInfo> buckets;
       try {
         buckets = await widget.api.listBuckets(source.config);
-      } catch (_) {
-        _failedBucketProfileName = source.profileName;
-        rethrow;
+      } catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          _BucketSourceLoadException(source.profileName, error),
+          stackTrace,
+        );
       }
       for (final bucket in buckets) {
         entries.add(
@@ -80,9 +82,11 @@ extension _FileManagerPageSources on _FileManagerPageState {
             sourceLabel: _sourceLabelForConfig(config),
             config: config,
           );
-        } catch (_) {
-          _failedBucketProfileName = profile.name;
-          rethrow;
+        } catch (error, stackTrace) {
+          Error.throwWithStackTrace(
+            _BucketSourceLoadException(profile.name, error),
+            stackTrace,
+          );
         }
       }),
     );
@@ -99,6 +103,16 @@ extension _FileManagerPageSources on _FileManagerPageState {
         : config.accessKeyId.trim();
     return name.isEmpty ? '账号' : name;
   }
+}
+
+class _BucketSourceLoadException implements Exception {
+  const _BucketSourceLoadException(this.profileName, this.cause);
+
+  final String profileName;
+  final Object cause;
+
+  @override
+  String toString() => cause.toString();
 }
 
 class _BucketSourceConfig {
