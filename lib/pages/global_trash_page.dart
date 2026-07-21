@@ -3,8 +3,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/services/bucket_source_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
@@ -18,10 +21,16 @@ part 'global_trash_page_support.dart';
 part 'global_trash_page_view.dart';
 
 class GlobalTrashPage extends StatefulWidget {
-  const GlobalTrashPage({super.key, required this.api, required this.config});
+  const GlobalTrashPage({
+    super.key,
+    required this.api,
+    required this.config,
+    required this.profiles,
+  });
 
   final RemoteStorageGateway api;
   final RemoteStorageConfig config;
+  final List<ProfileInfo> profiles;
 
   @override
   State<GlobalTrashPage> createState() => _GlobalTrashPageState();
@@ -57,7 +66,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   @override
   void didUpdateWidget(covariant GlobalTrashPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.config != widget.config) {
+    if (oldWidget.config != widget.config ||
+        oldWidget.profiles != widget.profiles) {
       unawaited(_loadInitialBucket());
     }
   }
@@ -103,24 +113,36 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       _entries = const <GlobalTrashBrowserEntry>[];
       _bucketOptions = const <String>[];
       _activeBucket = null;
+      _activeBucketConfig = null;
+      _activeBucketProfile = null;
       _nextToken = '';
       _hasMore = false;
     });
     try {
-      final buckets = await widget.api.listBuckets(widget.config);
-      final bucketNames = buckets
-          .map((bucket) => bucket.name)
-          .where(
-            (name) =>
-                widget.config.bucketViews.isEmpty ||
-                widget.config.bucketViews.containsKey(name),
-          )
-          .where(widget.config.bucketTrashEnabled)
+      // Use the shared aggregation service so the trash page sees the exact
+      // same bucket set as the file-manager home (all accounts, same
+      // allowlist + ordering). Each entry already carries the account config
+      // and effective root prefix to use for trash calls.
+      final entries = await BucketSourceService.instance.loadEntries(
+        widget.api,
+        widget.profiles,
+        fallbackConfig: widget.config,
+      );
+      final trashEntries = entries
+          .where((entry) => entry.config.bucketTrashEnabled(entry.bucket.name))
           .toList(growable: false);
+      // Remember the lookup so _loadBucketFirstPage / _reloadBucket can find
+      // the right account config without re-resolving every page.
+      _bucketEntryById
+        ..clear()
+        ..addAll({for (final entry in trashEntries) entry.id: entry});
+      final bucketIds = trashEntries.map((entry) => entry.id).toList(
+        growable: false,
+      );
       if (!mounted) {
         return;
       }
-      if (bucketNames.isEmpty) {
+      if (bucketIds.isEmpty) {
         setState(() {
           _bucketOptions = const <String>[];
           _loading = false;
@@ -129,17 +151,17 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       }
 
       final preferred =
-          previousBucket != null && bucketNames.contains(previousBucket)
+          previousBucket != null && bucketIds.contains(previousBucket)
           ? previousBucket
           : null;
       final resolved = preferred != null
           ? await _loadBucketFirstPage(preferred)
-          : await _findFirstBucketWithEntries(bucketNames);
+          : await _findFirstBucketWithEntries(bucketIds);
       if (!mounted) {
         return;
       }
       setState(() {
-        _bucketOptions = bucketNames;
+        _bucketOptions = bucketIds;
         _activeBucket = resolved.bucket;
         _entries = resolved.entries;
         _nextToken = resolved.page.nextToken;
@@ -175,9 +197,18 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   }
 
   Future<_BucketTrashLoadResult> _loadBucketFirstPage(String bucket) async {
+    // bucket here is the FileManagerBucketEntry.id (profileName::bucket).
+    // The entry's config already has the effective root prefix merged in, so
+    // we can pass it straight to listTrashPage without re-deriving prefixes.
+    final entry = _bucketEntryById[bucket];
+    final config = entry?.config ?? _activeConfig;
+    if (entry != null) {
+      _activeBucketConfig = entry.config;
+      _activeBucketProfile = entry.profileName;
+    }
     final page = await widget.api.listTrashPage(
-      _configForBucket(bucket),
-      bucket,
+      config,
+      entry?.bucket.name ?? bucket,
       '',
       _pageSize,
     );
@@ -190,14 +221,30 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     );
   }
 
-  RemoteStorageConfig _configForBucket(String bucket) {
-    final view = widget.config.bucketViews[bucket];
-    if (view == null || view.rootPrefix.trim().isEmpty) return widget.config;
-    final prefix = <String>[
-      widget.config.rootPrefix.trim(),
-      view.rootPrefix.trim(),
-    ].where((part) => part.isNotEmpty).join('/');
-    return widget.config.copyWith(rootPrefix: prefix);
+  final Map<String, FileManagerBucketEntry> _bucketEntryById = {};
+  RemoteStorageConfig? _activeBucketConfig;
+  // ignore: unused_field
+  String? _activeBucketProfile;
+
+  /// Resolves the [RemoteStorageConfig] that should be used for trash calls
+  /// on the currently active bucket. Falls back to the active account config
+  /// when the bucket has not been resolved yet (e.g. before the first load).
+  RemoteStorageConfig get _activeConfig =>
+      _activeBucketConfig ?? widget.config;
+
+  /// Resolves the [RemoteStorageConfig] for a trash entry or active-bucket id.
+  /// [bucketId] is the FileManagerBucketEntry id (`profileName::bucket`).
+  /// Returns the cached active config when the id is unknown (e.g. entries
+  /// from a previous load before a profile was renamed).
+  RemoteStorageConfig _configForBucketId(String bucketId) {
+    return _bucketEntryById[bucketId]?.config ?? _activeConfig;
+  }
+
+  /// Returns the real provider bucket name for a trash entry / active-bucket
+  /// id. Falls back to the id itself when the entry is no longer cached so
+  /// the call still goes through with a best-effort name.
+  String _providerBucketName(String bucketId) {
+    return _bucketEntryById[bucketId]?.bucket.name ?? bucketId;
   }
 
   Future<void> _switchBucket(String bucket) async {
@@ -266,9 +313,10 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     }
     _loadingMore = true;
     try {
+      final entry = _bucketEntryById[bucket];
       final page = await widget.api.listTrashPage(
-        _configForBucket(bucket),
-        bucket,
+        entry?.config ?? _activeConfig,
+        entry?.bucket.name ?? bucket,
         _nextToken,
         _pageSize,
       );
@@ -311,11 +359,14 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   Future<void> _restoreEntry(GlobalTrashBrowserEntry entry) async {
     await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.restoreTrashItem(
-        _configForBucket(entry.bucket),
-        entry.bucket,
+        _configForBucketId(entry.bucket),
+        _providerBucketName(entry.bucket),
         entry.item.id,
       );
-      ObjectListingNotifier.instance.markRestored(entry.bucket, [entry.item]);
+      ObjectListingNotifier.instance.markRestored(
+        _providerBucketName(entry.bucket),
+        [entry.item],
+      );
       await _reloadBucket(entry.bucket, resetScroll: false);
       _showPageSnack('已恢复 ${entry.item.name}');
     });
@@ -328,8 +379,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     }
     await _runBusy(<GlobalTrashBrowserEntry>[entry], () async {
       await widget.api.deleteTrashItem(
-        _configForBucket(entry.bucket),
-        entry.bucket,
+        _configForBucketId(entry.bucket),
+        _providerBucketName(entry.bucket),
         entry.item.id,
       );
       await _reloadBucket(entry.bucket, resetScroll: false);
@@ -346,14 +397,14 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     await _runBusy(targets, () async {
       for (final entry in targets) {
         await widget.api.restoreTrashItem(
-          _configForBucket(entry.bucket),
-          entry.bucket,
+          _configForBucketId(entry.bucket),
+          _providerBucketName(entry.bucket),
           entry.item.id,
         );
       }
       if (targets.isNotEmpty) {
         ObjectListingNotifier.instance.markRestored(
-          targets.first.bucket,
+          _providerBucketName(targets.first.bucket),
           targets.map((entry) => entry.item),
         );
       }
@@ -378,8 +429,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     await _runBusy(targets, () async {
       for (final entry in targets) {
         await widget.api.deleteTrashItem(
-          _configForBucket(entry.bucket),
-          entry.bucket,
+          _configForBucketId(entry.bucket),
+          _providerBucketName(entry.bucket),
           entry.item.id,
         );
       }
@@ -394,7 +445,11 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     if (bucket == null || _entries.isEmpty) {
       return;
     }
-    final confirmed = await showClearTrashDialog(context, bucket);
+    // Display the friendly bucket label in the confirmation dialog rather
+    // than the raw `profile::bucket` id used internally.
+    final label =
+        _bucketEntryById[bucket]?.label ?? _providerBucketName(bucket);
+    final confirmed = await showClearTrashDialog(context, label);
     if (!confirmed) {
       return;
     }
@@ -405,7 +460,10 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       _selectedIds.clear();
     });
     try {
-      await widget.api.clearTrash(_configForBucket(bucket), bucket);
+      await widget.api.clearTrash(
+        _configForBucketId(bucket),
+        _providerBucketName(bucket),
+      );
       if (!mounted) {
         return;
       }

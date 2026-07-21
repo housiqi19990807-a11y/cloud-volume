@@ -50,6 +50,7 @@ import 'package:remote_storage/utils/file_preview_type.dart';
 import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/app_modal.dart';
+import 'package:remote_storage/services/bucket_source_service.dart';
 
 part 'file_manager_page_actions.dart';
 part 'file_manager_page_account_editor.dart';

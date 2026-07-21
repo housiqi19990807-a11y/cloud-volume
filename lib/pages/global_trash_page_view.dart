@@ -136,6 +136,10 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
       loadingMore: _loadingMore,
       selectedIds: _selectedIds,
       busyIds: _busyEntries,
+      // With multi-account aggregation the bucket id is `profile::bucket`,
+      // which is not useful to display as a raw column. Hide the per-entry
+      // bucket column in the global trash page (the bucket filter dropdown
+      // above already lets users switch buckets).
       showBucketColumn: false,
       onToggleSelection: _toggleSelection,
       onToggleSelectAll: _toggleSelectAllFiltered,
