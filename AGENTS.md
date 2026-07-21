@@ -945,7 +945,7 @@ All list-style pages (任务队列 / 分享管理 / 回收站 / 文件同步 / �
 - `lib/widgets/transfer_task_widgets.dart` — `TransferTaskSelectionActions` now wraps `PageHeaderActions`. Primary: 已选 N 项 badge + 批量开始 + 批量取消. Secondary: 移除记录 / 清空选择 / 清空已完成 (new `onClearFinished` + `finishedCount` params moved from the page-level standalone button).
 - `lib/pages/transfers_page.dart` — header `Row` simplified: `Flexible` title column + single `TransferTaskSelectionActions` (no separate 清空已完成 button). Subtitle gained `maxLines: 2`.
 - `lib/pages/share_management_page.dart` — header rebuilt via `PageHeaderActions`. Selected: primary 已选 N 项 + 删除选中; secondary 取消选择. Unselected: primary 刷新.
-- `lib/widgets/global_trash_controls.dart` — `GlobalTrashHeaderActions` now wraps `PageHeaderActions`. Selected: primary badge + 批量恢复 + 批量彻底删除; secondary 清空选择. Unselected: primary 刷新; secondary 清空回收站.
+- `lib/widgets/global_trash_controls.dart` — `GlobalTrashHeaderActions` wraps `PageHeaderActions`. Selected: only the 已选 N 项 badge + 批量恢复 + 批量彻底删除; there is no header-level 清空选择 action, and users deselect through the row/header checkboxes. Unselected: primary 刷新; secondary 清空回收站.
 - `lib/pages/global_trash_page_view.dart`, `lib/pages/file_sync_tasks_page.dart`, `lib/pages/cloud_storage_page.dart` — title column switched `Expanded` → `Flexible(fit: FlexFit.tight)`; subtitle gained `maxLines: 2, overflow: ellipsis` as a hard floor.
 
 #### Gotchas

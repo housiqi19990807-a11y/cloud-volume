@@ -106,7 +106,6 @@ class GlobalTrashHeaderActions extends StatelessWidget {
     required this.onRestoreSelected,
     required this.onDeleteSelected,
     required this.onClearTrash,
-    required this.onClearSelection,
   });
 
   final int selectedCount;
@@ -115,7 +114,6 @@ class GlobalTrashHeaderActions extends StatelessWidget {
   final VoidCallback onRestoreSelected;
   final VoidCallback onDeleteSelected;
   final VoidCallback? onClearTrash;
-  final VoidCallback onClearSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +143,7 @@ class GlobalTrashHeaderActions extends StatelessWidget {
       );
     }
 
-    // 选中：徽标 + 批量恢复 + 批量彻底删除为主操作，清空选择为次操作。
+    // 选中后只保留批量操作；用户仍可通过列表复选框取消选择。
     return PageHeaderActions(
       primary: [
         Container(
@@ -172,18 +170,6 @@ class GlobalTrashHeaderActions extends StatelessWidget {
           size: ShadButtonSize.sm,
           onPressed: hasSelection ? onDeleteSelected : null,
           child: const Text('批量彻底删除'),
-        ),
-      ],
-      secondary: [
-        SecondaryAction(
-          label: '清空选择',
-          onPressed: hasSelection ? onClearSelection : null,
-          enabled: hasSelection,
-          builder: (_) => ShadButton.ghost(
-            size: ShadButtonSize.sm,
-            onPressed: hasSelection ? onClearSelection : null,
-            child: const Text('清空选择'),
-          ),
         ),
       ],
     );

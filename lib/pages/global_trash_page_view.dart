@@ -40,33 +40,32 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-              child: Text(
-                '回收站',
-                style: theme.textTheme.h3.copyWith(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 22,
+                child: Text(
+                  '回收站',
+                  style: theme.textTheme.h3.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 22,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            // 操作区按内容宽度布局，上限 360px（与 PageHeaderActions 阈值相等）。
-            // Expanded 标题吃掉剩余空间，操作区贴右；窄窗口时操作区拿到的宽度
-            // < 360，内层 LayoutBuilder 触发折叠成「…」菜单。
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: GlobalTrashHeaderActions(
-                selectedCount: selectedFilteredCount,
-                loading: _loading,
-                onRefresh: () => unawaited(_loadInitialBucket()),
-                onRestoreSelected: () => unawaited(_restoreSelected()),
-                onDeleteSelected: () => unawaited(_deleteSelected()),
-                onClearTrash:
-                    _activeBucket == null || _entries.isEmpty || _loading
-                    ? null
-                    : () => unawaited(_clearActiveBucketTrash()),
-                onClearSelection: () => setState(() => _selectedIds.clear()),
+              const SizedBox(width: 16),
+              // 操作区按内容宽度布局，上限 360px（与 PageHeaderActions 阈值相等）。
+              // Expanded 标题吃掉剩余空间，操作区贴右；窄窗口时操作区拿到的宽度
+              // < 360，内层 LayoutBuilder 触发折叠成「…」菜单。
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: GlobalTrashHeaderActions(
+                  selectedCount: selectedFilteredCount,
+                  loading: _loading,
+                  onRefresh: () => unawaited(_loadInitialBucket()),
+                  onRestoreSelected: () => unawaited(_restoreSelected()),
+                  onDeleteSelected: () => unawaited(_deleteSelected()),
+                  onClearTrash:
+                      _activeBucket == null || _entries.isEmpty || _loading
+                      ? null
+                      : () => unawaited(_clearActiveBucketTrash()),
+                ),
               ),
-            ),
             ],
           ),
           const SizedBox(height: 16),
