@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -114,12 +115,17 @@ func isRootTrashKey(cfg storageconfig.RemoteStorageConfig, key string) bool {
 	if trimmed == "" {
 		return false
 	}
-	index := strings.Index(trimmed, "/")
-	if index >= 0 {
-		trimmed = trimmed[:index]
+	// Root listings after scopedBackend.unscopedKey strip the view root, so
+	// the recycle bin shows up as its leaf name (e.g. ".trash"). Match both
+	// the leaf and the fully-resolved path so nested recycle bins stay
+	// hidden whether the caller is scoped or not.
+	leaf := trimmed
+	if index := strings.Index(trimmed, "/"); index >= 0 {
+		leaf = trimmed[:index]
 	}
-	for _, alias := range storageconfig.TrashDirectoryAliases(cfg.TrashDirectoryName) {
-		if trimmed == strings.Trim(strings.TrimSpace(alias), "/") {
+	for _, alias := range trashDirectoryAliasesForConfig(cfg) {
+		root := strings.Trim(strings.TrimSpace(alias), "/")
+		if trimmed == root || leaf == path.Base(root) {
 			return true
 		}
 	}

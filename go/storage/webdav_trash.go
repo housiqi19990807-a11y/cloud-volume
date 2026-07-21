@@ -242,7 +242,9 @@ func (b webDAVBackend) deletePath(ctx context.Context, key string) error {
 }
 
 func (b webDAVBackend) ensureTrashLayout(ctx context.Context, cfg storageconfig.RemoteStorageConfig) error {
-	if err := b.ensureDirectoryPath(ctx, cleanRemotePath(cfg.TrashDirectoryName)); err != nil {
+	// Create the full nested path (including RootPrefix when set) so a
+	// subdirectory view's recycle bin exists before the first soft-delete.
+	if err := b.ensureDirectoryPath(ctx, cleanRemotePath(webDAVTrashPrefix(cfg))); err != nil {
 		return err
 	}
 	if err := b.ensureDirectoryPath(ctx, cleanRemotePath(webDAVTrashObjectsPrefix(cfg))); err != nil {
@@ -330,8 +332,19 @@ func (b webDAVBackend) trashPayloadMetrics(
 	return info.Size, 1
 }
 
+// webDAVTrashPrefix returns the WebDAV recycle-bin root. When RootPrefix is
+// set the trash directory is nested under that view root so subdirectory
+// views each get an independent recycle bin.
 func webDAVTrashPrefix(cfg storageconfig.RemoteStorageConfig) string {
-	return ensureRemoteDirSuffix(cleanRemotePath(cfg.TrashDirectoryName))
+	name := cleanRemotePath(cfg.TrashDirectoryName)
+	if name == "" || name == "." {
+		name = ".trash"
+	}
+	root := cleanRemotePath(cfg.RootPrefix)
+	if root != "" && root != "." {
+		name = root + "/" + name
+	}
+	return ensureRemoteDirSuffix(name)
 }
 
 func webDAVTrashObjectsPrefix(cfg storageconfig.RemoteStorageConfig) string {
@@ -362,7 +375,7 @@ func webDAVIsTrashKey(cfg storageconfig.RemoteStorageConfig, key string) bool {
 	if trimmed == "" {
 		return false
 	}
-	for _, alias := range storageconfig.TrashDirectoryAliases(cfg.TrashDirectoryName) {
+	for _, alias := range webDAVTrashDirectoryAliases(cfg) {
 		root := strings.Trim(strings.TrimSpace(alias), "/")
 		if trimmed == root || strings.HasPrefix(trimmed, root+"/") {
 			return true
@@ -373,12 +386,30 @@ func webDAVIsTrashKey(cfg storageconfig.RemoteStorageConfig, key string) bool {
 
 func webDAVIsTrashRootEntry(cfg storageconfig.RemoteStorageConfig, key string) bool {
 	trimmed := strings.Trim(strings.TrimSpace(key), "/")
-	for _, alias := range storageconfig.TrashDirectoryAliases(cfg.TrashDirectoryName) {
-		if trimmed == strings.Trim(strings.TrimSpace(alias), "/") {
+	// Root listing entries are view-relative after any outer scoping, so the
+	// trash directory appears as its leaf name (e.g. ".trash"). Also accept
+	// the fully-resolved path for unscoped callers.
+	for _, alias := range webDAVTrashDirectoryAliases(cfg) {
+		root := strings.Trim(strings.TrimSpace(alias), "/")
+		if trimmed == root || trimmed == path.Base(root) {
 			return true
 		}
 	}
 	return false
+}
+
+// webDAVTrashDirectoryAliases returns reserved trash roots for this config,
+// including any RootPrefix so nested recycle bins stay hidden.
+func webDAVTrashDirectoryAliases(cfg storageconfig.RemoteStorageConfig) []string {
+	name := strings.Trim(strings.TrimSpace(cfg.TrashDirectoryName), "/")
+	if name == "" {
+		name = ".trash"
+	}
+	root := strings.Trim(strings.TrimSpace(cfg.RootPrefix), "/")
+	if root != "" {
+		name = root + "/" + name
+	}
+	return storageconfig.TrashDirectoryAliases(name)
 }
 
 func trashItemFromWebDAVMetadata(metadata webDAVTrashMetadata) TrashItem {

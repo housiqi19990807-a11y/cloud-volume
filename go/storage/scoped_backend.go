@@ -133,6 +133,10 @@ func (b scopedBackend) StreamObjectToHTTP(ctx context.Context, bucket, key strin
 }
 
 func (b scopedBackend) ListTrashPage(ctx context.Context, bucket, token string, size int32) (TrashPage, error) {
+	// Trash is already nested under the view root (see trashPrefix /
+	// webDAVTrashPrefix), so the underlying backend returns only this view's
+	// recycle bin. Rewrite OriginalKey from provider-absolute form back to
+	// view-relative form for the UI without re-filtering by root.
 	page, err := b.Backend.ListTrashPage(ctx, bucket, token, size)
 	if err != nil {
 		return page, err
@@ -143,29 +147,25 @@ func (b scopedBackend) ListTrashPage(ctx context.Context, bucket, token string, 
 	items := make([]TrashItem, 0, len(page.Items))
 	root := strings.Trim(b.root, "/") + "/"
 	for _, item := range page.Items {
-		// Trash is stored under the provider's global trash directory, but the
-		// scoped view only shows entries that lived under the view's root, and
-		// exposes their OriginalKey relative to that root.
-		if strings.HasPrefix(strings.TrimLeft(item.OriginalKey, "/"), root) {
-			item.OriginalKey = strings.TrimPrefix(strings.TrimLeft(item.OriginalKey, "/"), root)
-			items = append(items, item)
+		original := strings.TrimLeft(item.OriginalKey, "/")
+		if strings.HasPrefix(original, root) {
+			item.OriginalKey = strings.TrimPrefix(original, root)
 		}
+		items = append(items, item)
 	}
 	page.Items = items
 	return page, nil
 }
 
-// RestoreTrashItem translates the scoped (view-relative) identity back to the
-// provider's scoped identity before delegating. Trash is stored under the
-// provider's global trash directory with OriginalKey recorded relative to the
-// view root, so restore must hand the underlying backend the same trashID plus
-// the provider-scoped root it expects.
+// RestoreTrashItem delegates the original trashID. The underlying backend
+// already stores fully-scoped OriginalKey / TrashKey under the view-rooted
+// recycle bin, so no further translation is required here.
 func (b scopedBackend) RestoreTrashItem(ctx context.Context, bucket, id string) error {
 	return b.Backend.RestoreTrashItem(ctx, bucket, id)
 }
 
-// DeleteTrashItem mirrors RestoreTrashItem: trashIDs are provider-scoped, so
-// delegation is direct and only the listing path strips the root prefix.
+// DeleteTrashItem mirrors RestoreTrashItem: trashIDs are provider-scoped under
+// the view-rooted recycle bin, so delegation is direct.
 func (b scopedBackend) DeleteTrashItem(ctx context.Context, bucket, id string) error {
 	return b.Backend.DeleteTrashItem(ctx, bucket, id)
 }

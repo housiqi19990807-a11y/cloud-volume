@@ -14,10 +14,28 @@ func (a *bucketAccess) isTrashPath(virtualPath string) bool {
 	if clean == "" {
 		return false
 	}
-	for _, trashName := range storageconfig.TrashDirectoryAliases(a.config.TrashDirectoryName) {
+	// Match against aliases that already include RootPrefix when the account
+	// is scoped to a subdirectory, so nested recycle bins stay hidden from
+	// Finder/Explorer.
+	name := strings.Trim(strings.TrimSpace(a.config.TrashDirectoryName), "/")
+	if name == "" {
+		name = ".trash"
+	}
+	root := strings.Trim(strings.TrimSpace(a.config.RootPrefix), "/")
+	// Mount virtual paths are view-relative when RootPrefix is owned by the
+	// mount layer (RootPrefix is cleared before ForConfig). Prefer the leaf
+	// trash name for virtual-path checks; also accept the fully-resolved
+	// provider path in case a raw key slips through.
+	for _, trashName := range storageconfig.TrashDirectoryAliases(name) {
 		trimmed := strings.Trim(strings.TrimSpace(trashName), "/")
 		if clean == trimmed || strings.HasPrefix(clean, trimmed+"/") {
 			return true
+		}
+		if root != "" {
+			full := root + "/" + trimmed
+			if clean == full || strings.HasPrefix(clean, full+"/") {
+				return true
+			}
 		}
 	}
 	return false

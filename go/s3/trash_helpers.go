@@ -24,10 +24,19 @@ type trashMetadata struct {
 	ObjectCount int    `json:"objectCount"`
 }
 
+// trashPrefix returns the provider key prefix for this config's recycle bin.
+// When RootPrefix is set (bucket-view subdirectory), trash lives under that
+// view root so each subdirectory view owns an independent recycle bin:
+//   <rootPrefix>/.trash/...
+// rather than a single bucket-root .trash shared by every view.
 func trashPrefix(cfg storageconfig.RemoteStorageConfig) string {
 	name := strings.Trim(strings.TrimSpace(cfg.TrashDirectoryName), "/")
 	if name == "" {
 		name = ".trash"
+	}
+	root := strings.Trim(strings.TrimSpace(cfg.RootPrefix), "/")
+	if root != "" {
+		name = root + "/" + name
 	}
 	return ensureRemoteDirSuffix(name)
 }
@@ -111,13 +120,31 @@ func isTrashKey(cfg storageconfig.RemoteStorageConfig, key string) bool {
 	if trimmed == "" {
 		return false
 	}
-	for _, alias := range storageconfig.TrashDirectoryAliases(cfg.TrashDirectoryName) {
+	// Match against the fully-resolved trash roots (including RootPrefix) so a
+	// nested recycle bin like archive/2026/.trash is recognised as trash, not
+	// as a normal directory under the view root.
+	for _, alias := range trashDirectoryAliasesForConfig(cfg) {
 		prefix := strings.Trim(strings.TrimSpace(alias), "/")
 		if trimmed == prefix || strings.HasPrefix(trimmed, prefix+"/") {
 			return true
 		}
 	}
 	return false
+}
+
+// trashDirectoryAliasesForConfig returns the reserved trash roots for this
+// config, including any account/bucket-view RootPrefix so nested recycle bins
+// stay hidden from normal listings and skip re-trash protection.
+func trashDirectoryAliasesForConfig(cfg storageconfig.RemoteStorageConfig) []string {
+	name := strings.Trim(strings.TrimSpace(cfg.TrashDirectoryName), "/")
+	if name == "" {
+		name = ".trash"
+	}
+	root := strings.Trim(strings.TrimSpace(cfg.RootPrefix), "/")
+	if root != "" {
+		name = root + "/" + name
+	}
+	return storageconfig.TrashDirectoryAliases(name)
 }
 
 func trashDisplayName(originalKey string) string {
