@@ -1,10 +1,13 @@
 # Changelog
 
 ## Unreleased
-- 账号管理：桶列表显示设置从编辑账号里拆出来，成为独立的「桶可见」入口。账号列表（表格和卡片视图）每行新增「桶可见」按钮，点开只做一件事：列出该账号全部桶，勾选作为 allowlist、可改显示名和子目录，保存即生效，不触碰连接信息也不会触发 list_buckets 之外的远端调用。
+- 账号管理：账号行操作按钮从 shadcn `ShadButton.ghost` 改为自绘的 `_AccountActionButton`（独立 StatefulWidget + `_hovered` + MouseRegion + AnimatedContainer + `ListInteractionColors.rowBackground`）。原 ghost 按钮自带 `colorScheme.accent` hover 背景，比文件列表行的中性 wash 强很多，新增「桶管理」第四个按钮后 hover 叠加非常明显；自绘后 hover 只是轻微背景变化，和文件管理行视觉一致，符合 AGENTS.md hover 规则。
+- 账号管理：桶管理按钮文案从「桶可见」改为「桶管理」，toast 文案同步改为「桶管理已更新」。
+- Windows CI：修复 Inno Setup 打包因 WinFsp MSI 路径被解析为 `scripts/go/mount/...` 而失败的问题。`build_windows_installer` 现在向 ISCC 传绝对 Windows 路径的 `WinFspMsiPath`（不再回退到 `.iss` 默认相对路径），并在 MSI 缺失时立即失败、给出清晰错误信息。
+- 账号管理：桶列表显示设置从编辑账号里拆出来，成为独立的「桶管理」入口。账号列表（表格和卡片视图）每行新增「桶管理」按钮，点开只做一件事：列出该账号全部桶，勾选作为 allowlist、可改显示名和子目录，保存即生效，不触碰连接信息也不会触发 list_buckets 之外的远端调用。
 - 账号管理：编辑账号恢复为只编辑连接信息的单页表单，「下一步」不再尝试拉取桶列表（之前的实现会在编辑模式调用 list_buckets 导致 "static credentials are empty" 错误）。
 - 账号管理：删除账号时自动级联删除该账号下所有目录同步任务，并在「账号已退出」提示里标注删除的同步任务数量；同步任务运行时会先 Reload 停掉对应 runner 再删除记录，避免孤儿任务继续轮询已失效凭据。
-- 桶可见性：向导第三步和独立桶可见弹窗的 Checkbox 都改为自绘的 `BucketSelectionCheckbox`（原 `_BucketSelectionCheckbox` 提为 public），修复在 ShadDialog（无 Material 祖先）子树中抛出 "No Material widget found" 以及连带 RenderFlex 99430px 溢出的问题。
+- 桶可见性：向导第三步和独立桶管理弹窗的 Checkbox 都改为自绘的 `BucketSelectionCheckbox`（原 `_BucketSelectionCheckbox` 提为 public），修复在 ShadDialog（无 Material 祖先）子树中抛出 "No Material widget found" 以及连带 RenderFlex 99430px 溢出的问题。
 - 新增账号向导增加第三步“桶列表显示设置”，S3、WebDAV、百度网盘统一支持。默认不勾选任何桶时动态显示全部桶并自动包含服务端后续新增桶；一旦勾选则作为显式 allowlist。每个选中桶可设置自定义显示名称并通过远程目录选择器限定入口子目录，文件浏览、写操作、回收站、同步与挂载共用同一前缀映射。
 - 修复新增账号桶可见性引入的几个回归：scoped 回收站列表不再别名 provider 切片（避免污染缓存或索引）、挂载层与 `scopedBackend` 不再双重叠加 `RootPrefix`（修复配置子目录后挂载指向错误路径）、目录选择器现在沿用账号级 `RootPrefix`。
 - 文件管理桶配额新增页面会话缓存：成功结果 5 分钟内复用，进入桶后返回列表不再重复请求；缓存过期时保留旧值并在后台刷新，账号凭据或 quota 相关配置变化后会自动失效。

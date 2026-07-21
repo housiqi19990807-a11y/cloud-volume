@@ -3,12 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CloudStorageAccountList extends StatelessWidget {
   static const double _typeColumnWidth = 104;
-  static const double _actionColumnWidth = 268;
+  static const double _actionColumnWidth = 300;
 
   const CloudStorageAccountList({
     super.key,
@@ -232,7 +233,7 @@ class _AccountCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               _AccountActionButton(
-                label: '桶可见',
+                label: '桶管理',
                 icon: LucideIcons.listFilter,
                 onPressed: busy ? null : () => onManageBuckets(profile),
               ),
@@ -321,7 +322,7 @@ class _AccountActions extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           _AccountActionButton(
-            label: '桶可见',
+            label: '桶管理',
             icon: LucideIcons.listFilter,
             onPressed: busy ? null : () => onManageBuckets(profile),
           ),
@@ -344,7 +345,7 @@ class _AccountActions extends StatelessWidget {
   }
 }
 
-class _AccountActionButton extends StatelessWidget {
+class _AccountActionButton extends StatefulWidget {
   const _AccountActionButton({
     required this.label,
     required this.icon,
@@ -358,21 +359,60 @@ class _AccountActionButton extends StatelessWidget {
   final bool destructive;
 
   @override
+  State<_AccountActionButton> createState() => _AccountActionButtonState();
+}
+
+class _AccountActionButtonState extends State<_AccountActionButton> {
+  // Track hover locally so we can paint the same neutral wash the file rows
+  // use (ListInteractionColors.fromTheme). We intentionally do NOT use
+  // ShadButton.ghost's own hover background: the shadcn ghost theme paints
+  // `colorScheme.accent`, which is visibly stronger than the row wash and
+  // makes a hovered action button read as a different component. Rendering
+  // a transparent button on top of our own AnimatedContainer keeps hover a
+  // subtle background change only, per AGENTS.md hover style rule.
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final color = destructive
+    final interaction = ListInteractionColors.fromTheme(theme);
+    final color = widget.destructive
         ? theme.colorScheme.destructive
         : theme.colorScheme.primary;
-    return ShadButton.ghost(
-      size: ShadButtonSize.sm,
-      onPressed: onPressed,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 11.5, color: color)),
-        ],
+    final enabled = widget.onPressed != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: enabled
+                ? interaction.rowBackground(
+                    selected: false,
+                    hovered: _hovered,
+                    pressed: false,
+                  )
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 13, color: color),
+              const SizedBox(width: 4),
+              Text(
+                widget.label,
+                style: TextStyle(fontSize: 11.5, color: color),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

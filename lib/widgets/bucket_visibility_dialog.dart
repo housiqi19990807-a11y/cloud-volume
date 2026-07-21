@@ -110,7 +110,7 @@ class _BucketVisibilityDialogState extends State<_BucketVisibilityDialog> {
       final ok = await widget.onSave(Map<String, BucketViewSettings>.from(_views));
       if (!mounted) return;
       if (ok) {
-        showAppToast(context, title: '桶可见性已更新', message: widget.config.displayName);
+        showAppToast(context, title: '桶管理已更新', message: widget.config.displayName);
         Navigator.of(context).pop(true);
       } else {
         setState(() {

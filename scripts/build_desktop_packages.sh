@@ -309,6 +309,17 @@ build_windows_installer() {
   sign_timestamp="${WINDOWS_SIGN_TIMESTAMP_URL:-http://timestamp.digicert.com}"
   sign_subject="${WINDOWS_SIGN_SUBJECT:-}"
 
+  # WinFsp MSI is bundled next to the installer so the optional install task
+  # and the in-app installer can reuse it. ISCC resolves bare relative paths
+  # against the .iss script's directory, which previously produced a bogus
+  # "scripts/go/mount/..." source in CI. Pass an absolute Windows path and fail
+  # fast with a clear message when the MSI is missing from the checkout.
+  local winfsp_msi winfsp_msi_win
+  winfsp_msi="$ROOT_DIR/go/mount/embedded/winfsp.msi"
+  [[ -f "$winfsp_msi" ]] \
+    || fail "WinFsp MSI not found at $winfsp_msi. Keep go/mount/embedded/winfsp.msi in the repo."
+  winfsp_msi_win="$(to_windows_path "$winfsp_msi")"
+
   powershell.exe -NoProfile -Command \
     "& '$compiler_win' /Qp \
       /DAppVersion='$VERSION' \
@@ -317,6 +328,7 @@ build_windows_installer() {
       /DOutputBaseFilename='$installer_base' \
       /DArchitecturesAllowed='$installer_arch' \
       /DArchitecturesInstallIn64BitMode='$installer_arch' \
+      /DWinFspMsiPath='$winfsp_msi_win' \
       /DSignTool='$sign_tool' \
       /DSignPfxPath='$(to_windows_path "$sign_pfx")' \
       /DSignPfxPassword='$sign_password' \
