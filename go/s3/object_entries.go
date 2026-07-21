@@ -70,10 +70,21 @@ func listMutationEntries(
 		entries = append(entries, page.Contents...)
 	}
 
-	if len(entries) == 0 {
-		entries = append(entries, types.Object{Key: aws.String(prefix)})
+	return ensureDirectoryRootEntry(entries, prefix), nil
+}
+
+// ensureDirectoryRootEntry makes directory moves delete the source marker
+// even when an S3-compatible listing omits that marker while returning children.
+func ensureDirectoryRootEntry(entries []types.Object, prefix string) []types.Object {
+	if prefix == "" {
+		return entries
 	}
-	return entries, nil
+	for _, entry := range entries {
+		if entry.Key != nil && *entry.Key == prefix {
+			return entries
+		}
+	}
+	return append(entries, types.Object{Key: aws.String(prefix)})
 }
 
 // transferEntryKeys flattens entry keys once at plan time for the post-copy

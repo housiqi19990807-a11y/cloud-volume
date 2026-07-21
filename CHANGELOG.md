@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- S3 目录软删除：部分兼容服务在递归列举时会返回目录内文件、却省略目录自身的 `dir/` 占位对象，导致子文件已移入回收站但源目录占位仍留在远端，应用重启后重新显示为空目录。目录变更计划现在始终显式包含根目录占位 key，复制阶段在回收站保留完整目录语义，源清理阶段幂等删除该 key。
 - 回收站：批量选中后不再显示冗余的“清空选择”操作，并统一普通态与多选态的按钮尺寸，避免顶部操作区高度跳变；仍可通过列表行或表头复选框取消选择。
 - 回收站子目录视图（方案 1）：配置了子目录（`RootPrefix`）的桶，回收站现在落在该子目录下（`<rootPrefix>/.trash/...`）而不是桶根的 `.trash/`。每个子目录视图各自拥有独立回收站，互不污染。`trashPrefix` / `webDAVTrashPrefix` 把 RootPrefix 纳入路径；`isTrashKey` / `isRootTrashKey` / 挂载层 `isTrashPath` / WebDAV `webDAVIsTrashKey` / `webDAVIsTrashRootEntry` 改成按带 RootPrefix 的全路径匹配，避免把子目录下的回收站当作普通目录；`scopedBackend.ListTrashPage` 因为 trash 本身就在视图根下，改为只做 OriginalKey 相对化改写、不再按 root 过滤。
 - 重构：桶列表加载抽成共享的 `BucketSourceService`（`lib/services/bucket_source_service.dart`）。文件管理首页和全局回收站现在共用同一套"枚举所有账号 → 各自 list_buckets → 应用每账号 allowlist → 按已保存顺序排序"的逻辑，回收站看到的桶集合和文件首页完全一致；之前回收站自己重新实现了一遍单账号子集，既看不到其他账号的桶，也绕过了桶可见性设置。`FileManagerPage` 的旧聚合逻辑改为薄壳委托给 service，对外异常类型保持不变。
