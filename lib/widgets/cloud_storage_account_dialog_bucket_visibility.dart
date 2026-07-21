@@ -4,6 +4,12 @@
 // Material's Checkbox, because this step renders inside a ShadDialog whose
 // subtree has no Material ancestor — Material Checkbox would throw
 // "No Material widget found" here. The look matches StorageProtocolCard.
+//
+// This file is `part of` the account dialog so stepBucketVisibility and the
+// _BucketVisibilityRow can access the dialog's private state. The public
+// `BucketSelectionCheckbox` widget is also imported by the standalone
+// bucket-visibility dialog (bucket_visibility_dialog.dart) so both entry
+// points share the exact same checkbox styling.
 part of 'cloud_storage_account_dialog.dart';
 
 // Step 3 keeps the allowlist and per-bucket presentation choices together.
@@ -141,7 +147,7 @@ class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
         children: [
           Row(
             children: [
-              _BucketSelectionCheckbox(
+              BucketSelectionCheckbox(
                 value: selected,
                 onChanged: (value) {
                   widget.self.markDirty(() {
@@ -206,25 +212,30 @@ class _BucketVisibilityRowState extends State<_BucketVisibilityRow> {
   }
 }
 
-/// A hand-rolled check box used on the bucket-visibility step.
+/// A hand-rolled check box used on the bucket-visibility step and the
+/// standalone bucket-visibility dialog.
 ///
 /// Material's [Checkbox] requires a `Material` ancestor to render ink
-/// splashes, but step 3 renders inside a [ShadDialog] whose subtree has none,
-/// so it throws "No Material widget found". This widget renders the same
+/// splashes, but both surfaces render inside a [ShadDialog] whose subtree has
+/// none, so it throws "No Material widget found". This widget renders the same
 /// 18×18 rounded square + Lucide check using plain [Container] / [DecoratedBox]
 /// and stays consistent with [StorageProtocolCard]'s selected chrome.
-class _BucketSelectionCheckbox extends StatefulWidget {
-  const _BucketSelectionCheckbox({required this.value, required this.onChanged});
+class BucketSelectionCheckbox extends StatefulWidget {
+  const BucketSelectionCheckbox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
 
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
-  State<_BucketSelectionCheckbox> createState() =>
+  State<BucketSelectionCheckbox> createState() =>
       _BucketSelectionCheckboxState();
 }
 
-class _BucketSelectionCheckboxState extends State<_BucketSelectionCheckbox> {
+class _BucketSelectionCheckboxState extends State<BucketSelectionCheckbox> {
   bool _hovered = false;
 
   @override

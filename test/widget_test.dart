@@ -164,10 +164,10 @@ void main() {
     );
     await tester.tap(find.text('提交授权码'));
     await tester.pumpAndSettle();
-    // Editing no longer auto-saves on Baidu re-auth. The dialog now advances
-    // to the bucket-visibility step so the user can confirm and save once.
-    expect(find.text('桶列表显示设置'), findsOneWidget);
-    expect(api.savedProfiles['baidu-profile'], isNull);
+    // Editing still auto-saves on Baidu re-auth (bucket visibility is now a
+    // separate dialog from the account list, not part of the editor).
+    expect(find.text('编辑账号'), findsNothing);
+    expect(api.savedProfiles['baidu-profile']?.accessKeyId, 'new-baidu-access');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();

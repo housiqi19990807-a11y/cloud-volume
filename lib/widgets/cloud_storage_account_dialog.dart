@@ -143,7 +143,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     // Editing skips the protocol picker (step 0) since the protocol is fixed.
     if (widget.editing) _step = 1;
   }
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -226,10 +225,11 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       return;
     }
     if (_step == 1) {
-      // Both new-account and editing flows advance to the bucket-visibility
-      // step. Editing an existing account needs the same allowlist/presentation
-      // controls, so it no longer short-circuits to submit at step 1.
-      await _loadBucketsForVisibility();
+      if (widget.editing) {
+        await _submit();
+      } else {
+        await _loadBucketsForVisibility();
+      }
       return;
     }
     await _submit();
@@ -248,18 +248,29 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final content = _buildWizardContent(theme);
-    final title = widget.editing ? const Text('编辑账号') : const Text('新增账号');
-    final description = widget.editing
-        ? const Text('修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。')
-        : const Text('先选择存储类型，再填写对应的连接信息。');
-    if (!widget.asDialog) return _wrapMeasured(content);
+    // Editing: single-screen form, no wizard chrome.
+    if (widget.editing) {
+      final content = _buildEditContent(theme);
+      if (!widget.asDialog) return _wrapMeasured(content);
+      return ShadDialog(
+        title: const Text('编辑账号'),
+        description: const Text('修改账号连接信息；密钥、密码或 OAuth 授权会按你当前选择保留或更新。'),
+        constraints: const BoxConstraints(maxWidth: 640),
+        scrollable: true,
+        child: content,
+      );
+    }
+    // New account: wizard. Sub-window measures shrink-wrapped content
+    // and resizes the OS window to fit (no empty bottom / no inner scroll).
+    if (!widget.asDialog) {
+      return _wrapMeasured(_buildWizardContent(theme));
+    }
     return ShadDialog(
-      title: title,
-      description: description,
+      title: const Text('新增账号'),
+      description: const Text('先选择存储类型，再填写对应的连接信息。'),
       constraints: const BoxConstraints(maxWidth: 640),
       scrollable: true,
-      child: content,
+      child: _buildWizardContent(theme),
     );
   }
 
@@ -288,9 +299,30 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     );
   }
 
+  /// Editing mode: just the connection fields + nav buttons.
+  Widget _buildEditContent(ShadThemeData theme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        stepConnectionFields(theme: theme, self: this),
+        if (_errorText != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+        const SizedBox(height: 24),
+        _buildEditNavButtons(theme),
+      ],
+    );
+  }
+
   Widget _buildStepBody(ShadThemeData theme) {
-    // Editing starts at step 1 (connection fields) since the protocol is
-    // already chosen. New-account mode starts at step 0 (protocol picker).
     return switch (_step) {
       0 => stepProtocolPicker(theme: theme, self: this),
       1 => _loadingBuckets
@@ -300,9 +332,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     };
   }
 
-  /// Builds the navigation row shared by wizard and editing flows. In editing
-  /// mode the protocol step is skipped, so the "上一步" button is hidden on
-  /// the connection step and shown once we move to the bucket-visibility step.
+  /// Builds the navigation row for the new-account wizard. In editing mode
+  /// the protocol step is skipped, so the "上一步" button is hidden on the
+  /// connection step and shown once we move to the bucket-visibility step.
   Widget _buildNavButtons(ShadThemeData theme) {
     final isLast = _step == 2;
     final isFirst = widget.editing ? _step <= 1 : _step <= 0;
@@ -342,6 +374,26 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
                     ],
                   ],
                 ),
+        ),
+      ],
+    );
+  }
+
+  /// Editing mode nav buttons: just Cancel + Save.
+  Widget _buildEditNavButtons(ShadThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        ShadButton.outline(
+          onPressed: widget.asDialog
+              ? () => Navigator.of(context).pop()
+              : widget.onCancel,
+          child: const Text('取消'),
+        ),
+        const SizedBox(width: 10),
+        ShadButton(
+          onPressed: _saving ? null : _submit,
+          child: _saving ? const Text('保存中...') : const Text('保存修改'),
         ),
       ],
     );
@@ -402,10 +454,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         }
       });
       if (widget.editing) {
-        // Editing mode no longer auto-saves on re-auth: the user may want to
-        // adjust bucket visibility before saving. Advance to the visibility
-        // step like the new-account flow so they can confirm and save once.
-        await _loadBucketsForVisibility();
+        // Editing baidu re-auth saves immediately like before — editing does
+        // not advance into the bucket-visibility wizard step.
+        await _submit();
       } else {
         await _loadBucketsForVisibility();
       }

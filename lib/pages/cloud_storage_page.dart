@@ -7,6 +7,7 @@ import 'package:remote_storage/services/account_editor_presenter.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/account_profile_name.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/bucket_visibility_dialog.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_list.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -72,6 +73,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
               busy: _busy,
               onEdit: _showEditAccountDialog,
               onDelete: _delete,
+              onManageBuckets: _showBucketVisibilityDialog,
               onReorder: _isGrid ? null : _reorderAccounts,
             ),
           ),
@@ -157,6 +159,46 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
       );
     } catch (error) {
       if (mounted) showAppErrorToast(context, message: error.toString());
+    } finally {
+      if (mounted && _busy) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _showBucketVisibilityDialog(ProfileInfo profile) async {
+    setState(() => _busy = true);
+    try {
+      final config = await widget.api.loadProfile(profile.name);
+      if (!mounted) return;
+      setState(() => _busy = false);
+      await showBucketVisibilityDialog(
+        context: context,
+        api: widget.api,
+        config: config,
+        profileName: profile.name,
+        onSave: (views) => _saveBucketViews(profile, views),
+      );
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
+    } finally {
+      if (mounted && _busy) setState(() => _busy = false);
+    }
+  }
+
+  Future<bool> _saveBucketViews(
+    ProfileInfo profile,
+    Map<String, BucketViewSettings> views,
+  ) async {
+    setState(() => _busy = true);
+    try {
+      final config = await widget.api.loadProfile(profile.name);
+      final updated = config.copyWith(bucketViews: views);
+      await widget.api.saveProfile(profile.name, updated);
+      if (!mounted) return false;
+      widget.onRefresh();
+      return true;
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
+      return false;
     } finally {
       if (mounted && _busy) setState(() => _busy = false);
     }
