@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/widgets/page_header_actions.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+const double _headerActionsMinHeight = 42;
+
 /// A bucket option for the trash filter dropdown: the internal id used to
 /// switch buckets plus the user-facing label (display name when set, real
 /// bucket name otherwise). Kept here so the control does not depend on the
@@ -122,56 +124,63 @@ class GlobalTrashHeaderActions extends StatelessWidget {
 
     if (!hasSelection) {
       // 未选中：刷新为主操作，清空回收站在宽度不足时收进菜单。
-      return PageHeaderActions(
-        primary: [
-          ShadButton.outline(
-            onPressed: loading ? null : onRefresh,
-            child: const Text('刷新'),
-          ),
-        ],
-        secondary: [
-          SecondaryAction(
-            label: '清空回收站',
-            onPressed: loading ? null : onClearTrash,
-            enabled: !(loading || onClearTrash == null),
-            builder: (_) => ShadButton.destructive(
-              onPressed: loading ? null : onClearTrash,
-              child: const Text('清空回收站'),
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _headerActionsMinHeight),
+        child: PageHeaderActions(
+          primary: [
+            ShadButton.outline(
+              onPressed: loading ? null : onRefresh,
+              child: const Text('刷新'),
             ),
-          ),
-        ],
+          ],
+          secondary: [
+            SecondaryAction(
+              label: '清空回收站',
+              onPressed: loading ? null : onClearTrash,
+              enabled: !(loading || onClearTrash == null),
+              builder: (_) => ShadButton.destructive(
+                onPressed: loading ? null : onClearTrash,
+                child: const Text('清空回收站'),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    // 选中后只保留批量操作；用户仍可通过列表复选框取消选择。
-    return PageHeaderActions(
-      primary: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            '已选 $selectedCount 项',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.primary,
+    // 选中后只保留批量操作，并沿用 regular 尺寸避免头部高度跳变；
+    // 用户仍可通过列表复选框取消选择。
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _headerActionsMinHeight),
+      child: PageHeaderActions(
+        primary: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '已选 $selectedCount 项',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.primary,
+              ),
             ),
           ),
-        ),
-        ShadButton.ghost(
-          size: ShadButtonSize.sm,
-          onPressed: hasSelection ? onRestoreSelected : null,
-          child: const Text('批量恢复'),
-        ),
-        ShadButton.destructive(
-          size: ShadButtonSize.sm,
-          onPressed: hasSelection ? onDeleteSelected : null,
-          child: const Text('批量彻底删除'),
-        ),
-      ],
+          ShadButton.ghost(
+            size: ShadButtonSize.regular,
+            onPressed: hasSelection ? onRestoreSelected : null,
+            child: const Text('批量恢复'),
+          ),
+          ShadButton.destructive(
+            size: ShadButtonSize.regular,
+            onPressed: hasSelection ? onDeleteSelected : null,
+            child: const Text('批量彻底删除'),
+          ),
+        ],
+      ),
     );
   }
 }
