@@ -64,10 +64,15 @@ class GlobalTrashFilters extends StatelessWidget {
     required ValueChanged<T?> onChanged,
     required double width,
   }) {
+    // Do NOT pass a ValueKey(value) here: forcing the ShadSelect to rebuild on
+    // every selection causes its internal ShadGestureDetector/MouseRegion to
+    // miss onExit while the pointer is still over it, leaving the cursor stuck
+    // on the pointing hand after navigating away (especially under IndexedStack
+    // where the trash page stays mounted but hidden). ShadSelect already
+    // reflects the current selection via initialValue + selectedOptionBuilder.
     return SizedBox(
       width: width,
       child: ShadSelect<T>(
-        key: ValueKey<Object>(value as Object),
         minWidth: width,
         initialValue: value,
         placeholder: Text(
