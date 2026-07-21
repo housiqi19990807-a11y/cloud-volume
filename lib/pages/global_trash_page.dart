@@ -44,7 +44,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   final Set<String> _busyEntries = <String>{};
   final Set<String> _selectedIds = <String>{};
   List<GlobalTrashBrowserEntry> _entries = const <GlobalTrashBrowserEntry>[];
-  List<String> _bucketOptions = const <String>[];
+  List<GlobalTrashBucketOption> _bucketOptions =
+      const <GlobalTrashBucketOption>[];
   String? _activeBucket;
   String _searchText = '';
   String _nextToken = '';
@@ -111,7 +112,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       _loading = true;
       _error = null;
       _entries = const <GlobalTrashBrowserEntry>[];
-      _bucketOptions = const <String>[];
+      _bucketOptions = const <GlobalTrashBucketOption>[];
       _activeBucket = null;
       _activeBucketConfig = null;
       _activeBucketProfile = null;
@@ -144,7 +145,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       }
       if (bucketIds.isEmpty) {
         setState(() {
-          _bucketOptions = const <String>[];
+          _bucketOptions = const <GlobalTrashBucketOption>[];
           _loading = false;
         });
         return;
@@ -161,7 +162,17 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         return;
       }
       setState(() {
-        _bucketOptions = bucketIds;
+        // Build the dropdown options from the resolved entries so the filter
+        // shows the same label the file-manager home uses (custom display
+        // name when set, real bucket name otherwise).
+        _bucketOptions = trashEntries
+            .map(
+              (entry) => GlobalTrashBucketOption(
+                id: entry.id,
+                label: entry.label,
+              ),
+            )
+            .toList(growable: false);
         _activeBucket = resolved.bucket;
         _entries = resolved.entries;
         _nextToken = resolved.page.nextToken;
@@ -245,6 +256,15 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   /// the call still goes through with a best-effort name.
   String _providerBucketName(String bucketId) {
     return _bucketEntryById[bucketId]?.bucket.name ?? bucketId;
+  }
+
+  /// Returns the friendly label for the active bucket (custom display name
+  /// when configured, otherwise the real bucket name). Used by the clear-
+  /// trash confirmation dialog and any UI that shows the current bucket.
+  String? get _activeBucketLabel {
+    final id = _activeBucket;
+    if (id == null) return null;
+    return _bucketEntryById[id]?.label ?? _providerBucketName(id);
   }
 
   Future<void> _switchBucket(String bucket) async {
@@ -445,10 +465,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
     if (bucket == null || _entries.isEmpty) {
       return;
     }
-    // Display the friendly bucket label in the confirmation dialog rather
-    // than the raw `profile::bucket` id used internally.
-    final label =
-        _bucketEntryById[bucket]?.label ?? _providerBucketName(bucket);
+    final label = _activeBucketLabel ?? _providerBucketName(bucket);
     final confirmed = await showClearTrashDialog(context, label);
     if (!confirmed) {
       return;

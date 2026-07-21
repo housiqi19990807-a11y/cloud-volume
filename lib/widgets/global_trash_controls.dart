@@ -4,7 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/widgets/page_header_actions.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-const String allBucketsFilter = '__all_buckets__';
+/// A bucket option for the trash filter dropdown: the internal id used to
+/// switch buckets plus the user-facing label (display name when set, real
+/// bucket name otherwise). Kept here so the control does not depend on the
+/// file-manager bucket entry model.
+class GlobalTrashBucketOption {
+  const GlobalTrashBucketOption({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
 
 class GlobalTrashFilters extends StatelessWidget {
   const GlobalTrashFilters({
@@ -17,7 +26,7 @@ class GlobalTrashFilters extends StatelessWidget {
 
   final TextEditingController searchController;
   final String bucketFilter;
-  final List<String> bucketOptions;
+  final List<GlobalTrashBucketOption> bucketOptions;
   final ValueChanged<String?> onBucketChanged;
 
   @override
@@ -33,8 +42,14 @@ class GlobalTrashFilters extends StatelessWidget {
         const SizedBox(width: 12),
         _dropdown<String>(
           value: bucketFilter,
-          items: bucketOptions,
-          labelBuilder: (value) => value == allBucketsFilter ? '全部存储桶' : value,
+          items: bucketOptions.map((option) => option.id).toList(),
+          labelBuilder: (id) {
+            final match = bucketOptions.firstWhere(
+              (option) => option.id == id,
+              orElse: () => GlobalTrashBucketOption(id: id, label: id),
+            );
+            return match.label;
+          },
           onChanged: onBucketChanged,
           width: 170,
         ),

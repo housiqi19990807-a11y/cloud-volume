@@ -122,7 +122,9 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
       );
     }
     if (filteredEntries.isEmpty) {
-      final text = _entries.isEmpty ? '当前存储桶回收站为空' : '当前搜索没有结果';
+      final text = _entries.isEmpty
+          ? '${_activeBucketLabel ?? '当前存储桶'}回收站为空'
+          : '当前搜索没有结果';
       return Center(
         child: Text(
           text,

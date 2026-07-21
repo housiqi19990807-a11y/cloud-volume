@@ -2,6 +2,7 @@
 
 ## Unreleased
 - 重构：桶列表加载抽成共享的 `BucketSourceService`（`lib/services/bucket_source_service.dart`）。文件管理首页和全局回收站现在共用同一套"枚举所有账号 → 各自 list_buckets → 应用每账号 allowlist → 按已保存顺序排序"的逻辑，回收站看到的桶集合和文件首页完全一致；之前回收站自己重新实现了一遍单账号子集，既看不到其他账号的桶，也绕过了桶可见性设置。`FileManagerPage` 的旧聚合逻辑改为薄壳委托给 service，对外异常类型保持不变。
+- 全局回收站：桶筛选下拉框、清空回收站确认弹窗、空状态文案现在统一显示桶的友好名称（用户在桶管理里设置的自定义显示名，未设置则回退真实桶名），和文件管理首页一致；之前显示的是内部 `profile::bucket` id。`GlobalTrashFilters` 的 `bucketOptions` 从 `List<String>` 改成 `List<GlobalTrashBucketOption>`（id + label），避免在多个地方各自反查 label。
 - 全局回收站：接入多账号聚合，`GlobalTrashPage` 新增 `profiles` 参数，`main_layout_page` 已把 `widget.state.profiles` 一并传入。每个 trash entry 现在携带所属账号的 `RemoteStorageConfig`（含合并后的 root prefix），恢复 / 彻底删除 / 清空回收站都按对应账号的凭据和前缀调用后端，不再混用活动账号配置。回收站刷新也会在 profiles 变化时触发。
 - 账号管理：账号行操作按钮从 shadcn `ShadButton.ghost` 改为自绘的 `_AccountActionButton`（独立 StatefulWidget + `_hovered` + MouseRegion + AnimatedContainer + `ListInteractionColors.rowBackground`）。原 ghost 按钮自带 `colorScheme.accent` hover 背景，比文件列表行的中性 wash 强很多，新增「桶管理」第四个按钮后 hover 叠加非常明显；自绘后 hover 只是轻微背景变化，和文件管理行视觉一致，符合 AGENTS.md hover 规则。
 - 账号管理：桶管理按钮文案从「桶可见」改为「桶管理」，toast 文案同步改为「桶管理已更新」。
