@@ -31,6 +31,8 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.webdavPasswordController,
     required this.ftpUsernameController,
     required this.ftpPasswordController,
+    required this.ftpPortController,
+    required this.ftpAnonymous,
     this.hasStoredFtpPassword = false,
     required this.hasStoredWebdavPassword,
     required this.baiduPanAuthorized,
@@ -47,6 +49,7 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.errorText,
     required this.onSave,
     this.onBack,
+    this.onFieldsChanged,
   });
 
   final StorageType storageType;
@@ -66,6 +69,8 @@ class ConfigRightFormPanel extends StatelessWidget {
   final TextEditingController? webdavPasswordController;
   final TextEditingController? ftpUsernameController;
   final TextEditingController? ftpPasswordController;
+  final TextEditingController? ftpPortController;
+  final bool ftpAnonymous;
   final bool hasStoredFtpPassword;
   final bool hasStoredWebdavPassword;
   final bool baiduPanAuthorized;
@@ -82,6 +87,8 @@ class ConfigRightFormPanel extends StatelessWidget {
   final String? errorText;
   final VoidCallback onSave;
   final VoidCallback? onBack;
+  /// 刷新协议切换前的字段可见性（如 FTP 匿名开关会隐藏账号密码）。
+  final VoidCallback? onFieldsChanged;
 
   @override
   Widget build(BuildContext context) {

@@ -409,10 +409,13 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                           webdavPasswordController: _webdavPasswordController,
                           ftpUsernameController: _ftpUsernameController,
                           ftpPasswordController: _ftpPasswordController,
+                          ftpPortController: _ftpPortController,
+                          ftpAnonymous: false,
                           hasStoredFtpPassword:
                               widget.initialState.config.hasFtpPassword,
                           hasStoredWebdavPassword:
                               widget.initialState.config.hasWebdavPassword,
+                          onFieldsChanged: () => setState(() {}),
                           baiduPanAuthorized:
                               _authorizedBaiduConfig?.hasSecretAccessKey ==
                                   true &&

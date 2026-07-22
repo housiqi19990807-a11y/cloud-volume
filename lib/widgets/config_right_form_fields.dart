@@ -12,21 +12,25 @@ Widget buildConfigFormSingleColumnFields(
   final isWebDav = self.storageType == StorageType.webdav;
   final isFTP = self.storageType == StorageType.ftp ||
       self.storageType == StorageType.sftp;
-  final usesWebDAVCreds = isWebDav || isFTP;
+  // S3 uses access keys; WebDAV and FTP/SFTP use username + password.
+  final usesBasicAuth = isWebDav || isFTP;
+  final showUsernamePassword = usesBasicAuth &&
+      ((isWebDav && self.webdavUsernameController != null) ||
+          (isFTP && self.ftpUsernameController != null));
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       self._fieldLabel(context, '名称'),
       const SizedBox(height: 6),
       _configFormNameInput(self, isWebDav: isWebDav, isBaiduPan: isBaiduPan, isFTP: isFTP),
-      if (usesWebDAVCreds) ...[
+      if (usesBasicAuth) ...[
         const SizedBox(height: 18),
         self._fieldLabel(context, '映射桶名称'),
         const SizedBox(height: 6),
         _configFormMappedBucketInput(self),
         const SizedBox(height: 18),
       ],
-      if (!usesWebDAVCreds && !isBaiduPan) ...[
+      if (!usesBasicAuth && !isBaiduPan) ...[
         const SizedBox(height: 18),
       ],
       if (isBaiduPan) ...[
@@ -54,10 +58,7 @@ Widget buildConfigFormSingleColumnFields(
         _configFormEndpointInput(self, isWebDav: isWebDav, isFTP: isFTP),
         const SizedBox(height: 22),
       ],
-      if (!isBaiduPan &&
-          usesWebDAVCreds &&
-          self.webdavUsernameController != null &&
-          self.webdavPasswordController != null) ...[
+      if (!isBaiduPan && showUsernamePassword) ...[
         self._fieldLabel(context, '用户名'),
         const SizedBox(height: 6),
         if (isFTP && self.ftpUsernameController != null)
@@ -90,7 +91,7 @@ Widget buildConfigFormSingleColumnFields(
         const SizedBox(height: 6),
         _configFormSecretKeyInput(self),
       ],
-      if (!usesWebDAVCreds && !isBaiduPan) ...[
+      if (!usesBasicAuth && !isBaiduPan) ...[
         const SizedBox(height: 18),
         _AdvancedSettingsLink(
           onTap: self.isSaving ? null : () => self.openAdvancedDialog(context),
@@ -108,7 +109,10 @@ Widget buildConfigFormTwoColumnFields(
   final isWebDav = self.storageType == StorageType.webdav;
   final isFTP = self.storageType == StorageType.ftp ||
       self.storageType == StorageType.sftp;
-  final usesWebDAVCreds = isWebDav || isFTP;
+  final usesBasicAuth = isWebDav || isFTP;
+  final showUsernamePassword = usesBasicAuth &&
+      ((isWebDav && self.webdavUsernameController != null) ||
+          (isFTP && self.ftpUsernameController != null));
   return Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -124,7 +128,7 @@ Widget buildConfigFormTwoColumnFields(
               isBaiduPan: false,
               isFTP: isFTP,
             ),
-            if (usesWebDAVCreds) ...[
+            if (usesBasicAuth) ...[
               const SizedBox(height: 18),
               self._fieldLabel(context, '映射桶名称'),
               const SizedBox(height: 6),
@@ -141,7 +145,7 @@ Widget buildConfigFormTwoColumnFields(
             ),
             const SizedBox(height: 6),
             _configFormEndpointInput(self, isWebDav: isWebDav, isFTP: isFTP),
-            if (!usesWebDAVCreds) ...[
+            if (!usesBasicAuth) ...[
               const SizedBox(height: 18),
               _AdvancedSettingsLink(
                 onTap:
@@ -156,16 +160,30 @@ Widget buildConfigFormTwoColumnFields(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (usesWebDAVCreds &&
-                self.webdavUsernameController != null &&
-                self.webdavPasswordController != null) ...[
+            if (showUsernamePassword) ...[
               self._fieldLabel(context, '用户名'),
               const SizedBox(height: 6),
-              _configFormWebdavUsernameInput(self),
+              if (isFTP && self.ftpUsernameController != null)
+                ShadInput(
+                  controller: self.ftpUsernameController!,
+                  placeholder: const Text('输入用户名'),
+                )
+              else
+                _configFormWebdavUsernameInput(self),
               const SizedBox(height: 18),
               self._fieldLabel(context, '密码'),
               const SizedBox(height: 6),
-              _configFormWebdavPasswordInput(self),
+              if (isFTP && self.ftpPasswordController != null)
+                CloudStorageSecretInput(
+                  controller: self.ftpPasswordController!,
+                  placeholder: Text(
+                    self.hasStoredFtpPassword
+                        ? '留空则保留当前已保存的密码'
+                        : '输入登录密码',
+                  ),
+                )
+              else
+                _configFormWebdavPasswordInput(self),
             ] else ...[
               self._fieldLabel(context, '访问密钥 ID'),
               const SizedBox(height: 6),

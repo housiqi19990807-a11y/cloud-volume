@@ -335,9 +335,12 @@ class RemoteStorageConfig {
           accessKeyId.trim().isNotEmpty &&
           (secretAccessKey.trim().isNotEmpty || hasSecretAccessKey);
     }
-    if (storageType == StorageType.webdav ||
-        storageType == StorageType.ftp ||
-        storageType == StorageType.sftp) {
+    if (storageType == StorageType.webdav) {
+      return endpoint.trim().isNotEmpty &&
+          webdavUsername.trim().isNotEmpty &&
+          (webdavPassword.isNotEmpty || hasWebdavPassword);
+    }
+    if (storageType == StorageType.ftp || storageType == StorageType.sftp) {
       if (ftpAnonymous) return endpoint.trim().isNotEmpty;
       return endpoint.trim().isNotEmpty &&
           ftpUsername.trim().isNotEmpty &&
