@@ -8,8 +8,18 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
     final generation = ++_bucketQuotaRefreshGeneration;
     _beginLoading(message: '加载存储桶...');
     try {
-      final bucketEntries = _applyCachedBucketQuotas(
+      // Fetch bucket entries, then resolve quotas inline so a single setState
+      // renders the final list. A separate post-frame quota refresh would replace
+      // _buckets and destroy FileListTile hover state (the "hover又坏了" bug).
+      final baseEntries = _applyCachedBucketQuotas(
         await _loadBucketEntries(),
+      );
+      if (!mounted || generation != _bucketQuotaRefreshGeneration) {
+        return false;
+      }
+      final entriesWithQuota = await _populateBucketQuotas(
+        baseEntries,
+        generation,
       );
       if (!mounted || generation != _bucketQuotaRefreshGeneration) {
         return false;
@@ -17,7 +27,7 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
       setState(() {
         _failedBucketProfileName = null;
         _objectListingCache.clear();
-        _buckets = bucketEntries;
+        _buckets = entriesWithQuota;
         _activeBucketEntry = null;
         _objects = null;
         _trashItems = null;
@@ -41,9 +51,8 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
       if (_contentScrollController.hasClients) {
         _contentScrollController.jumpTo(0);
       }
-      if (bucketEntries.isNotEmpty) {
-        unawaited(_refreshBucketMountStatuses(bucketEntries));
-        _scheduleBucketQuotaRefresh(bucketEntries, generation);
+      if (entriesWithQuota.isNotEmpty) {
+        unawaited(_refreshBucketMountStatuses(entriesWithQuota));
       }
       return true;
     } catch (error) {

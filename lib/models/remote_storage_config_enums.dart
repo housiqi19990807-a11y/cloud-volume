@@ -75,6 +75,34 @@ enum StorageType {
   }
 }
 
+enum JWanFSGatewayMode {
+  auto('auto', '自动探测'),
+  jwanfs('jwanfs', 'JWanFS 网关'),
+  genericS3('generic_s3', '通用 S3');
+
+  const JWanFSGatewayMode(this.storageValue, this.label);
+
+  final String storageValue;
+  final String label;
+
+  String get description {
+    return switch (this) {
+      JWanFSGatewayMode.auto => '连接时自动探测是否为 JWanFS 网关，以启用配额查询、服务端移动等扩展能力。',
+      JWanFSGatewayMode.jwanfs => '强制启用 JWanFS 网关扩展接口（配额、服务端移动等），跳过探测。',
+      JWanFSGatewayMode.genericS3 => '视为通用 S3 兼容存储，不使用 JWanFS 扩展接口。',
+    };
+  }
+
+  static JWanFSGatewayMode fromStorage(Object? value) {
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    return switch (normalized) {
+      'jwanfs' => JWanFSGatewayMode.jwanfs,
+      'generic_s3' => JWanFSGatewayMode.genericS3,
+      _ => JWanFSGatewayMode.auto,
+    };
+  }
+}
+
 enum StorageProviderType {
   s3('s3'),
   baiduPan('baidu_pan');

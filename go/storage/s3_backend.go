@@ -100,6 +100,16 @@ func (b s3Backend) RenameObject(
 	if err := b.ensureBucketWritable(bucket); err != nil {
 		return err
 	}
+	// JWanFS gateways expose a server-side file-move route that is atomic and
+	// far cheaper than copy+delete. Try it first; fall back to the generic S3
+	// emulation for non-JWanFS endpoints.
+	targetKey, err := renamedTargetKey(key, isDirectory, newName)
+	if err != nil {
+		return err
+	}
+	if used, moveErr := b.tryJWanFSMoveObject(ctx, bucket, key, targetKey); used {
+		return moveErr
+	}
 	return s3ops.RenameObjectContext(ctx, b.bucketConfig(bucket), bucket, key, isDirectory, newName)
 }
 
@@ -123,6 +133,12 @@ func (b s3Backend) MoveObject(
 ) error {
 	if err := b.ensureBucketWritable(bucket); err != nil {
 		return err
+	}
+	// JWanFS gateways expose a server-side file-move route that is atomic and
+	// far cheaper than copy+delete. Try it first; fall back to the generic S3
+	// emulation for non-JWanFS endpoints.
+	if used, moveErr := b.tryJWanFSMoveObject(ctx, bucket, sourceKey, targetKey); used {
+		return moveErr
 	}
 	return s3ops.MoveObjectContextWithTask(ctx, b.bucketConfig(bucket), bucket, sourceKey, targetKey, isDirectory, taskID)
 }

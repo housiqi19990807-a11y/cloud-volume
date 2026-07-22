@@ -88,7 +88,48 @@ func TestWebDAVListBucketsKeepsBucketWhenQuotaUnsupported(t *testing.T) {
 	if len(buckets) != 1 || buckets[0].Name != "No Quota DAV" || buckets[0].QuotaBytes != 0 {
 		t.Fatalf("buckets = %#v, want bucket without quota", buckets)
 	}
-	if _, err := backend.(BucketQuotaProvider).BucketQuota(nil, "No Quota DAV"); err == nil {
-		t.Fatal("BucketQuota returned nil error for unsupported quota")
+	// RFC 4331: a server that returns 404 for both quota properties does not
+	// expose quota. BucketQuota should succeed with a quota-less BucketInfo
+	// (QuotaKnown=false) rather than returning an error.
+	quota, err := backend.(BucketQuotaProvider).BucketQuota(nil, "No Quota DAV")
+	if err != nil {
+		t.Fatalf("BucketQuota returned error for unsupported quota: %v", err)
+	}
+	if quota.QuotaKnown {
+		t.Fatalf("quota = %#v, want QuotaKnown=false", quota)
+	}
+}
+
+// TestWebDAVQuotaProbesRootPrefixSubdirectory verifies that when an account is
+// scoped to a RootPrefix subdirectory, the quota PROPFIND targets that
+// subdirectory path rather than the endpoint virtual root.
+func TestWebDAVQuotaProbesRootPrefixSubdirectory(t *testing.T) {
+	var capturedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedPath = r.URL.Path
+		w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+		_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:"><D:response><D:propstat>
+<D:prop><D:quota-available-bytes>800</D:quota-available-bytes><D:quota-used-bytes>200</D:quota-used-bytes></D:prop>
+<D:status>HTTP/1.1 200 OK</D:status>
+</D:propstat></D:response></D:multistatus>`)
+	}))
+	defer server.Close()
+
+	backend := NewWebDAVBackend(storageconfig.RemoteStorageConfig{
+		StorageType:      storageconfig.StorageTypeWebDAV,
+		Endpoint:         server.URL + "/dav/",
+		MappedBucketName: "Scoped DAV",
+		RootPrefix:       "projects/2026",
+	})
+	quota, err := backend.(BucketQuotaProvider).BucketQuota(nil, "Scoped DAV")
+	if err != nil {
+		t.Fatalf("BucketQuota returned error: %v", err)
+	}
+	if !quota.QuotaKnown || quota.UsedBytes != 200 {
+		t.Fatalf("quota = %#v, want known quota used=200", quota)
+	}
+	if !strings.Contains(capturedPath, "/projects/2026") {
+		t.Fatalf("quota PROPFIND path = %q, want it to include the RootPrefix subdirectory", capturedPath)
 	}
 }

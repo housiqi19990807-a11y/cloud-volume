@@ -44,6 +44,11 @@ type RemoteStorageConfig struct {
 	CacheMaxSizeMB              int                           `json:"cacheMaxSizeMb" toml:"cache_max_size_mb"`
 	CacheMaxAgeDays             int                           `json:"cacheMaxAgeDays" toml:"cache_max_age_days"`
 
+	// JWanFSGatewayMode controls whether the FGW business APIs (bucket quota,
+	// file info, file search, etc.) are enabled. "auto" probes via auth-info;
+	// "jwanfs" / "generic_s3" forces the result.
+	JWanFSGatewayMode string `json:"jwanfsGatewayMode" toml:"jwanfs_gateway_mode"`
+
 	// Global proxy settings apply to all outbound HTTP/S3/WebDAV traffic.
 	ProxyMode     string `json:"proxyMode" toml:"proxy_mode"`         // "system" (default), "direct", "custom"
 	ProxyType     string `json:"proxyType" toml:"proxy_type"`         // "http" or "socks5"
@@ -73,6 +78,9 @@ const (
 	StorageTypeBaiduPan                = "baidu_pan"
 	StorageTypeFTP                     = "ftp"
 	StorageTypeSFTP                    = "sftp"
+	JWanFSGatewayModeAuto              = "auto"
+	JWanFSGatewayModeForceOn           = "jwanfs"
+	JWanFSGatewayModeForceOff          = "generic_s3"
 	WindowsMountModeCloudFilesCached   = "cloud_files_cached"
 	WindowsMountModeCloudFilesDirect   = "cloud_files_direct"
 	WindowsMountModeWebDAV             = "webdav"
@@ -127,6 +135,7 @@ func DefaultConfig() RemoteStorageConfig {
 		CacheAutoCleanupEnabled:     false,
 		CacheMaxSizeMB:              0,
 		CacheMaxAgeDays:             0,
+		JWanFSGatewayMode:           JWanFSGatewayModeAuto,
 		ProxyMode:                   ProxyModeInherit,
 		ProxyType:                   ProxyTypeHTTP,
 	}
@@ -172,6 +181,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		CacheAutoCleanupEnabled:     c.CacheAutoCleanupEnabled,
 		CacheMaxSizeMB:              normalizeCacheMaxSizeMB(c.CacheMaxSizeMB),
 		CacheMaxAgeDays:             normalizeCacheMaxAgeDays(c.CacheMaxAgeDays),
+		JWanFSGatewayMode:           normalizeJWanFSGatewayMode(c.JWanFSGatewayMode),
 		ProxyMode:                   normalizeProxyMode(c.ProxyMode),
 		ProxyType:                   normalizeProxyType(c.ProxyType),
 		ProxyHost:                   strings.TrimSpace(c.ProxyHost),
@@ -512,5 +522,16 @@ func normalizeProxyType(t string) string {
 		return strings.TrimSpace(t)
 	default:
 		return ProxyTypeHTTP
+	}
+}
+
+// normalizeJWanFSGatewayMode validates the JWanFS detection mode, defaulting
+// to "auto" for unrecognized values (including empty).
+func normalizeJWanFSGatewayMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case JWanFSGatewayModeAuto, JWanFSGatewayModeForceOn, JWanFSGatewayModeForceOff:
+		return strings.TrimSpace(mode)
+	default:
+		return JWanFSGatewayModeAuto
 	}
 }

@@ -25,8 +25,17 @@ func singleObjectCallOptions() []func(*s3.Options) {
 	}
 }
 
-// NewClient creates an S3 client from the stored configuration.
+// NewClient creates an S3 client bound to the configured endpoint. For
+// multi-endpoint failover use NewFailoverClient; this entry point is kept for
+// callers that only need a plain single-endpoint client (presigning, health
+// checks, internal helpers that already manage their own failover).
 func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
+	return newSingleEndpointClient(cfg, cfg.Endpoint)
+}
+
+// newSingleEndpointClient builds an aws-sdk-go-v2 S3 client pointing at one
+// endpoint, applying credentials, region, path-style, and proxy settings from cfg.
+func newSingleEndpointClient(cfg storageconfig.RemoteStorageConfig, endpoint string) *s3.Client {
 	credProvider := awsCreds.NewStaticCredentialsProvider(
 		cfg.AccessKeyID,
 		cfg.SecretAccessKey,
@@ -38,8 +47,8 @@ func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
 		Region:      cfg.Region,
 	}
 
-	if cfg.Endpoint != "" {
-		opts.BaseEndpoint = aws.String(cfg.Endpoint)
+	if endpoint != "" {
+		opts.BaseEndpoint = aws.String(endpoint)
 	}
 	if cfg.UsePathStyle {
 		opts.UsePathStyle = true

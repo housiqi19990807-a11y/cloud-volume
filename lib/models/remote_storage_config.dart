@@ -66,6 +66,7 @@ class RemoteStorageConfig {
     required this.cacheAutoCleanupEnabled,
     required this.cacheMaxSizeMb,
     required this.cacheMaxAgeDays,
+    required this.jwanfsGatewayMode,
     required this.proxyMode,
     required this.proxyType,
     required this.proxyHost,
@@ -115,6 +116,7 @@ class RemoteStorageConfig {
       cacheAutoCleanupEnabled: false,
       cacheMaxSizeMb: 0,
       cacheMaxAgeDays: 0,
+      jwanfsGatewayMode: JWanFSGatewayMode.auto,
       proxyMode: 'inherit',
       proxyType: 'http',
       proxyHost: '',
@@ -270,6 +272,9 @@ class RemoteStorageConfig {
             json['cacheMaxAgeDays'] ?? json['cache_max_age_days'],
           ) ??
           0,
+      jwanfsGatewayMode: JWanFSGatewayMode.fromStorage(
+        json['jwanfsGatewayMode'] ?? json['jwanfs_gateway_mode'],
+      ),
       proxyMode: (json['proxyMode'] ?? json['proxy_mode'] ?? 'inherit')
           .toString(),
       proxyType: (json['proxyType'] ?? json['proxy_type'] ?? 'http').toString(),
@@ -321,6 +326,7 @@ class RemoteStorageConfig {
   final bool cacheAutoCleanupEnabled;
   final int cacheMaxSizeMb;
   final int cacheMaxAgeDays;
+  final JWanFSGatewayMode jwanfsGatewayMode;
   final String proxyMode;
   final String proxyType;
   final String proxyHost;
@@ -431,6 +437,7 @@ class RemoteStorageConfig {
       'cacheAutoCleanupEnabled': cacheAutoCleanupEnabled,
       'cacheMaxSizeMb': cacheMaxSizeMb,
       'cacheMaxAgeDays': cacheMaxAgeDays,
+      'jwanfsGatewayMode': jwanfsGatewayMode.storageValue,
       'proxyMode': proxyMode,
       'proxyType': proxyType,
       'proxyHost': proxyHost,
@@ -480,6 +487,7 @@ class RemoteStorageConfig {
     bool? cacheAutoCleanupEnabled,
     int? cacheMaxSizeMb,
     int? cacheMaxAgeDays,
+    JWanFSGatewayMode? jwanfsGatewayMode,
     String? proxyMode,
     String? proxyType,
     String? proxyHost,
@@ -535,6 +543,7 @@ class RemoteStorageConfig {
           cacheAutoCleanupEnabled ?? this.cacheAutoCleanupEnabled,
       cacheMaxSizeMb: cacheMaxSizeMb ?? this.cacheMaxSizeMb,
       cacheMaxAgeDays: cacheMaxAgeDays ?? this.cacheMaxAgeDays,
+      jwanfsGatewayMode: jwanfsGatewayMode ?? this.jwanfsGatewayMode,
       proxyMode: proxyMode ?? this.proxyMode,
       proxyType: proxyType ?? this.proxyType,
       proxyHost: proxyHost ?? this.proxyHost,

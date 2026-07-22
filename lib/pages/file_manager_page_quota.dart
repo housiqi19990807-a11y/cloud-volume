@@ -4,7 +4,9 @@ part of 'file_manager_page.dart';
 
 const Duration _bucketQuotaCacheTtl = Duration(minutes: 5);
 
-// Remote quota refresh is deliberately second-stage so bucket discovery stays responsive.
+// Quota resolution now happens during _loadBuckets so a single setState renders
+// the final list. The post-frame refresh was removed because replacing _buckets
+// a second time rebuilt FileListTile subtrees and broke hover state.
 extension _FileManagerPageQuota on _FileManagerPageState {
   List<FileManagerBucketEntry> _applyCachedBucketQuotas(
     List<FileManagerBucketEntry> entries,
@@ -17,17 +19,10 @@ extension _FileManagerPageQuota on _FileManagerPageState {
         .toList(growable: false);
   }
 
-  void _scheduleBucketQuotaRefresh(
-    List<FileManagerBucketEntry> entries,
-    int generation,
-  ) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || generation != _bucketQuotaRefreshGeneration) return;
-      unawaited(_refreshBucketQuotas(entries, generation));
-    });
-  }
-
-  Future<void> _refreshBucketQuotas(
+  /// Resolves remote quotas for [entries] and folds them into the returned list
+  /// without triggering a setState. Called from _loadBuckets before the single
+  /// setState that renders the bucket rows, so hover state is never disrupted.
+  Future<List<FileManagerBucketEntry>> _populateBucketQuotas(
     List<FileManagerBucketEntry> entries,
     int generation,
   ) async {
@@ -35,7 +30,7 @@ extension _FileManagerPageQuota on _FileManagerPageState {
     final candidates = entries
         .where((entry) => !_hasFreshQuotaCache(entry, now))
         .toList(growable: false);
-    if (candidates.isEmpty) return;
+    if (candidates.isEmpty) return entries;
 
     final results = await Future.wait<MapEntry<String, BucketInfo>?>(
       candidates.map((entry) async {
@@ -63,24 +58,21 @@ extension _FileManagerPageQuota on _FileManagerPageState {
         }
       }),
     );
-    if (!mounted || generation != _bucketQuotaRefreshGeneration) return;
+    // A newer load may have superseded this one; bail without touching _buckets.
+    if (!mounted || generation != _bucketQuotaRefreshGeneration) return entries;
 
     final updates = Map<String, BucketInfo>.fromEntries(
       results.whereType<MapEntry<String, BucketInfo>>(),
     );
-    if (updates.isEmpty) return;
+    if (updates.isEmpty) return entries;
 
-    final current = _buckets;
-    if (current == null) return;
-    setState(() {
-      _buckets = current
-          .map(
-            (entry) => updates[entry.id] == null
-                ? entry
-                : entry.withBucketInfo(updates[entry.id]!),
-          )
-          .toList(growable: false);
-    });
+    return entries
+        .map(
+          (entry) => updates[entry.id] == null
+              ? entry
+              : entry.withBucketInfo(updates[entry.id]!),
+        )
+        .toList(growable: false);
   }
 
   _BucketQuotaCacheValue? _matchingQuotaCache(FileManagerBucketEntry entry) {

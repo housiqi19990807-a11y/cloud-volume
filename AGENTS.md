@@ -1074,3 +1074,40 @@ Windows mounts can now choose between the Cloud Files shell (default) and a WinF
 **Mounted-exit warning:** `DesktopWindowControls` always shows the close choice dialog, even with zero active mounts, so users can minimize/hide to tray instead of exiting. It calls `AppExitCleanup.activeMountCount`; any live mount changes the copy to explain that Exit unmounts active roots and that "后台运行" preserves them. On Windows the keep-alive action hides to tray; on Linux it minimizes while keeping the process and mounts alive.
 
 **Close dialog layout:** The action row must span the available dialog width (`double.infinity`) before using `MainAxisAlignment.end`; a fixed narrow width centers the buttons inside a wide warning dialog instead of placing them at the lower right.
+
+### Feature: JWanFS FGW SDK (go/jwanfs)
+
+The JWanFS file-gateway SDK was migrated from `jwanfs/pkg/sdk/s3` into `go/jwanfs` so the project maintains its own copy without depending on the legacy `jwanfs/pkg/{jtool,types,consts,minio,s3ext}` tree.
+
+#### Key files
+
+- `go/jwanfs/client.go` - `Client` with multi-gateway upstream pool, `doWithFallback` generic failover, `normalizeServers`/`firstConfiguredEndpoint`/`parseServer` helpers.
+- `go/jwanfs/lb.go` - `GatewayBalancer`: gateway-list discovery via `fgwapi=gateway-list`, concurrent `/status` health probes, latency-sorted fallback pool, hourly background refresh.
+- `go/jwanfs/sign.go` - Self-contained AWS SigV4 signing (`NewSignedRequestV4`, `SignRequestV4`) + `NewFGWAPI` URL builder. No AWS SDK dependency.
+- `go/jwanfs/fgw.go` - FGW business API methods: `FileInfo`/`FileInfoDetail`, `GetFileMD5`, `MoveObject`/`RenameObject`, `BucketQuota`, `FileSearch`, `CreateTempToken`/`UpdateTempToken`, `ShareDetail`, `AuthInfo`, `GetExpire`, `ShareFileURL`/`ResourceFileURL`/`StaticFileURL`.
+- `go/jwanfs/fgw_request.go` - `DoFGWAPIRaw`/`DoFGWAPI[T]`/`doPublicFGWAPI[T]` transport: signed FGW request with failover + `FGWResp[T]` envelope decoding.
+- `go/jwanfs/query.go` - `QueryValues` wrapper + `structToQueryValues` reflection encoder (replaces the legacy `url.Values` + struct-tag approach).
+- `go/jwanfs/errors.go` - Sentinel errors (`ErrNoServer`, `ErrNoAvailableUpstreams`, `ErrAccessDenied`), `shouldFallback` classification, `httpStatusError`.
+- `go/jwanfs/http_client.go` - `DefaultHTTPClient()` shared connection-pooled client with relaxed TLS (replaces `jtool.GetHttpClient`).
+- `go/jwanfs/detect.go` - **JWanFS gateway detection**: `IsJWanFSGateway` probes `auth-info` FGW route; cached per endpoint+credentials (10 min TTL). `DetectionMode` = `auto` (default) | `jwanfs` | `generic_s3`.
+- `go/jwanfs/types/` - FGW business types migrated from `jwanfs/pkg/types` (all `size.B` → `int64`, `consts.*` → local enums): `FileInfoDetailRes`, `ChunkList`/`ChunkInfo`, `GetBucketQuotaRes`, `S3FileSearchReq`/`Res`, `S3AuthInfoRes`, `AKSKBucketPermission`, `UserTempTokenReq`/`Res`, `ResourceFileInfo`, `S3GetShareFile`, `FGWResp[T]`, `FGWS3API` route constants.
+
+#### What was NOT migrated
+
+- `s3iface_bridge*.go` (~3000 lines) - Adapted `*Client` to `s3iface.S3API` from the vendored aws-sdk-go-v1 fork. This project uses `aws-sdk-go-v2` which has no `s3iface`; the bridge is not needed here.
+- `s3.go` minio/aws wrapper methods (`PutObject`, `GetObject`, `ListObjects`, `CreateMultipartUpload`, etc.) - This project already has these via `go/s3/` using `aws-sdk-go-v2` directly.
+- `AutoPutObject`/`AutoGetObject` resumable transfer - This project has its own resumable upload/download in `go/s3/upload_resume*.go` and `go/s3/object_transfer_*.go`.
+
+#### Data flow
+
+1. `NewClient(opt)` → `GatewayBalancer.Refresh()` discovers gateway list from the first configured endpoint.
+2. Each gateway is probed via `GET /status`; the fastest healthy responder becomes the primary upstream.
+3. FGW API calls (`DoFGWAPIRaw`) iterate the ordered upstream pool; on transferable errors (5xx/429/network) they failover to the next upstream and update the default.
+4. `IsJWanFSGateway(ctx, cfg, mode)` builds a transient client and calls `AuthInfo`; success means the endpoint is a JWanFS gateway. The result is cached so callers can cheaply gate FGW-only features (e.g. `BucketQuota`, `FileInfo`, `FileSearch`).
+
+#### Gotchas
+
+- `go/jwanfs` and `go/s3` are separate packages. `go/s3` = generic S3 via `aws-sdk-go-v2`; `go/jwanfs` = JWanFS-specific FGW APIs. They share no code.
+- The FGW `bucket-quota` route returns `Total`/`Free`/`Used` as JSON numbers; the legacy `size.B` type was just `int64`, so the migrated `GetBucketQuotaRes` uses `int64` directly.
+- `DetectionMode` is a string enum persisted in config (`jwanfsGatewayMode` field). `auto` probes once and caches; `jwanfs`/`generic_s3` force the result without probing. `InvalidateDetectionCache(cfg)` should be called when endpoint or credentials change.
+- `DefaultHTTPClient` uses `InsecureSkipVerify: true` to match the legacy `jtool` client behavior (self-hosted gateways often use self-signed certs). If this project later enforces strict TLS, update both `DefaultHTTPClient` and the gateway probe.

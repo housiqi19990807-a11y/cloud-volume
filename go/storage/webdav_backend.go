@@ -40,7 +40,7 @@ func (b webDAVBackend) BucketQuota(
 	bucketName string,
 ) (BucketInfo, error) {
 	bucket := BucketInfo{Name: bucketName}
-	quotaBytes, usedBytes, err := b.quota(ctx)
+	available, used, ok, err := b.quota(ctx)
 	if err != nil {
 		bridgelog.Errorf(
 			"[storage/webdav] quota request failed endpoint=%q err=%v",
@@ -49,9 +49,17 @@ func (b webDAVBackend) BucketQuota(
 		)
 		return bucket, err
 	}
-	bucket.QuotaBytes = quotaBytes
-	bucket.UsedBytes = usedBytes
-	bucket.QuotaKnown = true
+	// ok == false means the server does not expose RFC 4331 quota properties.
+	// Return a quota-less BucketInfo silently — the UI will simply omit capacity.
+	if !ok {
+		return bucket, nil
+	}
+	quotaBytes := available + used
+	if available <= maxQuotaBytes-used && quotaBytes > 0 {
+		bucket.QuotaBytes = quotaBytes
+	}
+	bucket.UsedBytes = used
+	bucket.QuotaKnown = bucket.QuotaBytes > 0 || bucket.UsedBytes > 0
 	bridgelog.Infof(
 		"[storage/webdav] quota request success endpoint=%q total_bytes=%d used_bytes=%d",
 		b.cfg.Endpoint,

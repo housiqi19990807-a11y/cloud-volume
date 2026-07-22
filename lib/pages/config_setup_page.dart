@@ -74,6 +74,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   _SetupStep _step = _SetupStep.chooseType;
   late StorageType _storageType;
   late bool _usePathStyle;
+  late JWanFSGatewayMode _jwanfsGatewayMode;
   bool _openingBaiduAuthPage = false;
   bool _authorizingBaidu = false;
   bool _mappedBucketNameEdited = false;
@@ -135,6 +136,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     );
     _baiduAuthCodeController = TextEditingController();
     _usePathStyle = config.usePathStyle;
+    _jwanfsGatewayMode = config.jwanfsGatewayMode;
     if (config.storageType == StorageType.baiduPan) {
       _authorizedBaiduConfig = config;
     }
@@ -283,6 +285,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           widget.initialState.config.cacheAutoCleanupEnabled,
       cacheMaxSizeMb: widget.initialState.config.cacheMaxSizeMb,
       cacheMaxAgeDays: widget.initialState.config.cacheMaxAgeDays,
+      jwanfsGatewayMode: _jwanfsGatewayMode,
       proxyMode: widget.initialState.config.proxyMode,
       proxyType: widget.initialState.config.proxyType,
       proxyHost: widget.initialState.config.proxyHost,
@@ -440,6 +443,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                           usePathStyle: _usePathStyle,
                           onPathStyleChanged: (v) =>
                               setState(() => _usePathStyle = v),
+                          jwanfsGatewayMode: _jwanfsGatewayMode,
+                          onJWanFSGatewayModeChanged: (v) =>
+                              setState(() => _jwanfsGatewayMode = v),
                           isSaving: _isSaving,
                           errorText: _errorText,
                           onSave: _save,

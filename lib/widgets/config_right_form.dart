@@ -43,9 +43,11 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.baiduPanAuthorizing,
     required this.onStartBaiduPanAuthorization,
     required this.onAuthorizeBaiduPan,
-    required this.usePathStyle,
-    required this.onPathStyleChanged,
-    required this.isSaving,
+  required this.usePathStyle,
+  required this.onPathStyleChanged,
+  required this.jwanfsGatewayMode,
+  required this.onJWanFSGatewayModeChanged,
+  required this.isSaving,
     required this.errorText,
     required this.onSave,
     this.onBack,
@@ -83,6 +85,8 @@ class ConfigRightFormPanel extends StatelessWidget {
   final VoidCallback onAuthorizeBaiduPan;
   final bool usePathStyle;
   final ValueChanged<bool> onPathStyleChanged;
+  final JWanFSGatewayMode jwanfsGatewayMode;
+  final ValueChanged<JWanFSGatewayMode> onJWanFSGatewayModeChanged;
   final bool isSaving;
   final String? errorText;
   final VoidCallback onSave;
@@ -306,6 +310,7 @@ class ConfigRightFormPanel extends StatelessWidget {
   void openAdvancedDialog(BuildContext context) {
     final rgCtrl = TextEditingController(text: regionController.text);
     var pathStyle = usePathStyle;
+    var gatewayMode = jwanfsGatewayMode;
 
     showAppModal(
       context: context,
@@ -348,6 +353,36 @@ class ConfigRightFormPanel extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    _fieldLabel(dialogContext, '存储网关类型'),
+                    const SizedBox(height: 5),
+                    ShadSelect<JWanFSGatewayMode>(
+                      initialValue: gatewayMode,
+                      placeholder: Text(gatewayMode.label),
+                      selectedOptionBuilder: (context, selected) =>
+                          Text(selected.label),
+                      options: JWanFSGatewayMode.values
+                          .map(
+                            (mode) => ShadOption<JWanFSGatewayMode>(
+                              value: mode,
+                              child: Text(mode.label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setDialogState(() => gatewayMode = v);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      gatewayMode.description,
+                      style: TextStyle(
+                        color: theme.colorScheme.mutedForeground,
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -361,6 +396,7 @@ class ConfigRightFormPanel extends StatelessWidget {
                           onPressed: () {
                             regionController.text = rgCtrl.text;
                             onPathStyleChanged(pathStyle);
+                            onJWanFSGatewayModeChanged(gatewayMode);
                             Navigator.of(dialogContext).pop();
                           },
                           child: const Text('确认'),
