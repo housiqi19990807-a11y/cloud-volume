@@ -84,6 +84,10 @@ Cursor: dense list rows use idle `SystemMouseCursors.basic` and `click` only whi
   `.\run_windows.ps1 -Build` builds the release bundle instead of running.  
   When validating integrated app startup on Windows, prefer `run_windows.ps1` over a bare `flutter run -d windows` so the bridge DLL and CGO toolchain are both set correctly.
 
+## Adding a New Storage Backend
+
+When the user asks to add a new storage type (e.g. FTP, SFTP, or any new remote storage provider), follow the step-by-step guide in [`docs/AddingStorageBackends.md`](docs/AddingStorageBackends.md). That document covers the full five-layer change set (Go config → Go backend → bridge → Dart model → Dart UI), with the exact files to modify and reference implementations to copy from.
+
 ## Git Workflow
 
 - After completing the requested implementation and validation successfully, create a normal non-amended commit unless the user explicitly says not to commit.
