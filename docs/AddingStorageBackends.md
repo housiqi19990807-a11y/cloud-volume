@@ -22,7 +22,7 @@
 
 - 在 `StorageType*` 常量块中新增常量，例如 `StorageTypeFTP = "ftp"`。
 - 修改 `normalizeStorageType`，让新字符串能被识别；未知值仍回退到 `s3`。
-- 如果新类型有自己的鉴权字段（例如 FTP 用户名/密码），可以复用已有的 `WebDAVUsername` / `WebDAVPassword` 字段（WebDAV 和百度网盘就是这样复用或留空的），也可以新增字段并同步更新 `RemoteStorageConfig` 结构体、`Normalized()`、`IsConfigured()`、`MergeStoredSecrets()`、`PublicSanitized()`、`WithDefaultWebDAVCredentials()` 等方法。
+- 如果新类型有自己的鉴权字段（例如 FTP 用户名/密码），建议新增专属字段而不是复用其他类型的字段，例如 FTP/SFTP 使用独立的 `FTPUsername` / `FTPPassword` / `FTPPort` / `FTPAnonymous` 字段，避免语义混淆。新增字段时需要同步更新 `RemoteStorageConfig` 结构体、`Normalized()`、`IsConfigured()`、`MergeStoredSecrets()`、`PublicSanitized()`、`WithDefaultWebDAVCredentials()` 等方法。
 - 如果新类型的"映射桶名"默认值需要特殊处理，更新 `normalizeMappedBucketName`。
 - `AccountLabel` 也要为新类型加上回退标签。
 
@@ -170,4 +170,3 @@ Dart 侧：
 - `README.md` — 在功能导览中把新类型加入支持列表。
 - `CHANGELOG.md` — 在 `## Unreleased` 下记录新特性。
 - 如果新类型需要用户侧说明（例如 FTP 被动模式、端口配置），在 README 补充使用说明。
-

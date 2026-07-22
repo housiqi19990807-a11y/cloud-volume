@@ -10,20 +10,23 @@ Widget buildConfigFormSingleColumnFields(
   required bool isBaiduPan,
 }) {
   final isWebDav = self.storageType == StorageType.webdav;
+  final isFTP = self.storageType == StorageType.ftp ||
+      self.storageType == StorageType.sftp;
+  final usesWebDAVCreds = isWebDav || isFTP;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       self._fieldLabel(context, '名称'),
       const SizedBox(height: 6),
-      _configFormNameInput(self, isWebDav: isWebDav, isBaiduPan: isBaiduPan),
-      if (isWebDav) ...[
+      _configFormNameInput(self, isWebDav: isWebDav, isBaiduPan: isBaiduPan, isFTP: isFTP),
+      if (usesWebDAVCreds) ...[
         const SizedBox(height: 18),
         self._fieldLabel(context, '映射桶名称'),
         const SizedBox(height: 6),
         _configFormMappedBucketInput(self),
         const SizedBox(height: 18),
       ],
-      if (!isWebDav && !isBaiduPan) ...[
+      if (!usesWebDAVCreds && !isBaiduPan) ...[
         const SizedBox(height: 18),
       ],
       if (isBaiduPan) ...[
@@ -39,22 +42,45 @@ Widget buildConfigFormSingleColumnFields(
           onSubmitAuthorizationCode: self.onAuthorizeBaiduPan,
         ),
       ] else ...[
-        self._fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
+        self._fieldLabel(
+          context,
+          isWebDav
+              ? 'WebDAV 地址'
+              : isFTP
+              ? 'FTP 地址'
+              : '网关地址',
+        ),
         const SizedBox(height: 6),
-        _configFormEndpointInput(self, isWebDav: isWebDav),
+        _configFormEndpointInput(self, isWebDav: isWebDav, isFTP: isFTP),
         const SizedBox(height: 22),
       ],
       if (!isBaiduPan &&
-          isWebDav &&
+          usesWebDAVCreds &&
           self.webdavUsernameController != null &&
           self.webdavPasswordController != null) ...[
         self._fieldLabel(context, '用户名'),
         const SizedBox(height: 6),
-        _configFormWebdavUsernameInput(self),
+        if (isFTP && self.ftpUsernameController != null)
+          ShadInput(
+            controller: self.ftpUsernameController!,
+            placeholder: const Text('输入用户名'),
+          )
+        else
+          _configFormWebdavUsernameInput(self),
         const SizedBox(height: 18),
         self._fieldLabel(context, '密码'),
         const SizedBox(height: 6),
-        _configFormWebdavPasswordInput(self),
+        if (isFTP && self.ftpPasswordController != null)
+          CloudStorageSecretInput(
+            controller: self.ftpPasswordController!,
+            placeholder: Text(
+              self.hasStoredFtpPassword
+                  ? '留空则保留当前已保存的密码'
+                  : '输入登录密码',
+            ),
+          )
+        else
+          _configFormWebdavPasswordInput(self),
       ] else if (!isBaiduPan) ...[
         self._fieldLabel(context, '访问密钥 ID'),
         const SizedBox(height: 6),
@@ -64,7 +90,7 @@ Widget buildConfigFormSingleColumnFields(
         const SizedBox(height: 6),
         _configFormSecretKeyInput(self),
       ],
-      if (!isWebDav && !isBaiduPan) ...[
+      if (!usesWebDAVCreds && !isBaiduPan) ...[
         const SizedBox(height: 18),
         _AdvancedSettingsLink(
           onTap: self.isSaving ? null : () => self.openAdvancedDialog(context),
@@ -80,6 +106,9 @@ Widget buildConfigFormTwoColumnFields(
   BuildContext context,
 ) {
   final isWebDav = self.storageType == StorageType.webdav;
+  final isFTP = self.storageType == StorageType.ftp ||
+      self.storageType == StorageType.sftp;
+  final usesWebDAVCreds = isWebDav || isFTP;
   return Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -93,18 +122,26 @@ Widget buildConfigFormTwoColumnFields(
               self,
               isWebDav: isWebDav,
               isBaiduPan: false,
+              isFTP: isFTP,
             ),
-            if (isWebDav) ...[
+            if (usesWebDAVCreds) ...[
               const SizedBox(height: 18),
               self._fieldLabel(context, '映射桶名称'),
               const SizedBox(height: 6),
               _configFormMappedBucketInput(self),
             ],
             const SizedBox(height: 18),
-            self._fieldLabel(context, isWebDav ? 'WebDAV 地址' : '网关地址'),
+            self._fieldLabel(
+              context,
+              isWebDav
+                  ? 'WebDAV 地址'
+                  : isFTP
+                  ? 'FTP 地址'
+                  : '网关地址',
+            ),
             const SizedBox(height: 6),
-            _configFormEndpointInput(self, isWebDav: isWebDav),
-            if (!isWebDav) ...[
+            _configFormEndpointInput(self, isWebDav: isWebDav, isFTP: isFTP),
+            if (!usesWebDAVCreds) ...[
               const SizedBox(height: 18),
               _AdvancedSettingsLink(
                 onTap:
@@ -119,7 +156,7 @@ Widget buildConfigFormTwoColumnFields(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (isWebDav &&
+            if (usesWebDAVCreds &&
                 self.webdavUsernameController != null &&
                 self.webdavPasswordController != null) ...[
               self._fieldLabel(context, '用户名'),
@@ -149,6 +186,7 @@ Widget _configFormNameInput(
   ConfigRightFormPanel self, {
   required bool isWebDav,
   required bool isBaiduPan,
+  bool isFTP = false,
 }) {
   return ShadInput(
     controller: self.nameController,
@@ -157,6 +195,8 @@ Widget _configFormNameInput(
           ? '例如：我的百度网盘'
           : isWebDav
           ? '例如：IHEP WebDAV'
+          : isFTP
+          ? '例如：我的 FTP 服务器'
           : '例如：对象存储账号',
     ),
     onChanged: self.onNameChanged,
@@ -174,6 +214,7 @@ Widget _configFormMappedBucketInput(ConfigRightFormPanel self) {
 Widget _configFormEndpointInput(
   ConfigRightFormPanel self, {
   required bool isWebDav,
+  bool isFTP = false,
 }) {
   return CloudStorageTechnicalInput(
     controller: self.endpointController,
@@ -181,6 +222,8 @@ Widget _configFormEndpointInput(
     placeholder: Text(
       isWebDav
           ? 'https://webdav-ocloud.ihep.ac.cn'
+          : isFTP
+          ? 'host:21 或 ftp://host:21'
           : 'https://fgws3-ocloud.ihep.ac.cn',
     ),
   );
@@ -221,4 +264,3 @@ Widget _configFormSecretKeyInput(ConfigRightFormPanel self) {
     ),
   );
 }
-

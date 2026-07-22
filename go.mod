@@ -1,6 +1,6 @@
 module remote-storage
 
-go 1.25.0
+go 1.26
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.7
@@ -16,10 +16,10 @@ require (
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/peterh/liner v1.2.2
 	go.etcd.io/bbolt v1.4.2
-	golang.org/x/net v0.48.0
-	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.45.0
-	golang.org/x/term v0.38.0
+	golang.org/x/net v0.56.0
+	golang.org/x/sync v0.22.0
+	golang.org/x/sys v0.47.0
+	golang.org/x/term v0.45.0
 )
 
 require (
@@ -32,21 +32,26 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.23 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/fclairamb/ftpserverlib v0.32.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/jlaffaye/ftp v0.2.1 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.11 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/minio/crc64nvme v1.1.1 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
+	github.com/pkg/sftp v1.13.11 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
+	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
 	github.com/winfsp/cgofuse v1.6.0 // indirect
-	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/crypto v0.54.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
 )

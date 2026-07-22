@@ -212,6 +212,9 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
             ? '请先完成百度网盘 OAuth 授权。'
             : config.storageType == StorageType.webdav
                 ? '请填写 WebDAV 地址、用户名和密码。'
+                : config.storageType == StorageType.ftp ||
+                  config.storageType == StorageType.sftp
+                ? '请填写 FTP/SFTP 地址、用户名和密码。'
                 : '请填写 Endpoint、Access Key 和 Secret Key。',
       );
       return false;

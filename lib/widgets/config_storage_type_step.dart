@@ -80,6 +80,22 @@ class ConfigStorageTypeStep extends StatelessWidget {
                         title: '百度网盘',
                         description: '通过百度网盘 OpenAPI + OAuth 登录个人网盘账号。',
                       ),
+                      const SizedBox(height: 12),
+                      _typeTile(
+                        context,
+                        type: StorageType.ftp,
+                        icon: Icons.dns_outlined,
+                        title: 'FTP',
+                        description: '连接经典 FTP 服务器，支持主动/被动模式文件传输。',
+                      ),
+                      const SizedBox(height: 12),
+                      _typeTile(
+                        context,
+                        type: StorageType.sftp,
+                        icon: Icons.security_outlined,
+                        title: 'SFTP',
+                        description: '通过 SSH 隧道安全传输文件，适用于 SFTP 服务器。',
+                      ),
                       const SizedBox(height: 24),
                       SizedBox(
                         height: 44,

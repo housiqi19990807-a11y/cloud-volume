@@ -40,6 +40,11 @@ class RemoteStorageConfig {
     required this.webdavUsername,
     required this.webdavPassword,
     required this.hasWebdavPassword,
+    required this.ftpUsername,
+    required this.ftpPassword,
+    required this.hasFtpPassword,
+    this.ftpPort = 0,
+    this.ftpAnonymous = false,
     required this.rootPrefix,
     required this.defaultDownloadDirectory,
     required this.cacheDirectory,
@@ -84,6 +89,11 @@ class RemoteStorageConfig {
       webdavUsername: '',
       webdavPassword: '',
       hasWebdavPassword: false,
+      ftpUsername: '',
+      ftpPassword: '',
+      hasFtpPassword: false,
+      ftpPort: 0,
+      ftpAnonymous: false,
       rootPrefix: '',
       defaultDownloadDirectory: '',
       cacheDirectory: '',
@@ -119,6 +129,8 @@ class RemoteStorageConfig {
         (json['secretAccessKey'] ?? json['secret_access_key'] ?? '').toString();
     final webdavPassword =
         (json['webdavPassword'] ?? json['webdav_password'] ?? '').toString();
+    final ftpPassword =
+        (json['ftpPassword'] ?? json['ftp_password'] ?? '').toString();
     final trashRetentionDays =
         _intFromDynamic(
           json['trashRetentionDays'] ?? json['trash_retention_days'],
@@ -161,6 +173,19 @@ class RemoteStorageConfig {
             json['hasWebdavPassword'] ?? json['has_webdav_password'],
           ) ??
           webdavPassword.isNotEmpty,
+      ftpUsername: (json['ftpUsername'] ?? json['ftp_username'] ?? '')
+          .toString(),
+      ftpPassword: ftpPassword,
+      hasFtpPassword:
+          _boolFromDynamic(
+            json['hasFtpPassword'] ?? json['has_ftp_password'],
+          ) ??
+          ftpPassword.isNotEmpty,
+      ftpPort: _intFromDynamic(json['ftpPort'] ?? json['ftp_port']) ?? 0,
+      ftpAnonymous: _boolFromDynamic(
+            json['ftpAnonymous'] ?? json['ftp_anonymous'],
+          ) ??
+          false,
       rootPrefix: (json['rootPrefix'] ?? json['root_prefix'] ?? '').toString(),
       defaultDownloadDirectory:
           (json['defaultDownloadDirectory'] ??
@@ -270,6 +295,11 @@ class RemoteStorageConfig {
   final String webdavUsername;
   final String webdavPassword;
   final bool hasWebdavPassword;
+  final String ftpUsername;
+  final String ftpPassword;
+  final bool hasFtpPassword;
+  final int ftpPort;
+  final bool ftpAnonymous;
   final String rootPrefix;
   final String defaultDownloadDirectory;
   final String cacheDirectory;
@@ -305,10 +335,13 @@ class RemoteStorageConfig {
           accessKeyId.trim().isNotEmpty &&
           (secretAccessKey.trim().isNotEmpty || hasSecretAccessKey);
     }
-    if (storageType == StorageType.webdav) {
+    if (storageType == StorageType.webdav ||
+        storageType == StorageType.ftp ||
+        storageType == StorageType.sftp) {
+      if (ftpAnonymous) return endpoint.trim().isNotEmpty;
       return endpoint.trim().isNotEmpty &&
-          webdavUsername.trim().isNotEmpty &&
-          (webdavPassword.isNotEmpty || hasWebdavPassword);
+          ftpUsername.trim().isNotEmpty &&
+          (ftpPassword.isNotEmpty || hasFtpPassword);
     }
     return endpoint.trim().isNotEmpty &&
         accessKeyId.trim().isNotEmpty &&
@@ -366,6 +399,11 @@ class RemoteStorageConfig {
       'webdavUsername': webdavUsername.trim(),
       'webdavPassword': webdavPassword,
       'hasWebdavPassword': hasWebdavPassword || webdavPassword.isNotEmpty,
+      'ftpUsername': ftpUsername.trim(),
+      'ftpPassword': ftpPassword,
+      'hasFtpPassword': hasFtpPassword || ftpPassword.isNotEmpty,
+      'ftpPort': ftpPort,
+      'ftpAnonymous': ftpAnonymous,
       'rootPrefix': rootPrefix.trim(),
       'defaultDownloadDirectory': defaultDownloadDirectory.trim(),
       'cacheDirectory': cacheDirectory.trim(),
@@ -413,6 +451,11 @@ class RemoteStorageConfig {
     String? webdavUsername,
     String? webdavPassword,
     bool? hasWebdavPassword,
+    String? ftpUsername,
+    String? ftpPassword,
+    bool? hasFtpPassword,
+    int? ftpPort,
+    bool? ftpAnonymous,
     String? rootPrefix,
     String? defaultDownloadDirectory,
     String? cacheDirectory,
@@ -455,6 +498,11 @@ class RemoteStorageConfig {
       webdavUsername: webdavUsername ?? this.webdavUsername,
       webdavPassword: webdavPassword ?? this.webdavPassword,
       hasWebdavPassword: hasWebdavPassword ?? this.hasWebdavPassword,
+      ftpUsername: ftpUsername ?? this.ftpUsername,
+      ftpPassword: ftpPassword ?? this.ftpPassword,
+      hasFtpPassword: hasFtpPassword ?? this.hasFtpPassword,
+      ftpPort: ftpPort ?? this.ftpPort,
+      ftpAnonymous: ftpAnonymous ?? this.ftpAnonymous,
       rootPrefix: rootPrefix ?? this.rootPrefix,
       defaultDownloadDirectory:
           defaultDownloadDirectory ?? this.defaultDownloadDirectory,

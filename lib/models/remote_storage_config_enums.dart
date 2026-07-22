@@ -54,7 +54,9 @@ enum WindowsMountEngine {
 enum StorageType {
   s3('s3', 'S3 对象存储'),
   webdav('webdav', 'WebDAV'),
-  baiduPan('baidu_pan', '百度网盘');
+  baiduPan('baidu_pan', '百度网盘'),
+  ftp('ftp', 'FTP'),
+  sftp('sftp', 'SFTP');
 
   const StorageType(this.storageValue, this.label);
 
@@ -66,6 +68,8 @@ enum StorageType {
     return switch (normalized) {
       'webdav' => StorageType.webdav,
       'baidu_pan' => StorageType.baiduPan,
+      'ftp' => StorageType.ftp,
+      'sftp' => StorageType.sftp,
       _ => StorageType.s3,
     };
   }

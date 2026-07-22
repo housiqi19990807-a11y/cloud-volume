@@ -91,6 +91,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   final _secretKeyController = TextEditingController();
   final _webdavUsernameController = TextEditingController();
   final _webdavPasswordController = TextEditingController();
+  final _ftpUsernameController = TextEditingController();
+  final _ftpPasswordController = TextEditingController();
+  final _ftpPortController = TextEditingController();
+  bool _ftpAnonymous = false;
   final _baiduAuthCodeController = TextEditingController();
   final _proxyHostController = TextEditingController();
   final _proxyPortController = TextEditingController();
@@ -129,6 +133,11 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _regionController.text = config.region.isEmpty ? 'auto' : config.region;
     _accessKeyController.text = config.accessKeyId;
     _webdavUsernameController.text = config.webdavUsername;
+    _ftpUsernameController.text = config.ftpUsername;
+    if (config.ftpPort > 0) {
+      _ftpPortController.text = config.ftpPort.toString();
+    }
+    _ftpAnonymous = config.ftpAnonymous;
     _usePathStyle = config.usePathStyle;
     _bucketViews = Map<String, BucketViewSettings>.from(config.bucketViews);
     _proxyMode = config.proxyMode;
@@ -153,6 +162,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _secretKeyController.dispose();
     _webdavUsernameController.dispose();
     _webdavPasswordController.dispose();
+    _ftpUsernameController.dispose();
+    _ftpPasswordController.dispose();
+    _ftpPortController.dispose();
     _baiduAuthCodeController.dispose();
     _proxyHostController.dispose();
     _proxyPortController.dispose();

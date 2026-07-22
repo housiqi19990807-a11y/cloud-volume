@@ -135,6 +135,8 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
       StorageType.s3 => LucideIcons.database,
       StorageType.webdav => LucideIcons.folderOpen,
       StorageType.baiduPan => LucideIcons.cloud,
+      StorageType.ftp => LucideIcons.server,
+      StorageType.sftp => LucideIcons.shield,
     };
   }
 
@@ -143,6 +145,8 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
       StorageType.s3 => 'Amazon S3、MinIO 及兼容的对象存储服务',
       StorageType.webdav => '通过 WebDAV 协议挂载的远端文件服务',
       StorageType.baiduPan => '使用百度网盘 OAuth 授权接入个人网盘',
+      StorageType.ftp => '连接经典 FTP 服务器进行文件传输',
+      StorageType.sftp => '通过 SSH 隧道安全传输文件',
     };
   }
 }
@@ -158,6 +162,8 @@ Widget stepConnectionFields({
 }) {
   final isWebDav = self._storageType == StorageType.webdav;
   final isBaiduPan = self._storageType == StorageType.baiduPan;
+  final isFTP = self._storageType == StorageType.ftp ||
+      self._storageType == StorageType.sftp;
   return Column(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -171,12 +177,14 @@ Widget stepConnectionFields({
                 ? '例如：我的百度网盘'
                 : isWebDav
                 ? '例如：IHEP WebDAV'
+                : isFTP
+                ? '例如：我的 FTP 服务器'
                 : '例如：对象存储账号',
           ),
           onChanged: (_) => self._syncMappedBucketName(),
         ),
       ),
-      if (isWebDav) ...[
+      if (isWebDav || isFTP) ...[
         const SizedBox(height: 14),
         CloudStorageLabeledField(
           label: '映射桶名称',
@@ -189,8 +197,9 @@ Widget stepConnectionFields({
       ],
       const SizedBox(height: 14),
       if (isBaiduPan) ..._baiduPanFields(self),
-      if (!isBaiduPan && !isWebDav) ..._s3Fields(self),
+      if (!isBaiduPan && !isWebDav && !isFTP) ..._s3Fields(self),
       if (!isBaiduPan && isWebDav) ..._webdavFields(self),
+      if (!isBaiduPan && isFTP) ..._ftpFields(self),
       const SizedBox(height: 16),
       Align(
         alignment: Alignment.centerLeft,
@@ -202,9 +211,7 @@ Widget stepConnectionFields({
       ),
       const SizedBox(height: 6),
       Text(
-        isBaiduPan
-            ? '代理等可选项在高级设置中配置。'
-            : isWebDav
+        isBaiduPan || isWebDav || isFTP
             ? '代理等可选项在高级设置中配置。'
             : '路径风格访问、代理等可选项在高级设置中配置。',
         style: TextStyle(
@@ -429,6 +436,113 @@ List<Widget> _webdavFields(_CloudStorageAccountDialogState self) {
       ),
     ),
   ];
+}
+
+/// FTP/SFTP fields: host, port, username, password, anonymous toggle.
+List<Widget> _ftpFields(_CloudStorageAccountDialogState self) {
+  final isSFTP = self._storageType == StorageType.sftp;
+  final protocolLabel = isSFTP ? 'SFTP' : 'FTP';
+  final defaultPort = isSFTP ? '22' : '21';
+  return [
+    _twoColumnRow(
+      left: CloudStorageLabeledField(
+        label: '$protocolLabel 地址',
+        child: CloudStorageTechnicalInput(
+          controller: self._endpointController,
+          keyboardType: TextInputType.url,
+          placeholder: Text('host 或 ${protocolLabel.toLowerCase()}://host'),
+        ),
+      ),
+      right: CloudStorageLabeledField(
+        label: '端口',
+        child: CloudStorageTechnicalInput(
+          controller: self._ftpPortController,
+          keyboardType: TextInputType.number,
+          placeholder: Text('默认 $defaultPort'),
+        ),
+      ),
+    ),
+    const SizedBox(height: 14),
+    if (!self._ftpAnonymous)
+      _twoColumnRow(
+        left: CloudStorageLabeledField(
+          label: '用户名',
+          child: CloudStorageTechnicalInput(
+            controller: self._ftpUsernameController,
+            placeholder: Text('输入 $protocolLabel 用户名'),
+          ),
+        ),
+        right: CloudStorageLabeledField(
+          label: '密码',
+          child: CloudStorageSecretInput(
+            controller: self._ftpPasswordController,
+            placeholder: Text(
+              self.widget.editing
+                  ? '留空则保留当前密码'
+                  : '输入 $protocolLabel 登录密码',
+            ),
+          ),
+        ),
+      ),
+    const SizedBox(height: 14),
+    _ftpAnonymousToggle(self, protocolLabel),
+  ];
+}
+
+/// Anonymous login toggle for FTP/SFTP.
+class _FtpAnonymousToggle extends StatefulWidget {
+  const _FtpAnonymousToggle({
+    required _CloudStorageAccountDialogState self,
+    required String protocolLabel,
+  })  : _self = self,
+        _protocolLabel = protocolLabel;
+
+  final _CloudStorageAccountDialogState _self;
+  final String _protocolLabel;
+
+  @override
+  State<_FtpAnonymousToggle> createState() => _FtpAnonymousToggleState();
+}
+
+class _FtpAnonymousToggleState extends State<_FtpAnonymousToggle> {
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ShadSwitch(
+        value: widget._self._ftpAnonymous,
+        onChanged: (value) => widget._self.markDirty(() {
+          widget._self._ftpAnonymous = value;
+        }),
+        label: Text(
+          '匿名登录',
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.foreground,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        sublabel: Text(
+          '使用 anonymous 账号登录${widget._protocolLabel}服务器，无需用户名密码。',
+          style: TextStyle(
+            color: theme.colorScheme.mutedForeground,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Widget _ftpAnonymousToggle(
+  _CloudStorageAccountDialogState self,
+  String protocolLabel,
+) {
+  return _FtpAnonymousToggle(self: self, protocolLabel: protocolLabel);
 }
 
 /// Baidu Pan fields: OAuth authorization section.

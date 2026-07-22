@@ -33,6 +33,7 @@ String _defaultEndpointFor(StorageType type) {
     StorageType.s3 => _kDefaultS3Endpoint,
     StorageType.webdav => _kDefaultWebDavEndpoint,
     StorageType.baiduPan => _kBaiduPanEndpoint,
+    StorageType.ftp || StorageType.sftp => '',
   };
 }
 
@@ -63,6 +64,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   late final TextEditingController _secretKeyController;
   late final TextEditingController _webdavUsernameController;
   late final TextEditingController _webdavPasswordController;
+  late final TextEditingController _ftpUsernameController;
+  late final TextEditingController _ftpPasswordController;
+  late final TextEditingController _ftpPortController;
   late final TextEditingController _baiduAuthCodeController;
   RemoteStorageConfig? _authorizedBaiduConfig;
   String _baiduAuthUrl = '';
@@ -88,6 +92,10 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           ? 'WebDAV'
           : config.storageType == StorageType.baiduPan
           ? '百度网盘'
+          : config.storageType == StorageType.sftp
+          ? 'SFTP'
+          : config.storageType == StorageType.ftp
+          ? 'FTP'
           : 'S3',
     );
     // 首次运行时使用默认值。
@@ -98,6 +106,10 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           ? 'WebDAV'
           : config.storageType == StorageType.baiduPan
           ? '百度网盘'
+          : config.storageType == StorageType.sftp
+          ? 'SFTP'
+          : config.storageType == StorageType.ftp
+          ? 'FTP'
           : 'S3',
     );
     _endpointController = TextEditingController(
@@ -114,6 +126,13 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       text: config.webdavUsername,
     );
     _webdavPasswordController = TextEditingController();
+    _ftpUsernameController = TextEditingController(
+      text: config.ftpUsername,
+    );
+    _ftpPasswordController = TextEditingController();
+    _ftpPortController = TextEditingController(
+      text: config.ftpPort > 0 ? config.ftpPort.toString() : '',
+    );
     _baiduAuthCodeController = TextEditingController();
     _usePathStyle = config.usePathStyle;
     if (config.storageType == StorageType.baiduPan) {
@@ -131,6 +150,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     _secretKeyController.dispose();
     _webdavUsernameController.dispose();
     _webdavPasswordController.dispose();
+    _ftpUsernameController.dispose();
+    _ftpPasswordController.dispose();
+    _ftpPortController.dispose();
     _baiduAuthCodeController.dispose();
     super.dispose();
   }
@@ -147,21 +169,33 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       if (mappedName.isEmpty ||
           mappedName == 'S3' ||
           mappedName == 'WebDAV' ||
-          mappedName == '百度网盘') {
+          mappedName == '百度网盘' ||
+          mappedName == 'FTP' ||
+          mappedName == 'SFTP') {
         _mappedBucketNameController.text = type == StorageType.webdav
             ? 'WebDAV'
             : type == StorageType.baiduPan
             ? '百度网盘'
+            : type == StorageType.sftp
+            ? 'SFTP'
+            : type == StorageType.ftp
+            ? 'FTP'
             : 'S3';
       }
       if (_nameController.text.trim().isEmpty ||
           _nameController.text.trim() == 'S3' ||
           _nameController.text.trim() == 'WebDAV' ||
-          _nameController.text.trim() == '百度网盘') {
+          _nameController.text.trim() == '百度网盘' ||
+          _nameController.text.trim() == 'FTP' ||
+          _nameController.text.trim() == 'SFTP') {
         _nameController.text = type == StorageType.webdav
             ? 'WebDAV'
             : type == StorageType.baiduPan
             ? '百度网盘'
+            : type == StorageType.sftp
+            ? 'SFTP'
+            : type == StorageType.ftp
+            ? 'FTP'
             : 'S3';
       }
     });
@@ -170,6 +204,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   Future<void> _save() async {
     final isWebDav = _storageType == StorageType.webdav;
     final isBaiduPan = _storageType == StorageType.baiduPan;
+    final isFTP = _storageType == StorageType.ftp ||
+        _storageType == StorageType.sftp;
     final name = _nameController.text.trim();
     final config = RemoteStorageConfig(
       endpoint: isBaiduPan
@@ -180,7 +216,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           ? StorageProviderType.baiduPan
           : widget.initialState.config.providerType,
       displayName: name,
-      mappedBucketName: isWebDav
+      mappedBucketName: isWebDav || isFTP
           ? (_mappedBucketNameController.text.trim().isNotEmpty
                 ? _mappedBucketNameController.text
                 : name)
@@ -191,29 +227,34 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       bucket: widget.initialState.config.bucket,
       accessKeyId: isBaiduPan
           ? (_authorizedBaiduConfig?.accessKeyId ?? '')
-          : isWebDav
+          : isWebDav || isFTP
           ? ''
           : _accessKeyController.text,
       secretAccessKey: isBaiduPan
           ? (_authorizedBaiduConfig?.secretAccessKey ?? '')
-          : isWebDav
+          : isWebDav || isFTP
           ? ''
           : _secretKeyController.text,
       hasSecretAccessKey: isBaiduPan
           ? (_authorizedBaiduConfig?.hasSecretAccessKey ?? false)
-          : !isWebDav && widget.initialState.config.hasSecretAccessKey,
+          : !isWebDav && !isFTP && widget.initialState.config.hasSecretAccessKey,
       webdavUsername: isWebDav
           ? _webdavUsernameController.text
-          : isBaiduPan
+          : isBaiduPan || isFTP
           ? ''
           : _accessKeyController.text,
       webdavPassword: isWebDav
           ? _webdavPasswordController.text
-          : isBaiduPan
+          : isBaiduPan || isFTP
           ? ''
           : _secretKeyController.text,
       hasWebdavPassword:
           isWebDav && widget.initialState.config.hasWebdavPassword,
+      ftpUsername: isFTP ? _ftpUsernameController.text : '',
+      ftpPassword: isFTP ? _ftpPasswordController.text : '',
+      hasFtpPassword: isFTP && widget.initialState.config.hasFtpPassword,
+      ftpPort: isFTP ? (int.tryParse(_ftpPortController.text.trim()) ?? 0) : 0,
+      ftpAnonymous: false,
       rootPrefix: widget.initialState.config.rootPrefix,
       defaultDownloadDirectory:
           widget.initialState.config.defaultDownloadDirectory,
@@ -366,6 +407,10 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                               widget.initialState.config.hasSecretAccessKey,
                           webdavUsernameController: _webdavUsernameController,
                           webdavPasswordController: _webdavPasswordController,
+                          ftpUsernameController: _ftpUsernameController,
+                          ftpPasswordController: _ftpPasswordController,
+                          hasStoredFtpPassword:
+                              widget.initialState.config.hasFtpPassword,
                           hasStoredWebdavPassword:
                               widget.initialState.config.hasWebdavPassword,
                           baiduPanAuthorized:

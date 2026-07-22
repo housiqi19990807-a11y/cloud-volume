@@ -100,11 +100,16 @@ func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {
 	}
 	normalized := cfg.Normalized()
 	var backend Backend
-	if normalized.StorageType == storageconfig.StorageTypeWebDAV {
+	switch normalized.StorageType {
+	case storageconfig.StorageTypeWebDAV:
 		backend = NewWebDAVBackend(normalized)
-	} else if normalized.StorageType == storageconfig.StorageTypeBaiduPan {
+	case storageconfig.StorageTypeBaiduPan:
 		backend = newBaiduPanBackend(normalized)
-	} else {
+	case storageconfig.StorageTypeFTP:
+		backend = newFTPBackend(normalized)
+	case storageconfig.StorageTypeSFTP:
+		backend = newSFTPBackend(normalized)
+	default:
 		backend = s3Backend{cfg: normalized}
 	}
 	if normalized.RootPrefix != "" {

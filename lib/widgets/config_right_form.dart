@@ -29,6 +29,9 @@ class ConfigRightFormPanel extends StatelessWidget {
     required this.hasStoredSecretKey,
     required this.webdavUsernameController,
     required this.webdavPasswordController,
+    required this.ftpUsernameController,
+    required this.ftpPasswordController,
+    this.hasStoredFtpPassword = false,
     required this.hasStoredWebdavPassword,
     required this.baiduPanAuthorized,
     required this.baiduPanAccountLabel,
@@ -61,6 +64,9 @@ class ConfigRightFormPanel extends StatelessWidget {
   final bool hasStoredSecretKey;
   final TextEditingController? webdavUsernameController;
   final TextEditingController? webdavPasswordController;
+  final TextEditingController? ftpUsernameController;
+  final TextEditingController? ftpPasswordController;
+  final bool hasStoredFtpPassword;
   final bool hasStoredWebdavPassword;
   final bool baiduPanAuthorized;
   final String baiduPanAccountLabel;
@@ -82,15 +88,23 @@ class ConfigRightFormPanel extends StatelessWidget {
     final theme = ShadTheme.of(context);
     final isWebDav = storageType == StorageType.webdav;
     final isBaiduPan = storageType == StorageType.baiduPan;
+    final isFTP = storageType == StorageType.ftp ||
+        storageType == StorageType.sftp;
+    final ftpLabel =
+        storageType == StorageType.sftp ? 'SFTP' : 'FTP';
     final title = isBaiduPan
         ? '添加百度网盘账号'
         : isWebDav
         ? '添加 WebDAV 账号'
+        : isFTP
+        ? '添加 $ftpLabel 账号'
         : '添加 S3 对象存储账号';
     final subtitle = isBaiduPan
         ? '通过百度要求的 oob 授权码流程完成百度网盘 OpenAPI 登录。'
         : isWebDav
         ? '填写 WebDAV 服务地址和登录账号。'
+        : isFTP
+        ? '填写 $ftpLabel 服务器地址、端口和登录账号。'
         : '填写对象存储端点和访问密钥。';
 
     return Container(
@@ -390,4 +404,3 @@ class _AdvancedSettingsLink extends StatelessWidget {
     );
   }
 }
-

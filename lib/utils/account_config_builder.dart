@@ -13,10 +13,14 @@ RemoteStorageConfig buildAccountConfig(
 }) {
   final isBaidu = draft.storageType == StorageType.baiduPan;
   final isWebdav = draft.storageType == StorageType.webdav;
+  final isFTP = draft.storageType == StorageType.ftp ||
+      draft.storageType == StorageType.sftp;
 
   final name = draft.name.trim();
   final fallback = isWebdav
       ? draft.webdavUsername.trim()
+      : isFTP
+      ? draft.ftpUsername.trim()
       : isBaidu
       ? name
       : draft.accessKey.trim();
@@ -42,22 +46,43 @@ RemoteStorageConfig buildAccountConfig(
   String webdavPassword;
   bool hasWebdavPassword;
   String webdavUsername;
+  String ftpUsername;
+  String ftpPassword;
+  bool hasFtpPassword;
   if (isWebdav) {
     webdavUsername = draft.webdavUsername;
     webdavPassword = draft.webdavPassword;
     hasWebdavPassword =
         webdavPassword.trim().isNotEmpty ||
         (existing?.hasWebdavPassword ?? false);
+    ftpUsername = '';
+    ftpPassword = '';
+    hasFtpPassword = false;
+  } else if (isFTP) {
+    webdavUsername = '';
+    webdavPassword = '';
+    hasWebdavPassword = false;
+    ftpUsername = draft.ftpUsername;
+    ftpPassword = draft.ftpPassword;
+    hasFtpPassword =
+        ftpPassword.trim().isNotEmpty ||
+        (existing?.hasFtpPassword ?? false);
   } else if (isBaidu) {
     webdavUsername = '';
     webdavPassword = '';
     hasWebdavPassword = false;
+    ftpUsername = '';
+    ftpPassword = '';
+    hasFtpPassword = false;
   } else {
     webdavUsername = draft.accessKey;
     webdavPassword = draft.secretKey;
     hasWebdavPassword =
         draft.secretKey.trim().isNotEmpty ||
         (existing?.hasSecretAccessKey ?? false);
+    ftpUsername = '';
+    ftpPassword = '';
+    hasFtpPassword = false;
   }
 
   return RemoteStorageConfig.empty().copyWith(
@@ -78,6 +103,11 @@ RemoteStorageConfig buildAccountConfig(
     webdavUsername: webdavUsername,
     webdavPassword: webdavPassword,
     hasWebdavPassword: hasWebdavPassword,
+    ftpUsername: ftpUsername,
+    ftpPassword: ftpPassword,
+    hasFtpPassword: hasFtpPassword,
+    ftpPort: isFTP ? draft.ftpPort : 0,
+    ftpAnonymous: isFTP ? draft.ftpAnonymous : false,
     proxyMode: draft.proxyMode,
     proxyType: draft.proxyType,
     proxyHost: draft.proxyHost,

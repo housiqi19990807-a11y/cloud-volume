@@ -17,6 +17,11 @@ type RemoteStorageConfig struct {
 	WebDAVUsername              string                        `json:"webdavUsername" toml:"webdav_username"`
 	WebDAVPassword              string                        `json:"webdavPassword" toml:"webdav_password"`
 	HasWebDAVPassword           bool                          `json:"hasWebdavPassword" toml:"-"`
+	FTPUsername                 string                        `json:"ftpUsername" toml:"ftp_username"`
+	FTPPassword                 string                        `json:"ftpPassword" toml:"ftp_password"`
+	HasFTPPassword              bool                          `json:"hasFtpPassword" toml:"-"`
+	FTPPort                     int                           `json:"ftpPort" toml:"ftp_port"`
+	FTPAnonymous                bool                          `json:"ftpAnonymous" toml:"ftp_anonymous"`
 	RootPrefix                  string                        `json:"rootPrefix" toml:"root_prefix"`
 	DefaultDownloadDirectory    string                        `json:"defaultDownloadDirectory" toml:"default_download_directory"`
 	CacheDirectory              string                        `json:"cacheDirectory" toml:"cache_directory"`
@@ -66,6 +71,8 @@ const (
 	StorageTypeS3                      = "s3"
 	StorageTypeWebDAV                  = "webdav"
 	StorageTypeBaiduPan                = "baidu_pan"
+	StorageTypeFTP                     = "ftp"
+	StorageTypeSFTP                    = "sftp"
 	WindowsMountModeCloudFilesCached   = "cloud_files_cached"
 	WindowsMountModeCloudFilesDirect   = "cloud_files_direct"
 	WindowsMountModeWebDAV             = "webdav"
@@ -139,6 +146,11 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		WebDAVUsername:              strings.TrimSpace(c.WebDAVUsername),
 		WebDAVPassword:              strings.TrimSpace(c.WebDAVPassword),
 		HasWebDAVPassword:           strings.TrimSpace(c.WebDAVPassword) != "" || c.HasWebDAVPassword,
+		FTPUsername:                 strings.TrimSpace(c.FTPUsername),
+		FTPPassword:                 strings.TrimSpace(c.FTPPassword),
+		HasFTPPassword:              strings.TrimSpace(c.FTPPassword) != "" || c.HasFTPPassword,
+		FTPPort:                     normalizeFTPPort(c.FTPPort),
+		FTPAnonymous:                c.FTPAnonymous,
 		RootPrefix:                  strings.Trim(strings.TrimSpace(c.RootPrefix), "/"),
 		DefaultDownloadDirectory:    strings.TrimSpace(c.DefaultDownloadDirectory),
 		CacheDirectory:              strings.TrimSpace(c.CacheDirectory),
@@ -195,6 +207,14 @@ func (c RemoteStorageConfig) IsConfigured() bool {
 		return normalized.WebDAVUsername != "" &&
 			(normalized.WebDAVPassword != "" || normalized.HasWebDAVPassword)
 	}
+	if normalized.StorageType == StorageTypeFTP || normalized.StorageType == StorageTypeSFTP {
+		// Anonymous login: username is optional, password is optional.
+		if normalized.FTPAnonymous {
+			return true
+		}
+		return normalized.FTPUsername != "" &&
+			(normalized.FTPPassword != "" || normalized.HasFTPPassword)
+	}
 	return normalized.AccessKeyID != "" &&
 		(normalized.SecretAccessKey != "" || normalized.HasSecretAccessKey)
 }
@@ -220,8 +240,14 @@ func (c RemoteStorageConfig) MergeStoredSecrets(existing RemoteStorageConfig) Re
 		current.WebDAVPassword != "" {
 		normalized.WebDAVPassword = current.WebDAVPassword
 	}
+	if normalized.FTPPassword == "" &&
+		normalized.HasFTPPassword &&
+		current.FTPPassword != "" {
+		normalized.FTPPassword = current.FTPPassword
+	}
 	normalized.HasSecretAccessKey = normalized.SecretAccessKey != "" || normalized.HasSecretAccessKey
 	normalized.HasWebDAVPassword = normalized.WebDAVPassword != "" || normalized.HasWebDAVPassword
+	normalized.HasFTPPassword = normalized.FTPPassword != "" || normalized.HasFTPPassword
 	return normalized
 }
 
@@ -229,6 +255,8 @@ func (c RemoteStorageConfig) MergeStoredSecrets(existing RemoteStorageConfig) Re
 func (c RemoteStorageConfig) WithDefaultWebDAVCredentials() RemoteStorageConfig {
 	normalized := c.Normalized()
 	if normalized.StorageType == StorageTypeWebDAV ||
+		normalized.StorageType == StorageTypeFTP ||
+		normalized.StorageType == StorageTypeSFTP ||
 		normalized.StorageType == StorageTypeBaiduPan {
 		return normalized
 	}
@@ -254,6 +282,12 @@ func (c RemoteStorageConfig) AccountLabel(fallback string) string {
 		}
 		return "百度网盘"
 	}
+	if normalized.StorageType == StorageTypeFTP || normalized.StorageType == StorageTypeSFTP {
+		if normalized.FTPUsername != "" {
+			return normalized.FTPUsername
+		}
+		return "FTP"
+	}
 	if normalized.AccessKeyID != "" {
 		return normalized.AccessKeyID
 	}
@@ -277,7 +311,17 @@ func (c RemoteStorageConfig) PublicSanitized() RemoteStorageConfig {
 	normalized := c.Normalized()
 	normalized.SecretAccessKey = ""
 	normalized.WebDAVPassword = ""
+	normalized.FTPPassword = ""
+	normalized.HasFTPPassword = normalized.HasFTPPassword && normalized.FTPPassword == ""
 	return normalized
+}
+
+// normalizeFTPPort returns 0 (meaning "use default 21/22") for invalid or unset values.
+func normalizeFTPPort(port int) int {
+	if port < 0 || port > 65535 {
+		return 0
+	}
+	return port
 }
 
 func normalizeFileOpenMode(value string) string {
@@ -293,6 +337,10 @@ func normalizeStorageType(value string) string {
 		return StorageTypeWebDAV
 	case StorageTypeBaiduPan:
 		return StorageTypeBaiduPan
+	case StorageTypeFTP:
+		return StorageTypeFTP
+	case StorageTypeSFTP:
+		return StorageTypeSFTP
 	default:
 		return StorageTypeS3
 	}
@@ -310,12 +358,24 @@ func normalizeMappedBucketName(storageType, value, displayName string) string {
 	if normalizeStorageType(storageType) == StorageTypeBaiduPan {
 		return "百度网盘"
 	}
+	if normalizeStorageType(storageType) == StorageTypeFTP {
+		return "FTP"
+	}
+	if normalizeStorageType(storageType) == StorageTypeSFTP {
+		return "SFTP"
+	}
 	return "WebDAV"
 }
 
 func normalizeProviderType(value, endpoint, storageType string) string {
 	if normalizeStorageType(storageType) == StorageTypeBaiduPan {
 		return StorageTypeBaiduPan
+	}
+	if normalizeStorageType(storageType) == StorageTypeFTP {
+		return StorageTypeFTP
+	}
+	if normalizeStorageType(storageType) == StorageTypeSFTP {
+		return StorageTypeSFTP
 	}
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
