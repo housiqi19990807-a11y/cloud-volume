@@ -23,6 +23,7 @@ func (a *bucketAccess) listDirectoryWithPrefetch(
 	virtualPrefix string,
 	allowPrefetch bool,
 ) ([]s3ops.ObjectInfo, error) {
+	a.noteDirectoryActivity(virtualPrefix)
 	if err := a.hiddenTrashError(virtualPrefix); err != nil {
 		return nil, err
 	}

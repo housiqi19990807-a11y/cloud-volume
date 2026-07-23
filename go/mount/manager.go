@@ -118,6 +118,8 @@ func (m *manager) mountBucket(
 		_ = session.backend.Stop(session)
 		return BucketMountStatus{}, err
 	}
+	session.remotePoller = newRemoteDirectoryPoller(session)
+	session.remotePoller.Start()
 
 	m.sessions[trimmedBucket] = session
 	delete(m.lastProbes, session.mountTarget)
@@ -234,6 +236,10 @@ func (m *manager) unmountSessionLocked(session *mountSession) error {
 		return nil
 	}
 	session.stopping = true
+	if session.remotePoller != nil {
+		session.remotePoller.Stop()
+		session.remotePoller = nil
+	}
 	log.Printf("[mount/manager] unmount-session bucket=%q target=%q", session.bucket, session.mountTarget)
 	err := session.backend.Stop(session)
 	if err != nil {

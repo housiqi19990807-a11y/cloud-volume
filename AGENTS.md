@@ -600,6 +600,17 @@ Shared upload/download queue backing both manual file operations and sync-genera
 2. 成功后 bridge 调 `bucketmount.NotifyExternal*(cfg, bucket, path, isDir)` → `globalManager.notifyExternalMutation` → 匹配 session → `bucketAccess.MarkExternalDelete/InvalidateExternalUpload/InvalidateExternalRename`。
 3. Flutter 收到删除成功后立即移除行和“删除中”标记；批次 `list_object_page(forceRefresh)` 使用成功 key 过滤一次陈旧响应并丢弃该页缓存。挂载点下一次 `listDirectory` 重新 `fetchDirectory`，由 tombstone/远端结果共同隐藏已删 key。
 
+### Feature: Mount Remote Polling P0
+
+P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近期打开的目录，远端对象存储仍是唯一的字节和版本权威。
+
+- `go/mount/remote_poller.go` - `directoryActivityTracker` 在 `bucketAccess.listDirectory` 和 Cloud Files 的 placeholder 回调中记录目录活动，最多保留 12 个目录。`remoteDirectoryPoller` 在活动 45 秒内每 5 秒刷新，之后每 30 秒刷新；3 分钟没有活动目录时停止网络访问。它调用 `fetchDirectory`，刷新 `bucketCache`，不会用远端状态删除本地 overlay 或 writeback。
+- `go/mount/manager.go` / `go/mount/types.go` - 每个成功启动的 `mountSession` 创建 poller；卸载时先停止轮询，再关闭平台后端，避免访问已释放的 `bucketAccess`。
+- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/cloud_files_hydrator_windows.go` - P0 轮询结果通过 `externalDirectoryRefresh` 进入 `RefreshPlaceholders`。该操作只创建尚不存在的 Cloud Files 占位符，因此 Windows A/Linux 新建的文件会出现在 Windows B 已打开的目录，而本地待写回/已水合文件不会被覆盖。
+- `go/mount/remote_poller_test.go` - 覆盖远端目录缓存刷新、占位符投影回调以及活动/空闲退避窗口。
+
+**Gotchas:** P0 不是文件传输协议，也不是递归扫描器。它不保证即时投递，未主动刷新的文件管理器窗口仍可能需要一次目录读取；删除和覆盖的完整跨客户端投影留给后续 P1/P2 事件设计，不能在 P0 中通过盲目删除本地占位符实现，否则会误删正在本地写回的状态。
+
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)
 
 点击/双击文件打开走的是 `FileAccessService._ensureCachedObjectRequest`：`headObject` 拿远端 size/mtime → `FileCacheStore.findUsableCachePath` 通过 `RemoteStorageGateway.findCacheIndexRecord` 调 Go bridge 查询 bbolt 缓存索引 → 命中则直接用缓存文件，未命中则建 `download` 任务拉到 `<cacheDir>/files/<bucket>/<key>` 并写缓存记录。缓存命中的硬约束：记录的 `localPath` 必须 `_isInsideRoot` 缓存目录内，且 size/mtime 与远端匹配（`_matchesRemoteObject`）。

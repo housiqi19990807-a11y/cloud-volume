@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
 	storageops "remote-storage/go/storage"
 )
 
@@ -46,6 +47,10 @@ type bucketAccess struct {
 	externalDelete func(virtualPath string, isDir bool) error
 	// externalUpload projects remote-first creates/overwrites into that sync root.
 	externalUpload func(virtualPath string, isDir bool) error
+	// externalDirectoryRefresh lets a platform projection materialize entries
+	// found by the P0 remote-polling path without treating them as local writes.
+	externalDirectoryRefresh func(virtualPrefix string, items []s3ops.ObjectInfo) error
+	directoryActivity        *directoryActivityTracker
 }
 
 func newBucketAccess(
@@ -96,20 +101,21 @@ func newBucketAccess(
 	}
 
 	access := &bucketAccess{
-		config:          cfg,
-		backend:         backend,
-		bucket:          bucket,
-		rootPrefix:      normalizeRootPrefix(cfg.RootPrefix),
-		sessionRoot:     sessionRoot,
-		cacheRoot:       cacheRoot,
-		stageRoot:       stageRoot,
-		requestTimeout:  defaultRequestTimeout * time.Second,
-		transferTimeout: defaultTransferTimeout * time.Second,
-		listTTL:         metadataCacheTTL,
-		prefetchTTL:     prefetchTTL,
-		allowPrefetch:   allowPrefetch,
-		cache:           newBucketCache(metadataCacheTTL, prefetchTTL),
-		overlay:         overlay,
+		config:            cfg,
+		backend:           backend,
+		bucket:            bucket,
+		rootPrefix:        normalizeRootPrefix(cfg.RootPrefix),
+		sessionRoot:       sessionRoot,
+		cacheRoot:         cacheRoot,
+		stageRoot:         stageRoot,
+		requestTimeout:    defaultRequestTimeout * time.Second,
+		transferTimeout:   defaultTransferTimeout * time.Second,
+		listTTL:           metadataCacheTTL,
+		prefetchTTL:       prefetchTTL,
+		allowPrefetch:     allowPrefetch,
+		cache:             newBucketCache(metadataCacheTTL, prefetchTTL),
+		overlay:           overlay,
+		directoryActivity: newDirectoryActivityTracker(),
 	}
 	access.dirSync = newDirSyncQueue(access)
 	writeback, err := newWritebackQueue(access)

@@ -64,16 +64,17 @@ func newTestBucketAccess(t *testing.T) *bucketAccess {
 		t.Fatalf("newLocalMountOverlay: %v", err)
 	}
 	access := &bucketAccess{
-		backend:        mountTestBackend{},
-		bucket:         "test-bucket",
-		sessionRoot:    root,
-		cacheRoot:      filepath.Join(root, "cache"),
-		stageRoot:      filepath.Join(root, "staging"),
-		requestTimeout: time.Second,
-		listTTL:        time.Second,
-		prefetchTTL:    time.Second,
-		cache:          newBucketCache(time.Second, time.Second),
-		overlay:        overlay,
+		backend:           mountTestBackend{},
+		bucket:            "test-bucket",
+		sessionRoot:       root,
+		cacheRoot:         filepath.Join(root, "cache"),
+		stageRoot:         filepath.Join(root, "staging"),
+		requestTimeout:    time.Second,
+		listTTL:           time.Second,
+		prefetchTTL:       time.Second,
+		cache:             newBucketCache(time.Second, time.Second),
+		overlay:           overlay,
+		directoryActivity: newDirectoryActivityTracker(),
 	}
 	if err := os.MkdirAll(access.cacheRoot, 0o755); err != nil {
 		t.Fatalf("mkdir cache root: %v", err)

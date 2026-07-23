@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	s3ops "remote-storage/go/s3"
 )
 
 type cloudFilesHydrator struct {
@@ -134,6 +136,7 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 	}()
 
 	virtualPath := cloudFilesLocalPathToVirtual(h.syncRoot, localPath)
+	h.access.noteDirectoryActivity(virtualPath)
 	log.Printf(
 		"[mount/cloud-files] fetch-placeholders local=%q virtual=%q",
 		localPath,
@@ -167,5 +170,42 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 	}
 	h.watcher.watchPlaceholderDirectories(localPath, placeholders)
 	success = true
+	return nil
+}
+
+// RefreshPlaceholders projects a P0 remote-poll result into an already opened
+// directory. CreatePlaceholders is idempotent, so local pending writes and
+// hydrated files are left untouched while another client’s new entries appear.
+func (h *cloudFilesHydrator) RefreshPlaceholders(
+	virtualPrefix string,
+	items []s3ops.ObjectInfo,
+) error {
+	if h == nil || h.provider == nil || h.watcher == nil {
+		return nil
+	}
+	localPath := cloudFilesVirtualPathToLocal(h.syncRoot, virtualPrefix)
+	if virtualPrefix == "" {
+		localPath = h.syncRoot
+	}
+	placeholders := make([]cloudPlaceholderInfo, 0, len(items))
+	for _, item := range items {
+		relativeName := strings.TrimSuffix(baseName(item.Key), "/")
+		if relativeName == "" {
+			continue
+		}
+		placeholder := cloudFilesPlaceholderInfo(item)
+		placeholder.RelativePath = relativeName
+		placeholders = append(placeholders, placeholder)
+	}
+	h.watcher.RememberPlaceholders(localPath, placeholders)
+	if err := h.provider.CreatePlaceholders(localPath, placeholders); err != nil {
+		return err
+	}
+	h.watcher.watchPlaceholderDirectories(localPath, placeholders)
+	log.Printf(
+		"[mount/cloud-files] poll-placeholders virtual=%q count=%d",
+		virtualPrefix,
+		len(placeholders),
+	)
 	return nil
 }

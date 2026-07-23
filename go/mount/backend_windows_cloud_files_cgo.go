@@ -13,6 +13,7 @@ import (
 	"time"
 
 	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
 )
 
 type windowsCloudFilesBackend struct {
@@ -137,6 +138,12 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 	session.access.externalUpload = func(virtualPath string, isDir bool) error {
 		return b.createExternalPlaceholder(session, watcher, provider, virtualPath, isDir)
 	}
+	session.access.externalDirectoryRefresh = func(
+		virtualPrefix string,
+		items []s3ops.ObjectInfo,
+	) error {
+		return hydrator.RefreshPlaceholders(virtualPrefix, items)
+	}
 	b.resetHealthState()
 	if err := b.checkHealthy(session, true); err != nil {
 		log.Printf(
@@ -226,6 +233,7 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 	}
 	if session.access != nil {
 		session.access.syncState = nil
+		session.access.externalDirectoryRefresh = nil
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-start", session.bucket)
 		session.access.release()
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-done err=%v", session.bucket, firstErr)

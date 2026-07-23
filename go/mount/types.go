@@ -63,6 +63,7 @@ type mountSession struct {
 	server               *webDAVServer
 	access               *bucketAccess
 	backend              mountBackend
+	remotePoller         *remoteDirectoryPoller
 	lastError            string
 	stopping             bool
 }
