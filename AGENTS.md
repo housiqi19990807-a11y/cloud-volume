@@ -584,6 +584,7 @@ Shared upload/download queue backing both manual file operations and sync-genera
 - `bridge/dispatch_object_transfer.go` — `copyObject` 调 `NotifyExternalUpload(TargetKey)`；`moveObject` 调 `NotifyExternalRename(SourceKey, TargetKey)`。
 - `go/webapi/invoke.go` — webapi 同名 mutation 同步接入（`delete_object`/`rename_object`/`copy_object`/`move_object`/`create_directory`），仅在 `err == nil` 时调用。
 - `go/mount/external_invalidation_test.go` — 覆盖 delete/upload/rename 对 `listCache`/`objectCache`/`localEntries`/`deletedPaths` 的失效，以及 cfg 不匹配/无 session 时的 no-op。
+- `bridge/dispatch_paging.go` / `go/mount/object_page.go` / `go/storage/webdav_backend.go` — 非 WebDAV 的文件管理分页优先复用活动挂载的 local-first 合并目录，再由 `paginateObjectInfos` 以 offset token 切页；WebDAV 必须绕过此层，直接走后端。原因是 WebDAV `PROPFIND Depth: 1` 的 `ListObjectsPage` 忽略传入 token/pageSize、一次返回完整目录；若再套挂载缓存，会先全量拉取并合并、再做本地 offset 分页，既没有减少远端传输，目录变更时 offset 也会让页边界漂移/重复或漏项。
 - `lib/pages/file_manager_page_object_deletes.dart` — 删除 API 成功后立即从 `_objects`、`_selectedObjectKeys` 和 `_deletingObjectKeys` 移除该 key；批次结束时把成功 key 传给写后刷新，失败 key 恢复成普通可操作行。
 - `lib/pages/file_manager_page_object_loading.dart` — `_loadObjects(... suppressObjectKeys:)` 过滤本批次已确认删除、但提供方短暂重新返回的旧 key，并丢弃对应原始页缓存，让后续导航重新请求后端。
 - `test/file_manager_delete_state_test.dart` — 回归覆盖“删除成功，但 force-refresh 仍返回旧目录”的场景，确保行和删除标记都收敛。
