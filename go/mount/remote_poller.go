@@ -12,7 +12,7 @@ import (
 const (
 	remotePollActiveWindow = 45 * time.Second
 	remotePollWarmWindow   = 3 * time.Minute
-	remotePollActiveDelay  = 5 * time.Second
+	defaultRemotePollDelay = 5 * time.Second
 	remotePollWarmDelay    = 30 * time.Second
 	remotePollIdleDelay    = 2 * time.Minute
 	remotePollDirectoryCap = 12
@@ -22,12 +22,16 @@ const (
 // user has actually opened. P0 never enumerates a whole bucket in the
 // background, which keeps idle mounts cheap even for large object stores.
 type directoryActivityTracker struct {
-	mu   sync.Mutex
-	dirs map[string]time.Time
+	mu      sync.Mutex
+	dirs    map[string]time.Time
+	changed chan struct{}
 }
 
 func newDirectoryActivityTracker() *directoryActivityTracker {
-	return &directoryActivityTracker{dirs: make(map[string]time.Time)}
+	return &directoryActivityTracker{
+		dirs:    make(map[string]time.Time),
+		changed: make(chan struct{}, 1),
+	}
 }
 
 func (t *directoryActivityTracker) note(prefix string) {
@@ -47,6 +51,10 @@ func (t *directoryActivityTracker) noteAt(prefix string, at time.Time) {
 		t.dirs = make(map[string]time.Time)
 	}
 	t.dirs[cleanVirtualPath(prefix)] = at
+	select {
+	case t.changed <- struct{}{}:
+	default:
+	}
 	if len(t.dirs) <= remotePollDirectoryCap {
 		return
 	}
@@ -78,7 +86,13 @@ func (t *directoryActivityTracker) recent(now time.Time) []string {
 	return prefixes
 }
 
-func (t *directoryActivityTracker) nextDelay(now time.Time) time.Duration {
+func (t *directoryActivityTracker) nextDelay(
+	now time.Time,
+	activeDelay time.Duration,
+) time.Duration {
+	if activeDelay <= 0 {
+		activeDelay = defaultRemotePollDelay
+	}
 	if t == nil {
 		return remotePollIdleDelay
 	}
@@ -98,9 +112,16 @@ func (t *directoryActivityTracker) nextDelay(now time.Time) time.Duration {
 		return remotePollIdleDelay
 	}
 	if now.Sub(mostRecent) <= remotePollActiveWindow {
-		return remotePollActiveDelay
+		return activeDelay
 	}
 	return remotePollWarmDelay
+}
+
+func (t *directoryActivityTracker) changes() <-chan struct{} {
+	if t == nil || t.changed == nil {
+		return nil
+	}
+	return t.changed
 }
 
 func (a *bucketAccess) noteDirectoryActivity(prefix string) {
@@ -133,13 +154,14 @@ func (a *bucketAccess) pollRemoteDirectory(
 // It is deliberately a cache refresh mechanism, not a second sync engine: the
 // remote object store remains authoritative and local writeback is never pruned.
 type remoteDirectoryPoller struct {
-	access *bucketAccess
-	bucket string
-	ctx    context.Context
-	cancel context.CancelFunc
-	stopCh chan struct{}
-	doneCh chan struct{}
-	once   sync.Once
+	access      *bucketAccess
+	bucket      string
+	activeDelay time.Duration
+	ctx         context.Context
+	cancel      context.CancelFunc
+	stopCh      chan struct{}
+	doneCh      chan struct{}
+	once        sync.Once
 }
 
 func newRemoteDirectoryPoller(session *mountSession) *remoteDirectoryPoller {
@@ -148,12 +170,13 @@ func newRemoteDirectoryPoller(session *mountSession) *remoteDirectoryPoller {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &remoteDirectoryPoller{
-		access: session.access,
-		bucket: session.bucket,
-		ctx:    ctx,
-		cancel: cancel,
-		stopCh: make(chan struct{}),
-		doneCh: make(chan struct{}),
+		access:      session.access,
+		bucket:      session.bucket,
+		activeDelay: time.Duration(session.config.MountRemotePollSeconds) * time.Second,
+		ctx:         ctx,
+		cancel:      cancel,
+		stopCh:      make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 }
 
@@ -178,12 +201,19 @@ func (p *remoteDirectoryPoller) Stop() {
 func (p *remoteDirectoryPoller) run() {
 	defer close(p.doneCh)
 	for {
-		delay := p.access.directoryActivity.nextDelay(time.Now())
+		delay := p.access.directoryActivity.nextDelay(time.Now(), p.activeDelay)
 		timer := time.NewTimer(delay)
 		select {
 		case <-p.stopCh:
 			timer.Stop()
 			return
+		case <-p.access.directoryActivity.changes():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 		case <-timer.C:
 			p.pollOnce(p.ctx)
 		}

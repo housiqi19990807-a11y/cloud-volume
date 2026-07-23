@@ -604,7 +604,9 @@ Shared upload/download queue backing both manual file operations and sync-genera
 
 P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近期打开的目录，远端对象存储仍是唯一的字节和版本权威。
 
-- `go/mount/remote_poller.go` - `directoryActivityTracker` 在 `bucketAccess.listDirectory` 和 Cloud Files 的 placeholder 回调中记录目录活动，最多保留 12 个目录。`remoteDirectoryPoller` 在活动 45 秒内每 5 秒刷新，之后每 30 秒刷新；3 分钟没有活动目录时停止网络访问。它调用 `fetchDirectory`，刷新 `bucketCache`，不会用远端状态删除本地 overlay 或 writeback。
+- `go/config/config.go` / `go/config/config_account.go` / `lib/models/remote_storage_config.dart` / `lib/models/remote_storage_config_copy.dart` - `mount_remote_poll_seconds` / `mountRemotePollSeconds` 是 P0 活跃轮询间隔（默认 5 秒，后端规范化到 1-300 秒）；账户辅助方法和 Dart 的不可变 `copyWith` 各自拆出，避免配置模型超过文件行数限制。
+- `lib/pages/settings_page.dart` / `lib/pages/settings_page_poll_actions.dart` / `lib/pages/settings_page_sections.dart` / `lib/widgets/settings_sync_section.dart` / `lib/pages/config_setup_page.dart` - 「同步设置」保存 P0 远端目录轮询间隔；首次配置编辑会保留该值；保存后重新挂载，新的会话才会采用该间隔。
+- `go/mount/remote_poller.go` - `directoryActivityTracker` 在 `bucketAccess.listDirectory` 和 Cloud Files 的 placeholder 回调中记录目录活动，最多保留 12 个目录，并在新目录活动时唤醒等待中的 poller。`remoteDirectoryPoller` 在活动 45 秒内按 `mount_remote_poll_seconds` 刷新，之后每 30 秒刷新；3 分钟没有活动目录时停止网络访问。它调用 `fetchDirectory`，刷新 `bucketCache`，不会用远端状态删除本地 overlay 或 writeback。
 - `go/mount/manager.go` / `go/mount/types.go` - 每个成功启动的 `mountSession` 创建 poller；卸载时先停止轮询，再关闭平台后端，避免访问已释放的 `bucketAccess`。
 - `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/cloud_files_hydrator_windows.go` - P0 轮询结果通过 `externalDirectoryRefresh` 进入 `RefreshPlaceholders`。该操作只创建尚不存在的 Cloud Files 占位符，因此 Windows A/Linux 新建的文件会出现在 Windows B 已打开的目录，而本地待写回/已水合文件不会被覆盖。
 - `go/mount/remote_poller_test.go` - 覆盖远端目录缓存刷新、占位符投影回调以及活动/空闲退避窗口。

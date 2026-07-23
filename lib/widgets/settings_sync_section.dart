@@ -92,6 +92,96 @@ class WritebackQuietSecondsSection extends StatelessWidget {
   }
 }
 
+class MountRemotePollIntervalSection extends StatelessWidget {
+  const MountRemotePollIntervalSection({
+    super.key,
+    required this.theme,
+    required this.seconds,
+    required this.saving,
+    required this.errorText,
+    required this.onChanged,
+  });
+
+  static const List<int> _options = <int>[1, 2, 3, 5, 10, 15, 30, 60, 120, 300];
+
+  final ShadThemeData theme;
+  final int seconds;
+  final bool saving;
+  final String? errorText;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedSeconds = seconds > 0 ? seconds : 5;
+    final options = <int>{..._options, normalizedSeconds}.toList()..sort();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '远端目录轮询会定期刷新近期打开过的目录，用于发现其他客户端的新建内容。它不会扫描整个 bucket，也不会删除本地待写回文件。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.6,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          child: ShadSelect<int>(
+            key: ValueKey<int>(normalizedSeconds),
+            minWidth: 220,
+            initialValue: normalizedSeconds,
+            placeholder: Text(_label(normalizedSeconds)),
+            selectedOptionBuilder: (context, selected) =>
+                Text(_label(selected)),
+            options: options
+                .map(
+                  (item) =>
+                      ShadOption<int>(value: item, child: Text(_label(item))),
+                )
+                .toList(growable: false),
+            onChanged: saving
+                ? null
+                : (value) {
+                    if (value != null) {
+                      onChanged(value);
+                    }
+                  },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '默认 5 秒，范围 1 秒到 5 分钟；保存后请重新挂载，让当前挂载会话使用新间隔。',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            errorText!,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  static String _label(int seconds) {
+    if (seconds >= 60) {
+      final minutes = seconds ~/ 60;
+      return '$minutes 分钟';
+    }
+    return '$seconds 秒';
+  }
+}
+
 class MountMetadataCacheSection extends StatelessWidget {
   const MountMetadataCacheSection({
     super.key,

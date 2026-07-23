@@ -181,6 +181,36 @@ func TestNormalizeWritebackQuietSeconds(t *testing.T) {
 	}
 }
 
+func TestNormalizeMountRemotePollSeconds(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{name: "zero falls back to five seconds", input: 0, want: 5},
+		{name: "negative falls back to five seconds", input: -1, want: 5},
+		{name: "small positive stays unchanged", input: 1, want: 1},
+		{name: "large values are capped", input: 999, want: 300},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeMountRemotePollSeconds(tc.input); got != tc.want {
+				t.Fatalf(
+					"normalizeMountRemotePollSeconds(%d) = %d, want %d",
+					tc.input,
+					got,
+					tc.want,
+				)
+			}
+		})
+	}
+}
+
 func TestWithDefaultWebDAVCredentialsFallsBackToAccessKeys(t *testing.T) {
 	t.Parallel()
 

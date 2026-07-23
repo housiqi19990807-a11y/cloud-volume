@@ -63,8 +63,9 @@ func TestDirectoryActivityBacksOffAndExpires(t *testing.T) {
 	tracker.noteAt("warm", now.Add(-remotePollActiveWindow-time.Second))
 	tracker.noteAt("expired", now.Add(-remotePollWarmWindow-time.Second))
 
-	if delay := tracker.nextDelay(now); delay != remotePollActiveDelay {
-		t.Fatalf("active delay = %s, want %s", delay, remotePollActiveDelay)
+	const activeDelay = 7 * time.Second
+	if delay := tracker.nextDelay(now, activeDelay); delay != activeDelay {
+		t.Fatalf("active delay = %s, want %s", delay, activeDelay)
 	}
 	prefixes := tracker.recent(now)
 	if len(prefixes) != 2 || prefixes[0] != "active" || prefixes[1] != "warm" {
@@ -72,7 +73,18 @@ func TestDirectoryActivityBacksOffAndExpires(t *testing.T) {
 	}
 
 	tracker.noteAt("active", now.Add(-remotePollActiveWindow-time.Second))
-	if delay := tracker.nextDelay(now); delay != remotePollWarmDelay {
+	if delay := tracker.nextDelay(now, activeDelay); delay != remotePollWarmDelay {
 		t.Fatalf("warm delay = %s, want %s", delay, remotePollWarmDelay)
+	}
+}
+
+func TestDirectoryActivitySignalsPollerAfterIdle(t *testing.T) {
+	tracker := newDirectoryActivityTracker()
+	tracker.noteAt("docs", time.Now())
+
+	select {
+	case <-tracker.changes():
+	case <-time.After(time.Second):
+		t.Fatal("directory activity did not wake the poller")
 	}
 }

@@ -28,6 +28,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'settings_page_actions.dart';
 part 'settings_page_layout.dart';
+part 'settings_page_poll_actions.dart';
 part 'settings_page_sections.dart';
 part 'settings_page_windows_mount_actions.dart';
 
@@ -95,6 +96,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _writebackQuietSecondsError;
   bool _savingMountMetadataCache = false;
   String? _mountMetadataCacheError;
+  bool _savingMountRemotePollInterval = false;
+  String? _mountRemotePollIntervalError;
   bool _savingWebdavCredentials = false;
   String? _webdavCredentialsError;
   bool _savingWindowsWritebackConcurrency = false;
@@ -243,8 +246,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!isWindowsPlatform) return;
     if (widget.api is! WindowsWinFspQuery) return;
     try {
-      final available =
-          await (widget.api as WindowsWinFspQuery).listWindowsWinFspAvailable();
+      final available = await (widget.api as WindowsWinFspQuery)
+          .listWindowsWinFspAvailable();
       if (!mounted) return;
       setState(() => _winFspAvailable = available);
     } catch (_) {

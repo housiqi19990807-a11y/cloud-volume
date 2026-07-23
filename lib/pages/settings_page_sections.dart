@@ -167,6 +167,14 @@ extension _SettingsSections on _SettingsPageState {
               onSecondsChanged: (value) =>
                   _saveMountMetadataCacheSeconds(config, value),
             ),
+            const SizedBox(height: 20),
+            MountRemotePollIntervalSection(
+              theme: theme,
+              seconds: config.effectiveMountRemotePollSeconds,
+              saving: _savingMountRemotePollInterval,
+              errorText: _mountRemotePollIntervalError,
+              onChanged: (value) => _saveMountRemotePollInterval(config, value),
+            ),
           ],
         ),
       ),
@@ -299,10 +307,8 @@ extension _SettingsSections on _SettingsPageState {
           installingWinFsp: _installingWindowsWinFsp,
           saving: _savingWindowsMountEngine,
           errorText: _windowsMountEngineError,
-          onEngineChanged: (value) =>
-              _saveWindowsMountEngine(config, value),
-          onCapacitySaved: (value) =>
-              _saveWindowsWinFspCapacity(config, value),
+          onEngineChanged: (value) => _saveWindowsMountEngine(config, value),
+          onCapacitySaved: (value) => _saveWindowsWinFspCapacity(config, value),
           onInstallWinFsp: _installWindowsWinFsp,
         ),
       ),

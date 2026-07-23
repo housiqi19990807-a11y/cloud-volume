@@ -7,6 +7,8 @@ export 'bucket_settings.dart';
 export 'bucket_view_settings.dart';
 export 'remote_storage_config_enums.dart';
 
+part 'remote_storage_config_copy.dart';
+
 bool? _boolFromDynamic(Object? value) {
   if (value is bool) return value;
   if (value is String) {
@@ -57,6 +59,7 @@ class RemoteStorageConfig {
     required this.bucketViews,
     required this.writebackQuietSeconds,
     required this.mountMetadataCacheSeconds,
+    this.mountRemotePollSeconds = 5,
     required this.usePathStyle,
     required this.windowsMountMode,
     this.windowsMountEngine = WindowsMountEngine.cloudFiles,
@@ -107,6 +110,7 @@ class RemoteStorageConfig {
       bucketViews: <String, BucketViewSettings>{},
       writebackQuietSeconds: 10,
       mountMetadataCacheSeconds: 60,
+      mountRemotePollSeconds: 5,
       usePathStyle: true,
       windowsMountMode: WindowsMountMode.cloudFilesCached,
       windowsMountEngine: WindowsMountEngine.cloudFiles,
@@ -131,8 +135,8 @@ class RemoteStorageConfig {
         (json['secretAccessKey'] ?? json['secret_access_key'] ?? '').toString();
     final webdavPassword =
         (json['webdavPassword'] ?? json['webdav_password'] ?? '').toString();
-    final ftpPassword =
-        (json['ftpPassword'] ?? json['ftp_password'] ?? '').toString();
+    final ftpPassword = (json['ftpPassword'] ?? json['ftp_password'] ?? '')
+        .toString();
     final trashRetentionDays =
         _intFromDynamic(
           json['trashRetentionDays'] ?? json['trash_retention_days'],
@@ -144,6 +148,11 @@ class RemoteStorageConfig {
               json['mount_metadata_cache_seconds'],
         ) ??
         60;
+    final mountRemotePollSeconds =
+        _intFromDynamic(
+          json['mountRemotePollSeconds'] ?? json['mount_remote_poll_seconds'],
+        ) ??
+        5;
     return RemoteStorageConfig(
       endpoint: (json['endpoint'] ?? '').toString(),
       storageType: StorageType.fromStorage(
@@ -184,9 +193,8 @@ class RemoteStorageConfig {
           ) ??
           ftpPassword.isNotEmpty,
       ftpPort: _intFromDynamic(json['ftpPort'] ?? json['ftp_port']) ?? 0,
-      ftpAnonymous: _boolFromDynamic(
-            json['ftpAnonymous'] ?? json['ftp_anonymous'],
-          ) ??
+      ftpAnonymous:
+          _boolFromDynamic(json['ftpAnonymous'] ?? json['ftp_anonymous']) ??
           false,
       rootPrefix: (json['rootPrefix'] ?? json['root_prefix'] ?? '').toString(),
       defaultDownloadDirectory:
@@ -229,6 +237,9 @@ class RemoteStorageConfig {
       mountMetadataCacheSeconds: mountMetadataCacheSeconds == 0
           ? 60
           : mountMetadataCacheSeconds,
+      mountRemotePollSeconds: mountRemotePollSeconds <= 0
+          ? 5
+          : mountRemotePollSeconds,
       usePathStyle:
           _boolFromDynamic(json['usePathStyle'] ?? json['use_path_style']) ??
           true,
@@ -317,6 +328,7 @@ class RemoteStorageConfig {
   final Map<String, BucketViewSettings> bucketViews;
   final int writebackQuietSeconds;
   final int mountMetadataCacheSeconds;
+  final int mountRemotePollSeconds;
   final bool usePathStyle;
   final WindowsMountMode windowsMountMode;
   final WindowsMountEngine windowsMountEngine;
@@ -371,6 +383,9 @@ class RemoteStorageConfig {
 
   int get effectiveMountMetadataCacheSeconds =>
       mountMetadataCacheSeconds > 0 ? mountMetadataCacheSeconds : 60;
+
+  int get effectiveMountRemotePollSeconds =>
+      mountRemotePollSeconds > 0 ? mountRemotePollSeconds : 5;
 
   bool get supportsMounts => true;
 
@@ -428,6 +443,7 @@ class RemoteStorageConfig {
       ),
       'writebackQuietSeconds': writebackQuietSeconds,
       'mountMetadataCacheSeconds': mountMetadataCacheSeconds,
+      'mountRemotePollSeconds': mountRemotePollSeconds,
       'usePathStyle': usePathStyle,
       'windowsMountMode': windowsMountMode.storageValue,
       'windowsMountEngine': windowsMountEngine.storageValue,
@@ -445,111 +461,5 @@ class RemoteStorageConfig {
       'proxyUsername': proxyUsername,
       'proxyPassword': proxyPassword,
     };
-  }
-
-  RemoteStorageConfig copyWith({
-    String? endpoint,
-    StorageType? storageType,
-    StorageProviderType? providerType,
-    String? displayName,
-    String? mappedBucketName,
-    String? region,
-    String? bucket,
-    String? accessKeyId,
-    String? secretAccessKey,
-    bool? hasSecretAccessKey,
-    String? webdavUsername,
-    String? webdavPassword,
-    bool? hasWebdavPassword,
-    String? ftpUsername,
-    String? ftpPassword,
-    bool? hasFtpPassword,
-    int? ftpPort,
-    bool? ftpAnonymous,
-    String? rootPrefix,
-    String? defaultDownloadDirectory,
-    String? cacheDirectory,
-    String? resolvedCacheDirectory,
-    bool? hideDotFiles,
-    FileOpenMode? fileOpenMode,
-    String? trashDirectoryName,
-    int? trashRetentionDays,
-    Map<String, BucketSettings>? bucketSettings,
-    Map<String, BucketViewSettings>? bucketViews,
-    int? writebackQuietSeconds,
-    int? mountMetadataCacheSeconds,
-    bool? usePathStyle,
-    WindowsMountMode? windowsMountMode,
-    WindowsMountEngine? windowsMountEngine,
-    int? windowsWinFspCapacityGb,
-    bool? windowsThisPcEntryEnabled,
-    int? windowsWritebackConcurrency,
-    bool? cacheAutoCleanupEnabled,
-    int? cacheMaxSizeMb,
-    int? cacheMaxAgeDays,
-    JWanFSGatewayMode? jwanfsGatewayMode,
-    String? proxyMode,
-    String? proxyType,
-    String? proxyHost,
-    String? proxyPort,
-    String? proxyUsername,
-    String? proxyPassword,
-  }) {
-    return RemoteStorageConfig(
-      endpoint: endpoint ?? this.endpoint,
-      storageType: storageType ?? this.storageType,
-      providerType: providerType ?? this.providerType,
-      displayName: displayName ?? this.displayName,
-      mappedBucketName: mappedBucketName ?? this.mappedBucketName,
-      region: region ?? this.region,
-      bucket: bucket ?? this.bucket,
-      accessKeyId: accessKeyId ?? this.accessKeyId,
-      secretAccessKey: secretAccessKey ?? this.secretAccessKey,
-      hasSecretAccessKey: hasSecretAccessKey ?? this.hasSecretAccessKey,
-      webdavUsername: webdavUsername ?? this.webdavUsername,
-      webdavPassword: webdavPassword ?? this.webdavPassword,
-      hasWebdavPassword: hasWebdavPassword ?? this.hasWebdavPassword,
-      ftpUsername: ftpUsername ?? this.ftpUsername,
-      ftpPassword: ftpPassword ?? this.ftpPassword,
-      hasFtpPassword: hasFtpPassword ?? this.hasFtpPassword,
-      ftpPort: ftpPort ?? this.ftpPort,
-      ftpAnonymous: ftpAnonymous ?? this.ftpAnonymous,
-      rootPrefix: rootPrefix ?? this.rootPrefix,
-      defaultDownloadDirectory:
-          defaultDownloadDirectory ?? this.defaultDownloadDirectory,
-      cacheDirectory: cacheDirectory ?? this.cacheDirectory,
-      resolvedCacheDirectory:
-          resolvedCacheDirectory ?? this.resolvedCacheDirectory,
-      hideDotFiles: hideDotFiles ?? this.hideDotFiles,
-      fileOpenMode: fileOpenMode ?? this.fileOpenMode,
-      trashDirectoryName: trashDirectoryName ?? this.trashDirectoryName,
-      trashRetentionDays: trashRetentionDays ?? this.trashRetentionDays,
-      bucketSettings: bucketSettings ?? this.bucketSettings,
-      bucketViews: bucketViews ?? this.bucketViews,
-      writebackQuietSeconds:
-          writebackQuietSeconds ?? this.writebackQuietSeconds,
-      mountMetadataCacheSeconds:
-          mountMetadataCacheSeconds ?? this.mountMetadataCacheSeconds,
-      usePathStyle: usePathStyle ?? this.usePathStyle,
-      windowsMountMode: windowsMountMode ?? this.windowsMountMode,
-      windowsMountEngine: windowsMountEngine ?? this.windowsMountEngine,
-      windowsWinFspCapacityGb:
-          windowsWinFspCapacityGb ?? this.windowsWinFspCapacityGb,
-      windowsThisPcEntryEnabled:
-          windowsThisPcEntryEnabled ?? this.windowsThisPcEntryEnabled,
-      windowsWritebackConcurrency:
-          windowsWritebackConcurrency ?? this.windowsWritebackConcurrency,
-      cacheAutoCleanupEnabled:
-          cacheAutoCleanupEnabled ?? this.cacheAutoCleanupEnabled,
-      cacheMaxSizeMb: cacheMaxSizeMb ?? this.cacheMaxSizeMb,
-      cacheMaxAgeDays: cacheMaxAgeDays ?? this.cacheMaxAgeDays,
-      jwanfsGatewayMode: jwanfsGatewayMode ?? this.jwanfsGatewayMode,
-      proxyMode: proxyMode ?? this.proxyMode,
-      proxyType: proxyType ?? this.proxyType,
-      proxyHost: proxyHost ?? this.proxyHost,
-      proxyPort: proxyPort ?? this.proxyPort,
-      proxyUsername: proxyUsername ?? this.proxyUsername,
-      proxyPassword: proxyPassword ?? this.proxyPassword,
-    );
   }
 }

@@ -10,6 +10,8 @@ import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 import 'package:remote_storage/widgets/config_storage_type_step.dart';
 
+part 'config_setup_baidu_auth.dart';
+
 // 首次运行预设默认网关（IHEP 对象存储 / WebDAV）。
 const _kDefaultS3Endpoint = 'https://fgws3-ocloud.ihep.ac.cn';
 const _kDefaultWebDavEndpoint = 'https://webdav-ocloud.ihep.ac.cn';
@@ -81,6 +83,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   bool _isSaving = false;
   String? _errorText;
 
+  // Shared state update entry point for form actions split into part files.
+  void _updateState(VoidCallback action) => setState(action);
+
   @override
   void initState() {
     super.initState();
@@ -127,9 +132,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       text: config.webdavUsername,
     );
     _webdavPasswordController = TextEditingController();
-    _ftpUsernameController = TextEditingController(
-      text: config.ftpUsername,
-    );
+    _ftpUsernameController = TextEditingController(text: config.ftpUsername);
     _ftpPasswordController = TextEditingController();
     _ftpPortController = TextEditingController(
       text: config.ftpPort > 0 ? config.ftpPort.toString() : '',
@@ -206,8 +209,8 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   Future<void> _save() async {
     final isWebDav = _storageType == StorageType.webdav;
     final isBaiduPan = _storageType == StorageType.baiduPan;
-    final isFTP = _storageType == StorageType.ftp ||
-        _storageType == StorageType.sftp;
+    final isFTP =
+        _storageType == StorageType.ftp || _storageType == StorageType.sftp;
     final name = _nameController.text.trim();
     final config = RemoteStorageConfig(
       endpoint: isBaiduPan
@@ -239,7 +242,9 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           : _secretKeyController.text,
       hasSecretAccessKey: isBaiduPan
           ? (_authorizedBaiduConfig?.hasSecretAccessKey ?? false)
-          : !isWebDav && !isFTP && widget.initialState.config.hasSecretAccessKey,
+          : !isWebDav &&
+                !isFTP &&
+                widget.initialState.config.hasSecretAccessKey,
       webdavUsername: isWebDav
           ? _webdavUsernameController.text
           : isBaiduPan || isFTP
@@ -272,6 +277,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       writebackQuietSeconds: widget.initialState.config.writebackQuietSeconds,
       mountMetadataCacheSeconds:
           widget.initialState.config.mountMetadataCacheSeconds,
+      mountRemotePollSeconds: widget.initialState.config.mountRemotePollSeconds,
       usePathStyle: _usePathStyle,
       windowsMountMode: widget.initialState.config.windowsMountMode,
       windowsMountEngine: widget.initialState.config.windowsMountEngine,
@@ -471,61 +477,5 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       return;
     }
     _mappedBucketNameController.text = value;
-  }
-
-  Future<void> _authorizeBaiduPan() async {
-    final code = _baiduAuthCodeController.text.trim();
-    if (code.isEmpty) {
-      setState(() {
-        _errorText = '请先粘贴百度授权页显示的授权码。';
-      });
-      return;
-    }
-    setState(() => _authorizingBaidu = true);
-    try {
-      final config = await widget.api.authorizeBaiduPan(
-        _nameController.text.trim(),
-        code,
-      );
-      if (!mounted) return;
-      setState(() {
-        _authorizedBaiduConfig = config;
-        _baiduAuthCodeController.clear();
-        _errorText = null;
-        if (_nameController.text.trim().isEmpty) {
-          _nameController.text = config.displayName;
-        }
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = describeBridgeError(error);
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _authorizingBaidu = false);
-      }
-    }
-  }
-
-  Future<void> _startBaiduPanAuthorization() async {
-    setState(() => _openingBaiduAuthPage = true);
-    try {
-      final authUrl = await widget.api.startBaiduPanAuthorization();
-      if (!mounted) return;
-      setState(() {
-        _baiduAuthUrl = authUrl;
-        _errorText = null;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = describeBridgeError(error);
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _openingBaiduAuthPage = false);
-      }
-    }
   }
 }
