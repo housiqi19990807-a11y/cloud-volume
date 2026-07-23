@@ -33,6 +33,7 @@ extension _SettingsLayout on _SettingsPageState {
           _SettingsTab.trash,
           if (isWebPlatform) _SettingsTab.webdav,
           _SettingsTab.resetAccount,
+          if (!isWebPlatform) _SettingsTab.configBackup,
           _SettingsTab.configManage,
         ],
       ),
@@ -113,6 +114,7 @@ extension _SettingsLayout on _SettingsPageState {
       _SettingsTab.trash => '回收站',
       _SettingsTab.webdav => 'WebDAV 凭据',
       _SettingsTab.resetAccount => '账号重置',
+      _SettingsTab.configBackup => '配置备份',
       _SettingsTab.configManage => '配置管理',
       _SettingsTab.windowsWriteback => '写回并发',
       _SettingsTab.windowsMount => '挂载恢复',
@@ -173,6 +175,8 @@ extension _SettingsLayout on _SettingsPageState {
         return _buildWebdavSection(theme, config);
       case _SettingsTab.resetAccount:
         return _buildResetAccountSection(theme);
+      case _SettingsTab.configBackup:
+        return _buildConfigBackupSection(theme);
       case _SettingsTab.configManage:
         return _buildConfigManageSection(theme);
       case _SettingsTab.windowsWriteback:

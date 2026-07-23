@@ -244,6 +244,21 @@ extension _SettingsSections on _SettingsPageState {
     ];
   }
 
+  List<Widget> _buildConfigBackupSection(ShadThemeData theme) {
+    return [
+      _buildCard(
+        theme,
+        '配置备份',
+        SettingsConfigBackupSection(
+          theme: theme,
+          api: widget.api,
+          profiles: widget.state.profiles,
+          onRestored: (_) => widget.onRefresh(),
+        ),
+      ),
+    ];
+  }
+
   List<Widget> _buildConfigManageSection(ShadThemeData theme) {
     return [
       _buildCard(

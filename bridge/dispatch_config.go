@@ -102,6 +102,7 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 		return storageconfig.BootstrapState{}, err
 	}
 	_ = storageconfig.SetActiveProfile("default")
+	queueAutomaticConfigBackup()
 	return loadBootstrapState()
 }
 
@@ -131,6 +132,7 @@ func updateProxySettings(args json.RawMessage) (bool, error) {
 		return false, err
 	}
 	storageops.ApplyBaiduPanProxy(globalCfg)
+	queueAutomaticConfigBackup()
 	return true, nil
 }
 
@@ -161,6 +163,7 @@ func saveProfile(args json.RawMessage) (any, error) {
 	if err := storageconfig.SaveProfile(input.Name, input.Config); err != nil {
 		return nil, err
 	}
+	queueAutomaticConfigBackup()
 	return map[string]any{"ok": true}, nil
 }
 
@@ -193,6 +196,7 @@ func deleteProfile(args json.RawMessage) (any, error) {
 	if err := storageconfig.DeleteProfile(input.Name); err != nil {
 		return nil, err
 	}
+	queueAutomaticConfigBackup()
 	// Cascade: remove any directory-sync tasks that referenced this account so
 	// they do not keep running against a profile that no longer exists. Best
 	// effort — a failure here must not un-delete the account.
@@ -213,6 +217,7 @@ func reorderProfiles(args json.RawMessage) (any, error) {
 	if err := storageconfig.ReorderProfiles(input.Names); err != nil {
 		return nil, err
 	}
+	queueAutomaticConfigBackup()
 	return map[string]any{"ok": true}, nil
 }
 
@@ -224,6 +229,7 @@ func reorderBuckets(args json.RawMessage) (any, error) {
 	if err := storageconfig.ReorderBuckets(input.Ids); err != nil {
 		return nil, err
 	}
+	queueAutomaticConfigBackup()
 	return map[string]any{"ok": true}, nil
 }
 
@@ -260,6 +266,7 @@ func setActiveProfile(args json.RawMessage) (any, error) {
 	if err := storageconfig.SetActiveProfile(input.Name); err != nil {
 		return nil, err
 	}
+	queueAutomaticConfigBackup()
 	return loadBootstrapState()
 }
 

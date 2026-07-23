@@ -8,6 +8,7 @@ import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/cached_file_record.dart';
+import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -123,13 +124,12 @@ class RemoteStorageApi
     String? runtimeArchitecture,
   }) async {
     try {
-      final payload = await runBridgeCall(
-        'match_platform_asset',
-        {
-          'assets': assets,
-          'runtimeArchitecture': ?runtimeArchitecture,
-        },
-      ) as Map<String, dynamic>?;
+      final payload =
+          await runBridgeCall('match_platform_asset', {
+                'assets': assets,
+                'runtimeArchitecture': ?runtimeArchitecture,
+              })
+              as Map<String, dynamic>?;
       return payload;
     } catch (_) {
       return null;
@@ -227,10 +227,9 @@ class RemoteStorageApi
 
   @override
   Future<Map<String, dynamic>> deleteProfile(String name) async {
-    final result = await runBridgeCall(
-      'delete_profile',
-      <String, dynamic>{'name': name},
-    );
+    final result = await runBridgeCall('delete_profile', <String, dynamic>{
+      'name': name,
+    });
     return (result as Map<String, dynamic>?) ?? const <String, dynamic>{};
   }
 
@@ -273,6 +272,47 @@ class RemoteStorageApi
       return result.map((e) => e.toString()).toList();
     }
     return const <String>[];
+  }
+
+  @override
+  Future<ConfigBackupSettings> loadConfigBackupSettings() async {
+    final result = await runBridgeCall('load_config_backup_settings');
+    return ConfigBackupSettings.fromJson(
+      result as Map<String, dynamic>? ?? const <String, dynamic>{},
+    );
+  }
+
+  @override
+  Future<ConfigBackupSettings> saveConfigBackupSettings(
+    ConfigBackupSettings settings,
+  ) async {
+    final result = await runBridgeCall('save_config_backup_settings', {
+      'settings': settings.toJson(),
+    });
+    return ConfigBackupSettings.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<ConfigBackupSnapshot> backupConfigNow() async {
+    final result = await runBridgeCall('backup_config_now');
+    return ConfigBackupSnapshot.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
+  Future<List<ConfigBackupSnapshot>> listConfigBackups() async {
+    final result = await runBridgeCall('list_config_backups');
+    if (result is! List) return const <ConfigBackupSnapshot>[];
+    return result
+        .map(
+          (item) => ConfigBackupSnapshot.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<BootstrapState> restoreConfigBackup(String key) async {
+    final result = await runBridgeCall('restore_config_backup', {'key': key});
+    return BootstrapState.fromJson(result as Map<String, dynamic>);
   }
 
   @override

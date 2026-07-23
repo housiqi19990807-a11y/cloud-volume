@@ -6,6 +6,7 @@ import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/cached_file_record.dart';
+import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -103,6 +104,17 @@ abstract class RemoteStorageGateway {
   Future<void> reorderProfiles(List<String> names);
   Future<void> reorderBuckets(List<String> ids);
   Future<List<String>> listBucketOrder();
+  Future<ConfigBackupSettings> loadConfigBackupSettings() async =>
+      throw UnsupportedError('配置备份不可用');
+  Future<ConfigBackupSettings> saveConfigBackupSettings(
+    ConfigBackupSettings settings,
+  ) async => throw UnsupportedError('配置备份不可用');
+  Future<ConfigBackupSnapshot> backupConfigNow() async =>
+      throw UnsupportedError('配置备份不可用');
+  Future<List<ConfigBackupSnapshot>> listConfigBackups() async =>
+      throw UnsupportedError('配置备份不可用');
+  Future<BootstrapState> restoreConfigBackup(String key) async =>
+      throw UnsupportedError('配置备份不可用');
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config);
   Future<BucketInfo> getBucketQuota(RemoteStorageConfig config, String bucket);
   Future<List<ObjectInfo>> listObjects(

@@ -614,6 +614,18 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 **Gotchas:** P0 不是文件传输协议，也不是递归扫描器。它不保证即时投递，未主动刷新的文件管理器窗口仍可能需要一次目录读取；删除和覆盖的完整跨客户端投影留给后续 P1/P2 事件设计，不能在 P0 中通过盲目删除本地占位符实现，否则会误删正在本地写回的状态。
 
+### Feature: Remote Configuration Backup
+
+桌面端可把当前账号配置保存为加密的远端快照，便于在误改配置后从设置页还原；备份目标本身不属于普通账号列表时也可独立保存。
+
+- `go/config/config_backup.go` — 在 bbolt `meta` 保存 `ConfigBackupSettings`；目标可引用 profile 或保存独立 `RemoteStorageConfig`。`ExportConfigBackup`/`RestoreConfigBackup` 只处理 profiles、活动账号、全局代理和显示顺序，刻意不打包本地缓存；还原时保留备份目标设置。
+- `go/configbackup/backups.go` — 解析目标，使用目标凭证材料派生 AES-GCM 密钥，上传/列举/下载 `*.cloud-volume-config.json.enc` 快照。恢复前校验前缀、后缀和最大 32 MiB 大小，再验证解密标签并导入。
+- `bridge/dispatch_config_backup.go` / `bridge/dispatch.go` — 提供加载/保存目标、立即备份、列出快照与还原方法；普通 profile、代理、排序变动后以 2 秒合并窗口异步自动备份，不因远端失败阻塞本地保存。
+- `lib/models/config_backup.dart` / `lib/services/remote_storage_*` — Flutter bridge model/API；Web 明确不支持本地配置备份。
+- `lib/widgets/settings_config_backup_section.dart` / `lib/pages/settings_page*.dart` — 「设置 → 配置备份」配置已有或独立目标、自动备份、立即备份、快照查看和二次确认还原。独立目标复用账号连接向导，但不会调用 `saveProfile`，因而不显示在账号页。
+
+**Gotchas:** 加密密钥由备份目标凭证派生，凭证轮换后旧快照需要旧凭证才能解密；匿名连接没有可用密钥，不能作为备份目标。自动备份只在已存在且启用的目标上运行，多个紧邻的本地配置写入会合并为一次快照。完整清除本地配置后，必须先重新提供备份目标连接才能读取远端快照，不能从加密备份中无凭证自举。
+
 **P1 readiness (2026-07-23):** P1 局域网即时通知可以复用 `bucketAccess.pollRemoteDirectory`：验证后的事件只应触发受影响父目录的远端重新列举、`bucketCache` 更新与现有 `externalDirectoryRefresh` 投影，不应直接调用 `NotifyExternalDelete`，因为后者会把本地 pending writeback 取消并写 tombstone，适用于“本客户端已确认完成的 bridge mutation”，不适用于尚待远端确认的对端提示。事件生产端应接在 `writebackQueue.flushNow`、`deleteQueue.runDelete`、`bucketAccess.renamePath` 等远端 mutation 成功点，而不是本地编辑入队点。仓库尚没有 mDNS/QUIC 依赖、Ed25519 设备身份、受 OS 保护的组密钥存储、配对 UI 或 P1 状态/禁用开关；现有 bbolt/TOML profile 虽为用户文件权限但保存账号 secret，不能直接把 P1 私钥/组密钥并入其中。实现前必须确认配对授权、隐私文案和密钥保管方案；P0 仍是可靠性兜底。
 
 **Automatic-discovery option (2026-07-23):** 可以免配对，但组密钥只能在内存中由同一挂载范围的规范化 `storageType + endpoint + bucket + rootPrefix` 与实际凭证材料经 HKDF-SHA256 派生；mDNS TXT 仅广播截断 `HMAC(groupKey, "cloud-volume/p1/discovery/v1")` 标签和临时端口，绝不广播 endpoint、bucket、路径或凭证。标签匹配后才建立 QUIC，首个双向流以随机 nonce、组密钥 HMAC 和 event MAC 认证；事件路径放在该加密流内，接收端按父目录刷新。这样无需持久化新的组密钥，但凭证轮换会自然换组，匿名/无密钥账号不能启用，并且弱 WebDAV/FTP 密码会让广播标签成为离线猜测验证器；自动发现应默认关闭或至少明确告知该风险。不要依赖 HMAC `pathHash` 反查任意路径，它不可逆；需传加密路径或只发已知目录刷新提示。

@@ -8,6 +8,7 @@ import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/cached_file_record.dart';
+import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -322,6 +323,27 @@ class RemoteStorageApi
     }
     return const <String>[];
   }
+
+  @override
+  Future<ConfigBackupSettings> loadConfigBackupSettings() =>
+      throw UnsupportedError('Web 端暂不支持本地配置备份');
+
+  @override
+  Future<ConfigBackupSettings> saveConfigBackupSettings(
+    ConfigBackupSettings settings,
+  ) => throw UnsupportedError('Web 端暂不支持本地配置备份');
+
+  @override
+  Future<ConfigBackupSnapshot> backupConfigNow() =>
+      throw UnsupportedError('Web 端暂不支持本地配置备份');
+
+  @override
+  Future<List<ConfigBackupSnapshot>> listConfigBackups() =>
+      throw UnsupportedError('Web 端暂不支持本地配置备份');
+
+  @override
+  Future<BootstrapState> restoreConfigBackup(String key) =>
+      throw UnsupportedError('Web 端暂不支持本地配置备份');
 
   @override
   Future<BucketMountStatus> mountBucket(

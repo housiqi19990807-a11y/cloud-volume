@@ -57,6 +57,16 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return reorderBuckets(args)
 	case "list_bucket_order":
 		return listBucketOrder()
+	case "load_config_backup_settings":
+		return loadConfigBackupSettings()
+	case "save_config_backup_settings":
+		return saveConfigBackupSettings(args)
+	case "backup_config_now":
+		return backupConfigNow()
+	case "list_config_backups":
+		return listConfigBackups()
+	case "restore_config_backup":
+		return restoreConfigBackup(args)
 	// Storage operations.
 	case "list_buckets":
 		return listBuckets(args)

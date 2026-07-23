@@ -18,6 +18,7 @@ import 'package:remote_storage/widgets/settings_sections.dart'
         VisibilitySection,
         WebDavCredentialsSection;
 import 'package:remote_storage/widgets/settings_cache_section.dart';
+import 'package:remote_storage/widgets/settings_config_backup_section.dart';
 import 'package:remote_storage/widgets/settings_log_section.dart';
 import 'package:remote_storage/widgets/settings_proxy_section.dart';
 import 'package:remote_storage/widgets/settings_sync_section.dart';
@@ -47,6 +48,7 @@ enum _SettingsTab {
   trash,
   webdav,
   resetAccount,
+  configBackup,
   configManage,
   // Windows group
   windowsWriteback,

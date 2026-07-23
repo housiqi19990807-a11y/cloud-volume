@@ -8,6 +8,7 @@ import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/cached_file_record.dart';
+import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/s3_objects.dart';
@@ -273,6 +274,27 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
 
   @override
   Future<List<String>> listBucketOrder() async => const <String>[];
+
+  @override
+  Future<ConfigBackupSettings> loadConfigBackupSettings() async =>
+      const ConfigBackupSettings();
+
+  @override
+  Future<ConfigBackupSettings> saveConfigBackupSettings(
+    ConfigBackupSettings settings,
+  ) async => settings;
+
+  @override
+  Future<ConfigBackupSnapshot> backupConfigNow() async =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<ConfigBackupSnapshot>> listConfigBackups() async =>
+      const <ConfigBackupSnapshot>[];
+
+  @override
+  Future<BootstrapState> restoreConfigBackup(String key) async =>
+      throw UnimplementedError();
 
   @override
   Future<ObjectInfo> headObject(
