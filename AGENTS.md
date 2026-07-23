@@ -489,6 +489,7 @@ Accounts are multi-profile configs, not a separate "account" table. There is **n
   - table: `ListView.builder` (~L77–96)
   - grid: `GridView.builder` (~L47–64)
   - row title: `displayName` else `name`; no client sort.
+  - account glyph is always `cloud`; protocol remains explicit in the type label. The sidebar uses the separate `cloudCog` glyph to denote the account-management function rather than any individual protocol.
 - `lib/models/bootstrap_state.dart` — Dart `ProfileInfo` + `BootstrapState.profiles`.
 - `lib/pages/app_bootstrap_page.dart` — Loads `api.loadBootstrapState()`; `onRefresh` reloads session so account list order comes from bridge list sort.
 - `lib/pages/main_layout_page.dart` — Sidebar `storage` → `CloudStoragePage(state.profiles)`.

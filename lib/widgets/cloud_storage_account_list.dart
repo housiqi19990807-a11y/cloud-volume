@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
-import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -139,7 +138,7 @@ class CloudStorageAccountList extends StatelessWidget {
             const _ListDragHandle(),
             const SizedBox(width: 6),
           ],
-          _AccountIcon(profile: profile),
+          const _AccountIcon(),
         ],
       ),
       title: _profileTitle(profile),
@@ -193,7 +192,7 @@ class _AccountCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              _AccountIcon(profile: profile),
+              const _AccountIcon(),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -419,9 +418,7 @@ class _AccountActionButtonState extends State<_AccountActionButton> {
 }
 
 class _AccountIcon extends StatelessWidget {
-  const _AccountIcon({required this.profile});
-
-  final ProfileInfo profile;
+  const _AccountIcon();
 
   @override
   Widget build(BuildContext context) {
@@ -430,9 +427,8 @@ class _AccountIcon extends StatelessWidget {
       width: 32,
       height: 32,
       child: Icon(
-        profile.storageType == StorageType.webdav
-            ? LucideIcons.server
-            : LucideIcons.cloud,
+        // Protocol remains visible in the type label; accounts share one icon.
+        LucideIcons.cloud,
         size: 18,
         color: theme.colorScheme.primary,
       ),
