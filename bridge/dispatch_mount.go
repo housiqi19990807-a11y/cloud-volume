@@ -15,7 +15,8 @@ type mountBucketArgs struct {
 }
 
 type bucketMountArgs struct {
-	Bucket string `json:"bucket"`
+	Bucket           string `json:"bucket"`
+	RemoveLocalCache bool   `json:"removeLocalCache"`
 }
 
 // Mount bridge methods keep the Flutter layer thin while the Go session owns lifecycle state.
@@ -39,8 +40,10 @@ func unmountBucket(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	log.Printf("[bridge/mount] unmount bucket=%q", input.Bucket)
-	return bucketmount.UnmountBucket(input.Bucket)
+	log.Printf("[bridge/mount] unmount bucket=%q remove_local_cache=%t", input.Bucket, input.RemoveLocalCache)
+	return bucketmount.UnmountBucketWithOptions(input.Bucket, bucketmount.UnmountOptions{
+		RemoveLocalCache: input.RemoveLocalCache,
+	})
 }
 
 func getBucketMountStatus(args json.RawMessage) (any, error) {

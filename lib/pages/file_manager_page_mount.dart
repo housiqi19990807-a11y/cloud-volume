@@ -154,6 +154,9 @@ extension _FileManagerPageMount on _FileManagerPageState {
       return;
     }
     final config = targetBucket.config;
+    final forceReadOnly = config
+        .bucketSettingsFor(targetBucket.bucket.name)
+        .readOnly;
     final winFspInstalled =
         isWindowsPlatform &&
         widget.api is WindowsWinFspQuery &&
@@ -214,9 +217,39 @@ extension _FileManagerPageMount on _FileManagerPageState {
       availableDriveLetters: availableDriveLetters,
       currentEngine: currentEngine,
       winFspAvailable: winFspInstalled,
+      forceReadOnly: forceReadOnly,
     );
     if (options == null) {
       return;
+    }
+    if (!mounted) return;
+    if (options.windowsMountEngine == WindowsMountEngine.winFsp &&
+        !winFspInstalled) {
+      final shouldInstall = await showAppConfirmModal(
+        context: context,
+        title: const Text('只读挂载需要 WinFsp'),
+        description: const Text(
+          'Cloud Files 只能阻止远端写回，无法在 Explorer 写入前拒绝操作。严格只读将使用 WinFsp；是否现在安装驱动？（会弹出 UAC 确认）',
+        ),
+        confirmLabel: '安装并继续',
+        cancelLabel: '取消',
+      );
+      if (shouldInstall != true) return;
+      try {
+        final installed = await (widget.api as WindowsWinFspQuery)
+            .installWindowsWinFsp();
+        if (!mounted) return;
+        if (!installed) {
+          _showPageMessage(
+            title: 'WinFsp 安装未完成',
+            message: '严格只读挂载未启动；请安装 WinFsp 后重试。',
+          );
+          return;
+        }
+      } catch (error) {
+        _showPageError(error);
+        return;
+      }
     }
     // Persist an engine change chosen from the mount dialog before mounting,
     // so the backend picks the right kernel and the setting sticks for next time.
@@ -258,11 +291,27 @@ extension _FileManagerPageMount on _FileManagerPageState {
     if (targetBucket == null || _mountBusyBuckets.contains(targetBucket.id)) {
       return;
     }
+    final choice = await showUnmountBucketDialog(
+      context,
+      bucket: targetBucket.bucket.name,
+      canRemoveLocalCache:
+          isWindowsPlatform &&
+          targetBucket.config.windowsMountEngine ==
+              WindowsMountEngine.cloudFiles,
+    );
+    if (choice == null || !mounted) return;
     setState(() => _mountBusyBuckets.add(targetBucket.id));
     try {
-      final status = await widget.api.unmountBucket(targetBucket.bucket.name);
+      final status = await widget.api.unmountBucket(
+        targetBucket.bucket.name,
+        removeLocalCache: choice.removeLocalCache,
+      );
       if (!mounted) return;
       _applyMountStatus(targetBucket.id, status);
+      final cleanupError = status.lastError?.trim();
+      if (cleanupError != null && cleanupError.isNotEmpty) {
+        _showPageMessage(title: '卸载完成，但缓存未清理', message: cleanupError);
+      }
     } catch (error) {
       _showPageError(error);
     } finally {

@@ -1,7 +1,5 @@
-// 新增账号弹窗：三步式引导（协议 → 连接/OAuth → 桶列表显示）；编辑保持单页。
-// 子窗口模式（asDialog: false）返回裸内容并用 MeasureSize 按内容自适应窗口尺寸；
-// 默认应用内 ShadDialog；Debug 子窗口用 asDialog:false。编辑模式不走向导。
-// 字段构建与协议选择卡片在 part 文件 cloud_storage_account_dialog_steps.dart 中。
+// 账号弹窗：新增使用连接/桶向导，编辑保持单页；字段组件拆至 part 文件。
+// Debug 子窗口按内容自适应，默认使用应用内 ShadDialog。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/cloud_storage_account_draft.dart';
@@ -26,9 +24,9 @@ export 'package:remote_storage/models/cloud_storage_account_draft.dart';
 part 'cloud_storage_account_dialog_steps.dart';
 part 'cloud_storage_account_dialog_bucket_visibility.dart';
 part 'cloud_storage_account_dialog_bucket_loading.dart';
+part 'cloud_storage_account_dialog_credentials.dart';
 
 /// 账号管理页使用的新增/编辑账号对话框。
-///
 /// 保存时返回 [RemoteStorageConfig] 给调用方，由调用方决定 profileName 并保存。
 class CloudStorageAccountDialog extends StatefulWidget {
   const CloudStorageAccountDialog({
@@ -117,6 +115,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   int _step = 0;
   bool _saving = false;
   String? _errorText;
+  String _initialAccessKey = '';
+  bool _validatingCredentials = false;
+  bool _credentialsValidated = false;
+  String? _credentialValidationText;
 
   /// Exposed for part-file step functions to trigger rebuilds.
   void markDirty(VoidCallback fn) => setState(fn);
@@ -132,6 +134,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     _endpointController.text = config.endpoint;
     _regionController.text = config.region.isEmpty ? 'auto' : config.region;
     _accessKeyController.text = config.accessKeyId;
+    _initialAccessKey = config.accessKeyId.trim();
     _webdavUsernameController.text = config.webdavUsername;
     _ftpUsernameController.text = config.ftpUsername;
     if (config.ftpPort > 0) {
@@ -152,6 +155,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
     // Editing skips the protocol picker (step 0) since the protocol is fixed.
     if (widget.editing) _step = 1;
   }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -337,9 +341,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   Widget _buildStepBody(ShadThemeData theme) {
     return switch (_step) {
       0 => stepProtocolPicker(theme: theme, self: this),
-      1 => _loadingBuckets
-          ? const Center(child: CircularProgressIndicator())
-          : stepConnectionFields(theme: theme, self: this),
+      1 =>
+        _loadingBuckets
+            ? const Center(child: CircularProgressIndicator())
+            : stepConnectionFields(theme: theme, self: this),
       _ => stepBucketVisibility(theme: theme, self: this),
     };
   }
@@ -432,11 +437,6 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
         _errorText = '保存失败，请检查配置';
       });
     }
-  }
-
-  void _syncMappedBucketName() {
-    if (widget.editing || _mappedBucketNameEdited) return;
-    _mappedBucketNameController.text = _nameController.text;
   }
 
   // -- Baidu OAuth helpers ----------------------------------------------------

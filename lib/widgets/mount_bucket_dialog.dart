@@ -16,6 +16,7 @@ Future<MountBucketOptions?> showMountBucketDialog(
   List<String> availableDriveLetters = const <String>[],
   WindowsMountEngine? currentEngine,
   bool winFspAvailable = false,
+  bool forceReadOnly = false,
 }) {
   return showAppModal<MountBucketOptions?>(
     context: context,
@@ -25,6 +26,7 @@ Future<MountBucketOptions?> showMountBucketDialog(
       availableDriveLetters: availableDriveLetters,
       currentEngine: currentEngine,
       winFspAvailable: winFspAvailable,
+      forceReadOnly: forceReadOnly,
     ),
   );
 }
@@ -36,6 +38,7 @@ class _MountBucketDialog extends StatefulWidget {
     required this.availableDriveLetters,
     required this.currentEngine,
     required this.winFspAvailable,
+    required this.forceReadOnly,
   });
 
   final String bucket;
@@ -43,6 +46,7 @@ class _MountBucketDialog extends StatefulWidget {
   final List<String> availableDriveLetters;
   final WindowsMountEngine? currentEngine;
   final bool winFspAvailable;
+  final bool forceReadOnly;
 
   @override
   State<_MountBucketDialog> createState() => _MountBucketDialogState();
@@ -58,6 +62,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
   @override
   void initState() {
     super.initState();
+    _readOnly = widget.forceReadOnly;
     final hasDrive = widget.availableDriveLetters.isNotEmpty;
     _presentation = widget.showWindowsMountMode && hasDrive
         ? _MountPresentation.driveLetter
@@ -65,10 +70,14 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
     _driveLetter = hasDrive ? widget.availableDriveLetters.first : null;
     // When WinFsp is not installed the picker hides it; fall back to Cloud
     // Files so the selected value always reflects something mountable.
-    _engine = (widget.currentEngine == WindowsMountEngine.winFsp &&
+    _engine =
+        (widget.currentEngine == WindowsMountEngine.winFsp &&
             !widget.winFspAvailable)
         ? WindowsMountEngine.cloudFiles
         : widget.currentEngine;
+    if (_readOnly && widget.showWindowsMountMode) {
+      _engine = WindowsMountEngine.winFsp;
+    }
   }
 
   @override
@@ -86,7 +95,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
           children: [
             ShadSwitch(
               value: _readOnly,
-              onChanged: (value) => setState(() => _readOnly = value),
+              onChanged: widget.forceReadOnly ? null : _setReadOnly,
               label: Text(
                 '只读挂载',
                 style: theme.textTheme.small.copyWith(
@@ -94,15 +103,29 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              sublabel: const Text('关闭时允许在挂载目录中新增、修改和删除文件。'),
+              sublabel: Text(
+                widget.forceReadOnly
+                    ? '该桶已由账号策略设为只读，不能在此修改。'
+                    : '关闭时允许在挂载目录中新增、修改和删除文件。',
+              ),
             ),
+            if (widget.showWindowsMountMode && _readOnly) ...[
+              const SizedBox(height: 8),
+              Text(
+                '严格只读会使用 WinFsp 虚拟文件系统，避免 Explorer 先写入本地缓存后才被拒绝。',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ),
+            ],
             if (widget.showWindowsMountMode && _engine != null) ...[
               const SizedBox(height: 18),
               MountEnginePicker(
                 theme: theme,
                 engine: _engine!,
                 winFspAvailable: widget.winFspAvailable,
-                onChanged: (value) => setState(() => _engine = value),
+                onChanged: _setEngine,
               ),
             ],
             if (widget.showWindowsMountMode) ...[
@@ -159,8 +182,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                       ),
                     )
                     .toList(growable: false),
-                onChanged: (value) =>
-                    setState(() => _driveLetter = value),
+                onChanged: (value) => setState(() => _driveLetter = value),
               ),
               const SizedBox(height: 10),
               Row(
@@ -212,8 +234,9 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                             mountPath: usesPath ? _mountPath : '',
                             readOnly: _readOnly,
                             driveLetter: usesPath ? '' : _driveLetter ?? '',
-                            windowsMountEngine:
-                                widget.showWindowsMountMode ? _engine : null,
+                            windowsMountEngine: widget.showWindowsMountMode
+                                ? _engine
+                                : null,
                           ),
                         )
                       : null,
@@ -229,6 +252,26 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
 
   bool get _canSubmit =>
       _presentation == _MountPresentation.path || _driveLetter != null;
+
+  void _setReadOnly(bool value) {
+    setState(() {
+      _readOnly = value;
+      // Cloud Files receives post-operation callbacks and cannot veto an
+      // Explorer write. WinFsp rejects the write itself with EROFS instead.
+      if (value && widget.showWindowsMountMode) {
+        _engine = WindowsMountEngine.winFsp;
+      }
+    });
+  }
+
+  void _setEngine(WindowsMountEngine value) {
+    setState(() {
+      // Do not silently downgrade a strict read-only mount to Cloud Files.
+      _engine = _readOnly && value == WindowsMountEngine.cloudFiles
+          ? WindowsMountEngine.winFsp
+          : value;
+    });
+  }
 
   Future<void> _pickDirectory() async {
     final path = await FilePicker.getDirectoryPath(
@@ -317,3 +360,63 @@ String _presentationLabel(_MountPresentation value) {
   };
 }
 
+/// Confirms unmounting and makes Cloud Files cache retention an explicit choice.
+class UnmountBucketChoice {
+  const UnmountBucketChoice({required this.removeLocalCache});
+
+  final bool removeLocalCache;
+}
+
+Future<UnmountBucketChoice?> showUnmountBucketDialog(
+  BuildContext context, {
+  required String bucket,
+  required bool canRemoveLocalCache,
+}) {
+  var removeLocalCache = false;
+  return showAppModal<UnmountBucketChoice?>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => ShadDialog(
+        title: const Text('卸载存储桶'),
+        description: Text('即将卸载 $bucket。'),
+        child: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('请先关闭正在从该挂载目录打开的文件。卸载后仍打开的文件可能继续引用本地缓存，后续修改不会自动同步。'),
+              if (canRemoveLocalCache) ...[
+                const SizedBox(height: 16),
+                ShadSwitch(
+                  value: removeLocalCache,
+                  onChanged: (value) =>
+                      setDialogState(() => removeLocalCache = value),
+                  label: const Text('同时删除本地缓存'),
+                  sublabel: const Text('仅删除默认 Cloud Files 同步目录中的本地副本，不影响云端文件。'),
+                ),
+              ],
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ShadButton.outline(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 10),
+                  ShadButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(
+                      UnmountBucketChoice(removeLocalCache: removeLocalCache),
+                    ),
+                    child: const Text('确认卸载'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}

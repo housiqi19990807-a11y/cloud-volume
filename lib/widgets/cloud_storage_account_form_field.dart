@@ -78,10 +78,12 @@ class CloudStorageSecretInput extends StatelessWidget {
     super.key,
     required this.controller,
     this.placeholder,
+    this.onChanged,
   });
 
   final TextEditingController controller;
   final Widget? placeholder;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +97,7 @@ class CloudStorageSecretInput extends StatelessWidget {
       smartQuotesType: SmartQuotesType.disabled,
       enableIMEPersonalizedLearning: false,
       obscureText: true,
+      onChanged: onChanged,
     );
   }
 }

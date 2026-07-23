@@ -162,7 +162,8 @@ Widget stepConnectionFields({
 }) {
   final isWebDav = self._storageType == StorageType.webdav;
   final isBaiduPan = self._storageType == StorageType.baiduPan;
-  final isFTP = self._storageType == StorageType.ftp ||
+  final isFTP =
+      self._storageType == StorageType.ftp ||
       self._storageType == StorageType.sftp;
   return Column(
     mainAxisSize: MainAxisSize.min,
@@ -387,6 +388,7 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
         child: CloudStorageTechnicalInput(
           controller: self._accessKeyController,
           placeholder: const Text('Access Key ID'),
+          onChanged: (_) => self._onCredentialInputChanged(),
         ),
       ),
     ),
@@ -395,11 +397,13 @@ List<Widget> _s3Fields(_CloudStorageAccountDialogState self) {
       label: '访问密钥',
       child: CloudStorageSecretInput(
         controller: self._secretKeyController,
+        onChanged: (_) => self._onCredentialInputChanged(),
         placeholder: Text(
           self.widget.editing ? '留空则保留当前 Secret Key' : 'Secret Access Key',
         ),
       ),
     ),
+    self._buildCredentialValidationControl(),
   ];
 }
 
@@ -477,9 +481,7 @@ List<Widget> _ftpFields(_CloudStorageAccountDialogState self) {
           child: CloudStorageSecretInput(
             controller: self._ftpPasswordController,
             placeholder: Text(
-              self.widget.editing
-                  ? '留空则保留当前密码'
-                  : '输入 $protocolLabel 登录密码',
+              self.widget.editing ? '留空则保留当前密码' : '输入 $protocolLabel 登录密码',
             ),
           ),
         ),
@@ -494,8 +496,8 @@ class _FtpAnonymousToggle extends StatefulWidget {
   const _FtpAnonymousToggle({
     required _CloudStorageAccountDialogState self,
     required String protocolLabel,
-  })  : _self = self,
-        _protocolLabel = protocolLabel;
+  }) : _self = self,
+       _protocolLabel = protocolLabel;
 
   final _CloudStorageAccountDialogState _self;
   final String _protocolLabel;

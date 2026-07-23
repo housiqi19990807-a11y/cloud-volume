@@ -44,8 +44,12 @@ class MountEnginePicker extends StatelessWidget {
             selectedOptionBuilder: (context, value) =>
                 Text(_engineLabel(value)),
             options: WindowsMountEngine.values
-                .where((item) =>
-                    item != WindowsMountEngine.winFsp || winFspAvailable)
+                .where(
+                  (item) =>
+                      item != WindowsMountEngine.winFsp ||
+                      winFspAvailable ||
+                      item == engine,
+                )
                 .map(
                   (item) => ShadOption<WindowsMountEngine>(
                     value: item,
@@ -93,4 +97,3 @@ class MountEnginePicker extends StatelessWidget {
     };
   }
 }
-

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
 	storageops "remote-storage/go/storage"
 )
 
@@ -157,6 +159,27 @@ func saveProfile(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	if err := storageconfig.SaveProfile(input.Name, input.Config); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
+// validateAccountCredentials checks an edited connection before it is stored.
+// It has no persistence side effects, so a typo cannot overwrite valid creds.
+func validateAccountCredentials(args json.RawMessage) (any, error) {
+	var input saveConfigArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	config := input.Config.Normalized()
+	if !config.IsConfigured() {
+		return nil, fmt.Errorf("请补全账号连接信息后再验证")
+	}
+	if config.StorageType == storageconfig.StorageTypeS3 {
+		if err := s3ops.CheckAccess(config); err != nil {
+			return nil, err
+		}
+	} else if _, err := storageops.ForConfig(config).ListBuckets(context.Background()); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil

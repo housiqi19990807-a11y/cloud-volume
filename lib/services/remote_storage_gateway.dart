@@ -80,6 +80,7 @@ abstract class RemoteStorageGateway {
   /// Returns null when no usable system proxy is configured.
   Future<SystemProxyInfo?> resolveSystemProxy();
   Future<BootstrapState> saveConfig(RemoteStorageConfig config);
+  Future<void> validateAccountCredentials(RemoteStorageConfig config);
   Future<bool> updateProxySettings({
     required String proxyMode,
     required String proxyType,
@@ -188,8 +189,10 @@ abstract class RemoteStorageGateway {
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
     String bucket,
-    String trashId,
-  );
+    String trashId, {
+    String originalKey = '',
+    bool isDirectory = false,
+  });
   Future<void> deleteTrashItem(
     RemoteStorageConfig config,
     String bucket,
@@ -256,7 +259,10 @@ abstract class RemoteStorageGateway {
     required String bucket,
     required String objectKeyPrefix,
   });
-  Future<BucketMountStatus> unmountBucket(String bucket);
+  Future<BucketMountStatus> unmountBucket(
+    String bucket, {
+    bool removeLocalCache = false,
+  });
   Future<BucketMountStatus> getBucketMountStatus(String bucket);
   Future<BucketMountStatus> openBucketMount(String bucket);
 

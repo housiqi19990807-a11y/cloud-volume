@@ -248,6 +248,9 @@ class _FakeApi implements RemoteStorageGateway {
   final RemoteStorageConfig? configOverride;
   final List<BucketInfo> buckets;
   final Future<BucketInfo>? quotaResult;
+
+  @override
+  Future<void> validateAccountCredentials(RemoteStorageConfig config) async {}
   final List<ProfileInfo> profiles;
   final Map<String, RemoteStorageConfig> profileConfigs;
   final Map<StorageType, List<BucketInfo>> bucketsByStorageType;
@@ -623,8 +626,10 @@ class _FakeApi implements RemoteStorageGateway {
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
     String bucket,
-    String trashId,
-  ) async {}
+    String trashId, {
+    String originalKey = '',
+    bool isDirectory = false,
+  }) async {}
 
   @override
   Future<void> deleteTrashItem(
@@ -710,14 +715,16 @@ class _FakeApi implements RemoteStorageGateway {
   );
 
   @override
-  Future<BucketMountStatus> unmountBucket(String bucket) async =>
-      const BucketMountStatus(
-        mounted: false,
-        bucket: '',
-        mountPath: '',
-        serverUrl: '',
-        port: 0,
-      );
+  Future<BucketMountStatus> unmountBucket(
+    String bucket, {
+    bool removeLocalCache = false,
+  }) async => const BucketMountStatus(
+    mounted: false,
+    bucket: '',
+    mountPath: '',
+    serverUrl: '',
+    port: 0,
+  );
 
   @override
   Future<BucketMountStatus> getBucketMountStatus(String bucket) async =>

@@ -226,6 +226,13 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> validateAccountCredentials(RemoteStorageConfig config) async {
+    await _invoke('validate_account_credentials', <String, dynamic>{
+      'config': config.toJson(),
+    });
+  }
+
+  @override
   Future<bool> updateProxySettings({
     required String proxyMode,
     required String proxyType,
@@ -396,9 +403,13 @@ class RemoteStorageApi
   }
 
   @override
-  Future<BucketMountStatus> unmountBucket(String bucket) async {
+  Future<BucketMountStatus> unmountBucket(
+    String bucket, {
+    bool removeLocalCache = false,
+  }) async {
     final result = await _invoke('unmount_bucket', <String, dynamic>{
       'bucket': bucket,
+      'removeLocalCache': removeLocalCache,
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }

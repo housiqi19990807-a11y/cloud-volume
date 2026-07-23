@@ -148,8 +148,20 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _pagingTrash = false;
   int _seenObjectListingMutationVersion = 0, _bucketQuotaRefreshGeneration = 0;
   String? _failedBucketProfileName;
+  List<BucketSourceLoadFailure> _unavailableBucketSources =
+      const <BucketSourceLoadFailure>[];
   final Map<String, _PendingUploadRefresh> _pendingUploadRefreshes =
       <String, _PendingUploadRefresh>{};
+
+  void _reconfigureUnavailableBucketSource(String profileName) {
+    setState(() => _failedBucketProfileName = profileName);
+    unawaited(_showFailedAccountEditor());
+  }
+
+  // Keep setState inside the State subclass; view extensions only coordinate UI.
+  void _replaceBucketsAfterReorder(List<FileManagerBucketEntry> buckets) {
+    setState(() => _buckets = buckets);
+  }
 
   @override
   void initState() {

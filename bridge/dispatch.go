@@ -39,6 +39,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return loadProfile(args)
 	case "save_profile":
 		return saveProfile(args)
+	case "validate_account_credentials":
+		return validateAccountCredentials(args)
 	case "start_baidu_pan_authorization":
 		return startBaiduPanAuthorization()
 	case "authorize_baidu_pan":

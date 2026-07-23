@@ -11,9 +11,8 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
       // Fetch bucket entries, then resolve quotas inline so a single setState
       // renders the final list. A separate post-frame quota refresh would replace
       // _buckets and destroy FileListTile hover state (the "hover又坏了" bug).
-      final baseEntries = _applyCachedBucketQuotas(
-        await _loadBucketEntries(),
-      );
+      final sourceResult = await _loadBucketEntries();
+      final baseEntries = _applyCachedBucketQuotas(sourceResult.entries);
       if (!mounted || generation != _bucketQuotaRefreshGeneration) {
         return false;
       }
@@ -26,6 +25,7 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
       }
       setState(() {
         _failedBucketProfileName = null;
+        _unavailableBucketSources = sourceResult.failures;
         _objectListingCache.clear();
         _buckets = entriesWithQuota;
         _activeBucketEntry = null;
@@ -59,10 +59,9 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
       if (!mounted || generation != _bucketQuotaRefreshGeneration) {
         return false;
       }
-      final sourceError = error is _BucketSourceLoadException ? error : null;
       setState(() {
-        _failedBucketProfileName = sourceError?.profileName;
-        _error = describeBridgeError(sourceError?.cause ?? error);
+        _failedBucketProfileName = null;
+        _error = describeBridgeError(error);
         _endLoading();
       });
       return false;

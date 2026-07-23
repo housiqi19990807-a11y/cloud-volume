@@ -111,6 +111,9 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<SystemProxyInfo?> resolveSystemProxy() async => null;
 
   @override
+  Future<void> validateAccountCredentials(RemoteStorageConfig config) async {}
+
+  @override
   Future<Map<String, dynamic>?> matchPlatformAsset(
     List<Map<String, dynamic>> assets, {
     String? runtimeArchitecture,
@@ -190,7 +193,8 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
       throw UnimplementedError();
 
   @override
-  Future<Map<String, dynamic>> deleteProfile(String name) async => throw UnimplementedError();
+  Future<Map<String, dynamic>> deleteProfile(String name) async =>
+      throw UnimplementedError();
 
   @override
   Future<BootstrapState> resetUserConfig() async => throw UnimplementedError();
@@ -383,8 +387,10 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
     String bucket,
-    String trashId,
-  ) async => throw UnimplementedError();
+    String trashId, {
+    String originalKey = '',
+    bool isDirectory = false,
+  }) async => throw UnimplementedError();
 
   @override
   Future<void> deleteTrashItem(
@@ -439,8 +445,10 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
   ) async => throw UnimplementedError();
 
   @override
-  Future<BucketMountStatus> unmountBucket(String bucket) async =>
-      throw UnimplementedError();
+  Future<BucketMountStatus> unmountBucket(
+    String bucket, {
+    bool removeLocalCache = false,
+  }) async => throw UnimplementedError();
 
   @override
   Future<BucketMountStatus> getBucketMountStatus(String bucket) async =>

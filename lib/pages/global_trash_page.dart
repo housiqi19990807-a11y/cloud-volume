@@ -137,9 +137,9 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
       _bucketEntryById
         ..clear()
         ..addAll({for (final entry in trashEntries) entry.id: entry});
-      final bucketIds = trashEntries.map((entry) => entry.id).toList(
-        growable: false,
-      );
+      final bucketIds = trashEntries
+          .map((entry) => entry.id)
+          .toList(growable: false);
       if (!mounted) {
         return;
       }
@@ -167,10 +167,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         // name when set, real bucket name otherwise).
         _bucketOptions = trashEntries
             .map(
-              (entry) => GlobalTrashBucketOption(
-                id: entry.id,
-                label: entry.label,
-              ),
+              (entry) =>
+                  GlobalTrashBucketOption(id: entry.id, label: entry.label),
             )
             .toList(growable: false);
         _activeBucket = resolved.bucket;
@@ -240,8 +238,7 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
   /// Resolves the [RemoteStorageConfig] that should be used for trash calls
   /// on the currently active bucket. Falls back to the active account config
   /// when the bucket has not been resolved yet (e.g. before the first load).
-  RemoteStorageConfig get _activeConfig =>
-      _activeBucketConfig ?? widget.config;
+  RemoteStorageConfig get _activeConfig => _activeBucketConfig ?? widget.config;
 
   /// Resolves the [RemoteStorageConfig] for a trash entry or active-bucket id.
   /// [bucketId] is the FileManagerBucketEntry id (`profileName::bucket`).
@@ -382,6 +379,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
         _configForBucketId(entry.bucket),
         _providerBucketName(entry.bucket),
         entry.item.id,
+        originalKey: entry.item.originalKey,
+        isDirectory: entry.item.isDir,
       );
       ObjectListingNotifier.instance.markRestored(
         _providerBucketName(entry.bucket),
@@ -420,6 +419,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
           _configForBucketId(entry.bucket),
           _providerBucketName(entry.bucket),
           entry.item.id,
+          originalKey: entry.item.originalKey,
+          isDirectory: entry.item.isDir,
         );
       }
       if (targets.isNotEmpty) {

@@ -13,7 +13,8 @@ RemoteStorageConfig buildAccountConfig(
 }) {
   final isBaidu = draft.storageType == StorageType.baiduPan;
   final isWebdav = draft.storageType == StorageType.webdav;
-  final isFTP = draft.storageType == StorageType.ftp ||
+  final isFTP =
+      draft.storageType == StorageType.ftp ||
       draft.storageType == StorageType.sftp;
 
   final name = draft.name.trim();
@@ -38,7 +39,11 @@ RemoteStorageConfig buildAccountConfig(
     secretKey = baidu?.secretAccessKey ?? '';
     hasSecretKey = baidu?.hasSecretAccessKey ?? false;
   } else {
-    secretKey = draft.secretKey;
+    // The editor intentionally does not hydrate stored secrets into Flutter.
+    // A blank field therefore means "keep the stored secret", not "erase it".
+    secretKey = draft.secretKey.trim().isEmpty
+        ? (existing?.secretAccessKey ?? '')
+        : draft.secretKey;
     hasSecretKey =
         secretKey.trim().isNotEmpty || (existing?.hasSecretAccessKey ?? false);
   }
@@ -51,7 +56,9 @@ RemoteStorageConfig buildAccountConfig(
   bool hasFtpPassword;
   if (isWebdav) {
     webdavUsername = draft.webdavUsername;
-    webdavPassword = draft.webdavPassword;
+    webdavPassword = draft.webdavPassword.trim().isEmpty
+        ? (existing?.webdavPassword ?? '')
+        : draft.webdavPassword;
     hasWebdavPassword =
         webdavPassword.trim().isNotEmpty ||
         (existing?.hasWebdavPassword ?? false);
@@ -63,10 +70,11 @@ RemoteStorageConfig buildAccountConfig(
     webdavPassword = '';
     hasWebdavPassword = false;
     ftpUsername = draft.ftpUsername;
-    ftpPassword = draft.ftpPassword;
+    ftpPassword = draft.ftpPassword.trim().isEmpty
+        ? (existing?.ftpPassword ?? '')
+        : draft.ftpPassword;
     hasFtpPassword =
-        ftpPassword.trim().isNotEmpty ||
-        (existing?.hasFtpPassword ?? false);
+        ftpPassword.trim().isNotEmpty || (existing?.hasFtpPassword ?? false);
   } else if (isBaidu) {
     webdavUsername = '';
     webdavPassword = '';

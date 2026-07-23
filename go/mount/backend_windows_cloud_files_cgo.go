@@ -38,6 +38,8 @@ func (b *windowsCloudFilesBackend) Initialize(session *mountSession) error {
 	}
 	if session.requestedPath != "" {
 		mountPath = session.requestedPath
+	} else {
+		session.managedPath = true
 	}
 	session.mountPath = mountPath
 	session.mountTarget = session.mountPath
@@ -51,6 +53,13 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 		b.mode,
 		session.mountPath,
 	)
+	// CFAPI reports deletes and renames after Explorer has already accepted the
+	// local operation. Returning early from those callbacks only suppresses
+	// writeback; it cannot provide a strict read-only filesystem. The UI routes
+	// read-only requests to WinFsp, and this guard protects direct bridge calls.
+	if session.readOnly {
+		return fmt.Errorf("Cloud Files does not support strict read-only mounts; use the WinFsp engine")
+	}
 	if err := os.MkdirAll(session.mountPath, 0o755); err != nil {
 		return fmt.Errorf("create sync-root directory: %w", err)
 	}
@@ -129,16 +138,14 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 		return b.createExternalPlaceholder(session, watcher, provider, virtualPath, isDir)
 	}
 	b.resetHealthState()
-	if !session.readOnly {
-		if err := b.checkHealthy(session, true); err != nil {
-			log.Printf(
-				"[mount/cloud-files] start-health-check bucket=%q mode=%q error=%v",
-				session.bucket,
-				b.mode,
-				err,
-			)
-			return err
-		}
+	if err := b.checkHealthy(session, true); err != nil {
+		log.Printf(
+			"[mount/cloud-files] start-health-check bucket=%q mode=%q error=%v",
+			session.bucket,
+			b.mode,
+			err,
+		)
+		return err
 	}
 	if session.requestedDriveLetter != "" {
 		driveLetter, err := assignWindowsDriveLetter(
@@ -222,6 +229,16 @@ func (b *windowsCloudFilesBackend) Stop(session *mountSession) error {
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-start", session.bucket)
 		session.access.release()
 		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=access-close-done err=%v", session.bucket, firstErr)
+	}
+	if session.removeLocalCache && session.managedPath {
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=cache-remove-start", session.bucket)
+		if err := os.RemoveAll(session.mountPath); err != nil {
+			// The mount is already safely disconnected. Keep it unmounted even
+			// when another process still has a cached file open; surface the
+			// actionable cleanup error through the returned status instead.
+			session.lastError = fmt.Sprintf("本地缓存未删除，请先关闭占用文件后重试：%v", err)
+		}
+		log.Printf("[mount/cloud-files] stop-phase bucket=%q step=cache-remove-done err=%v", session.bucket, session.lastError)
 	}
 
 	b.provider = nil

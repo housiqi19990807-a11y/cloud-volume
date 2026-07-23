@@ -43,6 +43,26 @@ class BucketSourceLoadException implements Exception {
   String toString() => cause.toString();
 }
 
+/// A profile failure is isolated so one expired account does not hide buckets
+/// belonging to the user's other configured accounts.
+class BucketSourceLoadFailure {
+  const BucketSourceLoadFailure({
+    required this.profileName,
+    required this.cause,
+  });
+
+  final String profileName;
+  final Object cause;
+}
+
+/// Aggregation output retains usable buckets alongside isolated failures.
+class BucketSourceLoadResult {
+  const BucketSourceLoadResult({required this.entries, required this.failures});
+
+  final List<FileManagerBucketEntry> entries;
+  final List<BucketSourceLoadFailure> failures;
+}
+
 /// Aggregates buckets across all configured accounts.
 class BucketSourceService {
   BucketSourceService._();
@@ -97,21 +117,62 @@ class BucketSourceService {
     List<ProfileInfo> profiles, {
     required RemoteStorageConfig fallbackConfig,
   }) async {
-    final sources = await loadSources(
+    return (await loadEntriesWithFailures(
       api,
       profiles,
       fallbackConfig: fallbackConfig,
-    );
+    )).entries;
+  }
+
+  /// Loads every account independently, preserving usable buckets when a
+  /// separate profile has expired credentials or a temporary network error.
+  Future<BucketSourceLoadResult> loadEntriesWithFailures(
+    RemoteStorageGateway api,
+    List<ProfileInfo> profiles, {
+    required RemoteStorageConfig fallbackConfig,
+  }) async {
+    final sources = <BucketSource>[];
+    final failures = <BucketSourceLoadFailure>[];
+    final profilesToLoad = profiles.isEmpty ? <ProfileInfo>[] : profiles;
+    if (profilesToLoad.isEmpty) {
+      sources.add(
+        BucketSource(
+          profileName: 'default',
+          sourceLabel: _sourceLabelForConfig(fallbackConfig),
+          config: fallbackConfig,
+        ),
+      );
+    } else {
+      for (final profile in profilesToLoad) {
+        try {
+          final config = await api.loadProfile(profile.name);
+          sources.add(
+            BucketSource(
+              profileName: profile.name,
+              sourceLabel: _sourceLabelForConfig(config),
+              config: config,
+            ),
+          );
+        } catch (error) {
+          failures.add(
+            BucketSourceLoadFailure(profileName: profile.name, cause: error),
+          );
+        }
+      }
+    }
     final entries = <FileManagerBucketEntry>[];
     for (final source in sources) {
       final List<BucketInfo> buckets;
       try {
         buckets = await api.listBuckets(source.config);
-      } catch (error, stackTrace) {
-        Error.throwWithStackTrace(
-          BucketSourceLoadException(source.profileName, error),
-          stackTrace,
+      } catch (error) {
+        failures.add(
+          BucketSourceLoadFailure(
+            profileName: source.profileName,
+            cause: error,
+          ),
         );
+        continue;
       }
       final views = source.config.bucketViews;
       for (final bucket in buckets) {
@@ -133,7 +194,10 @@ class BucketSourceService {
 
     final order = await api.listBucketOrder();
     if (order.isNotEmpty) {
-      return _applySavedOrder(entries, order);
+      return BucketSourceLoadResult(
+        entries: _applySavedOrder(entries, order),
+        failures: failures,
+      );
     }
     entries.sort((left, right) {
       final leftSource = sources.indexWhere(
@@ -147,7 +211,7 @@ class BucketSourceService {
       }
       return left.label.compareTo(right.label);
     });
-    return entries;
+    return BucketSourceLoadResult(entries: entries, failures: failures);
   }
 
   List<FileManagerBucketEntry> _applySavedOrder(

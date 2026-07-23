@@ -127,7 +127,7 @@ class RemoteStorageApi
         'match_platform_asset',
         {
           'assets': assets,
-          if (runtimeArchitecture != null) 'runtimeArchitecture': runtimeArchitecture,
+          'runtimeArchitecture': ?runtimeArchitecture,
         },
       ) as Map<String, dynamic>?;
       return payload;

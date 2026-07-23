@@ -171,6 +171,30 @@ func TestNotifyExternalUploadInvalidatesStaleListing(t *testing.T) {
 	}
 }
 
+// TestNotifyExternalUploadRestoresDirectoryTree verifies that restoring a
+// deleted directory clears every descendant tombstone. Without this, a restored
+// directory would reappear but its children would remain hidden from delete or
+// rename operations in the mounted volume.
+func TestNotifyExternalUploadRestoresDirectoryTree(t *testing.T) {
+	t.Parallel()
+
+	access := newTestBucketAccess(t)
+	access.cache.markDeleted("docs", true)
+	access.cache.storeList("", []s3ops.ObjectInfo{{Key: "old.txt", Size: 1}})
+
+	cfg := externalInvalidationConfig()
+	registerTestSession(t, cfg, "test-bucket", access)
+
+	NotifyExternalUpload(cfg, "test-bucket", "docs", true)
+
+	if access.cache.isMarkedDeleted("docs") || access.cache.isMarkedDeleted("docs/report.txt") {
+		t.Fatal("expected restored directory and descendants to clear delete tombstones")
+	}
+	if _, ok := access.cache.cachedList(""); ok {
+		t.Fatal("expected restored directory to invalidate its parent listing")
+	}
+}
+
 // TestNotifyExternalRenameMovesEntry verifies the combined delete+upload
 // invalidation: the old path is tombstoned and the new path's stale state is
 // cleared.

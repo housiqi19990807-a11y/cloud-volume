@@ -165,11 +165,15 @@ mixin _RemoteStorageWebObjectApiMixin implements RemoteStorageGateway {
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
     String bucket,
-    String trashId,
-  ) async {
+    String trashId, {
+    String originalKey = '',
+    bool isDirectory = false,
+  }) async {
     await _invoke('restore_trash_item', <String, dynamic>{
       'bucket': bucket,
       'trashId': trashId,
+      'originalKey': originalKey,
+      'isDirectory': isDirectory,
     });
   }
 

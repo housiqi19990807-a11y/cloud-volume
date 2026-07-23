@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 
 	storageconfig "remote-storage/go/config"
+	bucketmount "remote-storage/go/mount"
 	storageops "remote-storage/go/storage"
 )
 
@@ -14,9 +16,11 @@ type trashListArgs struct {
 }
 
 type trashMutationArgs struct {
-	Config  storageconfig.RemoteStorageConfig `json:"config"`
-	Bucket  string                            `json:"bucket"`
-	TrashID string                            `json:"trashId"`
+	Config      storageconfig.RemoteStorageConfig `json:"config"`
+	Bucket      string                            `json:"bucket"`
+	TrashID     string                            `json:"trashId"`
+	OriginalKey string                            `json:"originalKey"`
+	IsDirectory bool                              `json:"isDirectory"`
 }
 
 func listTrash(args json.RawMessage) (any, error) {
@@ -47,6 +51,14 @@ func restoreTrashItem(args json.RawMessage) (any, error) {
 		input.TrashID,
 	); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(input.OriginalKey) != "" {
+		bucketmount.NotifyExternalUpload(
+			input.Config,
+			input.Bucket,
+			input.OriginalKey,
+			input.IsDirectory,
+		)
 	}
 	return map[string]any{"ok": true}, nil
 }

@@ -65,7 +65,13 @@ extension _FileManagerPageTrash on _FileManagerPageState {
       return;
     }
     try {
-      await widget.api.restoreTrashItem(_activeConfig, _activeBucket!, item.id);
+      await widget.api.restoreTrashItem(
+        _activeConfig,
+        _activeBucket!,
+        item.id,
+        originalKey: item.originalKey,
+        isDirectory: item.isDir,
+      );
       ObjectListingNotifier.instance.markRestored(_activeBucket!, [item]);
       if (!mounted) return;
       await _openBucketTrash(_activeBucketEntry!);

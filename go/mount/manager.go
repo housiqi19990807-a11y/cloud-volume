@@ -42,7 +42,13 @@ func MountBucketWithOptions(
 
 // UnmountBucket unmounts the requested bucket if it is currently mounted.
 func UnmountBucket(bucket string) (BucketMountStatus, error) {
-	return globalManager.unmountBucket(bucket)
+	return globalManager.unmountBucket(bucket, UnmountOptions{})
+}
+
+// UnmountBucketWithOptions lets the desktop UI explicitly clear a managed
+// Cloud Files cache after the volume has been disconnected.
+func UnmountBucketWithOptions(bucket string, options UnmountOptions) (BucketMountStatus, error) {
+	return globalManager.unmountBucket(bucket, options)
 }
 
 // GetBucketMountStatus returns the current status for the requested bucket.
@@ -119,7 +125,7 @@ func (m *manager) mountBucket(
 	return session.status(), nil
 }
 
-func (m *manager) unmountBucket(bucket string) (BucketMountStatus, error) {
+func (m *manager) unmountBucket(bucket string, options UnmountOptions) (BucketMountStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -130,9 +136,11 @@ func (m *manager) unmountBucket(bucket string) (BucketMountStatus, error) {
 	}
 
 	status := existing.status()
+	existing.removeLocalCache = options.RemoveLocalCache
 	if err := m.unmountSessionLocked(existing); err != nil {
 		return status, err
 	}
+	status = existing.status()
 	delete(m.sessions, trimmedBucket)
 	delete(m.lastProbes, existing.mountTarget)
 	status.Mounted = false

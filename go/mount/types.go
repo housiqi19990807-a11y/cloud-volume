@@ -49,6 +49,7 @@ type mountSession struct {
 	mountName            string
 	requestedPath        string
 	readOnly             bool
+	removeLocalCache     bool
 	requestedDriveLetter string
 	autoSync             bool
 	uploadWorkers        int

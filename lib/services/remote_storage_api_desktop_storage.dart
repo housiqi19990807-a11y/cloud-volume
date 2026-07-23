@@ -25,6 +25,13 @@ mixin _RemoteStorageDesktopStorageApiMixin
   }
 
   @override
+  Future<void> validateAccountCredentials(RemoteStorageConfig config) async {
+    await runBridgeCall('validate_account_credentials', <String, dynamic>{
+      'config': config.toJson(),
+    });
+  }
+
+  @override
   Future<BucketInfo> getBucketQuota(
     RemoteStorageConfig config,
     String bucket,
@@ -157,12 +164,16 @@ mixin _RemoteStorageDesktopStorageApiMixin
   Future<void> restoreTrashItem(
     RemoteStorageConfig config,
     String bucket,
-    String trashId,
-  ) async {
+    String trashId, {
+    String originalKey = '',
+    bool isDirectory = false,
+  }) async {
     await runBridgeCall('restore_trash_item', <String, dynamic>{
       'config': config.toJson(),
       'bucket': bucket,
       'trashId': trashId,
+      'originalKey': originalKey,
+      'isDirectory': isDirectory,
     });
   }
 
@@ -352,9 +363,13 @@ mixin _RemoteStorageDesktopStorageApiMixin
   }
 
   @override
-  Future<BucketMountStatus> unmountBucket(String bucket) async {
+  Future<BucketMountStatus> unmountBucket(
+    String bucket, {
+    bool removeLocalCache = false,
+  }) async {
     final result = await runBridgeCall('unmount_bucket', <String, dynamic>{
       'bucket': bucket,
+      'removeLocalCache': removeLocalCache,
     });
     return BucketMountStatus.fromJson(result as Map<String, dynamic>);
   }

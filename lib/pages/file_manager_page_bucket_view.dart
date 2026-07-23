@@ -6,55 +6,110 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
   Widget _buildBucketView(ShadThemeData theme) {
     if (_buckets == null) return const SizedBox();
     final buckets = _filteredBuckets;
+    final warning = _buildUnavailableSourceWarning(theme);
     if (buckets.isEmpty) {
-      return FileManagerEmptyState(
-        theme: theme,
-        icon: LucideIcons.database,
-        text: _hasSearchQuery ? '没有匹配的存储桶' : '没有可用的存储桶',
+      return Column(
+        children: [
+          ?warning,
+          Expanded(
+            child: FileManagerEmptyState(
+              theme: theme,
+              icon: LucideIcons.database,
+              text: _hasSearchQuery ? '没有匹配的存储桶' : '没有可用的存储桶',
+            ),
+          ),
+        ],
       );
     }
-    return FileManagerBucketBrowser(
-      buckets: buckets,
-      isGrid: _isGrid,
-      gridIconSize: _FileManagerPageState._bucketGridIconSize,
-      listIconSize: _FileManagerPageState._listIconSize,
-      onOpenBucket: (bucket) => unawaited(_navToBucket(bucket)),
-      mountStatuses: _isTrashHome
-          ? const <String, BucketMountStatus>{}
-          : _bucketMountStatuses,
-      busyBuckets: _isTrashHome ? const <String>{} : _mountBusyBuckets,
-      showActionColumn: !_isTrashHome,
-      onOpenTrashBucket: _isTrashHome
-          ? null
-          : (bucket) => unawaited(_openBucketTrash(bucket)),
-      onConfigureBucket: _isTrashHome
-          ? null
-          : (bucket) => unawaited(_configureBucket(bucket)),
-      onMountBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsMounts
-          ? (bucket) => unawaited(_mountBucket(bucket))
-          : (bucket) => _showMountUnavailableMessage(bucket),
-      onUnmountBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsMounts
-          ? (bucket) => unawaited(_unmountBucket(bucket))
-          : null,
-      onOpenMountedBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsMounts
-          ? (bucket) => unawaited(_openMountedBucket(bucket))
-          : null,
-      onOpenWebDavBucket: _isTrashHome
-          ? null
-          : widget.api.capabilities.supportsWebDavAccess
-          ? (bucket) => _showWebDavEntry(bucket)
-          : null,
-      bucketTrashEnabled: _bucketTrashEnabled,
-      webDavActionLabel: 'WebDAV',
-      onReorder: (_isTrashHome || _isGrid || _hasSearchQuery)
-          ? null
-          : _reorderBuckets,
+    return Column(
+      children: [
+        ?warning,
+        Expanded(
+          child: FileManagerBucketBrowser(
+            buckets: buckets,
+            isGrid: _isGrid,
+            gridIconSize: _FileManagerPageState._bucketGridIconSize,
+            listIconSize: _FileManagerPageState._listIconSize,
+            onOpenBucket: (bucket) => unawaited(_navToBucket(bucket)),
+            mountStatuses: _isTrashHome
+                ? const <String, BucketMountStatus>{}
+                : _bucketMountStatuses,
+            busyBuckets: _isTrashHome ? const <String>{} : _mountBusyBuckets,
+            showActionColumn: !_isTrashHome,
+            onOpenTrashBucket: _isTrashHome
+                ? null
+                : (bucket) => unawaited(_openBucketTrash(bucket)),
+            onConfigureBucket: _isTrashHome
+                ? null
+                : (bucket) => unawaited(_configureBucket(bucket)),
+            onMountBucket: _isTrashHome
+                ? null
+                : widget.api.capabilities.supportsMounts
+                ? (bucket) => unawaited(_mountBucket(bucket))
+                : (bucket) => _showMountUnavailableMessage(bucket),
+            onUnmountBucket: _isTrashHome
+                ? null
+                : widget.api.capabilities.supportsMounts
+                ? (bucket) => unawaited(_unmountBucket(bucket))
+                : null,
+            onOpenMountedBucket: _isTrashHome
+                ? null
+                : widget.api.capabilities.supportsMounts
+                ? (bucket) => unawaited(_openMountedBucket(bucket))
+                : null,
+            onOpenWebDavBucket: _isTrashHome
+                ? null
+                : widget.api.capabilities.supportsWebDavAccess
+                ? (bucket) => _showWebDavEntry(bucket)
+                : null,
+            bucketTrashEnabled: _bucketTrashEnabled,
+            webDavActionLabel: 'WebDAV',
+            onReorder: (_isTrashHome || _isGrid || _hasSearchQuery)
+                ? null
+                : _reorderBuckets,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget? _buildUnavailableSourceWarning(ShadThemeData theme) {
+    if (_unavailableBucketSources.isEmpty) return null;
+    final first = _unavailableBucketSources.first;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondary,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            LucideIcons.circleAlert,
+            size: 17,
+            color: theme.colorScheme.mutedForeground,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${_unavailableBucketSources.length} 个账号暂时无法访问；其余账号仍可正常使用。',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.foreground,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          ShadButton.outline(
+            onPressed: () {
+              _reconfigureUnavailableBucketSource(first.profileName);
+            },
+            child: const Text('重新配置'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -72,7 +127,7 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
     }
     final moved = current.removeAt(oldIndex);
     current.insert(targetIndex, moved);
-    setState(() => _buckets = current);
+    _replaceBucketsAfterReorder(current);
     try {
       await widget.api.reorderBuckets(
         current.map((entry) => entry.id).toList(growable: false),
@@ -84,4 +139,3 @@ extension _FileManagerPageBucketView on _FileManagerPageState {
     }
   }
 }
-

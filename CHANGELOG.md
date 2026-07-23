@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+
+- Windows 挂载：严格只读挂载改为强制 WinFsp，Cloud Files 后端拒绝伪只读会话；卸载确认框新增打开文件风险说明和“同时删除默认 Cloud Files 本地缓存”选择。文件仍被占用时，挂载会安全解除并在状态中提示缓存未能清理。
+- 回收站：恢复操作现在携带原始路径和目录标识通知活动挂载，清除 tombstone 并重新投影 Cloud Files 占位符，恢复后的文件/目录可继续删除和重命名。
+- 账号：编辑时未填写的 Secret/密码会保持已保存值；修改 S3 AK/SK 后显示独立鉴权按钮，验证失败不会覆盖原账号配置。文件管理桶聚合改为单账号鉴权失败不阻塞其他账号，并提供针对失效账号的重新配置入口。
 - 修复 FTP/SFTP 与配额加载回归：SFTP 删除目录现在递归清理非空子树；桶配额请求继续并发执行，并限制每项 10 秒，避免单个不可用账户无限阻塞桶列表；带 `RootPrefix` 的后端保留配额能力转发并新增回归测试。既有 S3 调用统一经 JWanFS failover SDK 选择活动网关，随后继续使用 AWS SDK v2 执行实际请求。
 - 新增 FTP / SFTP 后端：支持经典 FTP（jlaffaye/ftp）和 SFTP（pkg/sftp + ssh）两种远端存储类型，包含独立于 WebDAV 的用户名/密码字段、自定义端口、匿名登录开关。SFTP 通过 statvfs@openssh.com 扩展读取服务端配额；FTP 协议无标准配额命令，暂报告容量未知。两种后端均支持完整的文件管理操作（列表、上传/下载、目录创建/删除、重命名、移动、复制、范围读取），暂不支持应用级回收站（FTP/SFTP 服务器自身管理删除语义）。Mock 测试服务器分别基于 ftpserverlib（FTP）和自研共享内存 SFTP handler（SFTP）实现进程内完整协议测试。
 - 修复桶列表 hover 失效：配额刷新不再在首帧渲染后用第二次 `setState` 替换 `_buckets`，而是合并进 `_loadBuckets` 的单次 `setState`，避免 `FileListTile` 子树被重建导致 `_hovered` 丢失（“hover又坏了”回归）。
