@@ -20,6 +20,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 /// (non-account) storage connection.
 const String kStandaloneTargetValue = '__standalone__';
 
+/// Sentinel value used when no backup target has been configured yet.
+const String kUnsetTargetValue = '__unset__';
+
 class SettingsConfigBackupSection extends StatefulWidget {
   const SettingsConfigBackupSection({
     super.key,
@@ -235,6 +238,11 @@ class _SettingsConfigBackupSectionState
 
   Future<void> _onSelectTarget(String value) async {
     final target = _settings.target;
+    if (value == kUnsetTargetValue) {
+      // Reset to fully unconfigured.
+      await _saveTarget(const ConfigBackupTarget());
+      return;
+    }
     final newTarget = target.copyWith(
       profileName: value == kStandaloneTargetValue ? '' : value,
     );

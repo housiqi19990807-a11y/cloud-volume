@@ -49,8 +49,13 @@ class ConfigBackupTargetSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectorValue =
-        target.profileName.isEmpty ? kStandaloneTargetValue : target.profileName;
+    // Default state: no profile and no standalone configured yet.
+    final hasProfile = target.profileName.isNotEmpty;
+    final hasStandalone =
+        target.standalone != null && target.standalone!.isConfigured;
+    final selectorValue = hasProfile
+        ? target.profileName
+        : (hasStandalone ? kStandaloneTargetValue : kUnsetTargetValue);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -113,6 +118,7 @@ class _BackupTargetSelector extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   String _label(String v) {
+    if (v == kUnsetTargetValue) return '未配置';
     if (v == kStandaloneTargetValue) return '独立备份存储';
     for (final p in profiles) {
       if (p.name == v) return configBackupProfileLabel(p);
@@ -130,6 +136,7 @@ class _BackupTargetSelector extends StatelessWidget {
         minWidth: 320,
         selectedOptionBuilder: (context, selected) => Text(_label(selected)),
         options: [
+          const ShadOption(value: kUnsetTargetValue, child: Text('未配置')),
           ...profiles.map((p) => ShadOption(
               value: p.name, child: Text(configBackupProfileLabel(p)))),
           const ShadOption(value: kStandaloneTargetValue, child: Text('独立备份存储')),
@@ -165,6 +172,8 @@ class _StandaloneTargetCard extends StatefulWidget {
 
 class _StandaloneTargetCardState extends State<_StandaloneTargetCard> {
   bool get _isStandalone => widget.target.profileName.isEmpty;
+  bool get _isConfigured =>
+      widget.target.standalone != null && widget.target.standalone!.isConfigured;
 
   Future<void> _openStandaloneDialog() async {
     final standalone = widget.target.standalone;
@@ -192,6 +201,7 @@ class _StandaloneTargetCardState extends State<_StandaloneTargetCard> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     if (!_isStandalone) {
+      // A profile is selected — show a read-only summary.
       return ConfigBackupStatusCard(
         theme: theme,
         title: configBackupTargetStatusTitle(
@@ -200,22 +210,31 @@ class _StandaloneTargetCardState extends State<_StandaloneTargetCard> {
             target: widget.target, profiles: widget.profiles),
       );
     }
-    final configured =
-        widget.target.standalone != null && widget.target.standalone!.isConfigured;
+    if (!_isConfigured) {
+      // Standalone selected but not yet set up (or completely fresh) — show a
+      // configure button to open the storage dialog.
+      return ConfigBackupStatusCard(
+        theme: theme,
+        title: '尚未配置备份目标',
+        detail: '点击右侧按钮配置一个不显示在账号列表中的备份连接。',
+        trailing: ShadButton.outline(
+          size: ShadButtonSize.sm,
+          onPressed: widget.busy ? null : _openStandaloneDialog,
+          child: const Text('配置连接'),
+        ),
+      );
+    }
+    // Standalone fully configured — show summary + edit button.
     return ConfigBackupStatusCard(
       theme: theme,
-      title: configured
-          ? configBackupTargetStatusTitle(
-              target: widget.target, profiles: widget.profiles)
-          : '独立备份存储',
-      detail: configured
-          ? configBackupTargetStatusDetail(
-              target: widget.target, profiles: widget.profiles)
-          : '点击右侧按钮配置一个不显示在账号列表中的备份连接。',
+      title: configBackupTargetStatusTitle(
+          target: widget.target, profiles: widget.profiles),
+      detail: configBackupTargetStatusDetail(
+          target: widget.target, profiles: widget.profiles),
       trailing: ShadButton.outline(
         size: ShadButtonSize.sm,
         onPressed: widget.busy ? null : _openStandaloneDialog,
-        child: Text(configured ? '编辑连接' : '配置连接'),
+        child: const Text('编辑连接'),
       ),
     );
   }
