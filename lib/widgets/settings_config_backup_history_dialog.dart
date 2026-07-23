@@ -74,7 +74,7 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
     final busy = _loading || _restoring;
     return ShadDialog(
       title: const Text('配置备份历史'),
-      description: const Text('按时间查看远端加密快照，选择一份后可还原账号、代理和显示排序。'),
+      description: const Text('按时间查看远端加密快照。还原会替换当前账号、代理和显示排序。'),
       constraints: const BoxConstraints(maxWidth: 560),
       child: SizedBox(
         width: 520,
@@ -86,9 +86,11 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
               children: [
                 Expanded(
                   child: Text(
-                    _snapshots.isEmpty
-                        ? '暂无备份'
-                        : '共 ${_snapshots.length} 份备份',
+                    _loading && _snapshots.isEmpty
+                        ? '正在读取…'
+                        : _snapshots.isEmpty
+                            ? '暂无备份'
+                            : '共 ${_snapshots.length} 份备份',
                     style: TextStyle(
                       fontSize: 12,
                       color: theme.colorScheme.mutedForeground,
@@ -105,43 +107,64 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
             const SizedBox(height: 10),
             if (_loading && _snapshots.isEmpty)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
+                padding: EdgeInsets.symmetric(vertical: 36),
                 child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
               )
             else if (_snapshots.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 28),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.inventory_2_outlined,
-                      size: 28,
-                      color: theme.colorScheme.mutedForeground,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '还没有可用备份。保存目标后点“立即备份”即可创建第一份快照。',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 22,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 28,
                         color: theme.colorScheme.mutedForeground,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      Text(
+                        '还没有可用备份',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.foreground,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '保存备份目标后，在设置页点“立即备份”创建第一份快照。',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: theme.colorScheme.mutedForeground,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               )
             else
               ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 360),
+                constraints: const BoxConstraints(maxHeight: 380),
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _snapshots.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 4),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     final snapshot = _snapshots[index];
                     return _BackupSnapshotTile(
                       snapshot: snapshot,
+                      latest: index == 0,
                       busy: busy,
                       onRestore: () => _restore(snapshot),
                     );
@@ -177,11 +200,13 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
 class _BackupSnapshotTile extends StatefulWidget {
   const _BackupSnapshotTile({
     required this.snapshot,
+    required this.latest,
     required this.busy,
     required this.onRestore,
   });
 
   final ConfigBackupSnapshot snapshot;
+  final bool latest;
   final bool busy;
   final VoidCallback onRestore;
 
@@ -213,25 +238,55 @@ class _BackupSnapshotTileState extends State<_BackupSnapshotTile> {
         curve: Curves.easeOut,
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.colorScheme.border),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
         child: Row(
           children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    primary,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.foreground,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          primary,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.foreground,
+                          ),
+                        ),
+                      ),
+                      if (widget.latest) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.12,
+                            ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '最新',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   if (secondary.isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       secondary,
                       style: TextStyle(

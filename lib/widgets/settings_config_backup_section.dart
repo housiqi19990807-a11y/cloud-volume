@@ -1,13 +1,15 @@
 // Settings card for encrypted remote configuration backups.
-// Target setup stays on the page; snapshot history opens in a modal so a long
-// list does not bloat the settings scroll view.
+// Keep the page compact: target setup lives here, long snapshot history opens
+// through a clickable summary into a modal list.
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/config_backup.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
+import 'package:remote_storage/widgets/settings_config_backup_cards.dart';
 import 'package:remote_storage/widgets/settings_config_backup_history_dialog.dart';
 import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -74,18 +76,36 @@ class _SettingsConfigBackupSectionState
 
   bool get _busy => _saving || _backingUp || _listing;
 
-  bool get _isDirty {
-    final target = _settings.target;
-    return _bucketController.text.trim() != target.bucket ||
-        _prefixController.text.trim() != target.prefix;
-  }
-
   ConfigBackupSettings get _draft => _settings.copyWith(
     target: _settings.target.copyWith(
       bucket: _bucketController.text.trim(),
       prefix: _prefixController.text.trim(),
     ),
   );
+
+  bool get _isDirty {
+    final saved = _settings.target;
+    final draft = _draft.target;
+    return draft.profileName != saved.profileName ||
+        draft.bucket != saved.bucket ||
+        draft.prefix != saved.prefix ||
+        !_sameStandalone(draft.standalone, saved.standalone);
+  }
+
+  bool get _targetReady {
+    final target = _draft.target;
+    final hasSource = target.profileName.isNotEmpty ||
+        (target.standalone?.isConfigured ?? false);
+    return hasSource && target.bucket.trim().isNotEmpty;
+  }
+
+  bool get _canBackup => !_busy && !_loading && _targetReady;
+
+  bool _sameStandalone(RemoteStorageConfig? a, RemoteStorageConfig? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return a == b;
+    return a.toJson().toString() == b.toJson().toString();
+  }
 
   Future<void> _load() async {
     setState(() {
@@ -96,7 +116,9 @@ class _SettingsConfigBackupSectionState
       final settings = await widget.api.loadConfigBackupSettings();
       if (!mounted) return;
       _bucketController.text = settings.target.bucket;
-      _prefixController.text = settings.target.prefix;
+      _prefixController.text = settings.target.prefix.isEmpty
+          ? 'cloud-volume-config-backups'
+          : settings.target.prefix;
       setState(() => _settings = settings);
       await _refreshSnapshots(quiet: true);
     } catch (error) {
@@ -117,7 +139,7 @@ class _SettingsConfigBackupSectionState
       );
       if (!mounted) return false;
       setState(() => _settings = saved);
-if (!quiet) {
+      if (!quiet) {
         showAppToast(context, message: '备份目标已保存');
       }
       await _refreshSnapshots(quiet: true);
@@ -126,7 +148,7 @@ if (!quiet) {
       if (mounted) {
         final message = configBackupFriendlyError(error);
         setState(() => _error = message);
-        showAppToast(context, title: '保存失败', message: message);
+        showAppErrorToast(context, title: '保存失败', message: message);
       }
       return false;
     } finally {
@@ -153,6 +175,10 @@ if (!quiet) {
   }
 
   Future<void> _backupNow() async {
+    if (!_targetReady) {
+      setState(() => _error = '请先选择可用的备份存储，并填写存储桶 / 根目录。');
+      return;
+    }
     final saved = await _save(quiet: true);
     if (!mounted || !saved) return;
     setState(() {
@@ -163,13 +189,17 @@ if (!quiet) {
       await widget.api.backupConfigNow();
       await _refreshSnapshots(quiet: true);
       if (mounted) {
-        showAppToast(context, title: '配置已备份', message: '已加密保存到指定存储');
+        showAppToast(
+          context,
+          title: '配置已备份',
+          message: '已加密保存到指定存储',
+        );
       }
     } catch (error) {
       if (mounted) {
         final message = configBackupFriendlyError(error);
         setState(() => _error = message);
-        showAppToast(context, title: '备份失败', message: message);
+        showAppErrorToast(context, title: '备份失败', message: message);
       }
     } finally {
       if (mounted) setState(() => _backingUp = false);
@@ -201,7 +231,7 @@ if (!quiet) {
       if (mounted) {
         final message = configBackupFriendlyError(error);
         setState(() => _error = message);
-        showAppToast(context, title: '还原失败', message: message);
+        showAppErrorToast(context, title: '还原失败', message: message);
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -257,60 +287,14 @@ if (!quiet) {
     );
   }
 
-  String _profileLabel(ProfileInfo profile) {
-    final name = profile.displayName.trim().isEmpty
-        ? profile.name
-        : profile.displayName.trim();
-    return '$name · ${profile.storageType.label}';
-  }
-
-  String _selectorLabel(String value) {
+String _selectorLabel(String value) {
     if (value == _kStandaloneTargetValue) {
       return '独立备份存储（不显示在账号中）';
     }
     for (final profile in widget.profiles) {
-      if (profile.name == value) return _profileLabel(profile);
+      if (profile.name == value) return configBackupProfileLabel(profile);
     }
     return value;
-  }
-
-  String _targetStatusText() {
-    final target = _settings.target;
-    if (target.profileName.isNotEmpty) {
-      ProfileInfo? profile;
-      for (final item in widget.profiles) {
-        if (item.name == target.profileName) {
-          profile = item;
-          break;
-        }
-      }
-      if (profile == null) {
-        return '已选择账号「${target.profileName}」，但当前账号列表中找不到它。';
-      }
-      final endpoint = profile.endpoint.trim();
-      return endpoint.isEmpty
-          ? '使用账号「${_profileLabel(profile)}」作为备份目标。'
-          : '使用账号「${_profileLabel(profile)}」· $endpoint';
-    }
-
-    final standalone = target.standalone;
-    if (standalone == null || !standalone.isConfigured) {
-      return '尚未配置独立备份存储。请先完成连接信息，再保存目标。';
-    }
-    final name = standalone.displayName.trim().isEmpty
-        ? standalone.storageType.label
-        : standalone.displayName.trim();
-    final endpoint = standalone.endpoint.trim();
-    return endpoint.isEmpty
-        ? '独立备份存储已配置：$name'
-        : '独立备份存储已配置：$name · $endpoint';
-  }
-
-  String _historySummary() {
-    if (_loading || _listing) return '正在读取远端备份…';
-    if (_snapshots.isEmpty) return '还没有远端备份，可先保存目标后立即备份一次。';
-    final latest = configBackupSnapshotPrimaryLabel(_snapshots.first);
-    return '已有 ${_snapshots.length} 份备份，最近一份：$latest';
   }
 
   @override
@@ -320,116 +304,131 @@ if (!quiet) {
     final selectorValue = target.profileName.isEmpty
         ? _kStandaloneTargetValue
         : target.profileName;
-    final canBackup =
-        !_busy &&
-        !_loading &&
-        (_draft.target.profileName.isNotEmpty ||
-            (_draft.target.standalone?.isConfigured ?? false)) &&
-        _draft.target.bucket.trim().isNotEmpty;
+    final standaloneConfigured =
+        target.standalone != null && target.standalone!.isConfigured;
+    final pathPreview = configBackupPathPreview(
+      bucket: _bucketController.text,
+      prefix: _prefixController.text,
+    );
+    final historyTitle = configBackupHistoryTitle(
+      loading: _loading || _listing,
+      snapshots: _snapshots,
+    );
+    final historyDetail = configBackupHistoryDetail(
+      loading: _loading || _listing,
+      snapshots: _snapshots,
+    );
+
+    if (_loading) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '正在加载配置备份设置…',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.mutedForeground,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const LinearProgressIndicator(),
+        ],
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '将账号、代理和显示排序加密保存到远端存储。可复用已有账号，也可单独配置一个不会出现在账号列表中的备份连接。',
+          '把账号、代理和显示排序加密备份到远端。可复用现有账号，也可单独配置一个不显示在账号列表中的备份连接。',
           style: TextStyle(
             fontSize: 12,
             height: 1.6,
             color: theme.colorScheme.mutedForeground,
           ),
         ),
-        const SizedBox(height: 16),
-        _SectionHeader(
+        const SizedBox(height: 14),
+        ConfigBackupSwitchCard(
           theme: theme,
-          title: '自动备份',
-          description: '账号、代理或排序变更后，会在短延迟后自动写入远端备份。',
+          title: '配置变更后自动备份',
+          description: _settings.enabled
+              ? '账号、代理或排序变更后，会在短延迟后自动写入远端。'
+              : '关闭后仅保留手动备份，不会在配置变更时自动上传。',
+          value: _settings.enabled,
+          enabled: !_busy,
+          onChanged: (value) => _save(enabled: value),
         ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '配置变更后自动备份',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.foreground,
+        const SizedBox(height: 16),
+        Text(
+          '备份目标',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.foreground,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: ShadSelect<String>(
+            key: ValueKey<String>(selectorValue),
+            initialValue: selectorValue,
+            minWidth: 320,
+            selectedOptionBuilder: (context, selected) =>
+                Text(_selectorLabel(selected)),
+            options: [
+              ...widget.profiles.map(
+                (profile) => ShadOption(
+                  value: profile.name,
+                  child: Text(configBackupProfileLabel(profile)),
                 ),
               ),
-            ),
-            ShadSwitch(
-              value: _settings.enabled,
-              onChanged: _busy ? null : (value) => _save(enabled: value),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        _SectionHeader(
-          theme: theme,
-          title: '备份目标',
-          description: '选择存放加密配置快照的远端存储、存储桶和目录。',
-        ),
-        const SizedBox(height: 10),
-        Text(
-          '备份存储来源',
-          style: TextStyle(
-            fontSize: 12,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 6),
-        ShadSelect<String>(
-          key: ValueKey<String>(selectorValue),
-          initialValue: selectorValue,
-          minWidth: 320,
-          selectedOptionBuilder: (context, selected) =>
-              Text(_selectorLabel(selected)),
-          options: [
-            ...widget.profiles.map(
-              (profile) => ShadOption(
-                value: profile.name,
-                child: Text(_profileLabel(profile)),
+              const ShadOption(
+                value: _kStandaloneTargetValue,
+                child: Text('独立备份存储（不显示在账号中）'),
               ),
-            ),
-            const ShadOption(
-              value: _kStandaloneTargetValue,
-              child: Text('独立备份存储（不显示在账号中）'),
-            ),
-          ],
-          onChanged: _busy
-              ? null
-              : (value) {
-                  if (value == null) return;
-                  setState(
-                    () => _settings = _settings.copyWith(
-                      target: target.copyWith(
-                        profileName: value == _kStandaloneTargetValue
-                            ? ''
-                            : value,
+            ],
+            onChanged: _busy
+                ? null
+                : (value) {
+                    if (value == null) return;
+                    setState(
+                      () => _settings = _settings.copyWith(
+                        target: target.copyWith(
+                          profileName: value == _kStandaloneTargetValue
+                              ? ''
+                              : value,
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+          ),
         ),
         const SizedBox(height: 10),
-        _InfoBlock(theme: theme, text: _targetStatusText()),
-        if (target.profileName.isEmpty) ...[
-          const SizedBox(height: 10),
-          ShadButton.outline(
-            onPressed: _busy ? null : _configureStandalone,
-            child: Text(
-              target.standalone == null || !target.standalone!.isConfigured
-                  ? '配置独立存储'
-                  : '编辑独立存储',
-            ),
+        ConfigBackupStatusCard(
+          theme: theme,
+          title: configBackupTargetStatusTitle(
+            target: target,
+            profiles: widget.profiles,
           ),
-        ],
-        const SizedBox(height: 14),
+          detail: configBackupTargetStatusDetail(
+            target: target,
+            profiles: widget.profiles,
+          ),
+          trailing: target.profileName.isEmpty
+              ? ShadButton.outline(
+                  size: ShadButtonSize.sm,
+                  onPressed: _busy ? null : _configureStandalone,
+                  child: Text(standaloneConfigured ? '编辑连接' : '配置连接'),
+                )
+              : null,
+        ),
+        const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: _LabeledField(
+              child: ConfigBackupLabeledField(
                 theme: theme,
                 label: '存储桶 / 根目录',
                 child: ShadInput(
@@ -441,7 +440,7 @@ if (!quiet) {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _LabeledField(
+              child: ConfigBackupLabeledField(
                 theme: theme,
                 label: '备份目录',
                 child: ShadInput(
@@ -453,13 +452,29 @@ if (!quiet) {
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Text(
+          '保存位置：$pathPreview',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '加密密钥由备份目标连接凭证派生，凭证变更后旧快照需要旧凭证才能解密。',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
         if (_isDirty) ...[
           const SizedBox(height: 8),
           Text(
-            '目标路径已修改，保存目标或立即备份时会一并写入。',
+            '目标尚未保存。保存目标，或直接点“立即备份”一并写入。',
             style: TextStyle(
               fontSize: 11.5,
-              color: theme.colorScheme.mutedForeground,
+              color: theme.colorScheme.primary,
             ),
           ),
         ],
@@ -467,46 +482,38 @@ if (!quiet) {
         Wrap(
           spacing: 10,
           runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             ShadButton(
-              onPressed: canBackup ? _backupNow : null,
+              onPressed: _canBackup ? _backupNow : null,
               child: Text(_backingUp ? '备份中…' : '立即备份'),
             ),
-            ShadButton.outline(
-              onPressed: _busy ? null : () => _save(),
-              child: Text(_saving && !_backingUp ? '保存中…' : '保存目标'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 22),
-        _SectionHeader(
-          theme: theme,
-          title: '备份历史',
-          description: '远端快照可能较多，点击后在拟态框中查看并还原。',
-        ),
-        const SizedBox(height: 10),
-        _InfoBlock(theme: theme, text: _historySummary()),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 8,
-          children: [
-            ShadButton.outline(
-              onPressed: _busy || _loading ? null : _openHistoryDialog,
-              child: Text(
-                _snapshots.isEmpty
-                    ? '查看备份历史'
-                    : '查看备份历史（${_snapshots.length}）',
+            if (_isDirty || !_settings.enabled)
+              ShadButton.outline(
+                onPressed: _busy ? null : () => _save(),
+                child: Text(_saving && !_backingUp ? '保存中…' : '保存目标'),
               ),
-            ),
-            ShadButton.ghost(
-              onPressed: _busy ? null : () => _refreshSnapshots(),
-              child: Text(_listing ? '刷新中…' : '刷新'),
-            ),
           ],
+        ),
+        const SizedBox(height: 18),
+        Text(
+          '备份历史',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.foreground,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ConfigBackupHistorySummaryTile(
+          theme: theme,
+          title: historyTitle,
+          detail: historyDetail,
+          enabled: !_busy,
+          onTap: _openHistoryDialog,
         ),
         if (_error != null) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Text(
             _error!,
             style: TextStyle(
@@ -516,100 +523,6 @@ if (!quiet) {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.theme,
-    required this.title,
-    required this.description,
-  });
-
-  final ShadThemeData theme;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.foreground,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          description,
-          style: TextStyle(
-            fontSize: 11.5,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LabeledField extends StatelessWidget {
-  const _LabeledField({
-    required this.theme,
-    required this.label,
-    required this.child,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ),
-        const SizedBox(height: 6),
-        child,
-      ],
-    );
-  }
-}
-
-class _InfoBlock extends StatelessWidget {
-  const _InfoBlock({required this.theme, required this.text});
-
-  final ShadThemeData theme;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          height: 1.5,
-          color: theme.colorScheme.foreground,
-        ),
-      ),
     );
   }
 }

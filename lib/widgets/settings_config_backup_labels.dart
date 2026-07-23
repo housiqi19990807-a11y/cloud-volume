@@ -1,6 +1,95 @@
 // Shared label helpers for configuration backup UI surfaces.
+import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/utils/transfer_format.dart';
+
+String configBackupProfileLabel(ProfileInfo profile) {
+  final name = profile.displayName.trim().isEmpty
+      ? profile.name
+      : profile.displayName.trim();
+  return '$name · ${profile.storageType.label}';
+}
+
+String configBackupTargetStatusTitle({
+  required ConfigBackupTarget target,
+  required List<ProfileInfo> profiles,
+}) {
+  if (target.profileName.isNotEmpty) {
+    for (final item in profiles) {
+      if (item.name == target.profileName) {
+        return configBackupProfileLabel(item);
+      }
+    }
+    return '账号已失效';
+  }
+  final standalone = target.standalone;
+  if (standalone == null || !standalone.isConfigured) {
+    return '未配置独立存储';
+  }
+  final name = standalone.displayName.trim().isEmpty
+      ? standalone.storageType.label
+      : standalone.displayName.trim();
+  return '独立存储 · $name';
+}
+
+String configBackupTargetStatusDetail({
+  required ConfigBackupTarget target,
+  required List<ProfileInfo> profiles,
+}) {
+  if (target.profileName.isNotEmpty) {
+    ProfileInfo? profile;
+    for (final item in profiles) {
+      if (item.name == target.profileName) {
+        profile = item;
+        break;
+      }
+    }
+    if (profile == null) {
+      return '当前账号列表中找不到「${target.profileName}」，请重新选择备份来源。';
+    }
+    final endpoint = profile.endpoint.trim();
+    return endpoint.isEmpty ? '使用已有账号作为备份目标。' : endpoint;
+  }
+  final standalone = target.standalone;
+  if (standalone == null || !standalone.isConfigured) {
+    return '独立连接不会出现在账号列表，适合只用于配置备份。';
+  }
+  final endpoint = standalone.endpoint.trim();
+  return endpoint.isEmpty
+      ? standalone.storageType.label
+      : '${standalone.storageType.label} · $endpoint';
+}
+
+String configBackupPathPreview({
+  required String bucket,
+  required String prefix,
+}) {
+  final cleanBucket = bucket.trim();
+  final cleanPrefix = prefix.trim().replaceAll(RegExp(r'^/+|/+$'), '');
+  if (cleanBucket.isEmpty) return '尚未填写存储路径';
+  if (cleanPrefix.isEmpty) return cleanBucket;
+  return '$cleanBucket / $cleanPrefix';
+}
+
+String configBackupHistoryTitle({
+  required bool loading,
+  required List<ConfigBackupSnapshot> snapshots,
+}) {
+  if (loading) return '正在读取远端备份…';
+  if (snapshots.isEmpty) return '还没有远端备份';
+  return '已有 ${snapshots.length} 份备份';
+}
+
+String configBackupHistoryDetail({
+  required bool loading,
+  required List<ConfigBackupSnapshot> snapshots,
+}) {
+  if (loading) return '稍候即可查看最新快照。';
+  if (snapshots.isEmpty) return '点这里打开备份历史；建议先完成一次立即备份。';
+  final latest = configBackupSnapshotPrimaryLabel(snapshots.first);
+  final size = configBackupSnapshotSecondaryLabel(snapshots.first);
+  return size.isEmpty ? '最近一份：$latest' : '最近一份：$latest · $size';
+}
 
 String configBackupSnapshotPrimaryLabel(ConfigBackupSnapshot snapshot) {
   final createdAt = DateTime.tryParse(snapshot.createdAt)?.toLocal();
