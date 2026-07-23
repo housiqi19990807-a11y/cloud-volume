@@ -264,6 +264,12 @@ class _SettingsConfigBackupSectionState
     );
   }
 
+  Future<void> _onPasswordSaved(String password) async {
+    await _saveTarget(
+      _settings.target.copyWith(backupPassword: password),
+    );
+  }
+
   // -- Build -----------------------------------------------------------------
 
   @override
@@ -321,6 +327,7 @@ class _SettingsConfigBackupSectionState
             onSelectTarget: _onSelectTarget,
             onConfigureStandalone: _onConfigureStandalone,
             onPickSaveLocation: _onPickSaveLocation,
+            onPasswordSaved: _onPasswordSaved,
             onBackupNow: _backupNow,
           ),
           // Only show history once the storage connection is usable.

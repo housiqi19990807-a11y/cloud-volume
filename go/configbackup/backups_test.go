@@ -4,25 +4,35 @@ package configbackup
 import (
 	"bytes"
 	"testing"
-
-	storageconfig "remote-storage/go/config"
 )
 
 func TestEncryptRoundTrip(t *testing.T) {
-	cfg := storageconfig.RemoteStorageConfig{Endpoint: "https://backup.example", AccessKeyID: "ak", SecretAccessKey: "sk"}
+	password := "my-secret-passphrase"
 	plain := []byte(`{"profiles":{"main":{"secretAccessKey":"hidden"}}}`)
-	ciphertext, err := encrypt(cfg, plain)
+	ciphertext, err := encrypt(password, plain)
 	if err != nil {
 		t.Fatalf("encrypt: %v", err)
 	}
 	if bytes.Contains(ciphertext, plain) {
 		t.Fatal("ciphertext exposed plaintext")
 	}
-	got, err := decrypt(cfg, ciphertext)
+	got, err := decrypt(password, ciphertext)
 	if err != nil {
 		t.Fatalf("decrypt: %v", err)
 	}
 	if !bytes.Equal(got, plain) {
 		t.Fatalf("decrypt = %q", got)
+	}
+}
+
+// Different passwords must yield different ciphertexts and fail to decrypt.
+func TestEncryptWrongPasswordFails(t *testing.T) {
+	plain := []byte(`{"profiles":{}}`)
+	ciphertext, err := encrypt("correct-password", plain)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	if _, err := decrypt("wrong-password", ciphertext); err == nil {
+		t.Fatal("decrypt with wrong password should fail")
 	}
 }

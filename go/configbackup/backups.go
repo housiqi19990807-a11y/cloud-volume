@@ -44,7 +44,7 @@ func BackupNow(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
-	cfg, bucket, prefix, err := resolveTarget(settings)
+	cfg, bucket, prefix, password, err := resolveTarget(settings)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -56,7 +56,7 @@ func BackupNow(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
-	ciphertext, err := encrypt(cfg, payload)
+	ciphertext, err := encrypt(password, payload)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -75,7 +75,7 @@ func List(ctx context.Context) ([]Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, bucket, prefix, err := resolveTarget(settings)
+	cfg, bucket, prefix, _, err := resolveTarget(settings)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func Restore(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	cfg, bucket, prefix, err := resolveTarget(settings)
+	cfg, bucket, prefix, password, err := resolveTarget(settings)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func Restore(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	plain, err := decrypt(cfg, body)
+	plain, err := decrypt(password, body)
 	if err != nil {
 		return fmt.Errorf("无法解密配置备份：%w", err)
 	}
@@ -130,29 +130,30 @@ func Restore(ctx context.Context, key string) error {
 	return storageconfig.RestoreConfigBackup(archive)
 }
 
-func resolveTarget(settings storageconfig.ConfigBackupSettings) (storageconfig.RemoteStorageConfig, string, string, error) {
+func resolveTarget(settings storageconfig.ConfigBackupSettings) (storageconfig.RemoteStorageConfig, string, string, string, error) {
 	target := settings.Target
 	var cfg storageconfig.RemoteStorageConfig
 	var err error
 	if target.ProfileName != "" {
 		cfg, err = storageconfig.LoadProfile(target.ProfileName)
 		if err != nil {
-			return cfg, "", "", fmt.Errorf("读取备份账号：%w", err)
+			return cfg, "", "", "", fmt.Errorf("读取备份账号：%w", err)
 		}
 	} else {
 		if target.Standalone == nil {
-			return cfg, "", "", fmt.Errorf("请先完成配置备份存储")
+			return cfg, "", "", "", fmt.Errorf("请先完成配置备份存储")
 		}
 		cfg = *target.Standalone
 	}
 	cfg = cfg.Normalized().WithDefaultWebDAVCredentials()
 	if !cfg.IsConfigured() || strings.TrimSpace(target.Bucket) == "" {
-		return cfg, "", "", fmt.Errorf("请先完成配置备份存储")
+		return cfg, "", "", "", fmt.Errorf("请先完成配置备份存储")
 	}
-	if _, err := encryptionKey(cfg); err != nil {
-		return cfg, "", "", err
+	password := strings.TrimSpace(target.BackupPassword)
+	if password == "" {
+		return cfg, "", "", "", fmt.Errorf("请先设置备份加密密码")
 	}
-	return cfg, strings.TrimSpace(target.Bucket), strings.Trim(strings.TrimSpace(target.Prefix), "/"), nil
+	return cfg, strings.TrimSpace(target.Bucket), strings.Trim(strings.TrimSpace(target.Prefix), "/"), password, nil
 }
 
 func ensurePrefix(prefix string) string {
@@ -163,17 +164,19 @@ func ensurePrefix(prefix string) string {
 	return clean + "/"
 }
 
-func encryptionKey(cfg storageconfig.RemoteStorageConfig) ([]byte, error) {
-	secret := strings.Join([]string{cfg.StorageType, cfg.Endpoint, cfg.AccessKeyID, cfg.SecretAccessKey, cfg.WebDAVUsername, cfg.WebDAVPassword, cfg.FTPUsername, cfg.FTPPassword}, "\x00")
-	if strings.TrimSpace(strings.ReplaceAll(secret, "\x00", "")) == "" || (cfg.SecretAccessKey == "" && cfg.WebDAVPassword == "" && cfg.FTPPassword == "") {
-		return nil, fmt.Errorf("备份存储必须使用带密钥或密码的账号")
+func encryptionKey(password string) ([]byte, error) {
+	if strings.TrimSpace(password) == "" {
+		return nil, fmt.Errorf("请先设置备份加密密码")
 	}
-	sum := sha256.Sum256([]byte("cloud-volume/config-backup/v1\x00" + secret))
+	// Derive a stable AES-256 key from the user's passphrase only — not from
+	// connection credentials — so the same password decrypts backups across
+	// machines regardless of endpoint or OAuth token differences.
+	sum := sha256.Sum256([]byte("cloud-volume/config-backup/v2\x00" + password))
 	return sum[:], nil
 }
 
-func encrypt(cfg storageconfig.RemoteStorageConfig, plain []byte) ([]byte, error) {
-	key, err := encryptionKey(cfg)
+func encrypt(password string, plain []byte) ([]byte, error) {
+	key, err := encryptionKey(password)
 	if err != nil {
 		return nil, err
 	}
@@ -193,8 +196,8 @@ func encrypt(cfg storageconfig.RemoteStorageConfig, plain []byte) ([]byte, error
 	return envelope, err
 }
 
-func decrypt(cfg storageconfig.RemoteStorageConfig, payload []byte) ([]byte, error) {
-	key, err := encryptionKey(cfg)
+func decrypt(password string, payload []byte) ([]byte, error) {
+	key, err := encryptionKey(password)
 	if err != nil {
 		return nil, err
 	}

@@ -15,11 +15,14 @@ var configBackupSettingsKey = []byte("config_backup_settings")
 
 // ConfigBackupTarget identifies the remote location that receives snapshots.
 // ProfileName is preferred; Standalone is intentionally not added to profiles.
+// BackupPassword is the user-chosen encryption passphrase; the AES key is
+// derived from it so backups stay decryptable regardless of endpoint changes.
 type ConfigBackupTarget struct {
-	ProfileName string               `json:"profileName"`
-	Standalone  *RemoteStorageConfig `json:"standalone,omitempty"`
-	Bucket      string               `json:"bucket"`
-	Prefix      string               `json:"prefix"`
+	ProfileName     string               `json:"profileName"`
+	Standalone      *RemoteStorageConfig `json:"standalone,omitempty"`
+	Bucket          string               `json:"bucket"`
+	Prefix          string               `json:"prefix"`
+	BackupPassword  string               `json:"backupPassword,omitempty"`
 }
 
 type ConfigBackupSettings struct {
@@ -59,10 +62,14 @@ func SaveConfigBackupSettings(settings ConfigBackupSettings) error {
 	settings.Target.ProfileName = sanitizeProfileName(settings.Target.ProfileName)
 	settings.Target.Bucket = strings.TrimSpace(settings.Target.Bucket)
 	settings.Target.Prefix = strings.Trim(strings.TrimSpace(settings.Target.Prefix), "/")
+	// When the user enables backup, require a non-empty encryption password
+	// so the key does not depend on connection credentials (which can vary
+	// across machines, e.g. internal vs public endpoint).
+	if settings.Enabled && strings.TrimSpace(settings.Target.BackupPassword) == "" {
+		return fmt.Errorf("请先设置备份加密密码")
+	}
 	// Allow enabling backup before the target is fully configured — the UI
 	// guides the user through target setup after the switch is turned on.
-	// Hard validation only fires for fields that are set: a standalone config,
-	// if provided, must be usable.
 	if settings.Target.ProfileName == "" {
 		if settings.Target.Standalone != nil {
 			normalized := settings.Target.Standalone.Normalized().WithDefaultWebDAVCredentials()

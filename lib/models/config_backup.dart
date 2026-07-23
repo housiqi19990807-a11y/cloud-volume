@@ -7,6 +7,7 @@ class ConfigBackupTarget {
     this.standalone,
     this.bucket = '',
     this.prefix = 'cloud-volume-config-backups',
+    this.backupPassword = '',
   });
 
   factory ConfigBackupTarget.fromJson(Map<String, dynamic> json) {
@@ -18,6 +19,7 @@ class ConfigBackupTarget {
           : null,
       bucket: (json['bucket'] ?? '').toString(),
       prefix: (json['prefix'] ?? 'cloud-volume-config-backups').toString(),
+      backupPassword: (json['backupPassword'] ?? '').toString(),
     );
   }
 
@@ -25,12 +27,14 @@ class ConfigBackupTarget {
   final RemoteStorageConfig? standalone;
   final String bucket;
   final String prefix;
+  final String backupPassword;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'profileName': profileName,
     'standalone': standalone?.toJson() ?? const <String, dynamic>{},
     'bucket': bucket,
     'prefix': prefix,
+    'backupPassword': backupPassword,
   };
 
   ConfigBackupTarget copyWith({
@@ -39,11 +43,13 @@ class ConfigBackupTarget {
     bool clearStandalone = false,
     String? bucket,
     String? prefix,
+    String? backupPassword,
   }) => ConfigBackupTarget(
     profileName: profileName ?? this.profileName,
     standalone: clearStandalone ? null : standalone ?? this.standalone,
     bucket: bucket ?? this.bucket,
     prefix: prefix ?? this.prefix,
+    backupPassword: backupPassword ?? this.backupPassword,
   );
 
   /// Whether the target has a usable storage source and save location.

@@ -16,7 +16,7 @@ func TestExportAndRestoreConfigBackupPreservesBackupTarget(t *testing.T) {
 	if err := ReorderProfiles([]string{"alpha"}); err != nil {
 		t.Fatal(err)
 	}
-	settings := ConfigBackupSettings{Enabled: true, Target: ConfigBackupTarget{ProfileName: "alpha", Bucket: "backup"}}
+	settings := ConfigBackupSettings{Enabled: true, Target: ConfigBackupTarget{ProfileName: "alpha", Bucket: "backup", BackupPassword: "test-passphrase"}}
 	if err := SaveConfigBackupSettings(settings); err != nil {
 		t.Fatal(err)
 	}

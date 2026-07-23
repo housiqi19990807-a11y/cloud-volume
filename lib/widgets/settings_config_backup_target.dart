@@ -10,6 +10,7 @@ import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
+import 'package:remote_storage/widgets/cloud_storage_account_form_field.dart';
 import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 import 'package:remote_storage/widgets/settings_config_backup_cards.dart';
 import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
@@ -33,6 +34,7 @@ class ConfigBackupTargetSection extends StatelessWidget {
     required this.onSelectTarget,
     required this.onConfigureStandalone,
     required this.onPickSaveLocation,
+    required this.onPasswordSaved,
     required this.onBackupNow,
   });
 
@@ -45,6 +47,7 @@ class ConfigBackupTargetSection extends StatelessWidget {
   final ValueChanged<String> onSelectTarget;
   final ValueChanged<RemoteStorageConfig> onConfigureStandalone;
   final void Function(String bucket, String prefix) onPickSaveLocation;
+  final ValueChanged<String> onPasswordSaved;
   final VoidCallback onBackupNow;
 
   @override
@@ -95,7 +98,11 @@ class ConfigBackupTargetSection extends StatelessWidget {
             onPicked: onPickSaveLocation,
           ),
           const SizedBox(height: 8),
-          _EncryptionKeyButton(theme: theme),
+          _EncryptionKeyButton(
+            theme: theme,
+            target: target,
+            onPasswordSaved: onPasswordSaved,
+          ),
           const SizedBox(height: 14),
           ShadButton(
             onPressed: target.isReady && !busy ? onBackupNow : null,
@@ -427,45 +434,124 @@ class _PickerButtonState extends State<_PickerButton> {
   }
 }
 
-// Encryption-key info button: opens a modal explaining key derivation.
-// The key itself is derived server-side from storage credentials.
-class _EncryptionKeyButton extends StatelessWidget {
-  const _EncryptionKeyButton({required this.theme});
-  final ShadThemeData theme;
+/// Encryption-password setup button: lets the user set or change the backup
+/// passphrase. The AES key is derived from this password, not from connection
+/// credentials, so backups stay decryptable across machines.
+class _EncryptionKeyButton extends StatefulWidget {
+  const _EncryptionKeyButton({
+    required this.theme,
+    required this.target,
+    required this.onPasswordSaved,
+  });
 
-  Future<void> _openInfo(BuildContext context) async {
+  final ShadThemeData theme;
+  final ConfigBackupTarget target;
+  final ValueChanged<String> onPasswordSaved;
+
+  @override
+  State<_EncryptionKeyButton> createState() => _EncryptionKeyButtonState();
+}
+
+class _EncryptionKeyButtonState extends State<_EncryptionKeyButton> {
+  late final TextEditingController _pwdController;
+  late final TextEditingController _confirmController;
+  bool _obscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pwdController = TextEditingController();
+    _confirmController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _pwdController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  bool get _hasPassword => widget.target.backupPassword.trim().isNotEmpty;
+
+  Future<void> _openModal() async {
+    _pwdController.clear();
+    _confirmController.clear();
+    _obscure = true;
+    String? savedPassword;
     await showAppModalDialog<void>(
       context: context,
-      title: const Text('备份密钥'),
-      description: const Text('配置备份使用加密密钥保护，密钥由备份存储的连接凭证派生。'),
+      title: Text(_hasPassword ? '修改加密密码' : '设置加密密码'),
+      description: const Text(
+          '加密密码用于保护备份内容。新机器恢复时只需输入此密码，不依赖连接地址或凭证。请妥善保管，丢失后无法找回。'),
       maxWidth: 440,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '加密密钥会根据你选择的备份存储（账号或独立存储）的连接凭证自动派生，无需手动输入。',
-            style: TextStyle(
-                fontSize: 12,
-                height: 1.6,
-                color: theme.colorScheme.mutedForeground),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '如果之后修改了备份存储的连接凭证（如访问密钥、密码等），之前生成的备份仍需使用旧凭证才能解密。建议在变更凭证前先做一次手动备份，并妥善保管旧凭证。',
-            style: TextStyle(
-                fontSize: 12,
-                height: 1.6,
-                color: theme.colorScheme.mutedForeground),
-          ),
-        ],
+      child: StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CloudStorageLabeledField(
+                label: _hasPassword ? '新密码' : '加密密码',
+                child: ShadInput(
+                  controller: _pwdController,
+                  obscureText: _obscure,
+                  placeholder: const Text('输入加密密码'),
+                ),
+              ),
+              const SizedBox(height: 14),
+              CloudStorageLabeledField(
+                label: '确认密码',
+                child: ShadInput(
+                  controller: _confirmController,
+                  obscureText: _obscure,
+                  placeholder: const Text('再次输入密码'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ShadSwitch(
+                    value: !_obscure,
+                    onChanged: (v) =>
+                        setDialogState(() => _obscure = !v),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('显示密码',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: widget.theme.colorScheme.mutedForeground)),
+                ],
+              ),
+            ],
+          );
+        },
       ),
       actions: [
-        ShadButton(
+        ShadButton.outline(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('知道了'),
+          child: const Text('取消'),
+        ),
+        Builder(
+          builder: (dialogContext) => ShadButton(
+            onPressed: () {
+              final pwd = _pwdController.text.trim();
+              final confirm = _confirmController.text.trim();
+              if (pwd.isEmpty) return;
+              if (pwd != confirm) {
+                showAppErrorToast(context,
+                    title: '密码不一致', message: '两次输入的密码不匹配。');
+                return;
+              }
+              savedPassword = pwd;
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('保存'),
+          ),
         ),
       ],
     );
+    if (savedPassword != null && mounted) {
+      widget.onPasswordSaved(savedPassword!);
+    }
   }
 
   @override
@@ -474,8 +560,8 @@ class _EncryptionKeyButton extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: ShadButton.outline(
         size: ShadButtonSize.sm,
-        onPressed: () => _openInfo(context),
-        child: const Text('配置备份密钥'),
+        onPressed: _openModal,
+        child: Text(_hasPassword ? '修改加密密码' : '设置加密密码'),
       ),
     );
   }
