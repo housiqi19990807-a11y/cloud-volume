@@ -81,21 +81,27 @@ class ConfigBackupTargetSection extends StatelessWidget {
           busy: busy,
           onConfigured: onConfigureStandalone,
         ),
-        const SizedBox(height: 12),
-        _SaveLocationPicker(
-          theme: theme,
-          api: api,
-          target: target,
-          busy: busy,
-          onPicked: onPickSaveLocation,
-        ),
-        const SizedBox(height: 8),
-        _EncryptionKeyButton(theme: theme),
-        const SizedBox(height: 14),
-        ShadButton(
-          onPressed: target.isReady && !busy ? onBackupNow : null,
-          child: Text(backingUp ? '备份中…' : '立即备份'),
-        ),
+        // Only show save-location picker, encryption key info, and backup
+        // button once the storage connection itself is usable.
+        if (target.isReady ||
+            (target.profileName.isNotEmpty) ||
+            (target.standalone != null && target.standalone!.isConfigured)) ...[
+          const SizedBox(height: 12),
+          _SaveLocationPicker(
+            theme: theme,
+            api: api,
+            target: target,
+            busy: busy,
+            onPicked: onPickSaveLocation,
+          ),
+          const SizedBox(height: 8),
+          _EncryptionKeyButton(theme: theme),
+          const SizedBox(height: 14),
+          ShadButton(
+            onPressed: target.isReady && !busy ? onBackupNow : null,
+            child: Text(backingUp ? '备份中…' : '立即备份'),
+          ),
+        ],
       ],
     );
   }
