@@ -37,7 +37,7 @@ func TestPaginateObjectInfos(t *testing.T) {
 	}
 }
 
-func TestListMountedObjectPageIncludesPendingLocalFiles(t *testing.T) {
+func TestListMountedObjectPageUsesWebDAVSessionView(t *testing.T) {
 	access := newTestBucketAccess(t)
 	cachePath := filepath.Join(access.cacheRoot, "drafts", "c.zip")
 	if err := ensureTestLocalFile(cachePath, []byte("payload")); err != nil {
@@ -48,6 +48,7 @@ func TestListMountedObjectPageIncludesPendingLocalFiles(t *testing.T) {
 
 	session := &mountSession{
 		config: storageconfig.RemoteStorageConfig{
+			StorageType:      storageconfig.StorageTypeWebDAV,
 			Bucket:           "test-bucket",
 			WindowsMountMode: storageconfig.WindowsMountModeCloudFilesCached,
 		}.Normalized(),
@@ -81,7 +82,7 @@ func TestListMountedObjectPageIncludesPendingLocalFiles(t *testing.T) {
 		t.Fatal("expected mounted page to be handled")
 	}
 	if len(page.Items) != 1 || page.Items[0].Key != "drafts/c.zip" {
-		t.Fatalf("unexpected mounted items: %+v", page.Items)
+		t.Fatalf("unexpected WebDAV mounted items: %+v", page.Items)
 	}
 }
 

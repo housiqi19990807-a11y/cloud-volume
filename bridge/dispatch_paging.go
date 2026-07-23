@@ -31,19 +31,17 @@ func listObjectPage(args json.RawMessage) (any, error) {
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
-	if input.Config.Normalized().StorageType != storageconfig.StorageTypeWebDAV {
-		if input.ForceRefresh {
-			bucketmount.InvalidateListCacheForPrefix(input.Config, input.Bucket, input.Prefix)
-		}
-		if page, handled, err := bucketmount.ListMountedObjectPage(
-			input.Config,
-			input.Bucket,
-			input.Prefix,
-			input.NextToken,
-			input.PageSize,
-		); handled || err != nil {
-			return page, err
-		}
+	if input.ForceRefresh {
+		bucketmount.InvalidateListCacheForPrefix(input.Config, input.Bucket, input.Prefix)
+	}
+	if page, handled, err := bucketmount.ListMountedObjectPage(
+		input.Config,
+		input.Bucket,
+		input.Prefix,
+		input.NextToken,
+		input.PageSize,
+	); handled || err != nil {
+		return page, err
 	}
 	return storageops.ForConfig(input.Config).ListObjectsPage(
 		context.Background(),
