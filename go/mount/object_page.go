@@ -72,6 +72,9 @@ func (m *manager) listMountedObjectPage(
 	}
 	access := session.access
 	m.mu.Unlock()
+	if page, ok := access.pageViews.page(prefix, nextToken, pageSize); ok {
+		return page, true, nil
+	}
 
 	items, err := access.listDirectory(context.Background(), prefix)
 	if err != nil {
@@ -79,7 +82,7 @@ func (m *manager) listMountedObjectPage(
 		return s3ops.ObjectPage{}, true, err
 	}
 	sortObjectInfos(items)
-	return paginateObjectInfos(items, nextToken, pageSize), true, nil
+	return access.pageViews.start(prefix, items, nextToken, pageSize), true, nil
 }
 
 func paginateObjectInfos(

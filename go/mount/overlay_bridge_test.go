@@ -73,6 +73,7 @@ func newTestBucketAccess(t *testing.T) *bucketAccess {
 		listTTL:           time.Second,
 		prefetchTTL:       time.Second,
 		cache:             newBucketCache(time.Second, time.Second),
+		pageViews:         newMountedDirectoryPageSnapshots(),
 		overlay:           overlay,
 		directoryActivity: newDirectoryActivityTracker(),
 	}

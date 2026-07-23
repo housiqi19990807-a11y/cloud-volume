@@ -584,7 +584,7 @@ Shared upload/download queue backing both manual file operations and sync-genera
 - `bridge/dispatch_object_transfer.go` — `copyObject` 调 `NotifyExternalUpload(TargetKey)`；`moveObject` 调 `NotifyExternalRename(SourceKey, TargetKey)`。
 - `go/webapi/invoke.go` — webapi 同名 mutation 同步接入（`delete_object`/`rename_object`/`copy_object`/`move_object`/`create_directory`），仅在 `err == nil` 时调用。
 - `go/mount/external_invalidation_test.go` — 覆盖 delete/upload/rename 对 `listCache`/`objectCache`/`localEntries`/`deletedPaths` 的失效，以及 cfg 不匹配/无 session 时的 no-op。
-- `bridge/dispatch_paging.go` / `go/mount/object_page.go` / `go/storage/webdav_backend.go` — 文件管理分页总是先尝试活动挂载的 local-first 合并目录，再由 `paginateObjectInfos` 以 offset token 切页；无匹配会话时 `ListMountedObjectPage` 返回 `handled=false`，bridge 才直连后端。WebDAV 同样走这个路径，以共享 mount 的 local overlay、待写回状态、显式刷新和 P0 轮询结果；未挂载时仍直接 `PROPFIND Depth: 1`（该协议实现本身忽略 token/pageSize、一次返回完整目录）。
+- `bridge/dispatch_paging.go` / `go/mount/object_page.go` / `go/mount/object_page_snapshots.go` / `go/storage/webdav_backend.go` — 文件管理分页总是先尝试活动挂载的 local-first 合并目录；无匹配会话时 `ListMountedObjectPage` 返回 `handled=false`，bridge 才直连后端。活动挂载首屏创建 `m:<snapshot-id>:<offset>` 的 2 分钟不可变快照（每会话最多 16 个），后续页固定读取同一快照；目录写入、显式刷新和 P0 更新影响下一次首屏的新快照，不会改变正在翻页的旧 token。WebDAV 同样走此路径，以共享 mount 的 local overlay、待写回状态、显式刷新和 P0 轮询结果；未挂载时仍直接 `PROPFIND Depth: 1`（该协议实现本身忽略 token/pageSize、一次返回完整目录）。
 - `lib/pages/file_manager_page_object_deletes.dart` — 删除 API 成功后立即从 `_objects`、`_selectedObjectKeys` 和 `_deletingObjectKeys` 移除该 key；批次结束时把成功 key 传给写后刷新，失败 key 恢复成普通可操作行。
 - `lib/pages/file_manager_page_object_loading.dart` — `_loadObjects(... suppressObjectKeys:)` 过滤本批次已确认删除、但提供方短暂重新返回的旧 key，并丢弃对应原始页缓存，让后续导航重新请求后端。
 - `test/file_manager_delete_state_test.dart` — 回归覆盖“删除成功，但 force-refresh 仍返回旧目录”的场景，确保行和删除标记都收敛。
@@ -610,7 +610,7 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 - `go/mount/remote_poller.go` - `directoryActivityTracker` 在 `bucketAccess.listDirectory` 和 Cloud Files 的 placeholder 回调中记录目录活动，最多保留 12 个目录，并在新目录活动时唤醒等待中的 poller。`remoteDirectoryPoller` 在活动 45 秒内按 `mount_remote_poll_seconds` 刷新，之后每 30 秒刷新；3 分钟没有活动目录时停止网络访问。它调用 `fetchDirectory`，刷新 `bucketCache`，不会用远端状态删除本地 overlay 或 writeback。
 - `go/mount/manager.go` / `go/mount/types.go` - 每个成功启动的 `mountSession` 创建 poller；卸载时先停止轮询，再关闭平台后端，避免访问已释放的 `bucketAccess`。
 - `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/cloud_files_hydrator_windows.go` - P0 轮询结果通过 `externalDirectoryRefresh` 进入 `RefreshPlaceholders`。该操作只创建尚不存在的 Cloud Files 占位符，因此 Windows A/Linux 新建的文件会出现在 Windows B 已打开的目录，而本地待写回/已水合文件不会被覆盖。
-- `go/mount/remote_poller_test.go` - 覆盖远端目录缓存刷新、占位符投影回调以及活动/空闲退避窗口。
+- `go/mount/remote_poller_test.go` / `go/mount/object_page_test.go` - 覆盖远端目录缓存刷新、占位符投影回调、活动/空闲退避窗口，以及目录写入期间的稳定快照分页。
 
 **Gotchas:** P0 不是文件传输协议，也不是递归扫描器。它不保证即时投递，未主动刷新的文件管理器窗口仍可能需要一次目录读取；删除和覆盖的完整跨客户端投影留给后续 P1/P2 事件设计，不能在 P0 中通过盲目删除本地占位符实现，否则会误删正在本地写回的状态。
 

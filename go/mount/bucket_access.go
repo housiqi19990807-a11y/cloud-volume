@@ -36,6 +36,7 @@ type bucketAccess struct {
 	group singleflight.Group
 
 	cache     *bucketCache
+	pageViews *mountedDirectoryPageSnapshots
 	overlay   *localMountOverlay
 	dirSync   *dirSyncQueue
 	writeback *writebackQueue
@@ -114,6 +115,7 @@ func newBucketAccess(
 		prefetchTTL:       prefetchTTL,
 		allowPrefetch:     allowPrefetch,
 		cache:             newBucketCache(metadataCacheTTL, prefetchTTL),
+		pageViews:         newMountedDirectoryPageSnapshots(),
 		overlay:           overlay,
 		directoryActivity: newDirectoryActivityTracker(),
 	}
