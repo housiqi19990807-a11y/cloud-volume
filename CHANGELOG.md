@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- 修复 FTP/SFTP 与配额加载回归：SFTP 删除目录现在递归清理非空子树；桶配额请求继续并发执行，并限制每项 10 秒，避免单个不可用账户无限阻塞桶列表；带 `RootPrefix` 的后端保留配额能力转发并新增回归测试。既有 S3 调用统一经 JWanFS failover SDK 选择活动网关，随后继续使用 AWS SDK v2 执行实际请求。
 - 新增 FTP / SFTP 后端：支持经典 FTP（jlaffaye/ftp）和 SFTP（pkg/sftp + ssh）两种远端存储类型，包含独立于 WebDAV 的用户名/密码字段、自定义端口、匿名登录开关。SFTP 通过 statvfs@openssh.com 扩展读取服务端配额；FTP 协议无标准配额命令，暂报告容量未知。两种后端均支持完整的文件管理操作（列表、上传/下载、目录创建/删除、重命名、移动、复制、范围读取），暂不支持应用级回收站（FTP/SFTP 服务器自身管理删除语义）。Mock 测试服务器分别基于 ftpserverlib（FTP）和自研共享内存 SFTP handler（SFTP）实现进程内完整协议测试。
 - 修复桶列表 hover 失效：配额刷新不再在首帧渲染后用第二次 `setState` 替换 `_buckets`，而是合并进 `_loadBuckets` 的单次 `setState`，避免 `FileListTile` 子树被重建导致 `_hovered` 丢失（“hover又坏了”回归）。
 - S3 目录软删除：部分兼容服务在递归列举时会返回目录内文件、却省略目录自身的 `dir/` 占位对象，导致子文件已移入回收站但源目录占位仍留在远端，应用重启后重新显示为空目录。目录变更计划现在始终显式包含根目录占位 key，复制阶段在回收站保留完整目录语义，源清理阶段幂等删除该 key。

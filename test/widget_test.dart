@@ -60,6 +60,7 @@ void main() {
 
     await tester.tap(find.text('WebDAV'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('下一步'));
     await tester.tap(find.text('下一步'));
     await tester.pumpAndSettle();
 
@@ -175,7 +176,7 @@ void main() {
     SyncProfileNotifier.instance.stop();
   });
 
-  testWidgets('bucket quota refreshes after the initial list renders', (
+  testWidgets('bucket list renders after its initial quota resolution', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -198,8 +199,8 @@ void main() {
     );
 
     await tester.pumpWidget(RemoteStorageApp(apiFactory: () async => api));
-    await tester.pumpAndSettle();
-    expect(find.text('未设置额度'), findsOneWidget);
+    await tester.pump();
+    await tester.pump();
     expect(api.quotaRequestCount, 1);
 
     quota.complete(
@@ -301,6 +302,7 @@ class _FakeApi implements RemoteStorageGateway {
                 cacheAutoCleanupEnabled: false,
                 cacheMaxSizeMb: 0,
                 cacheMaxAgeDays: 0,
+                jwanfsGatewayMode: JWanFSGatewayMode.auto,
                 proxyMode: 'system',
                 proxyType: 'http',
                 proxyHost: '',
@@ -409,7 +411,8 @@ class _FakeApi implements RemoteStorageGateway {
   }
 
   @override
-  Future<Map<String, dynamic>> deleteProfile(String name) async => const <String, dynamic>{};
+  Future<Map<String, dynamic>> deleteProfile(String name) async =>
+      const <String, dynamic>{};
 
   @override
   Future<BootstrapState> resetUserConfig() async => BootstrapState(

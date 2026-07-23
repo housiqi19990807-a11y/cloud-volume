@@ -10,7 +10,10 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/sftp"
 )
+
 func (b sftpBackend) ReadObjectRange(
 	ctx context.Context,
 	_, key string,
@@ -89,9 +92,39 @@ func (b sftpBackend) DeleteObject(
 	}()
 	remotePath := sftpRemotePath(key)
 	if isDirectory {
-		return client.RemoveDirectory(remotePath)
+		return removeSFTPDirectoryRecursive(ctx, client, remotePath)
 	}
 	return client.Remove(remotePath)
+}
+
+// removeSFTPDirectoryRecursive removes files before each directory so the
+// shared backend contract can delete non-empty folders like FTP and S3 do.
+func removeSFTPDirectoryRecursive(ctx context.Context, client *sftp.Client, dir string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	entries, err := client.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("sftp list directory %q: %w", dir, err)
+	}
+	for _, entry := range entries {
+		child := path.Join(dir, entry.Name())
+		if entry.IsDir() {
+			if err := removeSFTPDirectoryRecursive(ctx, client, child); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := client.Remove(child); err != nil {
+			return fmt.Errorf("sftp remove %q: %w", child, err)
+		}
+	}
+	if err := client.RemoveDirectory(dir); err != nil {
+		return fmt.Errorf("sftp remove directory %q: %w", dir, err)
+	}
+	return nil
 }
 
 func (b sftpBackend) DeleteObjectHard(

@@ -3,6 +3,7 @@
 part of 'file_manager_page.dart';
 
 const Duration _bucketQuotaCacheTtl = Duration(minutes: 5);
+const Duration _bucketQuotaRequestTimeout = Duration(seconds: 10);
 
 // Quota resolution now happens during _loadBuckets so a single setState renders
 // the final list. The post-frame refresh was removed because replacing _buckets
@@ -35,10 +36,9 @@ extension _FileManagerPageQuota on _FileManagerPageState {
     final results = await Future.wait<MapEntry<String, BucketInfo>?>(
       candidates.map((entry) async {
         try {
-          final quota = await widget.api.getBucketQuota(
-            entry.config,
-            entry.bucket.name,
-          );
+          final quota = await widget.api
+              .getBucketQuota(entry.config, entry.bucket.name)
+              .timeout(_bucketQuotaRequestTimeout);
           _bucketQuotaCache[entry.id] = _BucketQuotaCacheValue(
             bucket: quota,
             configSignature: _quotaConfigSignature(entry),

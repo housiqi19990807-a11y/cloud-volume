@@ -3,12 +3,26 @@ package s3
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsCreds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	storageconfig "remote-storage/go/config"
+)
+
+const activeEndpointCacheTTL = time.Minute
+
+type activeEndpointCacheEntry struct {
+	endpoint  string
+	expiresAt time.Time
+}
+
+var (
+	activeEndpointCacheMu sync.RWMutex
+	activeEndpointCache   = make(map[string]activeEndpointCacheEntry)
 )
 
 // singleObjectCallOptions returns per-call options for low-level single-object
@@ -25,12 +39,50 @@ func singleObjectCallOptions() []func(*s3.Options) {
 	}
 }
 
-// NewClient creates an S3 client bound to the configured endpoint. For
-// multi-endpoint failover use NewFailoverClient; this entry point is kept for
-// callers that only need a plain single-endpoint client (presigning, health
-// checks, internal helpers that already manage their own failover).
+// NewClient resolves the current best S3 endpoint through the failover SDK so
+// every existing S3 operation benefits from JWanFS gateway discovery. The
+// returned AWS client remains a single-request client; operations needing
+// retry-across-upstream semantics can retain a FailoverClient and call
+// DoWithFallback directly.
 func NewClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
-	return newSingleEndpointClient(cfg, cfg.Endpoint)
+	if endpoint, ok := cachedActiveEndpoint(cfg); ok {
+		return newSingleEndpointClient(cfg, endpoint)
+	}
+	pool := NewFailoverClient(cfg)
+	defer pool.Stop()
+	endpoint := pool.DefaultServer()
+	if endpoint == "" {
+		endpoint = cfg.Endpoint
+	}
+	cacheActiveEndpoint(cfg, endpoint)
+	return newSingleEndpointClient(cfg, endpoint)
+}
+
+// cachedActiveEndpoint avoids rediscovering JWanFS gateways for every object
+// request while allowing the failover SDK to refresh the active endpoint soon.
+func cachedActiveEndpoint(cfg storageconfig.RemoteStorageConfig) (string, bool) {
+	key := activeEndpointCacheKey(cfg)
+	activeEndpointCacheMu.RLock()
+	entry, ok := activeEndpointCache[key]
+	activeEndpointCacheMu.RUnlock()
+	return entry.endpoint, ok && time.Now().Before(entry.expiresAt)
+}
+
+func cacheActiveEndpoint(cfg storageconfig.RemoteStorageConfig, endpoint string) {
+	if endpoint == "" {
+		return
+	}
+	activeEndpointCacheMu.Lock()
+	activeEndpointCache[activeEndpointCacheKey(cfg)] = activeEndpointCacheEntry{
+		endpoint:  endpoint,
+		expiresAt: time.Now().Add(activeEndpointCacheTTL),
+	}
+	activeEndpointCacheMu.Unlock()
+}
+
+func activeEndpointCacheKey(cfg storageconfig.RemoteStorageConfig) string {
+	normalized := cfg.Normalized()
+	return normalized.Endpoint + "|" + normalized.AccessKeyID + "|" + normalized.JWanFSGatewayMode
 }
 
 // newSingleEndpointClient builds an aws-sdk-go-v2 S3 client pointing at one

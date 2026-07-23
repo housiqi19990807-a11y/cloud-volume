@@ -1091,6 +1091,7 @@ The JWanFS file-gateway SDK was migrated from `jwanfs/pkg/sdk/s3` into `go/jwanf
 - `go/jwanfs/http_client.go` - `DefaultHTTPClient()` shared connection-pooled client with relaxed TLS (replaces `jtool.GetHttpClient`).
 - `go/jwanfs/detect.go` - **JWanFS gateway detection**: `IsJWanFSGateway` probes `auth-info` FGW route; cached per endpoint+credentials (10 min TTL). `DetectionMode` = `auto` (default) | `jwanfs` | `generic_s3`.
 - `go/jwanfs/types/` - FGW business types migrated from `jwanfs/pkg/types` (all `size.B` → `int64`, `consts.*` → local enums): `FileInfoDetailRes`, `ChunkList`/`ChunkInfo`, `GetBucketQuotaRes`, `S3FileSearchReq`/`Res`, `S3AuthInfoRes`, `AKSKBucketPermission`, `UserTempTokenReq`/`Res`, `ResourceFileInfo`, `S3GetShareFile`, `FGWResp[T]`, `FGWS3API` route constants.
+- `go/s3/failover_pool.go` / `go/s3/client.go` - Existing AWS SDK v2 S3 operations enter through `NewClient`, which uses `NewFailoverClient` to select the active JWanFS gateway before returning an AWS client. The selected endpoint is cached per endpoint/access-key/detection-mode for one minute to avoid control-plane discovery per object request, and the transient pool is then stopped. Callers that need one operation retried across multiple upstreams must retain a pool and invoke `DoWithFallback` themselves.
 
 #### What was NOT migrated
 
@@ -1104,10 +1105,31 @@ The JWanFS file-gateway SDK was migrated from `jwanfs/pkg/sdk/s3` into `go/jwanf
 2. Each gateway is probed via `GET /status`; the fastest healthy responder becomes the primary upstream.
 3. FGW API calls (`DoFGWAPIRaw`) iterate the ordered upstream pool; on transferable errors (5xx/429/network) they failover to the next upstream and update the default.
 4. `IsJWanFSGateway(ctx, cfg, mode)` builds a transient client and calls `AuthInfo`; success means the endpoint is a JWanFS gateway. The result is cached so callers can cheaply gate FGW-only features (e.g. `BucketQuota`, `FileInfo`, `FileSearch`).
+5. `go/s3.NewClient(cfg)` reuses a one-minute cached endpoint or calls `NewFailoverClient(cfg)` to select that gateway's current AWS SDK v2 endpoint for ordinary S3 operations, then stops the transient balancer.
 
 #### Gotchas
 
-- `go/jwanfs` and `go/s3` are separate packages. `go/s3` = generic S3 via `aws-sdk-go-v2`; `go/jwanfs` = JWanFS-specific FGW APIs. They share no code.
+- `go/s3` remains the AWS SDK v2 data plane, while `go/jwanfs` provides FGW business APIs plus gateway discovery. `go/s3/failover_pool.go` intentionally imports `go/jwanfs` to select a live endpoint for a JWanFS account.
 - The FGW `bucket-quota` route returns `Total`/`Free`/`Used` as JSON numbers; the legacy `size.B` type was just `int64`, so the migrated `GetBucketQuotaRes` uses `int64` directly.
 - `DetectionMode` is a string enum persisted in config (`jwanfsGatewayMode` field). `auto` probes once and caches; `jwanfs`/`generic_s3` force the result without probing. `InvalidateDetectionCache(cfg)` should be called when endpoint or credentials change.
 - `DefaultHTTPClient` uses `InsecureSkipVerify: true` to match the legacy `jtool` client behavior (self-hosted gateways often use self-signed certs). If this project later enforces strict TLS, update both `DefaultHTTPClient` and the gateway probe.
+
+### Feature: FTP / SFTP Remote Storage Backends
+
+FTP and SFTP expose the remote server as a single virtual bucket, retaining the shared backend interface used by the file manager, transfer queue, and bridge.
+
+#### Key files
+
+- `go/config/config.go` - Defines `ftp` / `sftp` storage types and shared FTP/SFTP connection fields (`FTPUsername`, `FTPPassword`, `FTPPort`, `FTPAnonymous`). The zero port selects protocol defaults: 21 for FTP and 22 for SFTP.
+- `go/storage/types.go` - `ForConfig` selects either backend and applies `scopedBackend` when `RootPrefix` is configured, so ordinary object operations remain view-relative.
+- `go/storage/ftp_backend*.go` - Implements classic FTP listing, file I/O, directory mutation, recursive listing/copy, and hard deletion. FTP returns an unknown quota because the protocol has no standard capacity API.
+- `go/storage/sftp_backend*.go` - Implements SFTP listing, file I/O, and mutations through `pkg/sftp`; `sftp_backend_quota.go` uses the optional `statvfs@openssh.com` extension when offered by the server.
+- `go/storage/ftp_mock_test.go` / `go/storage/sftp_mock_test.go` and their backend tests - Run protocol-level integration tests against in-process mock servers.
+- `lib/models/remote_storage_config.dart`, `lib/models/cloud_storage_account_draft.dart`, `lib/utils/account_config_builder.dart`, `lib/widgets/cloud_storage_account_dialog*.dart`, `lib/pages/config_setup_page.dart`, and `lib/widgets/config_right_form*.dart` - Persist the settings and present protocol-specific account forms.
+
+#### Gotchas
+
+- `FTPPort` and the `FTP*` credential fields are also used for SFTP for now; do not infer the default port from the field name.
+- Optional backend capabilities are hidden by `scopedBackend` unless that wrapper forwards them. When adding/changing `BucketQuotaProvider` behavior, verify `storage.GetBucketQuota` with a non-empty `RootPrefix`, not only by calling the concrete backend directly.
+- SFTP directory deletion is recursive. Keep `TestSFTPCreateAndDeleteDirectory` populated with a nested file so future refactors cannot regress to `RemoveDirectory`-only behavior.
+- Treat SSH host-key verification as a security boundary. A password-authenticated SFTP backend must not silently accept a changed host key in production.

@@ -11,11 +11,11 @@ import (
 // sftpTestConfig builds a RemoteStorageConfig pointing at the mock SFTP server.
 func sftpTestConfig(addr, user, pass string) storageconfig.RemoteStorageConfig {
 	return storageconfig.RemoteStorageConfig{
-		StorageType:    storageconfig.StorageTypeSFTP,
-		Endpoint:       addr,
-		FTPUsername:    user,
-		FTPPassword:    pass,
-		HasFTPPassword: true,
+		StorageType:      storageconfig.StorageTypeSFTP,
+		Endpoint:         addr,
+		FTPUsername:      user,
+		FTPPassword:      pass,
+		HasFTPPassword:   true,
 		MappedBucketName: "SFTP",
 	}
 }
@@ -105,10 +105,20 @@ func TestSFTPCreateAndDeleteDirectory(t *testing.T) {
 	if !found {
 		t.Fatalf("testdir/ not found: %+v", page.Items)
 	}
-	// Close all open connections before deleting to avoid lock contention
-	// in the mock server's shared state during rapid create+delete sequences.
+	if err := backend.UploadReader(nil, "SFTP", "testdir/nested.txt", strings.NewReader("nested"), 6, "", "nested.txt"); err != nil {
+		t.Fatalf("seed nested file: %v", err)
+	}
 	if err := backend.DeleteObject(nil, "SFTP", "testdir", true, ""); err != nil {
 		t.Fatalf("DeleteObject(testdir) error: %v", err)
+	}
+	page, err = backend.ListObjectsPage(nil, "SFTP", "", "", 200)
+	if err != nil {
+		t.Fatalf("list after recursive delete error: %v", err)
+	}
+	for _, item := range page.Items {
+		if item.Key == "testdir/" {
+			t.Fatalf("testdir/ remained after recursive delete: %+v", page.Items)
+		}
 	}
 }
 

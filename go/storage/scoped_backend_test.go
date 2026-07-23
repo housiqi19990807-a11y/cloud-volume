@@ -39,6 +39,7 @@ func TestUnscopedKey(t *testing.T) {
 type trashStubBackend struct {
 	items             []TrashItem
 	restored, deleted []string
+	quota             BucketInfo
 }
 
 func (s *trashStubBackend) ListTrashPage(context.Context, string, string, int32) (TrashPage, error) {
@@ -108,6 +109,11 @@ func (s *trashStubBackend) StreamObjectToHTTP(context.Context, string, string, b
 }
 func (s *trashStubBackend) ClearTrash(context.Context, string) error { return nil }
 
+// BucketQuota lets the scoped wrapper test its optional capability forwarding.
+func (s *trashStubBackend) BucketQuota(context.Context, string) (BucketInfo, error) {
+	return s.quota, nil
+}
+
 // TestScopedListTrashPageRewritesOriginalKeysAndPreservesProviderItems
 // asserts that scoped ListTrashPage:
 //  1. rewrites OriginalKey relative to the view root,
@@ -162,3 +168,18 @@ func TestScopedListTrashPageRewritesOriginalKeysAndPreservesProviderItems(t *tes
 	}
 }
 
+func TestScopedBackendForwardsBucketQuota(t *testing.T) {
+	stub := &trashStubBackend{quota: BucketInfo{Name: "demo", QuotaBytes: 100, UsedBytes: 25, QuotaKnown: true}}
+	scoped := scopedBackend{Backend: stub, root: "archive/2026"}
+	provider, ok := any(scoped).(BucketQuotaProvider)
+	if !ok {
+		t.Fatal("scoped backend must retain the bucket quota capability")
+	}
+	quota, err := provider.BucketQuota(t.Context(), "demo")
+	if err != nil {
+		t.Fatalf("BucketQuota: %v", err)
+	}
+	if quota != stub.quota {
+		t.Fatalf("quota = %+v, want %+v", quota, stub.quota)
+	}
+}
