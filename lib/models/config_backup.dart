@@ -45,6 +45,13 @@ class ConfigBackupTarget {
     bucket: bucket ?? this.bucket,
     prefix: prefix ?? this.prefix,
   );
+
+  /// Whether the target has a usable storage source and save location.
+  bool get isReady {
+    final hasSource =
+        profileName.isNotEmpty || (standalone?.isConfigured ?? false);
+    return hasSource && bucket.trim().isNotEmpty;
+  }
 }
 
 class ConfigBackupSettings {
