@@ -59,7 +59,7 @@ class ConfigBackupTargetSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('备份目标',
+        Text('备份存储',
             style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -221,7 +221,7 @@ class _StandaloneTargetCardState extends State<_StandaloneTargetCard> {
       // configure button to open the storage dialog.
       return ConfigBackupStatusCard(
         theme: theme,
-        title: '尚未配置备份目标',
+        title: '尚未配置备份存储',
         detail: '点击右侧按钮配置一个不显示在账号列表中的备份连接。',
         trailing: ShadButton.outline(
           size: ShadButtonSize.sm,

@@ -323,29 +323,34 @@ class _SettingsConfigBackupSectionState
             onPickSaveLocation: _onPickSaveLocation,
             onBackupNow: _backupNow,
           ),
-          const SizedBox(height: 18),
-          Text(
-            '备份历史',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.foreground,
+          // Only show history once the storage connection is usable.
+          if (_settings.target.profileName.isNotEmpty ||
+              (_settings.target.standalone != null &&
+                  _settings.target.standalone!.isConfigured)) ...[
+            const SizedBox(height: 18),
+            Text(
+              '备份历史',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.foreground,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          ConfigBackupHistorySummaryTile(
-            theme: theme,
-            title: configBackupHistoryTitle(
-              loading: _loading || _listing,
-              snapshots: _snapshots,
+            const SizedBox(height: 8),
+            ConfigBackupHistorySummaryTile(
+              theme: theme,
+              title: configBackupHistoryTitle(
+                loading: _loading || _listing,
+                snapshots: _snapshots,
+              ),
+              detail: configBackupHistoryDetail(
+                loading: _loading || _listing,
+                snapshots: _snapshots,
+              ),
+              enabled: !_busy,
+              onTap: _openHistoryDialog,
             ),
-            detail: configBackupHistoryDetail(
-              loading: _loading || _listing,
-              snapshots: _snapshots,
-            ),
-            enabled: !_busy,
-            onTap: _openHistoryDialog,
-          ),
+          ],
         ],
         if (_error != null) ...[
           const SizedBox(height: 12),
