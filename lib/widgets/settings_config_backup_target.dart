@@ -190,6 +190,7 @@ class _StandaloneTargetCardState extends State<_StandaloneTargetCard> {
         api: widget.api,
         initialConfig: standalone,
         editing: standalone != null,
+        simpleMode: true,
         onListBuckets: widget.api.listBuckets,
         onStartBaiduPanAuthorization: widget.api.startBaiduPanAuthorization,
         onAuthorizeBaiduPan: widget.api.authorizeBaiduPan,

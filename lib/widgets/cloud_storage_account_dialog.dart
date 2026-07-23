@@ -39,6 +39,7 @@ class CloudStorageAccountDialog extends StatefulWidget {
     this.initialConfig,
     this.editing = false,
     this.asDialog = true,
+    this.simpleMode = false,
     this.onSaved,
     this.onCancel,
     this.creatorWindowId,
@@ -60,6 +61,11 @@ class CloudStorageAccountDialog extends StatefulWidget {
 
   /// true = 应用内拟态框（默认）；false = Debug 子窗口裸内容。
   final bool asDialog;
+
+  /// Lightweight mode for backup-only storage: skips name/mapped-bucket fields
+  /// and the bucket-visibility step. After protocol + connection fields the
+  /// config is returned directly so the caller can handle bucket selection.
+  final bool simpleMode;
 
   /// 子窗口模式保存成功后回调（关闭窗口）。
   final VoidCallback? onSaved;
@@ -241,7 +247,7 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       return;
     }
     if (_step == 1) {
-      if (widget.editing) {
+      if (widget.editing || widget.simpleMode) {
         await _submit();
       } else {
         await _loadBucketsForVisibility();
@@ -282,8 +288,10 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
       return _wrapMeasured(_buildWizardContent(theme));
     }
     return ShadDialog(
-      title: const Text('新增账号'),
-      description: const Text('先选择存储类型，再填写对应的连接信息。'),
+      title: Text(widget.simpleMode ? '配置独立备份存储' : '新增账号'),
+      description: Text(widget.simpleMode
+          ? '选择存储类型并填写连接信息，配好后可直接选择保存位置。'
+          : '先选择存储类型，再填写对应的连接信息。'),
       constraints: const BoxConstraints(maxWidth: 640),
       scrollable: true,
       child: _buildWizardContent(theme),
@@ -354,7 +362,11 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
   /// connection step and shown once we move to the bucket-visibility step.
   Widget _buildNavButtons(ShadThemeData theme) {
     final isLast = _step == 2;
-    final isFirst = widget.editing ? _step <= 1 : _step <= 0;
+    // simpleMode skips the bucket-visibility step, so step 1 is the last.
+    final isSimpleLast = widget.simpleMode && _step == 1;
+    final isFirst = widget.editing || widget.simpleMode
+        ? _step <= 1
+        : _step <= 0;
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -384,8 +396,12 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
               ? const Text('保存中...')
               : Row(
                   children: [
-                    Text(isLast ? '保存账号' : '下一步'),
-                    if (!isLast) ...[
+                    Text(isSimpleLast
+                        ? '保存'
+                        : isLast
+                            ? '保存账号'
+                            : '下一步'),
+                    if (!isLast && !isSimpleLast) ...[
                       const SizedBox(width: 4),
                       const Icon(LucideIcons.chevronRight, size: 16),
                     ],
@@ -465,9 +481,9 @@ class _CloudStorageAccountDialogState extends State<CloudStorageAccountDialog> {
           _nameController.text = config.displayName;
         }
       });
-      if (widget.editing) {
-        // Editing baidu re-auth saves immediately like before — editing does
-        // not advance into the bucket-visibility wizard step.
+      if (widget.editing || widget.simpleMode) {
+        // Editing or simple (backup-only) mode saves immediately — no
+        // bucket-visibility wizard step.
         await _submit();
       } else {
         await _loadBucketsForVisibility();

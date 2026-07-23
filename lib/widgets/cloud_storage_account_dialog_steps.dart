@@ -156,6 +156,7 @@ class _StorageProtocolCardState extends State<StorageProtocolCard> {
 // ---------------------------------------------------------------------------
 
 /// 步骤 2「配置连接信息」：只保留主连接字段；路径风格 / 代理放进二级「高级设置」弹窗。
+/// simpleMode 跳过名称和映射桶名称，只保留连接凭证 + endpoint。
 Widget stepConnectionFields({
   required ShadThemeData theme,
   required _CloudStorageAccountDialogState self,
@@ -165,38 +166,42 @@ Widget stepConnectionFields({
   final isFTP =
       self._storageType == StorageType.ftp ||
       self._storageType == StorageType.sftp;
+  final simple = self.widget.simpleMode;
   return Column(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      CloudStorageLabeledField(
-        label: '名称',
-        child: ShadInput(
-          controller: self._nameController,
-          placeholder: Text(
-            isBaiduPan
-                ? '例如：我的百度网盘'
-                : isWebDav
-                ? '例如：IHEP WebDAV'
-                : isFTP
-                ? '例如：我的 FTP 服务器'
-                : '例如：对象存储账号',
-          ),
-          onChanged: (_) => self._syncMappedBucketName(),
-        ),
-      ),
-      if (isWebDav || isFTP) ...[
-        const SizedBox(height: 14),
+      // Name + mapped-bucket fields are hidden in simple (backup-only) mode.
+      if (!simple) ...[
         CloudStorageLabeledField(
-          label: '映射桶名称',
+          label: '名称',
           child: ShadInput(
-            controller: self._mappedBucketNameController,
-            placeholder: const Text('默认使用名称'),
-            onChanged: (_) => self._mappedBucketNameEdited = true,
+            controller: self._nameController,
+            placeholder: Text(
+              isBaiduPan
+                  ? '例如：我的百度网盘'
+                  : isWebDav
+                  ? '例如：IHEP WebDAV'
+                  : isFTP
+                  ? '例如：我的 FTP 服务器'
+                  : '例如：对象存储账号',
+            ),
+            onChanged: (_) => self._syncMappedBucketName(),
           ),
         ),
+        if (isWebDav || isFTP) ...[
+          const SizedBox(height: 14),
+          CloudStorageLabeledField(
+            label: '映射桶名称',
+            child: ShadInput(
+              controller: self._mappedBucketNameController,
+              placeholder: const Text('默认使用名称'),
+              onChanged: (_) => self._mappedBucketNameEdited = true,
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
       ],
-      const SizedBox(height: 14),
       if (isBaiduPan) ..._baiduPanFields(self),
       if (!isBaiduPan && !isWebDav && !isFTP) ..._s3Fields(self),
       if (!isBaiduPan && isWebDav) ..._webdavFields(self),
