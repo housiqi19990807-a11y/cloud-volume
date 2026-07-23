@@ -614,6 +614,8 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 **Gotchas:** P0 不是文件传输协议，也不是递归扫描器。它不保证即时投递，未主动刷新的文件管理器窗口仍可能需要一次目录读取；删除和覆盖的完整跨客户端投影留给后续 P1/P2 事件设计，不能在 P0 中通过盲目删除本地占位符实现，否则会误删正在本地写回的状态。
 
+**P1 readiness (2026-07-23):** P1 局域网即时通知可以复用 `bucketAccess.pollRemoteDirectory`：验证后的事件只应触发受影响父目录的远端重新列举、`bucketCache` 更新与现有 `externalDirectoryRefresh` 投影，不应直接调用 `NotifyExternalDelete`，因为后者会把本地 pending writeback 取消并写 tombstone，适用于“本客户端已确认完成的 bridge mutation”，不适用于尚待远端确认的对端提示。事件生产端应接在 `writebackQueue.flushNow`、`deleteQueue.runDelete`、`bucketAccess.renamePath` 等远端 mutation 成功点，而不是本地编辑入队点。仓库尚没有 mDNS/QUIC 依赖、Ed25519 设备身份、受 OS 保护的组密钥存储、配对 UI 或 P1 状态/禁用开关；现有 bbolt/TOML profile 虽为用户文件权限但保存账号 secret，不能直接把 P1 私钥/组密钥并入其中。实现前必须确认配对授权、隐私文案和密钥保管方案；P0 仍是可靠性兜底。
+
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)
 
 点击/双击文件打开走的是 `FileAccessService._ensureCachedObjectRequest`：`headObject` 拿远端 size/mtime → `FileCacheStore.findUsableCachePath` 通过 `RemoteStorageGateway.findCacheIndexRecord` 调 Go bridge 查询 bbolt 缓存索引 → 命中则直接用缓存文件，未命中则建 `download` 任务拉到 `<cacheDir>/files/<bucket>/<key>` 并写缓存记录。缓存命中的硬约束：记录的 `localPath` 必须 `_isInsideRoot` 缓存目录内，且 size/mtime 与远端匹配（`_matchesRemoteObject`）。
