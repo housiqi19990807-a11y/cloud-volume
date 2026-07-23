@@ -59,9 +59,10 @@ func SaveConfigBackupSettings(settings ConfigBackupSettings) error {
 	settings.Target.ProfileName = sanitizeProfileName(settings.Target.ProfileName)
 	settings.Target.Bucket = strings.TrimSpace(settings.Target.Bucket)
 	settings.Target.Prefix = strings.Trim(strings.TrimSpace(settings.Target.Prefix), "/")
-	if settings.Enabled && settings.Target.Bucket == "" {
-		return fmt.Errorf("请选择配置备份的存储桶")
-	}
+	// Allow enabling backup before the target is fully configured — the UI
+	// guides the user through target setup after the switch is turned on.
+	// Hard validation only fires for fields that are set: a standalone config,
+	// if provided, must be usable.
 	if settings.Target.ProfileName == "" {
 		if settings.Target.Standalone != nil {
 			normalized := settings.Target.Standalone.Normalized().WithDefaultWebDAVCredentials()
@@ -70,9 +71,6 @@ func SaveConfigBackupSettings(settings ConfigBackupSettings) error {
 			} else {
 				settings.Target.Standalone = nil
 			}
-		}
-		if settings.Enabled && (settings.Target.Standalone == nil || !settings.Target.Standalone.IsConfigured()) {
-			return fmt.Errorf("请配置用于备份的独立存储连接")
 		}
 	}
 	payload, err := json.Marshal(settings)
