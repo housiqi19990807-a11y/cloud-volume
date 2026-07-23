@@ -622,7 +622,7 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 - `go/configbackup/backups.go` — 解析目标，使用目标凭证材料派生 AES-GCM 密钥，上传/列举/下载 `*.cloud-volume-config.json.enc` 快照。恢复前校验前缀、后缀和最大 32 MiB 大小，再验证解密标签并导入。
 - `bridge/dispatch_config_backup.go` / `bridge/dispatch.go` — 提供加载/保存目标、立即备份、列出快照与还原方法；普通 profile、代理、排序变动后以 2 秒合并窗口异步自动备份，不因远端失败阻塞本地保存。
 - `lib/models/config_backup.dart` / `lib/services/remote_storage_*` — Flutter bridge model/API；Web 明确不支持本地配置备份。
-- `lib/widgets/settings_config_backup_section.dart` / `lib/pages/settings_page*.dart` — 「设置 → 配置备份」配置已有或独立目标、自动备份、立即备份、快照查看和二次确认还原。独立目标复用账号连接向导，但不会调用 `saveProfile`，因而不显示在账号页。
+- `lib/widgets/settings_config_backup_section.dart` / `lib/widgets/settings_config_backup_history_dialog.dart` / `lib/widgets/settings_config_backup_labels.dart` / `lib/pages/settings_page*.dart` — 「设置 → 配置备份」配置已有或独立目标、自动备份与立即备份；页面只保留历史摘要，完整快照列表在 `ConfigBackupHistoryDialog` 拟态框中滚动查看并二次确认还原。独立目标复用账号连接向导，但不会调用 `saveProfile`，因而不显示在账号页。
 
 **Gotchas:** 加密密钥由备份目标凭证派生，凭证轮换后旧快照需要旧凭证才能解密；匿名连接没有可用密钥，不能作为备份目标。自动备份只在已存在且启用的目标上运行，多个紧邻的本地配置写入会合并为一次快照。完整清除本地配置后，必须先重新提供备份目标连接才能读取远端快照，不能从加密备份中无凭证自举。
 
