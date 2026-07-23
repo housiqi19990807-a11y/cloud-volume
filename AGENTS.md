@@ -616,6 +616,8 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 **P1 readiness (2026-07-23):** P1 局域网即时通知可以复用 `bucketAccess.pollRemoteDirectory`：验证后的事件只应触发受影响父目录的远端重新列举、`bucketCache` 更新与现有 `externalDirectoryRefresh` 投影，不应直接调用 `NotifyExternalDelete`，因为后者会把本地 pending writeback 取消并写 tombstone，适用于“本客户端已确认完成的 bridge mutation”，不适用于尚待远端确认的对端提示。事件生产端应接在 `writebackQueue.flushNow`、`deleteQueue.runDelete`、`bucketAccess.renamePath` 等远端 mutation 成功点，而不是本地编辑入队点。仓库尚没有 mDNS/QUIC 依赖、Ed25519 设备身份、受 OS 保护的组密钥存储、配对 UI 或 P1 状态/禁用开关；现有 bbolt/TOML profile 虽为用户文件权限但保存账号 secret，不能直接把 P1 私钥/组密钥并入其中。实现前必须确认配对授权、隐私文案和密钥保管方案；P0 仍是可靠性兜底。
 
+**Automatic-discovery option (2026-07-23):** 可以免配对，但组密钥只能在内存中由同一挂载范围的规范化 `storageType + endpoint + bucket + rootPrefix` 与实际凭证材料经 HKDF-SHA256 派生；mDNS TXT 仅广播截断 `HMAC(groupKey, "cloud-volume/p1/discovery/v1")` 标签和临时端口，绝不广播 endpoint、bucket、路径或凭证。标签匹配后才建立 QUIC，首个双向流以随机 nonce、组密钥 HMAC 和 event MAC 认证；事件路径放在该加密流内，接收端按父目录刷新。这样无需持久化新的组密钥，但凭证轮换会自然换组，匿名/无密钥账号不能启用，并且弱 WebDAV/FTP 密码会让广播标签成为离线猜测验证器；自动发现应默认关闭或至少明确告知该风险。不要依赖 HMAC `pathHash` 反查任意路径，它不可逆；需传加密路径或只发已知目录刷新提示。
+
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)
 
 点击/双击文件打开走的是 `FileAccessService._ensureCachedObjectRequest`：`headObject` 拿远端 size/mtime → `FileCacheStore.findUsableCachePath` 通过 `RemoteStorageGateway.findCacheIndexRecord` 调 Go bridge 查询 bbolt 缓存索引 → 命中则直接用缓存文件，未命中则建 `download` 任务拉到 `<cacheDir>/files/<bucket>/<key>` 并写缓存记录。缓存命中的硬约束：记录的 `localPath` 必须 `_isInsideRoot` 缓存目录内，且 size/mtime 与远端匹配（`_matchesRemoteObject`）。
