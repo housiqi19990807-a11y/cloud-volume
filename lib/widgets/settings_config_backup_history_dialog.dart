@@ -73,41 +73,8 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
 
   Future<void> _restore(ConfigBackupSnapshot snapshot) async {
     final label = configBackupSnapshotPrimaryLabel(snapshot);
-    var password = _settings.target.backupPassword;
 
-    // For encrypted snapshots, try the locally-stored password first. Only
-    // when that fails do we prompt the user to enter the correct one.
-    if (snapshot.encrypted) {
-      var decryptOk = password.trim().isNotEmpty;
-      if (decryptOk) {
-        try {
-          await widget.api.verifyBackupPassword(
-            _settings.target.copyWith(backupPassword: password),
-            snapshot.key,
-          );
-        } catch (_) {
-          decryptOk = false;
-        }
-      }
-      if (!decryptOk) {
-        if (!mounted) return;
-        final entered = await _promptForRestorePassword(label);
-        if (entered == null) return; // cancelled
-        password = entered;
-        final newSettings =
-            _settings.copyWith(target: _settings.target.copyWith(backupPassword: entered));
-        try {
-          final saved = await widget.api.saveConfigBackupSettings(newSettings);
-          if (!mounted) return;
-          setState(() => _settings = saved);
-          widget.onSettingsChanged(saved);
-        } catch (_) {
-          // Non-fatal: continue with the in-memory password.
-        }
-      }
-    }
-
-    if (!mounted) return;
+    // Always confirm first — simple and predictable.
     final confirmed = await showAppConfirmModal(
       context: context,
       title: const Text('还原此配置备份？'),
@@ -119,15 +86,46 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
     );
     if (confirmed != true || !mounted) return;
 
+    var password = _settings.target.backupPassword;
     setState(() => _restoring = true);
     try {
-      final state = password != _settings.target.backupPassword
-          ? await widget.api.restoreConfigBackupWithTarget(
-              _settings.target.copyWith(backupPassword: password),
-              snapshot.key,
-              password: password,
-            )
-          : await widget.api.restoreConfigBackup(snapshot.key);
+      // Attempt restore with the locally-stored password (or no password
+      // for plaintext snapshots). If decryption fails, we'll prompt.
+      BootstrapState state;
+      try {
+        state = await widget.api.restoreConfigBackup(snapshot.key);
+      } catch (firstError) {
+        // If the snapshot is encrypted and the first attempt failed
+        // (likely wrong/missing password), prompt for the password and
+        // retry with the inline-target method.
+        if (!snapshot.encrypted && !configBackupFriendlyError(firstError)
+            .contains('加密')) {
+          rethrow;
+        }
+        if (!mounted) return;
+        final entered = await _promptForRestorePassword(label);
+        if (entered == null) return; // cancelled
+        password = entered;
+        // Persist the password for future use.
+        try {
+          final saved = await widget.api.saveConfigBackupSettings(
+            _settings.copyWith(
+              target: _settings.target.copyWith(backupPassword: entered),
+            ),
+          );
+          if (mounted) {
+            setState(() => _settings = saved);
+            widget.onSettingsChanged(saved);
+          }
+        } catch (_) {
+          // Non-fatal: continue with in-memory password.
+        }
+        state = await widget.api.restoreConfigBackupWithTarget(
+          _settings.target.copyWith(backupPassword: password),
+          snapshot.key,
+          password: password,
+        );
+      }
       if (!mounted) return;
       widget.onRestored(state);
       showAppToast(context, title: '配置已还原', message: label);
@@ -211,18 +209,10 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
       final value = entered;
       controller.dispose();
       if (value == null || value.isEmpty) return null; // cancelled
-      try {
-        await widget.api.verifyBackupPassword(
-          _settings.target.copyWith(backupPassword: value),
-          '',
-        );
-        return value;
-      } catch (_) {
-        if (!mounted) return null;
-        showAppErrorToast(context,
-            title: '密码错误', message: '输入的密码无法解密备份，请重试。');
-        // Loop to prompt again.
-      }
+      // No verification here — the caller will retry the restore and get
+      // an error if the password is wrong, which re-prompts. This avoids
+      // an extra network round-trip and keeps the UX simple.
+      return value;
     }
   }
 
