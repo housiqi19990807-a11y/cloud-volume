@@ -3,12 +3,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
+import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 import 'package:remote_storage/widgets/config_storage_type_step.dart';
+import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'config_setup_baidu_auth.dart';
 
@@ -55,6 +61,120 @@ class ConfigSetupPage extends StatefulWidget {
 
   @override
   State<ConfigSetupPage> createState() => _ConfigSetupPageState();
+}
+
+/// Extension that opens the backup-restore flow from the first-run setup page.
+/// On a fresh machine the user may have no accounts but does have remote
+/// backup snapshots they want to pull in.
+extension _ConfigSetupRestore on _ConfigSetupPageState {
+  Future<void> _openRestoreFromBackup() async {
+    final snapshots = <ConfigBackupSnapshot>[];
+    var loading = true;
+    var errorMessage = '';
+
+    await showAppModal<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            if (loading) {
+              loading = false;
+              widget.api.listConfigBackups().then((items) {
+                snapshots.clear();
+                snapshots.addAll(items);
+                if (ctx.mounted) setDialogState(() {});
+              }).catchError((e) {
+                errorMessage = configBackupFriendlyError(e);
+                if (ctx.mounted) setDialogState(() {});
+              });
+            }
+            return ShadDialog(
+              title: const Text('从备份存储还原'),
+              description: const Text('选择一份远端备份快照进行还原。'),
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: SizedBox(
+                width: 480,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (snapshots.isEmpty && errorMessage.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 28),
+                        child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    else if (snapshots.isEmpty && errorMessage.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Text(
+                          errorMessage,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: ShadTheme.of(ctx).colorScheme.destructive,
+                          ),
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 340),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: snapshots.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 6),
+                          itemBuilder: (_, index) {
+                            final s = snapshots[index];
+                            final label = configBackupSnapshotPrimaryLabel(s);
+                            return _RestoreSnapshotTile(
+                              label: label,
+                              latest: index == 0,
+                              onRestore: () async {
+                                final confirmed = await showAppConfirmModal(
+                                  context: ctx,
+                                  title: const Text('还原此配置备份？'),
+                                  description: Text('将用 $label 还原账号和配置。'),
+                                  confirmLabel: '还原',
+                                  destructive: true,
+                                );
+                                if (confirmed != true) return;
+                                if (!ctx.mounted) return;
+                                Navigator.of(dialogContext).pop();
+                                try {
+                                  await widget.api
+                                      .restoreConfigBackup(s.key);
+                                  if (!mounted) return;
+                                  showAppToast(context,
+                                      title: '配置已还原', message: label);
+                                  widget.onSaved();
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  showAppErrorToast(context,
+                                      title: '还原失败',
+                                      message: configBackupFriendlyError(e));
+                                }
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ShadButton.outline(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('取消'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class _ConfigSetupPageState extends State<ConfigSetupPage> {
@@ -462,6 +582,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                           selectedType: _storageType,
                           onTypeChanged: _selectStorageType,
                           onNext: _goToAccountForm,
+                          onRestoreFromBackup: _openRestoreFromBackup,
                         ),
                 ),
               ),
@@ -477,5 +598,84 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       return;
     }
     _mappedBucketNameController.text = value;
+  }
+}
+
+/// Hover-aware snapshot tile for the first-run restore dialog.
+class _RestoreSnapshotTile extends StatefulWidget {
+  const _RestoreSnapshotTile({
+    required this.label,
+    required this.latest,
+    required this.onRestore,
+  });
+
+  final String label;
+  final bool latest;
+  final Future<void> Function() onRestore;
+
+  @override
+  State<_RestoreSnapshotTile> createState() => _RestoreSnapshotTileState();
+}
+
+class _RestoreSnapshotTileState extends State<_RestoreSnapshotTile> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final interaction = ListInteractionColors.fromTheme(theme);
+    final bg = interaction.rowBackground(
+        selected: false, hovered: _hovered, pressed: false);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.basic,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.colorScheme.border),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.foreground,
+                ),
+              ),
+            ),
+            if (widget.latest) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color:
+                      theme.colorScheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('最新',
+                    style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary)),
+              ),
+            ],
+            const SizedBox(width: 10),
+            ShadButton.outline(
+              size: ShadButtonSize.sm,
+              onPressed: widget.onRestore,
+              child: const Text('还原'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

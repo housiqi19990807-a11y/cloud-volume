@@ -11,11 +11,13 @@ class ConfigStorageTypeStep extends StatelessWidget {
     required this.selectedType,
     required this.onTypeChanged,
     required this.onNext,
+    this.onRestoreFromBackup,
   });
 
   final StorageType selectedType;
   final ValueChanged<StorageType> onTypeChanged;
   final VoidCallback onNext;
+  final VoidCallback? onRestoreFromBackup;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +112,19 @@ class ConfigStorageTypeStep extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (onRestoreFromBackup != null) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 40,
+                          child: ShadButton.outline(
+                            onPressed: onRestoreFromBackup,
+                            child: const Text(
+                              '从备份存储还原',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

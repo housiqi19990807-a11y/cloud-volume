@@ -65,9 +65,17 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
   }
 
   Future<void> _restore(ConfigBackupSnapshot snapshot) async {
+    final label = configBackupSnapshotPrimaryLabel(snapshot);
     setState(() => _restoring = true);
     try {
       await widget.onRestore(snapshot);
+      if (!mounted) return;
+      showAppToast(context, title: '配置已还原', message: label);
+    } catch (error) {
+      if (mounted) {
+        showAppErrorToast(context,
+            title: '还原失败', message: configBackupFriendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _restoring = false);
     }
