@@ -25,10 +25,15 @@ import (
 
 const backupFileSuffix = ".cloud-volume-config.json.enc"
 
+// backupEnvelope wraps AES-GCM encrypted backup data. The Marker field
+// distinguishes encrypted envelopes from plaintext JSON backups — both are
+// valid JSON so Version alone is ambiguous (ConfigBackupArchive also has a
+// Version field that can be 1).
 type backupEnvelope struct {
-	Version int    `json:"version"`
-	Nonce   string `json:"nonce"`
-	Data    string `json:"data"`
+	Marker   bool   `json:"__enc__"`
+	Version  int    `json:"version"`
+	Nonce    string `json:"nonce"`
+	Data     string `json:"data"`
 }
 
 type Snapshot struct {
@@ -198,7 +203,7 @@ func encrypt(password string, plain []byte) ([]byte, error) {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
-	envelope, err := json.Marshal(backupEnvelope{Version: 1, Nonce: base64.RawStdEncoding.EncodeToString(nonce), Data: base64.RawStdEncoding.EncodeToString(gcm.Seal(nil, nonce, plain, nil))})
+	envelope, err := json.Marshal(backupEnvelope{Marker: true, Version: 1, Nonce: base64.RawStdEncoding.EncodeToString(nonce), Data: base64.RawStdEncoding.EncodeToString(gcm.Seal(nil, nonce, plain, nil))})
 	return envelope, err
 }
 
@@ -209,10 +214,11 @@ func decrypt(password string, payload []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// If the payload does not look like a backupEnvelope (version 1),
-	// treat it as plaintext JSON (unencrypted mode).
+	// If the payload does not carry the encryption marker, treat it as
+	// plaintext JSON (unencrypted mode). We cannot rely on Version==1 alone
+	// because ConfigBackupArchive also uses Version: 1.
 	var envelope backupEnvelope
-	if jsonErr := json.Unmarshal(payload, &envelope); jsonErr != nil || envelope.Version != 1 {
+	if jsonErr := json.Unmarshal(payload, &envelope); jsonErr != nil || !envelope.Marker {
 		return payload, nil
 	}
 	if key == nil {
