@@ -12,26 +12,41 @@ class _SettingsRailGroup {
   final List<_SettingsTab> tabs;
 }
 
-/// Vertical anchor rail with section headers. Each group (通用 / Windows / 关于)
-/// gets a muted header label followed by anchor tiles.
+/// Vertical anchor rail with section headers. Each group (常规 / 网络 / 存储 /
+/// 账号 / Windows / 关于) gets a muted header label followed by anchor tiles.
 extension _SettingsLayout on _SettingsPageState {
-  /// Builds the ordered group list, conditionally including the Windows group.
+  /// Builds the ordered group list, conditionally including platform groups.
   List<_SettingsRailGroup> _railGroups() {
     return [
       _SettingsRailGroup(
-        header: '通用',
+        header: '常规',
         tabs: [
           _SettingsTab.update,
-          _SettingsTab.proxy,
           _SettingsTab.appearance,
           _SettingsTab.logging,
+        ],
+      ),
+      _SettingsRailGroup(
+        header: '网络',
+        tabs: [
+          _SettingsTab.proxy,
+          if (isWebPlatform) _SettingsTab.webdav,
+        ],
+      ),
+      _SettingsRailGroup(
+        header: '存储',
+        tabs: [
           if (widget.api.capabilities.supportsDownloadDirectory)
             _SettingsTab.download,
           _SettingsTab.cache,
           _SettingsTab.visibility,
           _SettingsTab.sync,
           _SettingsTab.trash,
-          if (isWebPlatform) _SettingsTab.webdav,
+        ],
+      ),
+      _SettingsRailGroup(
+        header: '账号',
+        tabs: [
           _SettingsTab.resetAccount,
           if (!isWebPlatform) _SettingsTab.configBackup,
           _SettingsTab.configManage,

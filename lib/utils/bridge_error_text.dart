@@ -62,6 +62,23 @@ bool isObjectMissingError(Object error) {
   return _isObjectMissingRaw(raw, raw.toLowerCase());
 }
 
+// 配置备份解密失败判定。Go 侧稳定返回两类文案：
+//   "无法解密配置备份：cipher: message authentication failed"
+//   "此备份已加密，请先设置加密密码"
+// 只匹配这两条前缀 + AES-GCM 的 message authentication failed，
+// 不拿单独的「加密 / decrypt / cipher:」做子串匹配，避免网络/解析类错误
+// 被误判成密码问题后反复弹密码框。
+bool isConfigBackupDecryptionError(Object error) {
+  final raw = _extractBridgeErrorMessage(error);
+  if (raw.isEmpty) {
+    return false;
+  }
+  final lower = raw.toLowerCase();
+  return raw.contains('无法解密配置备份') ||
+      raw.contains('此备份已加密') ||
+      lower.contains('message authentication failed');
+}
+
 String _extractBridgeErrorMessage(Object error) {
   const prefix = 'RemoteStorageBridgeException: ';
   final text = error.toString().trim();

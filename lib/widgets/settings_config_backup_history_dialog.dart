@@ -6,7 +6,9 @@ import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/config_backup_restore.dart';
 import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -86,49 +88,40 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
     );
     if (confirmed != true || !mounted) return;
 
-    var password = _settings.target.backupPassword;
     setState(() => _restoring = true);
     try {
-      // Attempt restore with the locally-stored password (or no password
-      // for plaintext snapshots). If decryption fails, we'll prompt.
+      var usedPasswordRetry = false;
       BootstrapState state;
       try {
+        // 先走本地已保存的密码（或空密码）。解密失败再弹密码框重试，
+        // 其它错误直接抛出，避免把网络/解析失败误当成密码问题。
         state = await widget.api.restoreConfigBackup(snapshot.key);
       } catch (firstError) {
-        // If the snapshot is encrypted and the first attempt failed
-        // (likely wrong/missing password), prompt for the password and
-        // retry with the inline-target method.
-        if (!snapshot.encrypted && !configBackupFriendlyError(firstError)
-            .contains('加密')) {
+        if (!isConfigBackupDecryptionError(firstError)) {
           rethrow;
         }
+        // 本地密码已经证明不对：直接弹密码框，不要再拿同一密码重试一轮。
+        // with-target 成功后 bridge 会把含新密码的 target 固化到本地设置。
         if (!mounted) return;
-        final entered = await _promptForRestorePassword(label);
-        if (entered == null) return; // cancelled
-        password = entered;
-        // Persist the password for future use.
-        try {
-          final saved = await widget.api.saveConfigBackupSettings(
-            _settings.copyWith(
-              target: _settings.target.copyWith(backupPassword: entered),
-            ),
-          );
-          if (mounted) {
-            setState(() => _settings = saved);
-            widget.onSettingsChanged(saved);
-          }
-        } catch (_) {
-          // Non-fatal: continue with in-memory password.
-        }
-        state = await widget.api.restoreConfigBackupWithTarget(
-          _settings.target.copyWith(backupPassword: password),
-          snapshot.key,
-          password: password,
+        usedPasswordRetry = true;
+        state = await restoreConfigBackupWithPasswordRetry(
+          context: context,
+          isMounted: () => mounted,
+          api: widget.api,
+          target: _settings.target,
+          key: snapshot.key,
+          label: label,
+          skipInitialAttempt: true,
         );
+      }
+      if (usedPasswordRetry) {
+        await _syncSettingsAfterPasswordRestore();
       }
       if (!mounted) return;
       widget.onRestored(state);
       showAppToast(context, title: '配置已还原', message: label);
+    } on ConfigBackupRestoreCancelled {
+      // 用户取消密码输入：静默退出，不弹「还原失败」。
     } catch (error) {
       if (mounted) {
         showAppErrorToast(context,
@@ -139,80 +132,15 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
     }
   }
 
-  /// Prompts for the backup password when the locally-stored one does not
-  /// decrypt the snapshot. Loops until the entered password verifies or the
-  /// user cancels.
-  Future<String?> _promptForRestorePassword(String label) async {
-    while (true) {
-      final controller = TextEditingController();
-      var obscure = true;
-      String? entered;
-      if (!mounted) return null;
-      await showAppModalDialog<void>(
-        context: context,
-        title: const Text('输入备份密码'),
-        description: Text('本地备份密码无法解密 $label，请输入正确的备份密码。'),
-        maxWidth: 420,
-        child: StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ShadInput(
-                  controller: controller,
-                  obscureText: obscure,
-                  autofocus: true,
-                  placeholder: const Text('输入备份密码'),
-                  onSubmitted: (value) {
-                    entered = value.trim();
-                    Navigator.of(dialogContext).pop();
-                  },
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    ShadSwitch(
-                      value: !obscure,
-                      onChanged: (v) => setDialogState(() => obscure = !v),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('显示密码',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: ShadTheme.of(dialogContext)
-                                .colorScheme
-                                .mutedForeground)),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          Builder(
-            builder: (dialogContext) => ShadButton.outline(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('取消'),
-            ),
-          ),
-          Builder(
-            builder: (dialogContext) => ShadButton(
-              onPressed: () {
-                entered = controller.text.trim();
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('确定'),
-            ),
-          ),
-        ],
-      );
-      final value = entered;
-      controller.dispose();
-      if (value == null || value.isEmpty) return null; // cancelled
-      // No verification here — the caller will retry the restore and get
-      // an error if the password is wrong, which re-prompts. This avoids
-      // an extra network round-trip and keeps the UX simple.
-      return value;
+  /// with-target 还原成功后 bridge 已写入新密码；这里再读一遍同步 UI。
+  Future<void> _syncSettingsAfterPasswordRestore() async {
+    try {
+      final latest = await widget.api.loadConfigBackupSettings();
+      if (!mounted) return;
+      setState(() => _settings = latest);
+      widget.onSettingsChanged(latest);
+    } catch (_) {
+      // Non-fatal: restore itself already succeeded.
     }
   }
 
@@ -251,7 +179,12 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final busy = _loading || _restoring || _deleting;
+    // Note: `_loading` (background refresh) intentionally does NOT lock the
+    // action buttons. Locking them during the open-time refresh caused the
+    // first tap on 还原/删除 to be silently swallowed while the post-frame
+    // list refresh was still running — the classic "first click does nothing"
+    // bug. Only an active restore/delete disables the row actions.
+    final busy = _restoring || _deleting;
     return ShadDialog(
       title: const Text('配置备份历史'),
       description: const Text('按时间查看远端加密快照。还原会替换当前账号、代理和显示排序。'),
@@ -279,7 +212,10 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
                 ),
                 ShadButton.ghost(
                   size: ShadButtonSize.sm,
-                  onPressed: busy ? null : _refresh,
+                  // `busy` no longer includes background `_loading`, so keep
+                  // the refresh button explicitly disabled while a refresh is
+                  // running to avoid stacking concurrent list calls.
+                  onPressed: (_loading || busy) ? null : _refresh,
                   child: Text(_loading ? '刷新中…' : '刷新'),
                 ),
               ],
@@ -499,3 +435,4 @@ class _BackupSnapshotTileState extends State<_BackupSnapshotTile> {
     );
   }
 }
+

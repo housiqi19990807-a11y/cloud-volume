@@ -1,25 +1,26 @@
-// 首次启动配置页：第一步左右分栏（品牌 + 协议选择），第二步全屏账号表单。
-// 表单页通过收缩左侧宣传拿到完整宽度；步骤切换只做轻量宽度/淡入动画。
+// 首次启动配置页：协议选择 → 全屏账号表单；步骤切换只做轻量宽度/淡入动画。
 
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
+import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/config_backup.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
-import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/app_modal.dart';
-import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
-import 'package:remote_storage/utils/bridge_error_text.dart';
+import 'package:remote_storage/widgets/config_backup_restore.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
+import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
+import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
+import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 import 'package:remote_storage/widgets/config_storage_type_step.dart';
-import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
-import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'config_setup_baidu_auth.dart';
+part 'config_setup_restore.dart';
 
 // 首次运行预设默认网关（IHEP 对象存储 / WebDAV）。
 const _kDefaultS3Endpoint = 'https://fgws3-ocloud.ihep.ac.cn';
@@ -31,23 +32,6 @@ const _kBaiduPanEndpoint = 'https://pan.baidu.com';
 const _kStepAnimDuration = Duration(milliseconds: 240);
 
 /// 是否仍是首次引导里的预设地址（用户未手改时允许随协议切换）。
-bool _isPresetEndpoint(String value) {
-  final endpoint = value.trim();
-  return endpoint.isEmpty ||
-      endpoint == _kDefaultS3Endpoint ||
-      endpoint == _kDefaultWebDavEndpoint ||
-      endpoint == _kBaiduPanEndpoint;
-}
-
-String _defaultEndpointFor(StorageType type) {
-  return switch (type) {
-    StorageType.s3 => _kDefaultS3Endpoint,
-    StorageType.webdav => _kDefaultWebDavEndpoint,
-    StorageType.baiduPan => _kBaiduPanEndpoint,
-    StorageType.ftp || StorageType.sftp => '',
-  };
-}
-
 enum _SetupStep { chooseType, accountForm }
 
 class ConfigSetupPage extends StatefulWidget {
@@ -64,314 +48,6 @@ class ConfigSetupPage extends StatefulWidget {
 
   @override
   State<ConfigSetupPage> createState() => _ConfigSetupPageState();
-}
-
-/// Extension that opens the backup-restore flow from the first-run setup page.
-/// On a fresh machine the user may have no accounts but does have remote
-/// backup snapshots they want to pull in.
-extension _ConfigSetupRestore on _ConfigSetupPageState {
-  Future<void> _openRestoreFromBackup() async {
-    // Step 1: check whether backup settings already exist locally.
-    var target = const ConfigBackupTarget();
-    try {
-      final settings = await widget.api.loadConfigBackupSettings();
-      if (settings.target.isReady) target = settings.target;
-    } catch (_) {
-      // Ignore — treat as unconfigured.
-    }
-    if (!target.isReady) {
-      // No usable local target — let the user connect a backup storage inline.
-      final configured = await _promptForBackupStorage();
-      if (configured == null) return;
-      target = configured;
-    }
-    if (!mounted) return;
-    // Step 2: list snapshots using the (possibly inline) target.
-    await _showSnapshotList(target);
-  }
-
-  /// Opens the standalone storage dialog so the user can connect a backup
-  /// storage without first creating an account. Returns the resolved target
-  /// (with bucket + prefix) or null if cancelled.
-  Future<ConfigBackupTarget?> _promptForBackupStorage() async {
-    RemoteStorageConfig? storageConfig;
-    await showAppModal<void>(
-      context: context,
-      builder: (_) => CloudStorageAccountDialog(
-        api: widget.api,
-        simpleMode: true,
-        onListBuckets: widget.api.listBuckets,
-        onStartBaiduPanAuthorization: widget.api.startBaiduPanAuthorization,
-        onAuthorizeBaiduPan: widget.api.authorizeBaiduPan,
-        onSave: (config) async {
-          if (!config.isConfigured) return false;
-          storageConfig = config;
-          return true;
-        },
-      ),
-    );
-    if (storageConfig == null || !storageConfig!.isConfigured) return null;
-
-    // Pick save location (bucket + prefix) from the connected storage.
-    if (!mounted) return null;
-    final location = await _pickBackupLocation(storageConfig!);
-    if (location == null) return null;
-
-    return ConfigBackupTarget(
-      standalone: storageConfig,
-      bucket: location.bucket,
-      prefix: location.prefix,
-    );
-  }
-
-  /// Opens the remote directory picker on the given storage config so the
-  /// user can choose where backups live. Returns the bucket + prefix or null.
-  Future<({String bucket, String prefix})?> _pickBackupLocation(
-    RemoteStorageConfig config,
-  ) async {
-    List<FileManagerBucketEntry> entries;
-    try {
-      final buckets = await widget.api.listBuckets(config);
-      entries = buckets
-          .map((b) => FileManagerBucketEntry.fromBucketInfo(
-                bucket: b,
-                profileName: '__restore__',
-                sourceLabel: config.displayName.isEmpty
-                    ? config.storageType.label
-                    : config.displayName,
-                config: config,
-              ))
-          .toList();
-    } catch (error) {
-      if (mounted) {
-        showAppErrorToast(context,
-            title: '读取存储桶失败', message: configBackupFriendlyError(error));
-      }
-      return null;
-    }
-    if (!mounted) return null;
-    final initial = entries.isEmpty ? '' : entries.first.profileName;
-    final result = await showRemoteDirectoryPicker(
-      context: context,
-      api: widget.api,
-      buckets: entries,
-      initial: RemoteDirectoryResult(
-        bucket: '',
-        prefix: 'cloud-volume-config-backups',
-        profileName: initial,
-        config: config,
-      ),
-    );
-    if (result == null || result.bucket.trim().isEmpty) return null;
-    return (bucket: result.bucket, prefix: result.prefix);
-  }
-
-  /// Prompts the user for the backup encryption password. Used when a
-  /// snapshot is encrypted but no password is available locally (first-run
-  /// restore on a new machine). Returns the entered password or null if
-  /// cancelled.
-  Future<String?> _promptForBackupPassword(
-    BuildContext context,
-    String snapshotLabel,
-  ) async {
-    final controller = TextEditingController();
-    var obscure = true;
-    String? entered;
-    await showAppModalDialog<void>(
-      context: context,
-      title: const Text('输入备份密码'),
-      description: Text('备份 $snapshotLabel 已加密，请输入加密时设置的备份密码。'),
-      maxWidth: 420,
-      child: StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ShadInput(
-                controller: controller,
-                obscureText: obscure,
-                placeholder: const Text('输入备份密码'),
-                onSubmitted: (value) {
-                  entered = value.trim();
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  ShadSwitch(
-                    value: !obscure,
-                    onChanged: (v) =>
-                        setDialogState(() => obscure = !v),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('显示密码',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              ShadTheme.of(context).colorScheme.mutedForeground)),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
-      actions: [
-        Builder(
-          builder: (dialogContext) => ShadButton.outline(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('取消'),
-          ),
-        ),
-        Builder(
-          builder: (dialogContext) => ShadButton(
-            onPressed: () {
-              entered = controller.text.trim();
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('确定'),
-          ),
-        ),
-      ],
-    );
-    controller.dispose();
-    return entered;
-  }
-
-  /// Shows the snapshot list modal for the given target. Uses the inline-target
-  /// bridge methods so it works even before local settings are persisted.
-  Future<void> _showSnapshotList(ConfigBackupTarget target) async {
-    final snapshots = <ConfigBackupSnapshot>[];
-    var loading = true;
-    var errorMessage = '';
-
-    await showAppModal<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            if (loading) {
-              loading = false;
-              widget.api
-                  .listConfigBackupsWithTarget(target)
-                  .then((items) {
-                snapshots.clear();
-                snapshots.addAll(items);
-                if (ctx.mounted) setDialogState(() {});
-              }).catchError((e) {
-                errorMessage = configBackupFriendlyError(e);
-                if (ctx.mounted) setDialogState(() {});
-              });
-            }
-            return ShadDialog(
-              title: const Text('从备份存储还原'),
-              description: const Text('选择一份远端备份快照进行还原。'),
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: SizedBox(
-                width: 480,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (snapshots.isEmpty && errorMessage.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 28),
-                        child: Center(
-                            child: CircularProgressIndicator(strokeWidth: 2)),
-                      )
-                    else if (snapshots.isEmpty && errorMessage.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: Text(
-                          errorMessage,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: ShadTheme.of(ctx).colorScheme.destructive,
-                          ),
-                        ),
-                      )
-                    else
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 340),
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: snapshots.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 6),
-                          itemBuilder: (_, index) {
-                            final s = snapshots[index];
-                            final label = configBackupSnapshotPrimaryLabel(s);
-                            return _RestoreSnapshotTile(
-                              label: label,
-                              latest: index == 0,
-                              encrypted: s.encrypted &&
-                                  target.backupPassword.trim().isEmpty,
-                              onRestore: () async {
-                                // If the snapshot is encrypted and no
-                                // password is available locally, prompt
-                                // for the backup password before restore.
-                                var restoreTarget = target;
-                                if (s.encrypted &&
-                                    target.backupPassword.trim().isEmpty) {
-                                  final pwd = await _promptForBackupPassword(
-                                    ctx,
-                                    label,
-                                  );
-                                  if (pwd == null) return;
-                                  if (!ctx.mounted) return;
-                                  restoreTarget = target.copyWith(
-                                    backupPassword: pwd,
-                                  );
-                                }
-                                final confirmed = await showAppConfirmModal(
-                                  context: ctx,
-                                  title: const Text('还原此配置备份？'),
-                                  description: Text('将用 $label 还原账号和配置。'),
-                                  confirmLabel: '还原',
-                                  destructive: true,
-                                );
-                                if (confirmed != true) return;
-                                if (!ctx.mounted) return;
-                                Navigator.of(dialogContext).pop();
-                                try {
-                                  await widget.api
-                                      .restoreConfigBackupWithTarget(
-                                    restoreTarget,
-                                    s.key,
-                                    password: restoreTarget.backupPassword,
-                                  );
-                                  if (!mounted) return;
-                                  showAppToast(context,
-                                      title: '配置已还原', message: label);
-                                  widget.onSaved();
-                                } catch (e) {
-                                  if (!mounted) return;
-                                  showAppErrorToast(context,
-                                      title: '还原失败',
-                                      message: configBackupFriendlyError(e));
-                                }
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: ShadButton.outline(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        child: const Text('取消'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 }
 
 class _ConfigSetupPageState extends State<ConfigSetupPage> {
@@ -400,8 +76,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   bool _isSaving = false;
   String? _errorText;
 
-  // Shared state update entry point for form actions split into part files.
-  void _updateState(VoidCallback action) => setState(action);
+    void _updateState(VoidCallback action) => setState(action);
 
   @override
   void initState() {
@@ -421,8 +96,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
           ? 'FTP'
           : 'S3',
     );
-    // 首次运行时使用默认值。
-    _mappedBucketNameController = TextEditingController(
+        _mappedBucketNameController = TextEditingController(
       text: config.mappedBucketName.trim().isNotEmpty
           ? config.mappedBucketName
           : config.storageType == StorageType.webdav
@@ -482,8 +156,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
   void _selectStorageType(StorageType type) {
     setState(() {
       _storageType = type;
-      // 仅在仍是预设/空地址时替换，避免覆盖用户已手填的自定义网关。
-      if (type == StorageType.baiduPan ||
+            if (type == StorageType.baiduPan ||
           _isPresetEndpoint(_endpointController.text)) {
         _endpointController.text = _defaultEndpointFor(type);
       }
@@ -585,8 +258,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
       cacheDirectory: widget.initialState.config.cacheDirectory,
       resolvedCacheDirectory: widget.initialState.config.resolvedCacheDirectory,
       hideDotFiles: widget.initialState.config.hideDotFiles,
-      // 文件浏览固定为单击打开，配置阶段不再暴露这个开关。
-      fileOpenMode: FileOpenMode.singleClick,
+            fileOpenMode: FileOpenMode.singleClick,
       trashDirectoryName: widget.initialState.config.trashDirectoryName,
       trashRetentionDays: widget.initialState.config.trashRetentionDays,
       bucketSettings: widget.initialState.config.bucketSettings,
@@ -653,8 +325,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
 
   void _goToAccountForm() {
     if (_isSaving || _step == _SetupStep.accountForm) return;
-    // 进入表单前再对齐一次当前协议的默认网关。
-    if (_isPresetEndpoint(_endpointController.text)) {
+        if (_isPresetEndpoint(_endpointController.text)) {
       _endpointController.text = _defaultEndpointFor(_storageType);
     }
     setState(() {
@@ -677,8 +348,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // 左侧按半宽内容裁剪收缩，避免内容被挤压变形。
-          final brandWidth = constraints.maxWidth * 0.5;
+                    final brandWidth = constraints.maxWidth * 0.5;
           return Row(
             children: [
               TweenAnimationBuilder<double>(
@@ -706,8 +376,7 @@ class _ConfigSetupPageState extends State<ConfigSetupPage> {
                   duration: _kStepAnimDuration,
                   switchInCurve: Curves.easeOut,
                   switchOutCurve: Curves.easeIn,
-                  // 只淡入新页，不叠画旧页，降低切换期绘制压力。
-                  transitionBuilder: (child, animation) {
+                                    transitionBuilder: (child, animation) {
                     return FadeTransition(opacity: animation, child: child);
                   },
                   layoutBuilder: (currentChild, _) {
@@ -819,70 +488,3 @@ class _RestoreSnapshotTile extends StatefulWidget {
   State<_RestoreSnapshotTile> createState() => _RestoreSnapshotTileState();
 }
 
-class _RestoreSnapshotTileState extends State<_RestoreSnapshotTile> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final interaction = ListInteractionColors.fromTheme(theme);
-    final bg = interaction.rowBackground(
-        selected: false, hovered: _hovered, pressed: false);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: SystemMouseCursors.basic,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.colorScheme.border),
-        ),
-        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-        child: Row(
-          children: [
-            if (widget.encrypted) ...[
-              Icon(Icons.lock_outline,
-                  size: 14, color: theme.colorScheme.mutedForeground),
-              const SizedBox(width: 6),
-            ],
-            Expanded(
-              child: Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.foreground,
-                ),
-              ),
-            ),
-            if (widget.latest) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color:
-                      theme.colorScheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text('最新',
-                    style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.primary)),
-              ),
-            ],
-            const SizedBox(width: 10),
-            ShadButton.outline(
-              size: ShadButtonSize.sm,
-              onPressed: widget.onRestore,
-              child: const Text('还原'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

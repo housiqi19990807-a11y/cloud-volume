@@ -619,12 +619,14 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 桌面端可把当前账号配置保存为加密的远端快照，便于在误改配置后从设置页还原；备份目标本身不属于普通账号列表时也可独立保存。
 
 - `go/config/config_backup.go` — 在 bbolt `meta` 保存 `ConfigBackupSettings`；目标可引用 profile 或保存独立 `RemoteStorageConfig`。`ExportConfigBackup`/`RestoreConfigBackup` 只处理 profiles、活动账号、全局代理和显示顺序，刻意不打包本地缓存；还原时保留备份目标设置。
-- `go/configbackup/backups.go` — 解析目标，使用目标凭证材料派生 AES-GCM 密钥，上传/列举/下载 `*.cloud-volume-config.json.enc` 快照。恢复前校验前缀、后缀和最大 32 MiB 大小，再验证解密标签并导入。
-- `bridge/dispatch_config_backup.go` / `bridge/dispatch.go` — 提供加载/保存目标、立即备份、列出快照与还原方法；普通 profile、代理、排序变动后以 2 秒合并窗口异步自动备份，不因远端失败阻塞本地保存。
+- `go/configbackup/backups.go` — 解析目标，用用户自设备份密码派生 AES-GCM 密钥（`cloud-volume/config-backup/v2` + password 的 SHA-256），上传/列举/下载 `*.cloud-volume-config.json.enc` 快照。恢复前校验前缀、后缀和最大 32 MiB 大小，再验证解密标签并导入。空密码走明文 JSON；加密但无密码时返回 `此备份已加密，请先设置加密密码`，密码错误时包装为 `无法解密配置备份：...`。
+- `bridge/dispatch_config_backup.go` / `bridge/dispatch.go` — 提供加载/保存目标、立即备份、列出快照与还原方法；`restore_config_backup_with_target` 成功后把 inline target（含密码）固化为本地备份设置并默认开启自动备份。普通 profile、代理、排序变动后以 2 秒合并窗口异步自动备份，不因远端失败阻塞本地保存。
 - `lib/models/config_backup.dart` / `lib/services/remote_storage_*` — Flutter bridge model/API；Web 明确不支持本地配置备份。
-- `lib/widgets/settings_config_backup_section.dart` / `lib/widgets/settings_config_backup_cards.dart` / `lib/widgets/settings_config_backup_history_dialog.dart` / `lib/widgets/settings_config_backup_labels.dart` / `lib/pages/settings_page*.dart` — 「设置 → 配置备份」配置已有或独立目标、自动备份与立即备份；页面只保留可点击的历史摘要卡片，完整快照列表在 `ConfigBackupHistoryDialog` 拟态框中滚动查看并二次确认还原。独立目标复用账号连接向导，但不会调用 `saveProfile`，因而不显示在账号页。
+- `lib/utils/bridge_error_text.dart` / `test/config_backup_restore_test.dart` — `isConfigBackupDecryptionError` 只匹配 Go 稳定解密失败文案（`无法解密配置备份` / `此备份已加密` / `message authentication failed`），避免网络/解析错误误进密码重试。
+- `lib/widgets/config_backup_restore.dart` — 共享密码输入弹窗 + 解密失败重试循环；`skipInitialAttempt` 用于「本地密码已经失败过」的路径，避免再跑一轮必然失败的下载；取消抛 `ConfigBackupRestoreCancelled`，调用方静默退出。
+- `lib/widgets/settings_config_backup_section.dart` / `lib/widgets/settings_config_backup_cards.dart` / `lib/widgets/settings_config_backup_history_dialog.dart` / `lib/widgets/settings_config_backup_labels.dart` / `lib/pages/settings_page*.dart` / `lib/pages/config_setup_page.dart` — 「设置 → 账号 → 配置备份」配置已有或独立目标、自动备份与立即备份；页面只保留可点击的历史摘要卡片，完整快照列表在 `ConfigBackupHistoryDialog` 拟态框中滚动查看。还原流程统一为：点还原 → 立刻确认 → 用本地密码尝试 → 解密失败才弹密码框循环重试。历史弹窗打开时的后台刷新不再锁住行按钮，避免首点被吞。首次启动「从备份存储还原」复用同一套密码重试 helper。独立目标复用账号连接向导，但不会调用 `saveProfile`，因而不显示在账号页。
 
-**Gotchas:** 加密密钥由备份目标凭证派生，凭证轮换后旧快照需要旧凭证才能解密；匿名连接没有可用密钥，不能作为备份目标。自动备份只在已存在且启用的目标上运行，多个紧邻的本地配置写入会合并为一次快照。完整清除本地配置后，必须先重新提供备份目标连接才能读取远端快照，不能从加密备份中无凭证自举。
+**Gotchas:** 加密密钥只从用户备份密码派生，与 endpoint / AK/SK 无关，换机器可解密；密码错误与未设密码是两类稳定错误，UI 只对它们弹密码框。自动备份只在已存在且启用的目标上运行，多个紧邻的本地配置写入会合并为一次快照。完整清除本地配置后，必须先重新提供备份目标连接才能读取远端快照，不能从加密备份中无凭证自举。设置页历史弹窗里 `busy` 只应包含 `_restoring/_deleting`，不要把后台 `_loading` 并进去，否则打开瞬间点还原会被静默吞掉。
 
 **P1 readiness (2026-07-23):** P1 局域网即时通知可以复用 `bucketAccess.pollRemoteDirectory`：验证后的事件只应触发受影响父目录的远端重新列举、`bucketCache` 更新与现有 `externalDirectoryRefresh` 投影，不应直接调用 `NotifyExternalDelete`，因为后者会把本地 pending writeback 取消并写 tombstone，适用于“本客户端已确认完成的 bridge mutation”，不适用于尚待远端确认的对端提示。事件生产端应接在 `writebackQueue.flushNow`、`deleteQueue.runDelete`、`bucketAccess.renamePath` 等远端 mutation 成功点，而不是本地编辑入队点。仓库尚没有 mDNS/QUIC 依赖、Ed25519 设备身份、受 OS 保护的组密钥存储、配对 UI 或 P1 状态/禁用开关；现有 bbolt/TOML profile 虽为用户文件权限但保存账号 secret，不能直接把 P1 私钥/组密钥并入其中。实现前必须确认配对授权、隐私文案和密钥保管方案；P0 仍是可靠性兜底。
 

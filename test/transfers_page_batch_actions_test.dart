@@ -297,6 +297,32 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
       throw UnimplementedError();
 
   @override
+  Future<void> deleteConfigBackup(String key) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<ConfigBackupSnapshot>> listConfigBackupsWithTarget(
+    ConfigBackupTarget target,
+  ) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<BootstrapState> restoreConfigBackupWithTarget(
+    ConfigBackupTarget target,
+    String key, {
+    String? password,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<bool> verifyBackupPassword(
+    ConfigBackupTarget target,
+    String key, {
+    String? password,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
   Future<ObjectInfo> headObject(
     RemoteStorageConfig config,
     String bucket,

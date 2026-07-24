@@ -1,4 +1,5 @@
-// 设置页负责按“通用 / Windows / 关于”分组展示配置，避免平台专属选项把通用设置挤在同一长页里。
+// 设置页负责按“常规 / 存储 / 网络 / 账号 / Windows / 关于”分组展示配置，
+// 避免平台专属选项和过多通用设置挤在同一长页里。
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -36,24 +37,27 @@ part 'settings_page_windows_mount_actions.dart';
 /// Each enum value identifies a settings card that can be reached from the
 /// left-side anchor rail.
 enum _SettingsTab {
-  // General group
+  // 常规 group: 应用外观、版本、日志
   update,
-  proxy,
   appearance,
   logging,
+  // 网络 group: 代理、WebDAV 凭据
+  proxy,
+  webdav,
+  // 存储 group: 下载、缓存、显示、同步、回收站
   download,
   cache,
   visibility,
   sync,
   trash,
-  webdav,
+  // 账号 group: 重置、备份、配置管理
   resetAccount,
   configBackup,
   configManage,
   // Windows group
   windowsWriteback,
   windowsMount,
-  // About group
+  // 关于 group
   about,
 }
 
