@@ -88,7 +88,8 @@ String configBackupHistoryDetail({
   if (snapshots.isEmpty) return '点这里打开备份历史；建议先完成一次立即备份。';
   final latest = configBackupSnapshotPrimaryLabel(snapshots.first);
   final size = configBackupSnapshotSecondaryLabel(snapshots.first);
-  return size.isEmpty ? '最近一份：$latest' : '最近一份：$latest · $size';
+  // For the summary card, only show the time — the file name is noise here.
+  return size.isEmpty ? '最近备份：$latest' : '最近备份：$latest · $size';
 }
 
 String configBackupSnapshotPrimaryLabel(ConfigBackupSnapshot snapshot) {
@@ -113,10 +114,6 @@ String configBackupSnapshotSecondaryLabel(ConfigBackupSnapshot snapshot) {
   if (snapshot.size > 0) {
     parts.add(formatBytes(snapshot.size));
   }
-  final name = snapshot.displayName.trim();
-  if (name.isNotEmpty && name != configBackupSnapshotPrimaryLabel(snapshot)) {
-    parts.add(name);
-  }
   return parts.join(' · ');
 }
 
@@ -130,4 +127,3 @@ String configBackupFriendlyError(Object error) {
   }
   return text;
 }
-
