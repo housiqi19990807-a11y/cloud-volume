@@ -27,6 +27,10 @@ type configBackupRestoreArgs struct {
 	Key string `json:"key"`
 }
 
+type configBackupDeleteArgs struct {
+	Key string `json:"key"`
+}
+
 func loadConfigBackupSettings() (any, error) {
 	return storageconfig.LoadConfigBackupSettings()
 }
@@ -68,6 +72,19 @@ func restoreConfigBackup(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return loadBootstrapState()
+}
+
+func deleteConfigBackup(args json.RawMessage) (any, error) {
+	var input configBackupDeleteArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := configbackup.Delete(ctx, input.Key); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
 }
 
 // queueAutomaticConfigBackup never makes saving an account depend on remote availability.

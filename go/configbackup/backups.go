@@ -135,6 +135,23 @@ func Restore(ctx context.Context, key string) error {
 	return storageconfig.RestoreConfigBackup(archive)
 }
 
+// Delete removes a single backup snapshot from the configured remote target.
+func Delete(ctx context.Context, key string) error {
+	settings, err := storageconfig.LoadConfigBackupSettings()
+	if err != nil {
+		return err
+	}
+	cfg, bucket, prefix, _, err := resolveTarget(settings)
+	if err != nil {
+		return err
+	}
+	cleanKey := strings.Trim(strings.TrimSpace(key), "/")
+	if !strings.HasPrefix(cleanKey, ensurePrefix(prefix)) || !strings.HasSuffix(cleanKey, backupFileSuffix) {
+		return fmt.Errorf("无效的配置备份文件")
+	}
+	return storageops.ForConfig(cfg).DeleteObject(ctx, bucket, cleanKey, false, "")
+}
+
 func resolveTarget(settings storageconfig.ConfigBackupSettings) (storageconfig.RemoteStorageConfig, string, string, string, error) {
 	target := settings.Target
 	var cfg storageconfig.RemoteStorageConfig

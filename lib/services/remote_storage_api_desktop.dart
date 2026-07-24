@@ -316,6 +316,11 @@ class RemoteStorageApi
   }
 
   @override
+  Future<void> deleteConfigBackup(String key) async {
+    await runBridgeCall('delete_config_backup', {'key': key});
+  }
+
+  @override
   List<T> parseBridgeList<T>(
     dynamic result,
     T Function(Map<String, dynamic>) fromJson,

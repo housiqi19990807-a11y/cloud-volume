@@ -346,6 +346,10 @@ class RemoteStorageApi
       throw UnsupportedError('Web 端暂不支持本地配置备份');
 
   @override
+  Future<void> deleteConfigBackup(String key) =>
+      throw UnsupportedError('Web 端暂不支持本地配置备份');
+
+  @override
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
     String bucket,

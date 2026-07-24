@@ -226,6 +226,9 @@ class _SettingsConfigBackupSectionState
           Navigator.of(dialogContext).pop();
           await _restore(snapshot);
         },
+        onDelete: (snapshot) async {
+          await widget.api.deleteConfigBackup(snapshot.key);
+        },
         onSnapshotsChanged: (items) {
           if (!mounted) return;
           setState(() => _snapshots = items);

@@ -2,8 +2,10 @@
 // Keeps potentially long history out of the settings page body.
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/config_backup.dart';
+import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
+import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -13,12 +15,14 @@ class ConfigBackupHistoryDialog extends StatefulWidget {
     required this.api,
     required this.initialSnapshots,
     required this.onRestore,
+    required this.onDelete,
     required this.onSnapshotsChanged,
   });
 
   final RemoteStorageGateway api;
   final List<ConfigBackupSnapshot> initialSnapshots;
   final Future<void> Function(ConfigBackupSnapshot snapshot) onRestore;
+  final Future<void> Function(ConfigBackupSnapshot snapshot) onDelete;
   final ValueChanged<List<ConfigBackupSnapshot>> onSnapshotsChanged;
 
   @override
@@ -30,6 +34,7 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
   late List<ConfigBackupSnapshot> _snapshots;
   bool _loading = false;
   bool _restoring = false;
+  bool _deleting = false;
   String? _error;
 
   @override
@@ -68,10 +73,42 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
     }
   }
 
+  Future<void> _delete(ConfigBackupSnapshot snapshot) async {
+    final label = configBackupSnapshotPrimaryLabel(snapshot);
+    final confirmed = await showAppConfirmModal(
+      context: context,
+      title: const Text('删除此备份？'),
+      description: Text('删除后无法恢复。$label'),
+      confirmLabel: '删除',
+      destructive: true,
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
+    try {
+      await widget.onDelete(snapshot);
+      if (!mounted) return;
+      final remaining = _snapshots.where((s) => s.key != snapshot.key).toList();
+      setState(() => _snapshots = remaining);
+      widget.onSnapshotsChanged(remaining);
+      if (mounted) {
+        showAppToast(context, title: '已删除', message: label);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = configBackupFriendlyError(error));
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final busy = _loading || _restoring;
+    final busy = _loading || _restoring || _deleting;
     return ShadDialog(
       title: const Text('配置备份历史'),
       description: const Text('按时间查看远端加密快照。还原会替换当前账号、代理和显示排序。'),
@@ -167,6 +204,7 @@ class _ConfigBackupHistoryDialogState extends State<ConfigBackupHistoryDialog> {
                       latest: index == 0,
                       busy: busy,
                       onRestore: () => _restore(snapshot),
+                      onDelete: () => _delete(snapshot),
                     );
                   },
                 ),
@@ -203,12 +241,14 @@ class _BackupSnapshotTile extends StatefulWidget {
     required this.latest,
     required this.busy,
     required this.onRestore,
+    required this.onDelete,
   });
 
   final ConfigBackupSnapshot snapshot;
   final bool latest;
   final bool busy;
   final VoidCallback onRestore;
+  final VoidCallback onDelete;
 
   @override
   State<_BackupSnapshotTile> createState() => _BackupSnapshotTileState();
@@ -304,10 +344,15 @@ class _BackupSnapshotTileState extends State<_BackupSnapshotTile> {
               onPressed: widget.busy ? null : widget.onRestore,
               child: const Text('还原'),
             ),
+            const SizedBox(width: 6),
+            ShadButton.destructive(
+              size: ShadButtonSize.sm,
+              onPressed: widget.busy ? null : widget.onDelete,
+              child: const Text('删除'),
+            ),
           ],
         ),
       ),
     );
   }
 }
-
