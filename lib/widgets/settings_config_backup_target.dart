@@ -31,9 +31,11 @@ class ConfigBackupTargetSection extends StatelessWidget {
     required this.target,
     required this.busy,
     required this.backingUp,
+    required this.encryptionEnabled,
     required this.onSelectTarget,
     required this.onConfigureStandalone,
     required this.onPickSaveLocation,
+    required this.onToggleEncryption,
     required this.onPasswordSaved,
     required this.onBackupNow,
   });
@@ -44,9 +46,11 @@ class ConfigBackupTargetSection extends StatelessWidget {
   final ConfigBackupTarget target;
   final bool busy;
   final bool backingUp;
+  final bool encryptionEnabled;
   final ValueChanged<String> onSelectTarget;
   final ValueChanged<RemoteStorageConfig> onConfigureStandalone;
   final void Function(String bucket, String prefix) onPickSaveLocation;
+  final ValueChanged<bool> onToggleEncryption;
   final ValueChanged<String> onPasswordSaved;
   final VoidCallback onBackupNow;
 
@@ -98,15 +102,193 @@ class ConfigBackupTargetSection extends StatelessWidget {
             onPicked: onPickSaveLocation,
           ),
           const SizedBox(height: 8),
-          _EncryptionKeyButton(
+          _EncryptionSection(
             theme: theme,
-            target: target,
+            encryptionEnabled: encryptionEnabled,
+            hasPassword: target.backupPassword.trim().isNotEmpty,
+            busy: busy,
+            onToggleEncryption: onToggleEncryption,
             onPasswordSaved: onPasswordSaved,
           ),
+          if (encryptionEnabled) ...[
+            const SizedBox(height: 8),
+            _EncryptionPasswordRow(
+              theme: theme,
+              hasPassword: target.backupPassword.trim().isNotEmpty,
+              busy: busy,
+              onPasswordSaved: onPasswordSaved,
+            ),
+          ],
           const SizedBox(height: 14),
           ShadButton(
             onPressed: target.isReady && !busy ? onBackupNow : null,
             child: Text(backingUp ? '备份中…' : '立即备份'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Shown when encryption is enabled: a button to set/change/clear password
+/// plus a warning line if no password is configured yet.
+class _EncryptionPasswordRow extends StatefulWidget {
+  const _EncryptionPasswordRow({
+    required this.theme,
+    required this.hasPassword,
+    required this.busy,
+    required this.onPasswordSaved,
+  });
+
+  final ShadThemeData theme;
+  final bool hasPassword;
+  final bool busy;
+  final ValueChanged<String> onPasswordSaved;
+
+  @override
+  State<_EncryptionPasswordRow> createState() => _EncryptionPasswordRowState();
+}
+
+class _EncryptionPasswordRowState extends State<_EncryptionPasswordRow> {
+  late final TextEditingController _pwdController;
+  late final TextEditingController _confirmController;
+  bool _obscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pwdController = TextEditingController();
+    _confirmController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _pwdController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openModal() async {
+    _pwdController.clear();
+    _confirmController.clear();
+    _obscure = true;
+    String? savedPassword;
+    await showAppModalDialog<void>(
+      context: context,
+      title: Text(widget.hasPassword ? '修改加密密码' : '设置加密密码'),
+      description: const Text(
+          '加密密码不依赖连接地址或凭证，换机器、换网络地址都不影响解密。请妥善保管，丢失后无法找回。'),
+      maxWidth: 440,
+      child: StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CloudStorageLabeledField(
+                label: widget.hasPassword ? '新密码' : '加密密码',
+                child: ShadInput(
+                  controller: _pwdController,
+                  obscureText: _obscure,
+                  placeholder: const Text('输入加密密码'),
+                ),
+              ),
+              const SizedBox(height: 14),
+              CloudStorageLabeledField(
+                label: '确认密码',
+                child: ShadInput(
+                  controller: _confirmController,
+                  obscureText: _obscure,
+                  placeholder: const Text('再次输入密码'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ShadSwitch(
+                    value: !_obscure,
+                    onChanged: (v) => setDialogState(() => _obscure = !v),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('显示密码',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: widget.theme.colorScheme.mutedForeground)),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        ShadButton.outline(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        if (widget.hasPassword)
+          Builder(
+            builder: (dialogContext) => ShadButton.outline(
+              onPressed: () {
+                savedPassword = '';
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('清除密码'),
+            ),
+          ),
+        Builder(
+          builder: (dialogContext) => ShadButton(
+            onPressed: () {
+              final pwd = _pwdController.text.trim();
+              final confirm = _confirmController.text.trim();
+              if (pwd.isEmpty) return;
+              if (pwd != confirm) {
+                showAppErrorToast(context,
+                    title: '密码不一致', message: '两次输入的密码不匹配。');
+                return;
+              }
+              savedPassword = pwd;
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('保存'),
+          ),
+        ),
+      ],
+    );
+    if (savedPassword != null && mounted) {
+      widget.onPasswordSaved(savedPassword!);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            ShadButton.outline(
+              size: ShadButtonSize.sm,
+              onPressed: widget.busy ? null : _openModal,
+              child: Text(widget.hasPassword ? '修改加密密码' : '设置加密密码'),
+            ),
+            if (widget.hasPassword) ...[
+              const SizedBox(width: 10),
+              ShadButton.outline(
+                size: ShadButtonSize.sm,
+                onPressed: widget.busy ? null : () => widget.onPasswordSaved(''),
+                child: const Text('重置备份密码'),
+              ),
+            ],
+          ],
+        ),
+        if (!widget.hasPassword) ...[
+          const SizedBox(height: 6),
+          Text(
+            '备份密码未配置，加密不会生效，备份将以明文存储。',
+            style: TextStyle(
+              fontSize: 11.5,
+              color: theme.colorScheme.destructive,
+            ),
           ),
         ],
       ],
@@ -434,145 +616,38 @@ class _PickerButtonState extends State<_PickerButton> {
   }
 }
 
-/// Encryption-password setup button: lets the user set or change the backup
-/// passphrase. The AES key is derived from this password, not from connection
-/// credentials, so backups stay decryptable across machines.
-class _EncryptionKeyButton extends StatefulWidget {
-  const _EncryptionKeyButton({
+/// 备份加密区块：switch 控制是否启用加密；启用后显示设置/修改密码按钮，
+/// 若未配置密码则提示「加密不会生效」。
+class _EncryptionSection extends StatelessWidget {
+  const _EncryptionSection({
     required this.theme,
-    required this.target,
+    required this.encryptionEnabled,
+    required this.hasPassword,
+    required this.busy,
+    required this.onToggleEncryption,
     required this.onPasswordSaved,
   });
 
   final ShadThemeData theme;
-  final ConfigBackupTarget target;
+  final bool encryptionEnabled;
+  final bool hasPassword;
+  final bool busy;
+  final ValueChanged<bool> onToggleEncryption;
   final ValueChanged<String> onPasswordSaved;
 
   @override
-  State<_EncryptionKeyButton> createState() => _EncryptionKeyButtonState();
-}
-
-class _EncryptionKeyButtonState extends State<_EncryptionKeyButton> {
-  late final TextEditingController _pwdController;
-  late final TextEditingController _confirmController;
-  bool _obscure = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _pwdController = TextEditingController();
-    _confirmController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _pwdController.dispose();
-    _confirmController.dispose();
-    super.dispose();
-  }
-
-  bool get _hasPassword => widget.target.backupPassword.trim().isNotEmpty;
-
-  Future<void> _openModal() async {
-    _pwdController.clear();
-    _confirmController.clear();
-    _obscure = true;
-    String? savedPassword;
-    await showAppModalDialog<void>(
-      context: context,
-      title: Text(_hasPassword ? '修改加密密码' : '设置加密密码（可选）'),
-      description: const Text(
-          '设置加密密码后，备份会加密存储，新机器恢复时需输入此密码。不设密码则以明文存储。密码不依赖连接地址或凭证，请妥善保管，丢失后无法找回。'),
-      maxWidth: 440,
-      child: StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CloudStorageLabeledField(
-                label: _hasPassword ? '新密码' : '加密密码',
-                child: ShadInput(
-                  controller: _pwdController,
-                  obscureText: _obscure,
-                  placeholder: const Text('输入加密密码'),
-                ),
-              ),
-              const SizedBox(height: 14),
-              CloudStorageLabeledField(
-                label: '确认密码',
-                child: ShadInput(
-                  controller: _confirmController,
-                  obscureText: _obscure,
-                  placeholder: const Text('再次输入密码'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  ShadSwitch(
-                    value: !_obscure,
-                    onChanged: (v) =>
-                        setDialogState(() => _obscure = !v),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('显示密码',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: widget.theme.colorScheme.mutedForeground)),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
-      actions: [
-        ShadButton.outline(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        if (_hasPassword)
-          Builder(
-            builder: (dialogContext) => ShadButton.outline(
-              onPressed: () {
-                savedPassword = '';
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('清除密码'),
-            ),
-          ),
-        Builder(
-          builder: (dialogContext) => ShadButton(
-            onPressed: () {
-              final pwd = _pwdController.text.trim();
-              final confirm = _confirmController.text.trim();
-              if (pwd.isEmpty) return;
-              if (pwd != confirm) {
-                showAppErrorToast(context,
-                    title: '密码不一致', message: '两次输入的密码不匹配。');
-                return;
-              }
-              savedPassword = pwd;
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('保存'),
-          ),
-        ),
-      ],
-    );
-    if (savedPassword != null && mounted) {
-      widget.onPasswordSaved(savedPassword!);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ShadButton.outline(
-        size: ShadButtonSize.sm,
-        onPressed: _openModal,
-        child: Text(_hasPassword ? '修改加密密码' : '设置加密密码（可选）'),
-      ),
+    return ConfigBackupSwitchCard(
+      theme: theme,
+      title: '备份加密',
+      description: encryptionEnabled
+          ? (hasPassword
+              ? '已启用加密，备份将使用密码加密存储。'
+              : '已启用加密但未设置密码，加密不会生效，备份将以明文存储。')
+          : '关闭后备份以明文存储，不进行加密。',
+      value: encryptionEnabled,
+      enabled: !busy,
+      onChanged: onToggleEncryption,
     );
   }
 }

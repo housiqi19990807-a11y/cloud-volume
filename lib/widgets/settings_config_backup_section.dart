@@ -270,6 +270,28 @@ class _SettingsConfigBackupSectionState
     );
   }
 
+  Future<void> _toggleEncryption(bool enabled) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final saved = await widget.api.saveConfigBackupSettings(
+        _settings.copyWith(encryptionEnabled: enabled),
+      );
+      if (!mounted) return;
+      setState(() => _settings = saved);
+    } catch (error) {
+      if (mounted) {
+        final message = configBackupFriendlyError(error);
+        setState(() => _error = message);
+        showAppErrorToast(context, title: '保存失败', message: message);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   // -- Build -----------------------------------------------------------------
 
   @override
@@ -324,9 +346,11 @@ class _SettingsConfigBackupSectionState
             target: _settings.target,
             busy: _busy,
             backingUp: _backingUp,
+            encryptionEnabled: _settings.encryptionEnabled,
             onSelectTarget: _onSelectTarget,
             onConfigureStandalone: _onConfigureStandalone,
             onPickSaveLocation: _onPickSaveLocation,
+            onToggleEncryption: _toggleEncryption,
             onPasswordSaved: _onPasswordSaved,
             onBackupNow: _backupNow,
           ),

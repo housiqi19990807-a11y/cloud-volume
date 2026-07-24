@@ -26,8 +26,9 @@ type ConfigBackupTarget struct {
 }
 
 type ConfigBackupSettings struct {
-	Enabled bool               `json:"enabled"`
-	Target  ConfigBackupTarget `json:"target"`
+	Enabled           bool               `json:"enabled"`
+	EncryptionEnabled bool               `json:"encryptionEnabled"`
+	Target            ConfigBackupTarget `json:"target"`
 }
 
 // ConfigBackupArchive contains user-facing account configuration, not caches.

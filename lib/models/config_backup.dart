@@ -63,28 +63,37 @@ class ConfigBackupTarget {
 class ConfigBackupSettings {
   const ConfigBackupSettings({
     this.enabled = false,
+    this.encryptionEnabled = false,
     this.target = const ConfigBackupTarget(),
   });
 
   factory ConfigBackupSettings.fromJson(Map<String, dynamic> json) =>
       ConfigBackupSettings(
         enabled: json['enabled'] == true,
+        encryptionEnabled: json['encryptionEnabled'] == true,
         target: ConfigBackupTarget.fromJson(
           json['target'] as Map<String, dynamic>? ?? const <String, dynamic>{},
         ),
       );
 
   final bool enabled;
+  final bool encryptionEnabled;
   final ConfigBackupTarget target;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'enabled': enabled,
+    'encryptionEnabled': encryptionEnabled,
     'target': target.toJson(),
   };
 
-  ConfigBackupSettings copyWith({bool? enabled, ConfigBackupTarget? target}) =>
+  ConfigBackupSettings copyWith({
+    bool? enabled,
+    bool? encryptionEnabled,
+    ConfigBackupTarget? target,
+  }) =>
       ConfigBackupSettings(
         enabled: enabled ?? this.enabled,
+        encryptionEnabled: encryptionEnabled ?? this.encryptionEnabled,
         target: target ?? this.target,
       );
 }

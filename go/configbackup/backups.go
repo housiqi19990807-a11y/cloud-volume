@@ -48,6 +48,11 @@ func BackupNow(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
+	// When encryption is toggled on but no password is configured yet,
+	// refuse to produce an unencrypted backup that the user thinks is safe.
+	if settings.EncryptionEnabled && password == "" {
+		return Snapshot{}, fmt.Errorf("已启用加密但未设置备份密码，请先设置加密密码")
+	}
 	archive, err := storageconfig.ExportConfigBackup()
 	if err != nil {
 		return Snapshot{}, err
