@@ -166,6 +166,78 @@ extension _ConfigSetupRestore on _ConfigSetupPageState {
     return (bucket: result.bucket, prefix: result.prefix);
   }
 
+  /// Prompts the user for the backup encryption password. Used when a
+  /// snapshot is encrypted but no password is available locally (first-run
+  /// restore on a new machine). Returns the entered password or null if
+  /// cancelled.
+  Future<String?> _promptForBackupPassword(
+    BuildContext context,
+    String snapshotLabel,
+  ) async {
+    final controller = TextEditingController();
+    var obscure = true;
+    String? entered;
+    await showAppModalDialog<void>(
+      context: context,
+      title: const Text('输入备份密码'),
+      description: Text('备份 $snapshotLabel 已加密，请输入加密时设置的备份密码。'),
+      maxWidth: 420,
+      child: StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ShadInput(
+                controller: controller,
+                obscureText: obscure,
+                placeholder: const Text('输入备份密码'),
+                onSubmitted: (value) {
+                  entered = value.trim();
+                  Navigator.of(dialogContext).pop();
+                },
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ShadSwitch(
+                    value: !obscure,
+                    onChanged: (v) =>
+                        setDialogState(() => obscure = !v),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('显示密码',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              ShadTheme.of(context).colorScheme.mutedForeground)),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+      actions: [
+        Builder(
+          builder: (dialogContext) => ShadButton.outline(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('取消'),
+          ),
+        ),
+        Builder(
+          builder: (dialogContext) => ShadButton(
+            onPressed: () {
+              entered = controller.text.trim();
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('确定'),
+          ),
+        ),
+      ],
+    );
+    controller.dispose();
+    return entered;
+  }
+
   /// Shows the snapshot list modal for the given target. Uses the inline-target
   /// bridge methods so it works even before local settings are persisted.
   Future<void> _showSnapshotList(ConfigBackupTarget target) async {
@@ -232,7 +304,25 @@ extension _ConfigSetupRestore on _ConfigSetupPageState {
                             return _RestoreSnapshotTile(
                               label: label,
                               latest: index == 0,
+                              encrypted: s.encrypted &&
+                                  target.backupPassword.trim().isEmpty,
                               onRestore: () async {
+                                // If the snapshot is encrypted and no
+                                // password is available locally, prompt
+                                // for the backup password before restore.
+                                var restoreTarget = target;
+                                if (s.encrypted &&
+                                    target.backupPassword.trim().isEmpty) {
+                                  final pwd = await _promptForBackupPassword(
+                                    ctx,
+                                    label,
+                                  );
+                                  if (pwd == null) return;
+                                  if (!ctx.mounted) return;
+                                  restoreTarget = target.copyWith(
+                                    backupPassword: pwd,
+                                  );
+                                }
                                 final confirmed = await showAppConfirmModal(
                                   context: ctx,
                                   title: const Text('还原此配置备份？'),
@@ -246,7 +336,10 @@ extension _ConfigSetupRestore on _ConfigSetupPageState {
                                 try {
                                   await widget.api
                                       .restoreConfigBackupWithTarget(
-                                          target, s.key);
+                                    restoreTarget,
+                                    s.key,
+                                    password: restoreTarget.backupPassword,
+                                  );
                                   if (!mounted) return;
                                   showAppToast(context,
                                       title: '配置已还原', message: label);
@@ -711,11 +804,16 @@ class _RestoreSnapshotTile extends StatefulWidget {
     required this.label,
     required this.latest,
     required this.onRestore,
+    this.encrypted = false,
   });
 
   final String label;
   final bool latest;
   final Future<void> Function() onRestore;
+
+  /// When true, shows a lock badge to indicate an encrypted snapshot that
+  /// will prompt for a password on restore.
+  final bool encrypted;
 
   @override
   State<_RestoreSnapshotTile> createState() => _RestoreSnapshotTileState();
@@ -744,6 +842,11 @@ class _RestoreSnapshotTileState extends State<_RestoreSnapshotTile> {
         padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
         child: Row(
           children: [
+            if (widget.encrypted) ...[
+              Icon(Icons.lock_outline,
+                  size: 14, color: theme.colorScheme.mutedForeground),
+              const SizedBox(width: 6),
+            ],
             Expanded(
               child: Text(
                 widget.label,

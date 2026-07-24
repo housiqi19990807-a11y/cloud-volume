@@ -41,6 +41,10 @@ type Snapshot struct {
 	CreatedAt   string `json:"createdAt"`
 	Size        int64  `json:"size"`
 	DisplayName string `json:"displayName"`
+	// Encrypted is true when the snapshot payload carries the encryption
+	// envelope marker. The UI uses this to prompt for a password before
+	// restore when no password is available locally.
+	Encrypted bool `json:"encrypted"`
 }
 
 // BackupNow serializes the current account configuration and uploads an encrypted snapshot.
@@ -77,7 +81,7 @@ func BackupWithTarget(ctx context.Context, target storageconfig.ConfigBackupTarg
 	if err := storageops.ForConfig(cfg).UploadReader(ctx, bucket, key, bytes.NewReader(ciphertext), int64(len(ciphertext)), "", name); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{Key: key, CreatedAt: now.Format(time.RFC3339), Size: int64(len(ciphertext)), DisplayName: name}, nil
+	return Snapshot{Key: key, CreatedAt: now.Format(time.RFC3339), Size: int64(len(ciphertext)), DisplayName: name, Encrypted: password != ""}, nil
 }
 
 // List returns newest-first configuration snapshots at the configured target.
@@ -101,15 +105,34 @@ func ListWithTarget(ctx context.Context, target storageconfig.ConfigBackupTarget
 	if err != nil {
 		return nil, err
 	}
+	backend := storageops.ForConfig(cfg)
 	items := make([]Snapshot, 0, len(page.Items))
 	for _, item := range page.Items {
 		if item.IsDir || !strings.HasSuffix(item.Key, backupFileSuffix) {
 			continue
 		}
-		items = append(items, Snapshot{Key: item.Key, CreatedAt: item.LastModified, Size: item.Size, DisplayName: path.Base(item.Key)})
+		snap := Snapshot{Key: item.Key, CreatedAt: item.LastModified, Size: item.Size, DisplayName: path.Base(item.Key)}
+		// Probe the first 256 bytes to detect the encryption envelope marker
+		// without downloading the full payload. This lets the UI prompt for
+		// a password when an encrypted snapshot is selected for restore.
+		probeSize := item.Size
+		if probeSize > 256 {
+			probeSize = 256
+		}
+		if head, perr := backend.ReadObjectRange(ctx, bucket, item.Key, 0, probeSize); perr == nil {
+			snap.Encrypted = isEncryptedPayload(head)
+		}
+		items = append(items, snap)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Key > items[j].Key })
 	return items, nil
+}
+
+// isEncryptedPayload checks whether a JSON payload prefix carries the
+// backupEnvelope marker field. It does a lightweight byte search rather than
+// a full json.Unmarshal so partial reads still work.
+func isEncryptedPayload(data []byte) bool {
+	return bytes.Contains(data, []byte(`"__enc__":true`))
 }
 
 // Restore downloads, authenticates, and applies one snapshot. The backup target remains configured locally.

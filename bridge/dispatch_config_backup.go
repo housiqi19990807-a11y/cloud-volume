@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,9 +39,13 @@ type configBackupTargetArgs struct {
 }
 
 // configBackupRestoreTargetArgs carries target + key for inline-target restore.
+// The optional PasswordOverride lets the caller supply a decrypt password that
+// differs from the target's stored BackupPassword (e.g. first-run restore on a
+// new machine where no local password is configured).
 type configBackupRestoreTargetArgs struct {
-	Target storageconfig.ConfigBackupTarget `json:"target"`
-	Key    string                           `json:"key"`
+	Target          storageconfig.ConfigBackupTarget `json:"target"`
+	Key             string                           `json:"key"`
+	PasswordOverride string                           `json:"passwordOverride,omitempty"`
 }
 
 func loadConfigBackupSettings() (any, error) {
@@ -124,15 +129,21 @@ func restoreConfigBackupWithTarget(args json.RawMessage) (any, error) {
 	if err := bucketmount.CleanupMounts(); err != nil {
 		return nil, fmt.Errorf("还原前卸载现有挂载失败：%w", err)
 	}
-	if err := configbackup.RestoreWithTarget(ctx, input.Target, input.Key); err != nil {
+	// Apply password override when the caller provides one (first-run flow).
+	restoreTarget := input.Target
+	if password := strings.TrimSpace(input.PasswordOverride); password != "" {
+		restoreTarget = restoreTarget.CopyWithPassword(password)
+	}
+	if err := configbackup.RestoreWithTarget(ctx, restoreTarget, input.Key); err != nil {
 		return nil, err
 	}
-	// Persist the inline target as backup settings so automatic backups
-	// continue to the same storage. Enabled defaults to true so the user
-	// does not need to reconfigure after restore.
+	// Persist the inline target (with the password) as backup settings so
+	// automatic backups continue to the same storage. Enabled defaults to
+	// true so the user does not need to reconfigure after restore.
 	if err := storageconfig.SaveConfigBackupSettings(storageconfig.ConfigBackupSettings{
-		Enabled: true,
-		Target:  input.Target,
+		Enabled:           true,
+		EncryptionEnabled: restoreTarget.BackupPassword != "",
+		Target:            restoreTarget,
 	}); err != nil {
 		// Non-fatal: restore itself succeeded; settings persistence is best-effort.
 		log.Printf("[config-backup] failed to persist restore target: %v", err)

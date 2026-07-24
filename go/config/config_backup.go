@@ -31,6 +31,19 @@ type ConfigBackupSettings struct {
 	Target            ConfigBackupTarget `json:"target"`
 }
 
+// CopyWithPassword returns a copy of the target with the backup password
+// replaced. Used by the first-run restore flow where the user enters a
+// decrypt password that is not yet stored in the local target.
+func (t ConfigBackupTarget) CopyWithPassword(password string) ConfigBackupTarget {
+	return ConfigBackupTarget{
+		ProfileName:    t.ProfileName,
+		Standalone:     t.Standalone,
+		Bucket:         t.Bucket,
+		Prefix:         t.Prefix,
+		BackupPassword: password,
+	}
+}
+
 // ConfigBackupArchive contains user-facing account configuration, not caches.
 type ConfigBackupArchive struct {
 	Version       int                            `json:"version"`

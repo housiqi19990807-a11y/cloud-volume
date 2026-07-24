@@ -122,8 +122,9 @@ abstract class RemoteStorageGateway {
   ) async => throw UnsupportedError('配置备份不可用');
   Future<BootstrapState> restoreConfigBackupWithTarget(
     ConfigBackupTarget target,
-    String key,
-  ) async => throw UnsupportedError('配置备份不可用');
+    String key, {
+    String? password,
+  }) async => throw UnsupportedError('配置备份不可用');
   Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config);
   Future<BucketInfo> getBucketQuota(RemoteStorageConfig config, String bucket);
   Future<List<ObjectInfo>> listObjects(

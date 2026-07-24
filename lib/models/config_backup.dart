@@ -104,6 +104,7 @@ class ConfigBackupSnapshot {
     required this.createdAt,
     required this.size,
     required this.displayName,
+    this.encrypted = false,
   });
 
   factory ConfigBackupSnapshot.fromJson(Map<String, dynamic> json) =>
@@ -112,10 +113,16 @@ class ConfigBackupSnapshot {
         createdAt: (json['createdAt'] ?? '').toString(),
         size: (json['size'] ?? 0) as int,
         displayName: (json['displayName'] ?? '').toString(),
+        encrypted: json['encrypted'] == true,
       );
 
   final String key;
   final String createdAt;
   final int size;
   final String displayName;
+
+  /// Whether the snapshot payload carries the encryption envelope. The UI
+  /// uses this to prompt for a backup password before restore when no
+  /// password is available locally (e.g. first-run restore on a new machine).
+  final bool encrypted;
 }

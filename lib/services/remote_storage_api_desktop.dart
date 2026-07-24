@@ -339,11 +339,19 @@ class RemoteStorageApi
   @override
   Future<BootstrapState> restoreConfigBackupWithTarget(
     ConfigBackupTarget target,
-    String key,
-  ) async {
+    String key, {
+    String? password,
+  }) async {
+    final args = <String, dynamic>{
+      'target': target.toJson(),
+      'key': key,
+    };
+    if (password != null && password.isNotEmpty) {
+      args['passwordOverride'] = password;
+    }
     final result = await runBridgeCall(
       'restore_config_backup_with_target',
-      {'target': target.toJson(), 'key': key},
+      args,
     );
     return BootstrapState.fromJson(result as Map<String, dynamic>);
   }
