@@ -62,12 +62,8 @@ func SaveConfigBackupSettings(settings ConfigBackupSettings) error {
 	settings.Target.ProfileName = sanitizeProfileName(settings.Target.ProfileName)
 	settings.Target.Bucket = strings.TrimSpace(settings.Target.Bucket)
 	settings.Target.Prefix = strings.Trim(strings.TrimSpace(settings.Target.Prefix), "/")
-	// When the user enables backup, require a non-empty encryption password
-	// so the key does not depend on connection credentials (which can vary
-	// across machines, e.g. internal vs public endpoint).
-	if settings.Enabled && strings.TrimSpace(settings.Target.BackupPassword) == "" {
-		return fmt.Errorf("请先设置备份加密密码")
-	}
+	// Encryption password is optional. When empty, backups are stored
+	// unencrypted (plaintext JSON). When set, AES-GCM is used.
 	// Allow enabling backup before the target is fully configured — the UI
 	// guides the user through target setup after the switch is turned on.
 	if settings.Target.ProfileName == "" {

@@ -149,10 +149,8 @@ func resolveTarget(settings storageconfig.ConfigBackupSettings) (storageconfig.R
 	if !cfg.IsConfigured() || strings.TrimSpace(target.Bucket) == "" {
 		return cfg, "", "", "", fmt.Errorf("请先完成配置备份存储")
 	}
+	// Password is optional — empty means plaintext (unencrypted) backups.
 	password := strings.TrimSpace(target.BackupPassword)
-	if password == "" {
-		return cfg, "", "", "", fmt.Errorf("请先设置备份加密密码")
-	}
 	return cfg, strings.TrimSpace(target.Bucket), strings.Trim(strings.TrimSpace(target.Prefix), "/"), password, nil
 }
 
@@ -164,9 +162,11 @@ func ensurePrefix(prefix string) string {
 	return clean + "/"
 }
 
+// encryptionKey returns nil when no password is set, signalling that the
+// backup should be stored as plaintext JSON.
 func encryptionKey(password string) ([]byte, error) {
 	if strings.TrimSpace(password) == "" {
-		return nil, fmt.Errorf("请先设置备份加密密码")
+		return nil, nil
 	}
 	// Derive a stable AES-256 key from the user's passphrase only — not from
 	// connection credentials — so the same password decrypts backups across
@@ -175,10 +175,16 @@ func encryptionKey(password string) ([]byte, error) {
 	return sum[:], nil
 }
 
+// encrypt returns the AES-GCM envelope when a password is set, or the
+// plaintext payload directly when no password is configured.
 func encrypt(password string, plain []byte) ([]byte, error) {
 	key, err := encryptionKey(password)
 	if err != nil {
 		return nil, err
+	}
+	if key == nil {
+		// No password: store as plaintext JSON (no encryption).
+		return plain, nil
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -196,14 +202,22 @@ func encrypt(password string, plain []byte) ([]byte, error) {
 	return envelope, err
 }
 
+// decrypt unwraps the AES-GCM envelope when a password is set, or returns
+// the payload directly if it is plaintext JSON (no password / v0 backups).
 func decrypt(password string, payload []byte) ([]byte, error) {
 	key, err := encryptionKey(password)
 	if err != nil {
 		return nil, err
 	}
+	// If the payload does not look like a backupEnvelope (version 1),
+	// treat it as plaintext JSON (unencrypted mode).
 	var envelope backupEnvelope
-	if err := json.Unmarshal(payload, &envelope); err != nil || envelope.Version != 1 {
-		return nil, fmt.Errorf("不支持的备份格式")
+	if jsonErr := json.Unmarshal(payload, &envelope); jsonErr != nil || envelope.Version != 1 {
+		return payload, nil
+	}
+	if key == nil {
+		// Envelope exists but no password configured — cannot decrypt.
+		return nil, fmt.Errorf("此备份已加密，请先设置加密密码")
 	}
 	nonce, err := base64.RawStdEncoding.DecodeString(envelope.Nonce)
 	if err != nil {

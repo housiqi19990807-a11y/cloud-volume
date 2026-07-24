@@ -480,9 +480,9 @@ class _EncryptionKeyButtonState extends State<_EncryptionKeyButton> {
     String? savedPassword;
     await showAppModalDialog<void>(
       context: context,
-      title: Text(_hasPassword ? '修改加密密码' : '设置加密密码'),
+      title: Text(_hasPassword ? '修改加密密码' : '设置加密密码（可选）'),
       description: const Text(
-          '加密密码用于保护备份内容。新机器恢复时只需输入此密码，不依赖连接地址或凭证。请妥善保管，丢失后无法找回。'),
+          '设置加密密码后，备份会加密存储，新机器恢复时需输入此密码。不设密码则以明文存储。密码不依赖连接地址或凭证，请妥善保管，丢失后无法找回。'),
       maxWidth: 440,
       child: StatefulBuilder(
         builder: (dialogContext, setDialogState) {
@@ -530,6 +530,16 @@ class _EncryptionKeyButtonState extends State<_EncryptionKeyButton> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
+        if (_hasPassword)
+          Builder(
+            builder: (dialogContext) => ShadButton.outline(
+              onPressed: () {
+                savedPassword = '';
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('清除密码'),
+            ),
+          ),
         Builder(
           builder: (dialogContext) => ShadButton(
             onPressed: () {
@@ -561,7 +571,7 @@ class _EncryptionKeyButtonState extends State<_EncryptionKeyButton> {
       child: ShadButton.outline(
         size: ShadButtonSize.sm,
         onPressed: _openModal,
-        child: Text(_hasPassword ? '修改加密密码' : '设置加密密码'),
+        child: Text(_hasPassword ? '修改加密密码' : '设置加密密码（可选）'),
       ),
     );
   }
