@@ -321,6 +321,34 @@ class RemoteStorageApi
   }
 
   @override
+  Future<List<ConfigBackupSnapshot>> listConfigBackupsWithTarget(
+    ConfigBackupTarget target,
+  ) async {
+    final result = await runBridgeCall(
+      'list_config_backups_with_target',
+      {'target': target.toJson()},
+    );
+    if (result is! List) return const <ConfigBackupSnapshot>[];
+    return result
+        .map(
+          (item) => ConfigBackupSnapshot.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<BootstrapState> restoreConfigBackupWithTarget(
+    ConfigBackupTarget target,
+    String key,
+  ) async {
+    final result = await runBridgeCall(
+      'restore_config_backup_with_target',
+      {'target': target.toJson(), 'key': key},
+    );
+    return BootstrapState.fromJson(result as Map<String, dynamic>);
+  }
+
+  @override
   List<T> parseBridgeList<T>(
     dynamic result,
     T Function(Map<String, dynamic>) fromJson,

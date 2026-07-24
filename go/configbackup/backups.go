@@ -49,7 +49,13 @@ func BackupNow(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
-	cfg, bucket, prefix, password, err := resolveTarget(settings)
+	return BackupWithTarget(ctx, settings.Target)
+}
+
+// BackupWithTarget uploads a snapshot to an inline target (used when settings
+// are not yet persisted, e.g. right after a first-run restore).
+func BackupWithTarget(ctx context.Context, target storageconfig.ConfigBackupTarget) (Snapshot, error) {
+	cfg, bucket, prefix, password, err := resolveTargetRaw(target)
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -80,7 +86,14 @@ func List(ctx context.Context) ([]Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, bucket, prefix, _, err := resolveTarget(settings)
+	return ListWithTarget(ctx, settings.Target)
+}
+
+// ListWithTarget lists snapshots using an inline target instead of the saved
+// settings. This is used by the first-run restore flow where no local backup
+// settings exist yet (chicken-and-egg: the target itself is restored later).
+func ListWithTarget(ctx context.Context, target storageconfig.ConfigBackupTarget) ([]Snapshot, error) {
+	cfg, bucket, prefix, _, err := resolveTargetRaw(target)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +118,13 @@ func Restore(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	cfg, bucket, prefix, password, err := resolveTarget(settings)
+	return RestoreWithTarget(ctx, settings.Target, key)
+}
+
+// RestoreWithTarget downloads and applies a snapshot using an inline target.
+// Used by the first-run restore flow before any local settings exist.
+func RestoreWithTarget(ctx context.Context, target storageconfig.ConfigBackupTarget, key string) error {
+	cfg, bucket, prefix, password, err := resolveTargetRaw(target)
 	if err != nil {
 		return err
 	}
@@ -141,7 +160,12 @@ func Delete(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	cfg, bucket, prefix, _, err := resolveTarget(settings)
+	return DeleteWithTarget(ctx, settings.Target, key)
+}
+
+// DeleteWithTarget removes a snapshot using an inline target.
+func DeleteWithTarget(ctx context.Context, target storageconfig.ConfigBackupTarget, key string) error {
+	cfg, bucket, prefix, _, err := resolveTargetRaw(target)
 	if err != nil {
 		return err
 	}
@@ -153,7 +177,14 @@ func Delete(ctx context.Context, key string) error {
 }
 
 func resolveTarget(settings storageconfig.ConfigBackupSettings) (storageconfig.RemoteStorageConfig, string, string, string, error) {
-	target := settings.Target
+	return resolveTargetRaw(settings.Target)
+}
+
+// resolveTargetRaw resolves the storage config, bucket, prefix, and password
+// from a target without reading the saved settings. ProfileName references a
+// saved profile; otherwise Standalone must be present. This is shared by the
+// settings-based path and the first-run inline-target path.
+func resolveTargetRaw(target storageconfig.ConfigBackupTarget) (storageconfig.RemoteStorageConfig, string, string, string, error) {
 	var cfg storageconfig.RemoteStorageConfig
 	var err error
 	if target.ProfileName != "" {

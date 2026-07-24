@@ -4,15 +4,18 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/config_backup.dart';
+import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
+import 'package:remote_storage/widgets/cloud_storage_account_dialog.dart';
 import 'package:remote_storage/widgets/config_left_panel.dart';
 import 'package:remote_storage/widgets/config_right_form.dart';
 import 'package:remote_storage/widgets/config_storage_type_step.dart';
+import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 import 'package:remote_storage/widgets/settings_config_backup_labels.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -68,6 +71,104 @@ class ConfigSetupPage extends StatefulWidget {
 /// backup snapshots they want to pull in.
 extension _ConfigSetupRestore on _ConfigSetupPageState {
   Future<void> _openRestoreFromBackup() async {
+    // Step 1: check whether backup settings already exist locally.
+    var target = const ConfigBackupTarget();
+    try {
+      final settings = await widget.api.loadConfigBackupSettings();
+      if (settings.target.isReady) target = settings.target;
+    } catch (_) {
+      // Ignore — treat as unconfigured.
+    }
+    if (!target.isReady) {
+      // No usable local target — let the user connect a backup storage inline.
+      final configured = await _promptForBackupStorage();
+      if (configured == null) return;
+      target = configured;
+    }
+    if (!mounted) return;
+    // Step 2: list snapshots using the (possibly inline) target.
+    await _showSnapshotList(target);
+  }
+
+  /// Opens the standalone storage dialog so the user can connect a backup
+  /// storage without first creating an account. Returns the resolved target
+  /// (with bucket + prefix) or null if cancelled.
+  Future<ConfigBackupTarget?> _promptForBackupStorage() async {
+    RemoteStorageConfig? storageConfig;
+    await showAppModal<void>(
+      context: context,
+      builder: (_) => CloudStorageAccountDialog(
+        api: widget.api,
+        simpleMode: true,
+        onListBuckets: widget.api.listBuckets,
+        onStartBaiduPanAuthorization: widget.api.startBaiduPanAuthorization,
+        onAuthorizeBaiduPan: widget.api.authorizeBaiduPan,
+        onSave: (config) async {
+          if (!config.isConfigured) return false;
+          storageConfig = config;
+          return true;
+        },
+      ),
+    );
+    if (storageConfig == null || !storageConfig!.isConfigured) return null;
+
+    // Pick save location (bucket + prefix) from the connected storage.
+    if (!mounted) return null;
+    final location = await _pickBackupLocation(storageConfig!);
+    if (location == null) return null;
+
+    return ConfigBackupTarget(
+      standalone: storageConfig,
+      bucket: location.bucket,
+      prefix: location.prefix,
+    );
+  }
+
+  /// Opens the remote directory picker on the given storage config so the
+  /// user can choose where backups live. Returns the bucket + prefix or null.
+  Future<({String bucket, String prefix})?> _pickBackupLocation(
+    RemoteStorageConfig config,
+  ) async {
+    List<FileManagerBucketEntry> entries;
+    try {
+      final buckets = await widget.api.listBuckets(config);
+      entries = buckets
+          .map((b) => FileManagerBucketEntry.fromBucketInfo(
+                bucket: b,
+                profileName: '__restore__',
+                sourceLabel: config.displayName.isEmpty
+                    ? config.storageType.label
+                    : config.displayName,
+                config: config,
+              ))
+          .toList();
+    } catch (error) {
+      if (mounted) {
+        showAppErrorToast(context,
+            title: '读取存储桶失败', message: configBackupFriendlyError(error));
+      }
+      return null;
+    }
+    if (!mounted) return null;
+    final initial = entries.isEmpty ? '' : entries.first.profileName;
+    final result = await showRemoteDirectoryPicker(
+      context: context,
+      api: widget.api,
+      buckets: entries,
+      initial: RemoteDirectoryResult(
+        bucket: '',
+        prefix: 'cloud-volume-config-backups',
+        profileName: initial,
+        config: config,
+      ),
+    );
+    if (result == null || result.bucket.trim().isEmpty) return null;
+    return (bucket: result.bucket, prefix: result.prefix);
+  }
+
+  /// Shows the snapshot list modal for the given target. Uses the inline-target
+  /// bridge methods so it works even before local settings are persisted.
+  Future<void> _showSnapshotList(ConfigBackupTarget target) async {
     final snapshots = <ConfigBackupSnapshot>[];
     var loading = true;
     var errorMessage = '';
@@ -79,7 +180,9 @@ extension _ConfigSetupRestore on _ConfigSetupPageState {
           builder: (ctx, setDialogState) {
             if (loading) {
               loading = false;
-              widget.api.listConfigBackups().then((items) {
+              widget.api
+                  .listConfigBackupsWithTarget(target)
+                  .then((items) {
                 snapshots.clear();
                 snapshots.addAll(items);
                 if (ctx.mounted) setDialogState(() {});
@@ -142,7 +245,8 @@ extension _ConfigSetupRestore on _ConfigSetupPageState {
                                 Navigator.of(dialogContext).pop();
                                 try {
                                   await widget.api
-                                      .restoreConfigBackup(s.key);
+                                      .restoreConfigBackupWithTarget(
+                                          target, s.key);
                                   if (!mounted) return;
                                   showAppToast(context,
                                       title: '配置已还原', message: label);

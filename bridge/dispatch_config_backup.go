@@ -31,6 +31,18 @@ type configBackupDeleteArgs struct {
 	Key string `json:"key"`
 }
 
+// configBackupTargetArgs carries an inline backup target for the first-run
+// restore flow, where no local backup settings exist yet.
+type configBackupTargetArgs struct {
+	Target storageconfig.ConfigBackupTarget `json:"target"`
+}
+
+// configBackupRestoreTargetArgs carries target + key for inline-target restore.
+type configBackupRestoreTargetArgs struct {
+	Target storageconfig.ConfigBackupTarget `json:"target"`
+	Key    string                           `json:"key"`
+}
+
 func loadConfigBackupSettings() (any, error) {
 	return storageconfig.LoadConfigBackupSettings()
 }
@@ -85,6 +97,47 @@ func deleteConfigBackup(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+// listConfigBackupsWithTarget lists snapshots using an inline target, for the
+// first-run restore flow where no local backup settings exist yet.
+func listConfigBackupsWithTarget(args json.RawMessage) (any, error) {
+	var input configBackupTargetArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	return configbackup.ListWithTarget(ctx, input.Target)
+}
+
+// restoreConfigBackupWithTarget restores a snapshot using an inline target.
+// After a successful restore the inline target is persisted as the new backup
+// settings so future automatic backups go to the same location.
+func restoreConfigBackupWithTarget(args json.RawMessage) (any, error) {
+	var input configBackupRestoreTargetArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	if err := bucketmount.CleanupMounts(); err != nil {
+		return nil, fmt.Errorf("还原前卸载现有挂载失败：%w", err)
+	}
+	if err := configbackup.RestoreWithTarget(ctx, input.Target, input.Key); err != nil {
+		return nil, err
+	}
+	// Persist the inline target as backup settings so automatic backups
+	// continue to the same storage. Enabled defaults to true so the user
+	// does not need to reconfigure after restore.
+	if err := storageconfig.SaveConfigBackupSettings(storageconfig.ConfigBackupSettings{
+		Enabled: true,
+		Target:  input.Target,
+	}); err != nil {
+		// Non-fatal: restore itself succeeded; settings persistence is best-effort.
+		log.Printf("[config-backup] failed to persist restore target: %v", err)
+	}
+	return loadBootstrapState()
 }
 
 // queueAutomaticConfigBackup never makes saving an account depend on remote availability.

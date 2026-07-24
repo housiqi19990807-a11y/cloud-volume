@@ -69,6 +69,10 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return restoreConfigBackup(args)
 	case "delete_config_backup":
 		return deleteConfigBackup(args)
+	case "list_config_backups_with_target":
+		return listConfigBackupsWithTarget(args)
+	case "restore_config_backup_with_target":
+		return restoreConfigBackupWithTarget(args)
 	// Storage operations.
 	case "list_buckets":
 		return listBuckets(args)
