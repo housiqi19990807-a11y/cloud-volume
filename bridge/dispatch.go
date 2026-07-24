@@ -73,6 +73,8 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 		return listConfigBackupsWithTarget(args)
 	case "restore_config_backup_with_target":
 		return restoreConfigBackupWithTarget(args)
+	case "verify_backup_password":
+		return verifyBackupPassword(args)
 	// Storage operations.
 	case "list_buckets":
 		return listBuckets(args)

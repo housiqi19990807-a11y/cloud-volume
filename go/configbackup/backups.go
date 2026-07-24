@@ -144,6 +144,56 @@ func Restore(ctx context.Context, key string) error {
 	return RestoreWithTarget(ctx, settings.Target, key)
 }
 
+// VerifyPassword downloads and decrypts a snapshot to confirm the password is
+// correct. It does not apply any config changes. When key is empty, it verifies
+// against the newest snapshot at the target. Used by the UI to decide whether
+// to prompt for a password before showing the confirm dialog.
+func VerifyPassword(ctx context.Context, target storageconfig.ConfigBackupTarget, key string) error {
+	cfg, bucket, prefix, password, err := resolveTargetRaw(target)
+	if err != nil {
+		return err
+	}
+	backend := storageops.ForConfig(cfg)
+	verifyKey := strings.Trim(strings.TrimSpace(key), "/")
+	if verifyKey == "" {
+		// No specific key: pick the newest snapshot at the target.
+		page, err := backend.ListObjectsPage(ctx, bucket, ensurePrefix(prefix), "", 1000)
+		if err != nil {
+			return err
+		}
+		var newest string
+		for _, item := range page.Items {
+			if item.IsDir || !strings.HasSuffix(item.Key, backupFileSuffix) {
+				continue
+			}
+			if newest == "" || item.Key > newest {
+				newest = item.Key
+			}
+		}
+		if newest == "" {
+			return fmt.Errorf("没有可验证的备份快照")
+		}
+		verifyKey = newest
+	} else if !strings.HasPrefix(verifyKey, ensurePrefix(prefix)) || !strings.HasSuffix(verifyKey, backupFileSuffix) {
+		return fmt.Errorf("无效的配置备份文件")
+	}
+	info, err := backend.HeadObject(ctx, bucket, verifyKey)
+	if err != nil {
+		return err
+	}
+	if info.Size <= 0 || info.Size > 32<<20 {
+		return fmt.Errorf("配置备份文件大小异常")
+	}
+	body, err := backend.ReadObjectRange(ctx, bucket, verifyKey, 0, info.Size)
+	if err != nil {
+		return err
+	}
+	if _, err := decrypt(password, body); err != nil {
+		return err
+	}
+	return nil
+}
+
 // RestoreWithTarget downloads and applies a snapshot using an inline target.
 // Used by the first-run restore flow before any local settings exist.
 func RestoreWithTarget(ctx context.Context, target storageconfig.ConfigBackupTarget, key string) error {

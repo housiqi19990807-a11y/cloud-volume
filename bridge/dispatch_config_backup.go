@@ -151,6 +151,25 @@ func restoreConfigBackupWithTarget(args json.RawMessage) (any, error) {
 	return loadBootstrapState()
 }
 
+// verifyBackupPassword checks that the given target + password can decrypt a
+// snapshot without applying it. Used by the UI to decide whether to prompt.
+func verifyBackupPassword(args json.RawMessage) (any, error) {
+	var input configBackupRestoreTargetArgs
+	if err := decodeArgs(args, &input); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	target := input.Target
+	if password := strings.TrimSpace(input.PasswordOverride); password != "" {
+		target = target.CopyWithPassword(password)
+	}
+	if err := configbackup.VerifyPassword(ctx, target, input.Key); err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
+}
+
 // queueAutomaticConfigBackup never makes saving an account depend on remote availability.
 func queueAutomaticConfigBackup() {
 	automaticConfigBackup.Lock()

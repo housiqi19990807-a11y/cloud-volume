@@ -185,6 +185,39 @@ class _SettingsConfigBackupSectionState
 
   Future<void> _restore(ConfigBackupSnapshot snapshot) async {
     final label = configBackupSnapshotPrimaryLabel(snapshot);
+    var password = _settings.target.backupPassword;
+
+    // For encrypted snapshots, try the locally-stored password first. Only
+    // when that fails (wrong/empty password) do we prompt the user to enter
+    // the correct one. This avoids an unnecessary prompt on the normal path
+    // where local and remote passwords match.
+    if (snapshot.encrypted) {
+      // Attempt 1: the password we already have (may be empty on a fresh
+      // machine — that will fail fast and fall through to the prompt).
+      var decryptOk = password.trim().isNotEmpty;
+      if (decryptOk) {
+        try {
+          await widget.api.verifyBackupPassword(
+            _settings.target.copyWith(backupPassword: password),
+            snapshot.key,
+          );
+        } catch (_) {
+          decryptOk = false;
+        }
+      }
+      if (!decryptOk) {
+        // Attempt 2: prompt for the correct password.
+        if (!mounted) return;
+        final entered = await _promptForRestorePassword(label);
+        if (entered == null) return; // cancelled
+        password = entered;
+        // Persist so future restores and automatic backups use it.
+        await _saveTarget(
+          _settings.target.copyWith(backupPassword: entered),
+        );
+      }
+    }
+    if (!mounted) return;
     final confirmed = await showAppConfirmModal(
       context: context,
       title: const Text('还原此配置备份？'),
@@ -200,7 +233,13 @@ class _SettingsConfigBackupSectionState
       _error = null;
     });
     try {
-      final state = await widget.api.restoreConfigBackup(snapshot.key);
+      final state = password != _settings.target.backupPassword
+          ? await widget.api.restoreConfigBackupWithTarget(
+              _settings.target.copyWith(backupPassword: password),
+              snapshot.key,
+              password: password,
+            )
+          : await widget.api.restoreConfigBackup(snapshot.key);
       if (!mounted) return;
       widget.onRestored(state);
       showAppToast(context, title: '配置已还原', message: label);
@@ -212,6 +251,93 @@ class _SettingsConfigBackupSectionState
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Prompts for the backup password when the locally-stored one does not
+  /// decrypt the snapshot. Loops until the entered password verifies or the
+  /// user cancels.
+  Future<String?> _promptForRestorePassword(String label) async {
+    while (true) {
+      final controller = TextEditingController();
+      var obscure = true;
+      String? entered;
+      if (!mounted) return null;
+      await showAppModalDialog<void>(
+        context: context,
+        title: const Text('输入备份密码'),
+        description: Text('本地备份密码无法解密 $label，请输入正确的备份密码。'),
+        maxWidth: 420,
+        child: StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShadInput(
+                  controller: controller,
+                  obscureText: obscure,
+                  autofocus: true,
+                  placeholder: const Text('输入备份密码'),
+                  onSubmitted: (value) {
+                    entered = value.trim();
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    ShadSwitch(
+                      value: !obscure,
+                      onChanged: (v) => setDialogState(() => obscure = !v),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('显示密码',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(dialogContext)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.6))),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          Builder(
+            builder: (dialogContext) => ShadButton.outline(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+          ),
+          Builder(
+            builder: (dialogContext) => ShadButton(
+              onPressed: () {
+                entered = controller.text.trim();
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('确定'),
+            ),
+          ),
+        ],
+      );
+      final value = entered;
+      controller.dispose();
+      if (value == null || value.isEmpty) return null; // cancelled
+      // Verify the entered password against the newest snapshot.
+      try {
+        await widget.api.verifyBackupPassword(
+          _settings.target.copyWith(backupPassword: value),
+          '',
+        );
+        return value;
+      } catch (_) {
+        if (!mounted) return null;
+        showAppErrorToast(context,
+            title: '密码错误', message: '输入的密码无法解密备份，请重试。');
+        // Loop to prompt again.
+      }
     }
   }
 

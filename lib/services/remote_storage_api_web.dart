@@ -362,6 +362,13 @@ class RemoteStorageApi
   }) => throw UnsupportedError('Web 端暂不支持本地配置备份');
 
   @override
+  Future<bool> verifyBackupPassword(
+    ConfigBackupTarget target,
+    String key, {
+    String? password,
+  }) => throw UnsupportedError('Web 端暂不支持本地配置备份');
+
+  @override
   Future<BucketMountStatus> mountBucket(
     RemoteStorageConfig config,
     String bucket,

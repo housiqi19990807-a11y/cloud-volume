@@ -357,6 +357,23 @@ class RemoteStorageApi
   }
 
   @override
+  Future<bool> verifyBackupPassword(
+    ConfigBackupTarget target,
+    String key, {
+    String? password,
+  }) async {
+    final args = <String, dynamic>{
+      'target': target.toJson(),
+      'key': key,
+    };
+    if (password != null && password.isNotEmpty) {
+      args['passwordOverride'] = password;
+    }
+    await runBridgeCall('verify_backup_password', args);
+    return true;
+  }
+
+  @override
   List<T> parseBridgeList<T>(
     dynamic result,
     T Function(Map<String, dynamic>) fromJson,
