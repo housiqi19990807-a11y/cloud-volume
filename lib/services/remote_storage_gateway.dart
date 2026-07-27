@@ -328,6 +328,14 @@ abstract class RemoteStorageGateway {
     required String proxyUsername,
     required String proxyPassword,
   });
+
+  /// Returns the current P2P status: enabled flag, device ID, and discovered peers.
+  Future<Map<String, dynamic>> getP2PStatus() async =>
+      throw UnsupportedError('P2P 不可用');
+
+  /// Enables or disables P2P LAN discovery at runtime.
+  Future<void> setP2PEnabled(bool enabled) async =>
+      throw UnsupportedError('P2P 不可用');
 }
 
 /// Optional desktop capability for warning before exit unmounts active roots.

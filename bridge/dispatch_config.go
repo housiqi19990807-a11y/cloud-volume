@@ -49,6 +49,9 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 
 	profiles, _ := storageconfig.ListProfiles()
 	configured := len(profiles) > 0
+ 
+	// Lazy-init P2P on first bootstrap so it picks up the active profile's config.
+	go initP2PFromBootstrap()
 
 	var config storageconfig.RemoteStorageConfig
 	if configured {
@@ -83,6 +86,18 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 		Config:     publicConfig,
 		Profiles:   profiles,
 	}, nil
+}
+// initP2PFromBootstrap starts the P2P manager if the current config has it enabled.
+// Called once after the first successful bootstrap load.
+func initP2PFromBootstrap() {
+	state, err := loadBootstrapState()
+	if err != nil {
+		return
+	}
+	if err := ensureP2PManager(state.Config); err != nil {
+		// Non-fatal: P2P is an optimization layer, not a critical path.
+		_ = err
+	}
 }
 
 func migrateAndBootstrap() (storageconfig.BootstrapState, error) {

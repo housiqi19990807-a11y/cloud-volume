@@ -281,6 +281,14 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		access.cache.invalidatePath(entry.virtualPath)
 		access.projectSyncState(entry.virtualPath, true)
 		_ = q.store.delete(entry.virtualPath)
+		if hook := PeerBroadcastHook(); hook != nil {
+			hook(BroadcastPayload{
+				Bucket:      access.bucket,
+				VirtualPath: entry.virtualPath,
+				Operation:   "upload",
+				VersionHint: info.ModTime().Format("2006-01-02 15:04:05"),
+			})
+		}
 	}
 	return nil
 }

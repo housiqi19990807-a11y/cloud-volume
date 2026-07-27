@@ -1,32 +1,76 @@
 # P2P 挂载变更发现设计
 
-目标是把已写入同一远端桶的变更更快地通知其他客户端，而不是让客户端绕过对象存储直接交换文件。对象存储继续是字节、版本和最终一致性的权威来源；P2P 只传递“某个路径可能已变”的低敏感事件，接收端仍要从远端重新列举或 `HEAD` 确认。
+目标是在同局域网内的多台设备之间加速变更通知和文件读取，而不是让每台设备都独立回源对象存储。对象存储继续是字节、版本和最终一致性的权威来源；P2P 传递"某路径可能已变"的低敏感事件，并可选地从局域网 peer 读取文件内容以加速读路径。接收端仍要从远端重新列举或 `HEAD` 确认版本。
 
-## 为什么不能直接做客户端互传
+## 设计原则
 
-- 家用网络常在 NAT/防火墙之后；没有受控信令、STUN/TURN 和配对机制时不能可靠连接。
-- 广播 Access Key / Secret Key、桶名和完整目录结构会扩大攻击面；不能把现有账号凭证用作 P2P 身份。
-- 离线、客户端崩溃和多端并发仍需要远端版本检查，因此直接传文件不能取代远端一致性。
+- **远端是权威。** P2P 是加速层，不是替代层。所有 P2P 读都携带 version hint，最终以远端 `HeadObject` / `ListObjects` 结果为准。
+- **零配对。** 同账号自动发现。两台设备登录同一个存储端点 + Access Key，mDNS 广播的账号指纹匹配后自动建立信任，不需要扫二维码、输配对码。离开局域网 → mDNS 失效，无残留信任状态。
+- **不泄露凭证。** 事件体不包含文件内容、Access Key、Secret Key、明文桶名、明文路径。账号指纹用 HMAC(endpoint + AK, 固定盐) 单向计算。
 
 ## 推荐分期
 
-1. **P0：远端轮询兜底（已实现）。** 每个挂载会话记录近期读取的目录，45 秒内每 5 秒轮询，之后退避至 30 秒；3 分钟无目录活动后停止轮询。轮询只刷新这些目录的远端列表和缓存，不扫描整个桶，也不会删除本地待写回项。Cloud Files 会根据结果补建新文件/目录占位符；Linux FUSE、WinFsp 和 WebDAV 会在下一次目录读取时使用刷新后的缓存。该阶段先修复 Windows A/B、Linux→Windows 看不到新文件的问题，不需要新增服务。
-2. **P1：局域网即时通知。** 已配对设备通过 mDNS 发现 `_cloud-volume._udp`，再以 TLS/QUIC 单播签名事件。仅在同一二层网络工作，不能作为跨网络保证。
-3. **P2：跨网络 P2P。** 引入独立信令服务交换短期 WebRTC candidate；默认走 DataChannel，必要时由 TURN 中继事件。服务不持久化文件内容或账号凭证。没有服务、未配对或连接失败时自动回退 P0。
+1. **P0：远端轮询兜底（已实现）。** 每个挂载会话记录近期读取的目录，45 秒内每 5 秒轮询，之后退避至 30 秒；3 分钟无目录活动后停止轮询。轮询只刷新这些目录的远端列表和缓存，不扫描整个桶，也不会删除本地待写回项。
+2. **D1：局域网即时通知（已实现）。** 通过 mDNS 发现 `_cloudvolume._tcp` 服务，用账号指纹（HMAC(endpoint + AK)）匹配同账号设备。发现后通过 QUIC 单播签名事件（Ed25519）。事件触发后接收端调用 `RefreshRemoteDirectory` 立即刷新父目录缓存。可在设置页面开关 P2P。
+3. **D2：局域网内容直传（进行中）。** B 端读文件时，先查局域网 peer 有无相同 version 的完整副本。有则通过 QUIC 分块并行拉取，拉完后校验 hash + 远端 HEAD 确认。miss 或校验失败回退远端对象存储。分块大小可在设置页面配置（1-64 MB，默认 4 MB）。
+4. **P2：跨网络 P2P（未开始）。** 引入独立信令服务交换短期 WebRTC candidate；默认走 DataChannel，必要时由 TURN 中继事件。需要运营决策。
 
-## 身份、配对与事件
+## 身份与发现（零配对）
 
-- 每台设备首次启用时生成并本地保护 Ed25519 设备密钥；二维码/一次性配对码交换公钥和随机同步组密钥。
-- 事件使用同步组密钥计算的账户指纹，而非 endpoint、AK/SK 或明文桶名。事件体为 `{deviceId, sequence, accountFingerprint, bucketFingerprint, rootFingerprint, operation, pathHash, parentHash, versionHint, timestamp, nonce}`，并附 Ed25519 签名。
-- `pathHash` 使用组密钥 HMAC；接收端用自身配置反查匹配路径。事件不包含文件内容、Access Key、Secret Key、分享链接或完整文件名。
-- 收到事件只调用 `NotifyExternal*` 的缓存失效等价路径，并对受影响父目录执行远端 `ListObjects` / 对文件执行 `HeadObject`；版本 hint（ETag、mtime、size 或 provider revision）不一致时以远端结果为准。
+- 每台设备首次启动时自动生成并本地保护 Ed25519 设备密钥（`~/.cloud-volume/runtime/p2p-identity.json`，0600 权限）。
+- 账号指纹 `HMAC-SHA256(key=SHA256(endpoint + "/" + accessKey), data="cloud-volume-lan-discovery-v1")[:16]`。两台设备有相同 endpoint + AK 即产生相同指纹。
+- mDNS 注册 `_cloudvolume._tcp` 服务，TXT 记录包含 `fp=<accountFingerprint>` 和 `dev=<deviceId>`。
+- 收到其他设备的 mDNS 广播后，用自己的 AK 本地算指纹，匹配 → 自动信任；不匹配 → 忽略。
+- 传输用 QUIC（TLS 1.3 加密），证书为自签 ECDSA P-256。peer 信任靠 mDNS 指纹匹配，不靠 PKI。
+
+## 事件结构
+
+事件体为 `{deviceId, sequence, accountFingerprint, bucketFingerprint, pathHash, parentHash, versionHint, operation, timestamp, nonce}`，并附 Ed25519 签名。
+
+- `bucketFingerprint` = HMAC(accountFingerprint, bucket)
+- `pathHash` = HMAC(accountFingerprint, virtualPath)
+- 事件不含文件内容、Access Key、Secret Key、分享链接或完整文件名。
+- 接收端收到事件只调用 `RefreshRemoteDirectory`（`fetchDirectory` + `storeList`），与 P0 轮询走同一路径，只是触发方式从定时变为事件驱动。
+
+## 代码结构
+
+### Go 层
+
+- `go/p2p/identity.go` — Ed25519 设备密钥生成/存储/加载 + 账号指纹 / 桶指纹 / 路径 hash 计算。
+- `go/p2p/discovery.go` — mDNS 服务注册 + 浏览，`hashicorp/mdns` 库。账号指纹匹配后自动信任。
+- `go/p2p/transport.go` — QUIC 监听器 + 连接池 + 长度前缀消息收发。
+- `go/p2p/tls_cert.go` — 自签 ECDSA P-256 证书生成。
+- `go/p2p/events.go` — `PeerEvent` / `SignedEvent` 结构 + 签名/验签 + JSON 序列化。
+- `go/p2p/protocol.go` — 消息类型常量 + 内容传输协议结构（ContentQuery / ContentResponse / ChunkRequest / ChunkResponse）。
+- `go/p2p/util.go` — 随机 hex 辅助。
+- `go/p2p/manager.go` — `PeerManager` 顶层协调器：发现 + 传输 + 事件路由 + UI 状态查询 + 运行时开关。`BroadcastMutation` 由 mount 层和 bridge 层在远端确认成功后调用。
+- `go/mount/peer_refresh.go` — `RefreshRemoteDirectory` 导出函数，P2P 接收事件后调用以即时刷新挂载会话缓存（复用 P0 的 `pollRemoteDirectory`）。
+- `go/mount/peer_hook.go` — 原子回调 hook，mount 层不直接导入 p2p 包（避免循环依赖），由 bridge 层注册广播回调。
+- `go/mount/writeback_queue.go` — `flushNow` 成功后调用 `PeerBroadcastHook()` 广播 upload 事件。
+- `bridge/dispatch_p2p.go` — `get_p2p_status` / `set_p2p_enabled` bridge 方法 + `ensureP2PManager` 生命周期管理。
+
+### Flutter 层
+
+- `lib/models/remote_storage_config.dart` — 新增 `p2pEnabled` 和 `p2pChunkSizeMb` 字段。
+- `lib/services/remote_storage_gateway.dart` — 新增 `getP2PStatus()` 和 `setP2PEnabled()` 抽象方法。
+- `lib/services/remote_storage_api_desktop.dart` — desktop 实现，通过 `runBridgeCall` 调 bridge。
+- `lib/widgets/settings_p2p_section.dart` — 设置页面 P2P 区：开关、分块大小选择、已发现设备列表（5 秒轮询）。
+- `lib/pages/settings_page.dart` / `settings_page_sections.dart` / `settings_page_layout.dart` — 在"网络"组新增"局域网同步"标签页。
 
 ## 冲突与可靠性
 
-- 每设备 sequence 去重，事件 TTL 5 分钟；连接重建后发送“目录摘要请求”，而不是补发无限历史。
-- 本地待写回与远端事件冲突时保留本地写回队列，先 `HEAD` 比较远端版本；按现有同步任务的冲突策略生成冲突副本或由用户选择，绝不静默覆盖。
-- P2P 不保证交付，因此 P0 轮询始终保留。状态页应显示“已配对设备 / 最近事件 / 当前传输路径（LAN、直连、TURN、轮询）”，并允许一键禁用发现。
+- 每设备 sequence 去重，事件 TTL 5 分钟。
+- P2P 不保证交付，因此 P0 轮询始终保留。
+- 本地待写回与远端事件冲突时保留本地写回队列，先 `HEAD` 比较远端版本；绝不静默覆盖。
+- 内容直传只做读加速，不做写传播。B 端从 A 拉到的文件只进 B 的本地读 cache，不会变成 B→远端的级联上传。
+- 内容直传校验失败（hash 不匹配 / version 过期）自动丢弃，回退远端对象存储。
+
+## 配置
+
+- `p2pEnabled`（默认 `true`）— 是否参与局域网 P2P 发现和事件同步。
+- `p2pChunkSizeMb`（默认 `4`，范围 1-64）— 内容直传的分块大小。较大的分块提高吞吐量，较小降低内存占用。
+- 两个配置都在设置页面 → "局域网同步" 标签页可调。
 
 ## 落地边界
 
-P0 已将活动目录刷新收敛在 `go/mount/remote_poller.go`，后续 P1/P2 可复用相同的缓存刷新/Cloud Files 占位符投影边界。P1/P2 需要产品确认是否运营信令/TURN、隐私告知、设备配对入口和遥测策略后再开始；在此之前不能默认监听公网端口或发送账户元数据。
+P0 已将活动目录刷新收敛在 `go/mount/remote_poller.go`，D1 复用相同的缓存刷新路径（`pollRemoteDirectory`）通过 `RefreshRemoteDirectory` 触发。D1 在 App 启动加载配置后通过 `go initP2PFromBootstrap` 异步启动 PeerManager。远端对象存储始终是权威，P2P 事件只触发远端列表刷新，不替代远端读。

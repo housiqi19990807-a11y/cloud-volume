@@ -21,6 +21,7 @@ import 'package:remote_storage/widgets/settings_sections.dart'
 import 'package:remote_storage/widgets/settings_cache_section.dart';
 import 'package:remote_storage/widgets/settings_config_backup_section.dart';
 import 'package:remote_storage/widgets/settings_log_section.dart';
+import 'package:remote_storage/widgets/settings_p2p_section.dart';
 import 'package:remote_storage/widgets/settings_proxy_section.dart';
 import 'package:remote_storage/widgets/settings_sync_section.dart';
 import 'package:remote_storage/widgets/settings_trash_section.dart';
@@ -44,6 +45,7 @@ enum _SettingsTab {
   // 网络 group: 代理、WebDAV 凭据
   proxy,
   webdav,
+  p2p,
   // 存储 group: 下载、缓存、显示、同步、回收站
   download,
   cache,

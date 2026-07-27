@@ -535,4 +535,13 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
 
   @override
   Future<int> triggerSyncProfile(String id) async => 0;
+
+  @override
+  Future<Map<String, dynamic>> getP2PStatus() async =>
+      throw UnsupportedError('P2P 不可用');
+
+  @override
+  Future<void> setP2PEnabled(bool enabled) async =>
+      throw UnsupportedError('P2P 不可用');
+
 }

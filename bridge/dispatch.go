@@ -180,6 +180,11 @@ func invokeBridgeMethod(method string, args json.RawMessage) (any, error) {
 	// Match the correct release asset for this platform (Go-side, not frontend).
 	case "match_platform_asset":
 		return matchPlatformAsset(args)
+	// P2P LAN peer discovery and control.
+	case "get_p2p_status":
+		return p2pStatus()
+	case "set_p2p_enabled":
+		return setP2PEnabled(args)
 	default:
 		return nil, fmt.Errorf("unsupported bridge method %q", method)
 	}

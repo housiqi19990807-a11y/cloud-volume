@@ -62,6 +62,30 @@ extension _SettingsSections on _SettingsPageState {
     return [_buildCard(theme, '外观', const ThemePicker())];
   }
 
+  // ---- P2P group ----
+
+  List<Widget> _buildP2PSection(
+    ShadThemeData theme,
+    RemoteStorageConfig config,
+  ) {
+    return [
+      _buildCard(
+        theme,
+        '局域网同步',
+        SettingsP2PSection(
+          theme: theme,
+          config: config,
+          api: widget.api,
+          onSaveConfig: (updated) async {
+            await widget.api.saveConfig(updated);
+            if (!mounted) return;
+            widget.onRefresh();
+          },
+        ),
+      ),
+    ];
+  }
+
   List<Widget> _buildLogSection(ShadThemeData theme) {
     return [_buildCard(theme, '日志设置', SettingsLogSection(theme: theme))];
   }

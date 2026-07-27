@@ -57,6 +57,11 @@ type RemoteStorageConfig struct {
 	ProxyPort     string `json:"proxyPort" toml:"proxy_port"`         // e.g. "7890"
 	ProxyUsername string `json:"proxyUsername" toml:"proxy_username"` // optional auth
 	ProxyPassword string `json:"proxyPassword" toml:"proxy_password"` // optional auth
+	// P2PEnabled controls whether this device participates in LAN peer discovery,
+	// instant change notification, and content-acceleration for this account.
+	P2PEnabled bool `json:"p2pEnabled" toml:"p2p_enabled"`
+	// P2PChunkSizeMB is the chunk size in MB used for peer-to-peer content transfer.
+	P2PChunkSizeMB int `json:"p2pChunkSizeMb" toml:"p2p_chunk_size_mb"`
 }
 
 type BucketSettings struct {
@@ -101,6 +106,10 @@ const (
 	maxCacheMaxSizeMB                  = 8 * 1024 * 1024 // 8 TiB upper bound keeps the field sane while still allowing large tiers
 	maxCacheMaxAgeDays                 = 3650
 
+	defaultP2PChunkSizeMB = 4
+	maxP2PChunkSizeMB     = 64
+	minP2PChunkSizeMB     = 1
+
 	ProxyModeSystem  = "system"  // follow system environment variables (HTTP_PROXY etc.)
 	ProxyModeDirect  = "direct"  // no proxy, ignore all environment variables
 	ProxyModeCustom  = "custom"  // use the user-supplied proxy settings
@@ -142,6 +151,8 @@ func DefaultConfig() RemoteStorageConfig {
 		JWanFSGatewayMode:           JWanFSGatewayModeAuto,
 		ProxyMode:                   ProxyModeInherit,
 		ProxyType:                   ProxyTypeHTTP,
+		P2PEnabled:                  true,
+		P2PChunkSizeMB:              defaultP2PChunkSizeMB,
 	}
 }
 func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
@@ -193,6 +204,8 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		ProxyPort:                   strings.TrimSpace(c.ProxyPort),
 		ProxyUsername:               strings.TrimSpace(c.ProxyUsername),
 		ProxyPassword:               c.ProxyPassword,
+		P2PEnabled:                  c.P2PEnabled,
+		P2PChunkSizeMB:              normalizeP2PChunkSizeMB(c.P2PChunkSizeMB),
 	}
 }
 
@@ -318,6 +331,18 @@ func normalizeMountRemotePollSeconds(value int) int {
 		return defaultMountRemotePollSeconds
 	case value > maxMountRemotePollSeconds:
 		return maxMountRemotePollSeconds
+	default:
+		return value
+	}
+}
+
+// normalizeP2PChunkSizeMB clamps the chunk size to a safe range. Values outside
+// [1, 64] are replaced by the default (4 MB), which is a good balance between
+// throughput and memory on typical gigabit LANs.
+func normalizeP2PChunkSizeMB(value int) int {
+	switch {
+	case value < minP2PChunkSizeMB || value > maxP2PChunkSizeMB:
+		return defaultP2PChunkSizeMB
 	default:
 		return value
 	}

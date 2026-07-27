@@ -31,6 +31,7 @@ extension _SettingsLayout on _SettingsPageState {
         tabs: [
           _SettingsTab.proxy,
           if (isWebPlatform) _SettingsTab.webdav,
+          if (!isWebPlatform) _SettingsTab.p2p,
         ],
       ),
       _SettingsRailGroup(
@@ -128,6 +129,7 @@ extension _SettingsLayout on _SettingsPageState {
       _SettingsTab.sync => '同步设置',
       _SettingsTab.trash => '回收站',
       _SettingsTab.webdav => 'WebDAV 凭据',
+      _SettingsTab.p2p => '局域网同步',
       _SettingsTab.resetAccount => '账号重置',
       _SettingsTab.configBackup => '配置备份',
       _SettingsTab.configManage => '配置管理',
@@ -188,6 +190,8 @@ extension _SettingsLayout on _SettingsPageState {
         return _buildTrashSection(theme, config);
       case _SettingsTab.webdav:
         return _buildWebdavSection(theme, config);
+      case _SettingsTab.p2p:
+        return _buildP2PSection(theme, config);
       case _SettingsTab.resetAccount:
         return _buildResetAccountSection(theme);
       case _SettingsTab.configBackup:

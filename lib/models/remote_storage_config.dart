@@ -76,6 +76,8 @@ class RemoteStorageConfig {
     required this.proxyPort,
     required this.proxyUsername,
     required this.proxyPassword,
+    this.p2pEnabled = true,
+    this.p2pChunkSizeMb = 4,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -127,6 +129,8 @@ class RemoteStorageConfig {
       proxyPort: '',
       proxyUsername: '',
       proxyPassword: '',
+      p2pEnabled: true,
+      p2pChunkSizeMb: 4,
     );
   }
 
@@ -295,6 +299,11 @@ class RemoteStorageConfig {
           .toString(),
       proxyPassword: (json['proxyPassword'] ?? json['proxy_password'] ?? '')
           .toString(),
+      p2pEnabled:
+          _boolFromDynamic(json['p2pEnabled'] ?? json['p2p_enabled']) ?? true,
+      p2pChunkSizeMb:
+          _intFromDynamic(json['p2pChunkSizeMb'] ?? json['p2p_chunk_size_mb']) ??
+              4,
     );
   }
 
@@ -346,6 +355,9 @@ class RemoteStorageConfig {
   final String proxyUsername;
   final String proxyPassword;
 
+  final bool p2pEnabled;
+  final int p2pChunkSizeMb;
+
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
     if (storageType == StorageType.baiduPan) {
@@ -386,6 +398,9 @@ class RemoteStorageConfig {
 
   int get effectiveMountRemotePollSeconds =>
       mountRemotePollSeconds > 0 ? mountRemotePollSeconds : 5;
+
+  int get effectiveP2PChunkSizeMb =>
+      p2pChunkSizeMb > 0 ? p2pChunkSizeMb : 4;
 
   bool get supportsMounts => true;
 
@@ -460,6 +475,8 @@ class RemoteStorageConfig {
       'proxyPort': proxyPort,
       'proxyUsername': proxyUsername,
       'proxyPassword': proxyPassword,
+      'p2pEnabled': p2pEnabled,
+      'p2pChunkSizeMb': p2pChunkSizeMb,
     };
   }
 }

@@ -50,6 +50,8 @@ extension RemoteStorageConfigCopy on RemoteStorageConfig {
     String? proxyPort,
     String? proxyUsername,
     String? proxyPassword,
+    bool? p2pEnabled,
+    int? p2pChunkSizeMb,
   }) {
     return RemoteStorageConfig(
       endpoint: endpoint ?? this.endpoint,
@@ -108,6 +110,8 @@ extension RemoteStorageConfigCopy on RemoteStorageConfig {
       proxyPort: proxyPort ?? this.proxyPort,
       proxyUsername: proxyUsername ?? this.proxyUsername,
       proxyPassword: proxyPassword ?? this.proxyPassword,
+      p2pEnabled: p2pEnabled ?? this.p2pEnabled,
+      p2pChunkSizeMb: p2pChunkSizeMb ?? this.p2pChunkSizeMb,
     );
   }
 }

@@ -496,4 +496,12 @@ class RemoteStorageApi
   Future<int> triggerSyncProfile(String id) async {
     throw UnsupportedError('Web 端暂不支持目录同步');
   }
+
+  @override
+  Future<Map<String, dynamic>> getP2PStatus() async =>
+      throw UnsupportedError('Web 端不支持 P2P');
+
+  @override
+  Future<void> setP2PEnabled(bool enabled) async =>
+      throw UnsupportedError('Web 端不支持 P2P');
 }

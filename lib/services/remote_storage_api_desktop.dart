@@ -416,4 +416,16 @@ class RemoteStorageApi
     );
     return (result as Map<String, dynamic>)['ops'] as int;
   }
+
+  @override
+  Future<Map<String, dynamic>> getP2PStatus() async {
+    final result = await runBridgeCall('get_p2p_status', {});
+    if (result is Map<String, dynamic>) return result;
+    return <String, dynamic>{};
+  }
+
+  @override
+  Future<void> setP2PEnabled(bool enabled) async {
+    await runBridgeCall('set_p2p_enabled', {'enabled': enabled});
+  }
 }
