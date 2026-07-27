@@ -86,6 +86,33 @@ func AccountFingerprint(endpoint, accessKey string) string {
 	return hex.EncodeToString(sum[:16])
 }
 
+// AccountAuthKey derives an in-memory shared key for authenticated LAN
+// messages. The secret never leaves a device; the public account fingerprint
+// is intentionally not sufficient to authenticate a peer.
+func AccountAuthKey(endpoint, accessKey, secret string) []byte {
+	mac := hmac.New(sha256.New, []byte("cloud-volume-lan-auth-v1"))
+	mac.Write([]byte(endpoint))
+	mac.Write([]byte{0})
+	mac.Write([]byte(accessKey))
+	mac.Write([]byte{0})
+	mac.Write([]byte(secret))
+	return mac.Sum(nil)
+}
+
+// AuthenticatePayload returns a tag a peer can validate only when it has the
+// same account secret-derived key.
+func AuthenticatePayload(accountKey, payload []byte) []byte {
+	mac := hmac.New(sha256.New, accountKey)
+	mac.Write(payload)
+	return mac.Sum(nil)
+}
+
+// VerifyPayloadAuthentication validates a message authentication tag.
+func VerifyPayloadAuthentication(accountKey, payload, tag []byte) bool {
+	expected := AuthenticatePayload(accountKey, payload)
+	return hmac.Equal(expected, tag)
+}
+
 // BucketFingerprint derives a per-bucket hash using the account fingerprint
 // as the HMAC key. Events reference a bucket without sending its real name.
 func BucketFingerprint(accountFP, bucket string) string {

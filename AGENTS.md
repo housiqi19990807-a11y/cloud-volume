@@ -614,6 +614,17 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 **Gotchas:** P0 不是文件传输协议，也不是递归扫描器。它不保证即时投递，未主动刷新的文件管理器窗口仍可能需要一次目录读取；删除和覆盖的完整跨客户端投影留给后续 P1/P2 事件设计，不能在 P0 中通过盲目删除本地占位符实现，否则会误删正在本地写回的状态。
 
+### Feature: LAN P2P D1/D2
+
+同账号设备以 mDNS 自动发现，P2P 只加速通知和读取；对象存储的 `size + LastModified` 始终是版本权威，任何失败都会退回普通远端下载。
+
+- `go/p2p/discovery.go` / `identity.go` / `events.go` / `manager.go` - `_cloudvolume._tcp` 只广播账号指纹和设备 ID；账户凭证中的 secret 在本机派生 HMAC key，事件同时用 HMAC 和 Ed25519 认证。`PeerManager` 维护实际 running 状态，配置账号改变时由 bridge 停止并重建。
+- `go/p2p/transport.go` / `protocol.go` / `content_client.go` - QUIC 流承载有长度上限的 JSON 控制帧和原始 chunk bytes。查询、范围请求、查询响应和 chunk metadata 都有 HMAC，原始 bytes 在传输时计算并校验绑定对象/版本/范围的 chunk HMAC；下载最多 4 路并发，chunk 大小限定为 1–64 MiB。
+- `bridge/dispatch_p2p.go` / `bridge/dispatch_config.go` / `bridge/dispatch.go` / `bridge/dispatch_object_transfer.go` - bootstrap 在读取私有 profile 配置后一次性更新 P2P，绝不递归调用 bootstrap。远端确认的 bridge/mount mutation 广播父目录刷新；bridge 上传和 mount writeback 的成功 `HeadObject` 会登记本地源供 D2 读取。
+- `go/mount/peer_hook.go` / `peer_content.go` / `bucket_remote.go` / `peer_refresh.go` - mount 通过回调避免反向导入 `p2p`。读取顺序是本地完整 cache → P2P 临时 `.downloading` 文件 → 远端；P2P 完成后再次 `HeadObject` 检查版本，成功才按既有 stamp/rename 流程进入缓存。`LocalPeerContentPath` 只提供匹配版本的完整缓存或远端已确认的上传源。
+
+**Gotchas:** mDNS 的账号指纹不是认证材料；不能把它当作 shared secret。不要向 JSON/base64 放大 1–64 MiB chunk，且不要为 P2P 增加强制全文件 hash 扫描。P2P 的可用性不应改变写回、删除或 bootstrap 的成功语义。
+
 ### Feature: Remote Configuration Backup
 
 桌面端可把当前账号配置保存为加密的远端快照，便于在误改配置后从设置页还原；备份目标本身不属于普通账号列表时也可独立保存。
@@ -628,7 +639,7 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 **Gotchas:** 加密密钥只从用户备份密码派生，与 endpoint / AK/SK 无关，换机器可解密；密码错误与未设密码是两类稳定错误，UI 只对它们弹密码框。自动备份只在已存在且启用的目标上运行，多个紧邻的本地配置写入会合并为一次快照。完整清除本地配置后，必须先重新提供备份目标连接才能读取远端快照，不能从加密备份中无凭证自举。设置页历史弹窗里 `busy` 只应包含 `_restoring/_deleting`，不要把后台 `_loading` 并进去，否则打开瞬间点还原会被静默吞掉。
 
-**P1 readiness (2026-07-23):** P1 局域网即时通知可以复用 `bucketAccess.pollRemoteDirectory`：验证后的事件只应触发受影响父目录的远端重新列举、`bucketCache` 更新与现有 `externalDirectoryRefresh` 投影，不应直接调用 `NotifyExternalDelete`，因为后者会把本地 pending writeback 取消并写 tombstone，适用于“本客户端已确认完成的 bridge mutation”，不适用于尚待远端确认的对端提示。事件生产端应接在 `writebackQueue.flushNow`、`deleteQueue.runDelete`、`bucketAccess.renamePath` 等远端 mutation 成功点，而不是本地编辑入队点。仓库尚没有 mDNS/QUIC 依赖、Ed25519 设备身份、受 OS 保护的组密钥存储、配对 UI 或 P1 状态/禁用开关；现有 bbolt/TOML profile 虽为用户文件权限但保存账号 secret，不能直接把 P1 私钥/组密钥并入其中。实现前必须确认配对授权、隐私文案和密钥保管方案；P0 仍是可靠性兜底。
+**P1/D2 update (2026-07-27):** 已实现 mDNS/QUIC 自动发现和受账号 secret HMAC 认证的事件/内容流。对端事件只应触发受影响父目录的 `RefreshRemoteDirectory`，绝不能直接调用 `NotifyExternalDelete`，因为后者会取消本机 pending writeback 并写 tombstone。事件生产端仍只能放在 `writebackQueue.flushNow`、`deleteQueue.runDelete`、`bucketAccess.renamePath` 和 bridge 的远端 mutation 成功点；P0 继续是 P2P 不可用时的可靠性兜底。
 
 **Automatic-discovery option (2026-07-23):** 可以免配对，但组密钥只能在内存中由同一挂载范围的规范化 `storageType + endpoint + bucket + rootPrefix` 与实际凭证材料经 HKDF-SHA256 派生；mDNS TXT 仅广播截断 `HMAC(groupKey, "cloud-volume/p1/discovery/v1")` 标签和临时端口，绝不广播 endpoint、bucket、路径或凭证。标签匹配后才建立 QUIC，首个双向流以随机 nonce、组密钥 HMAC 和 event MAC 认证；事件路径放在该加密流内，接收端按父目录刷新。这样无需持久化新的组密钥，但凭证轮换会自然换组，匿名/无密钥账号不能启用，并且弱 WebDAV/FTP 密码会让广播标签成为离线猜测验证器；自动发现应默认关闭或至少明确告知该风险。不要依赖 HMAC `pathHash` 反查任意路径，它不可逆；需传加密路径或只发已知目录刷新提示。
 

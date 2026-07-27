@@ -36,6 +36,7 @@ func copyObject(args json.RawMessage) (any, error) {
 	}
 	// Sync mount caches so the new copy at the target key becomes visible.
 	bucketmount.NotifyExternalUpload(input.Config, input.Bucket, input.TargetKey, input.IsDirectory)
+	broadcastPeerMutation(input.Bucket, input.TargetKey, "upload")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -56,5 +57,6 @@ func moveObject(args json.RawMessage) (any, error) {
 	}
 	// Sync mount caches: source disappears and target appears.
 	bucketmount.NotifyExternalRename(input.Config, input.Bucket, input.SourceKey, input.TargetKey, input.IsDirectory)
+	broadcastPeerMutation(input.Bucket, input.TargetKey, "rename")
 	return map[string]any{"ok": true}, nil
 }

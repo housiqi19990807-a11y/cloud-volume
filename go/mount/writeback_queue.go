@@ -271,13 +271,18 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		return err
 	}
 	if !q.isSuperseded(entry) {
+		remoteInfo, headErr := access.backend.HeadObject(ctx, access.bucket, access.remoteKey(entry.virtualPath))
+		if headErr != nil {
+			// Upload already succeeded. A failed metadata probe must not turn that
+			// writeback into a retry; it only makes this source unavailable to P2P.
+			log.Printf("[mount/writeback] peer-source head bucket=%q path=%q error=%v", access.bucket, entry.virtualPath, headErr)
+			remoteInfo = s3ops.ObjectInfo{Key: entry.virtualPath, Size: info.Size(), LastModified: info.ModTime().Format("2006-01-02 15:04:05")}
+		} else {
+			remoteInfo.Key = entry.virtualPath
+			RememberPeerContent(access.config, access.bucket, entry.virtualPath, entry.localPath, remoteInfo)
+		}
 		access.cache.clearLocalFileMarker(entry.virtualPath)
-		access.cache.storeObject(entry.virtualPath, s3ops.ObjectInfo{
-			Key:          entry.virtualPath,
-			Size:         info.Size(),
-			LastModified: info.ModTime().Format("2006-01-02 15:04:05"),
-			IsDir:        false,
-		})
+		access.cache.storeObject(entry.virtualPath, remoteInfo)
 		access.cache.invalidatePath(entry.virtualPath)
 		access.projectSyncState(entry.virtualPath, true)
 		_ = q.store.delete(entry.virtualPath)
@@ -286,7 +291,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 				Bucket:      access.bucket,
 				VirtualPath: entry.virtualPath,
 				Operation:   "upload",
-				VersionHint: info.ModTime().Format("2006-01-02 15:04:05"),
+				VersionHint: remoteInfo.LastModified,
 			})
 		}
 	}

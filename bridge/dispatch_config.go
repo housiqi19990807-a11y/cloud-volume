@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	storageconfig "remote-storage/go/config"
 	s3ops "remote-storage/go/s3"
@@ -49,9 +50,6 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 
 	profiles, _ := storageconfig.ListProfiles()
 	configured := len(profiles) > 0
- 
-	// Lazy-init P2P on first bootstrap so it picks up the active profile's config.
-	go initP2PFromBootstrap()
 
 	var config storageconfig.RemoteStorageConfig
 	if configured {
@@ -65,6 +63,10 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 		config, _ = storageconfig.LoadProfile(activeName)
 	} else {
 		config = storageconfig.DefaultConfig()
+	}
+	if err := ensureP2PManager(config); err != nil {
+		// LAN acceleration must never block bootstrap of the storage client.
+		log.Printf("[bridge/p2p] bootstrap error: %v", err)
 	}
 	publicConfig, err := config.WithResolvedCacheDirectory()
 	if err != nil {
@@ -87,19 +89,6 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 		Profiles:   profiles,
 	}, nil
 }
-// initP2PFromBootstrap starts the P2P manager if the current config has it enabled.
-// Called once after the first successful bootstrap load.
-func initP2PFromBootstrap() {
-	state, err := loadBootstrapState()
-	if err != nil {
-		return
-	}
-	if err := ensureP2PManager(state.Config); err != nil {
-		// Non-fatal: P2P is an optimization layer, not a critical path.
-		_ = err
-	}
-}
-
 func migrateAndBootstrap() (storageconfig.BootstrapState, error) {
 	_ = storageconfig.MigrateDefault()
 	return loadBootstrapState()
@@ -118,6 +107,9 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 	}
 	_ = storageconfig.SetActiveProfile("default")
 	queueAutomaticConfigBackup()
+	if err := ensureP2PManager(input.Config); err != nil {
+		log.Printf("[bridge/p2p] config update error: %v", err)
+	}
 	return loadBootstrapState()
 }
 

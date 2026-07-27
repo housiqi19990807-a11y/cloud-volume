@@ -1,17 +1,16 @@
-// QUIC transport for encrypted peer-to-peer event and content transfer.
-// Each device runs a QUIC listener that accepts authenticated streams from
-// trusted peers (identified by their Ed25519 public key / device ID).
+// QUIC transport carries authenticated peer events and content chunks.
 package p2p
 
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -19,21 +18,27 @@ import (
 )
 
 const (
-	// maxEventMessageSize caps a single event message (events are tiny).
-	maxEventMessageSize = 64 * 1024
-	// streamReadTimeout caps how long we wait on a single peer stream.
-	streamReadTimeout = 60 * time.Second
-	// quicMaxIdleTimeout drops connections that go quiet.
-	quicMaxIdleTimeout = 120 * time.Second
+	maxControlMessageSize = 64 * 1024
+	streamReadTimeout     = 60 * time.Second
+	quicMaxIdleTimeout    = 120 * time.Second
 )
 
-// PeerStream is a bidirectional QUIC stream for exchanging framed messages.
+// ContentResolver returns a complete local file matching a remote version.
+// Its path is only used inside the provider device and never sent to peers.
+type ContentResolver func(
+	ctx context.Context,
+	bucket, virtualPath, versionHint string,
+) (localPath string, size int64, ok bool)
+
+// PeerStream provides framed control messages plus raw bytes on one QUIC stream.
 type PeerStream struct {
 	stream *quic.Stream
 }
 
-// SendMessage writes a length-prefixed message on the stream.
 func (ps *PeerStream) SendMessage(data []byte) error {
+	if len(data) > maxControlMessageSize {
+		return fmt.Errorf("control message too large: %d", len(data))
+	}
 	header := make([]byte, 4)
 	binary.BigEndian.PutUint32(header, uint32(len(data)))
 	if _, err := ps.stream.Write(header); err != nil {
@@ -43,68 +48,69 @@ func (ps *PeerStream) SendMessage(data []byte) error {
 	return err
 }
 
-// RecvMessage reads a length-prefixed message from the stream.
 func (ps *PeerStream) RecvMessage() ([]byte, error) {
-	ps.stream.SetReadDeadline(time.Now().Add(streamReadTimeout))
+	_ = ps.stream.SetReadDeadline(time.Now().Add(streamReadTimeout))
 	header := make([]byte, 4)
 	if _, err := io.ReadFull(ps.stream, header); err != nil {
 		return nil, err
 	}
 	length := binary.BigEndian.Uint32(header)
-	if length > maxEventMessageSize {
-		return nil, fmt.Errorf("message too large: %d", length)
+	if length > maxControlMessageSize {
+		return nil, fmt.Errorf("control message too large: %d", length)
 	}
-	buf := make([]byte, length)
-	if _, err := io.ReadFull(ps.stream, buf); err != nil {
+	data := make([]byte, length)
+	if _, err := io.ReadFull(ps.stream, data); err != nil {
 		return nil, err
 	}
-	return buf, nil
+	return data, nil
 }
 
-// Close terminates the underlying QUIC stream.
-func (ps *PeerStream) Close() error {
-	return ps.stream.Close()
-}
+func (ps *PeerStream) Close() error { return ps.stream.Close() }
 
-// Transport wraps a QUIC listener and connection pool for outbound peers.
+// Transport owns one encrypted QUIC listener and dispatches peer streams.
 type Transport struct {
-	identity    *DeviceIdentity
-	tlsConfig   *tls.Config
-	quicConfig  *quic.Config
-	listener    *quic.Listener
+	tlsConfig  *tls.Config
+	quicConfig *quic.Config
+	listener   *quic.Listener
+	accountKey []byte
 
-	mu          sync.Mutex
-	conns       map[string]*quic.Conn // keyed by device ID
-
+	mu              sync.RWMutex
 	onEventReceived func(SignedEvent)
-	onContentQuery  func(ContentQuery) (*ContentResponse, error)
+	contentResolver ContentResolver
 }
 
-// NewTransport creates a QUIC transport. The TLS certificate is self-signed
-// using the device's Ed25519 key; peer verification is done at the application
-// level by matching the announced device ID against discovered peers.
-func NewTransport(identity *DeviceIdentity) *Transport {
-	tlsConf := &tls.Config{
-		NextProtos: []string{"cloud-volume-p2p"},
-		// We use application-level device ID verification, so skip standard
-		// cert chain verification and rely on the mDNS fingerprint match.
-		InsecureSkipVerify: true,
-		// ClientAuth is set on the listener config below.
-	}
-	quicConf := &quic.Config{
-		MaxIdleTimeout:  quicMaxIdleTimeout,
-		KeepAlivePeriod: 30 * time.Second,
+func NewTransport(identity *DeviceIdentity, accountKey []byte) *Transport {
+	cert, err := generateECDSACertificate()
+	if err != nil {
+		panic(fmt.Sprintf("generate P2P TLS certificate: %v", err))
 	}
 	return &Transport{
-		identity:   identity,
-		tlsConfig:  tlsConf,
-		quicConfig: quicConf,
-		conns:      make(map[string]*quic.Conn),
+		accountKey: append([]byte(nil), accountKey...),
+		tlsConfig: &tls.Config{
+			Certificates:       []tls.Certificate{cert},
+			NextProtos:         []string{"cloud-volume-p2p"},
+			MinVersion:         tls.VersionTLS13,
+			InsecureSkipVerify: true, // account HMAC authenticates each request
+		},
+		quicConfig: &quic.Config{
+			MaxIdleTimeout:  quicMaxIdleTimeout,
+			KeepAlivePeriod: 30 * time.Second,
+		},
 	}
 }
 
-// Listen starts accepting QUIC connections on the given address.
-// Returns the actual port assigned (useful when port 0 is requested).
+func (t *Transport) SetEventHandler(handler func(SignedEvent)) {
+	t.mu.Lock()
+	t.onEventReceived = handler
+	t.mu.Unlock()
+}
+
+func (t *Transport) SetContentResolver(resolver ContentResolver) {
+	t.mu.Lock()
+	t.contentResolver = resolver
+	t.mu.Unlock()
+}
+
 func (t *Transport) Listen(addr string) (int, error) {
 	listener, err := quic.ListenAddr(addr, t.serverTLSConfig(), t.quicConfig)
 	if err != nil {
@@ -113,36 +119,26 @@ func (t *Transport) Listen(addr string) (int, error) {
 	t.listener = listener
 	go t.acceptLoop()
 	port := listener.Addr().(*net.UDPAddr).Port
-	log.Printf("[p2p/transport] listening on %s port=%d", addr, port)
+	log.Printf("[p2p/transport] listening port=%d", port)
 	return port, nil
 }
 
-// serverTLSConfig returns a TLS config for the listener side.
-// In production this would use a self-signed cert from the Ed25519 key.
-// For now we use a generated ECDSA cert as quic-go requires a tls.Certificate.
 func (t *Transport) serverTLSConfig() *tls.Config {
-	cert := mustGenerateSelfSignedCert(t.identity)
-	return &tls.Config{
-		Certificates:     []tls.Certificate{cert},
-		NextProtos:       []string{"cloud-volume-p2p"},
-		MinVersion:       tls.VersionTLS13,
-		ClientAuth:       tls.RequireAnyClientCert,
-	}
+	config := t.tlsConfig.Clone()
+	config.ClientAuth = tls.RequireAnyClientCert
+	return config
 }
 
-// acceptLoop accepts incoming connections and dispatches streams.
 func (t *Transport) acceptLoop() {
 	for {
 		conn, err := t.listener.Accept(context.Background())
 		if err != nil {
-			log.Printf("[p2p/transport] accept-error: %v", err)
 			return
 		}
 		go t.handleConn(conn)
 	}
 }
 
-// handleConn processes streams from one peer connection.
 func (t *Transport) handleConn(conn *quic.Conn) {
 	for {
 		stream, err := conn.AcceptStream(context.Background())
@@ -153,39 +149,95 @@ func (t *Transport) handleConn(conn *quic.Conn) {
 	}
 }
 
-// handleStream reads one message from a stream and dispatches it.
 func (t *Transport) handleStream(ps *PeerStream) {
 	defer ps.Close()
-	msg, err := ps.RecvMessage()
-	if err != nil {
+	message, err := ps.RecvMessage()
+	if err != nil || len(message) == 0 {
 		return
 	}
-	// Peek the first byte to decide message type.
-	if len(msg) == 0 {
-		return
-	}
-	switch msg[0] {
+	switch message[0] {
 	case MsgEvent:
-		se, err := DecodeSignedEvent(msg[1:])
-		if err != nil {
-			log.Printf("[p2p/transport] decode-event-error: %v", err)
-			return
-		}
-		if t.onEventReceived != nil {
-			t.onEventReceived(se)
+		var event SignedEvent
+		if json.Unmarshal(message[1:], &event) == nil {
+			t.mu.RLock()
+			handler := t.onEventReceived
+			t.mu.RUnlock()
+			if handler != nil {
+				handler(event)
+			}
 		}
 	case MsgContentQuery:
-		// Content queries are handled in content_server.go; this is a fallback.
-		log.Printf("[p2p/transport] content-query received (unhandled in fallback)")
-	default:
-		log.Printf("[p2p/transport] unknown msg-type=%d", msg[0])
+		t.handleContentQuery(ps, message[1:])
+	case MsgContentFetch:
+		t.handleContentFetch(ps, message[1:])
 	}
 }
 
-// Connect establishes a QUIC connection to a peer address.
-func (t *Transport) Connect(addr string) (*quic.Conn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func (t *Transport) handleContentQuery(ps *PeerStream, payload []byte) {
+	var query ContentQuery
+	if err := json.Unmarshal(payload, &query); err != nil || !query.Verify(t.accountKey) {
+		return
+	}
+	t.mu.RLock()
+	resolver := t.contentResolver
+	t.mu.RUnlock()
+	response := ContentResponse{}
+	if resolver != nil {
+		_, size, ok := resolver(context.Background(), query.Bucket, query.Path, query.VersionHint)
+		response = ContentResponse{Has: ok, Size: size}
+	}
+	if response.Sign(t.accountKey) != nil {
+		return
+	}
+	encoded, err := json.Marshal(response)
+	if err == nil {
+		_ = ps.SendMessage(append([]byte{MsgContentReply}, encoded...))
+	}
+}
+
+func (t *Transport) handleContentFetch(ps *PeerStream, payload []byte) {
+	var request ChunkRequest
+	if err := json.Unmarshal(payload, &request); err != nil || !request.Verify(t.accountKey) {
+		return
+	}
+	t.mu.RLock()
+	resolver := t.contentResolver
+	t.mu.RUnlock()
+	if resolver == nil || request.Offset < 0 || request.Length <= 0 {
+		return
+	}
+	path, size, ok := resolver(context.Background(), request.Bucket, request.Path, request.VersionHint)
+	if !ok || request.Offset >= size {
+		return
+	}
+	length := request.Length
+	if remaining := size - request.Offset; length > remaining {
+		length = remaining
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	response := ChunkResponse{Offset: request.Offset, Length: length}
+	if response.Sign(t.accountKey) != nil {
+		return
+	}
+	metadata, err := json.Marshal(response)
+	if err != nil || ps.SendMessage(append([]byte{MsgContentChunk}, metadata...)) != nil {
+		return
+	}
+	mac := NewChunkAuthenticator(t.accountKey, request.Bucket, request.Path, request.VersionHint, request.Offset, length)
+	if _, err := io.CopyN(io.MultiWriter(ps.stream, mac), io.NewSectionReader(file, request.Offset, length), length); err != nil {
+		return
+	}
+	proof, err := json.Marshal(ContentProof{AuthTag: mac.Sum(nil)})
+	if err == nil {
+		_ = ps.SendMessage(append([]byte{MsgContentProof}, proof...))
+	}
+}
+
+func (t *Transport) Connect(ctx context.Context, addr string) (*quic.Conn, error) {
 	conn, err := quic.DialAddr(ctx, addr, t.tlsConfig, t.quicConfig)
 	if err != nil {
 		return nil, fmt.Errorf("quic dial %s: %w", addr, err)
@@ -193,52 +245,23 @@ func (t *Transport) Connect(addr string) (*quic.Conn, error) {
 	return conn, nil
 }
 
-// SendEvent opens a stream to a connected peer and sends a signed event.
-func (t *Transport) SendEvent(conn *quic.Conn, se SignedEvent) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func (t *Transport) SendEvent(ctx context.Context, conn *quic.Conn, event SignedEvent) error {
 	stream, err := conn.OpenStreamSync(ctx)
 	if err != nil {
 		return err
 	}
 	ps := &PeerStream{stream: stream}
 	defer ps.Close()
-	payload, err := se.Encode()
+	payload, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
-	// Prepend message type byte.
-	msg := append([]byte{MsgEvent}, payload...)
-	return ps.SendMessage(msg)
+	return ps.SendMessage(append([]byte{MsgEvent}, payload...))
 }
 
-// Close shuts down the listener and all connections.
 func (t *Transport) Close() error {
-	t.mu.Lock()
-	for _, conn := range t.conns {
-		_ = conn.CloseWithError(0, "shutdown")
+	if t.listener == nil {
+		return nil
 	}
-	t.conns = make(map[string]*quic.Conn)
-	t.mu.Unlock()
-	if t.listener != nil {
-		return t.listener.Close()
-	}
-	return nil
-}
-
-// mustGenerateSelfSignedCert generates a throwaway TLS certificate so QUIC
-// can complete its handshake. The actual peer trust is established at the
-// application level via mDNS account fingerprint matching.
-func mustGenerateSelfSignedCert(identity *DeviceIdentity) tls.Certificate {
-	// We use a simple in-memory ECDSA P-256 cert. This is sufficient because
-	// TLS 1.3 (used by QUIC) encrypts the certificate, and peer trust is
-	// enforced by matching account fingerprints in mDNS, not by PKI.
-	_ = x509.NewCertPool() // placeholder for potential future CA verification
-	cert, err := generateECDSACertificate()
-	if err != nil {
-		// If cert generation fails, QUIC cannot work. This is fatal.
-		log.Fatalf("[p2p/transport] cert-generation-fatal: %v", err)
-	}
-	_ = identity
-	return cert
+	return t.listener.Close()
 }

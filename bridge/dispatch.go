@@ -321,6 +321,7 @@ func createDirectory(args json.RawMessage) (any, error) {
 	// Sync mount caches so the new directory is visible without a TTL wait.
 	newDir := joinChildPath(input.Prefix, input.Name)
 	bucketmount.NotifyExternalUpload(input.Config, input.Bucket, newDir, true)
+	broadcastPeerMutation(input.Bucket, newDir, "upload")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -348,6 +349,7 @@ func deleteObject(args json.RawMessage) (any, error) {
 	// Sync mounted session caches so the mount point and file manager both drop
 	// the entry immediately instead of serving a stale listCache/localEntries view.
 	bucketmount.NotifyExternalDelete(input.Config, input.Bucket, input.Key, input.IsDirectory)
+	broadcastPeerMutation(input.Bucket, input.Key, "delete")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -368,6 +370,7 @@ func renameObject(args json.RawMessage) (any, error) {
 	// Keep mount caches in sync: the old path is gone and the new path now exists.
 	newPath := joinChildPath(parentDirectoryOf(input.Key), input.NewName)
 	bucketmount.NotifyExternalRename(input.Config, input.Bucket, input.Key, newPath, input.IsDirectory)
+	broadcastPeerMutation(input.Bucket, newPath, "rename")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -387,6 +390,10 @@ func uploadFile(args json.RawMessage) (any, error) {
 	}
 	// Sync mount caches so the uploaded object is visible without a TTL wait.
 	bucketmount.NotifyExternalUpload(input.Config, input.Bucket, input.Key, false)
+	if info, err := storageops.ForConfig(input.Config).HeadObject(context.Background(), input.Bucket, input.Key); err == nil {
+		bucketmount.RememberPeerContent(input.Config, input.Bucket, input.Key, input.LocalPath, info)
+	}
+	broadcastPeerMutation(input.Bucket, input.Key, "upload")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -408,6 +415,7 @@ func uploadDirectory(args json.RawMessage) (any, error) {
 		// Directory upload is asynchronous; invalidate the target directory and its
 		// parent listing once the bulk upload finishes so the mount view catches up.
 		bucketmount.NotifyExternalUpload(input.Config, input.Bucket, input.Key, true)
+		broadcastPeerMutation(input.Bucket, input.Key, "upload")
 	}()
 	// Pre-invalidate the parent so the new directory appears on a manual refresh
 	// even while the upload is still streaming.

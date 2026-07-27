@@ -78,6 +78,9 @@ func (a *bucketAccess) downloadToCache(
 		a.cache.storeObject(virtualPath, info)
 		return localPath, nil
 	}
+	if path, ok := a.downloadFromPeerToCache(ctx, virtualPath, info, localPath); ok {
+		return path, nil
+	}
 
 	tempPath := partialDownloadPath(localPath)
 	if err := writeDownloadStamp(tempPath, info); err != nil {

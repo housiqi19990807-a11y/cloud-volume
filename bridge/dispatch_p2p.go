@@ -1,9 +1,9 @@
-// P2P bridge dispatchers expose LAN peer discovery and control to the Flutter
-// settings UI. The bridge wires the mount broadcast hook to the PeerManager
-// so that writeback successes fan out to trusted LAN peers automatically.
+// P2P bridge lifecycle wires account credentials, mounts, and the settings UI.
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,122 +14,131 @@ import (
 	"remote-storage/go/p2p"
 )
 
-// p2pManagerHolder keeps the singleton PeerManager and its config provider.
 var (
-	p2pOnce   sync.Once
-	p2pMgr    *p2p.PeerManager
-	p2pErr    error
-	p2pCfg    *p2pConfigProvider
+	p2pMu  sync.Mutex
+	p2pMgr *p2p.PeerManager
+	p2pKey string
 )
 
-// p2pConfigProvider adapts the stored RemoteStorageConfig to the P2P layer's
-// ConfigProvider interface. It holds a pointer so settings changes take effect
-// without recreating the manager.
-type p2pConfigProvider struct {
-	mu       sync.Mutex
-	enabled  bool
-	chunkMB  int
-	endpoint string
-	accessKey string
+type bridgePeerReceiver struct {
+	cfg storageconfig.RemoteStorageConfig
 }
 
-func (p *p2pConfigProvider) P2PEnabled() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.enabled
+// OnPeerEvent refreshes only the announced parent directory in matching mounts.
+func (r bridgePeerReceiver) OnPeerEvent(_ string, bucket, parentPath, _ string) {
+	bucketmount.RefreshRemoteDirectory(r.cfg, bucket, parentPath)
 }
 
-func (p *p2pConfigProvider) P2PChunkSizeMB() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.chunkMB
-}
-
-func (p *p2pConfigProvider) AccountFingerprint() string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p2p.AccountFingerprint(p.endpoint, p.accessKey)
-}
-
-// ensureP2PManager lazily creates and starts the PeerManager based on the
-// current config. It is called from load_bootstrap_state and after save_config.
+// ensureP2PManager applies a private, credential-bearing account config.
+// P2P remains an optimization, so startup errors are reported but non-fatal.
 func ensureP2PManager(cfg storageconfig.RemoteStorageConfig) error {
-	p2pOnce.Do(func() {
-		p2pCfg = &p2pConfigProvider{
-			enabled:   cfg.P2PEnabled,
-			chunkMB:   cfg.P2PChunkSizeMB,
-			endpoint:  cfg.Endpoint,
-			accessKey: cfg.AccessKeyID,
+	cfg = cfg.Normalized()
+	endpoint, principal, secret := p2pCredentials(cfg)
+	if !cfg.P2PEnabled || !cfg.IsConfigured() || secret == "" {
+		p2pMu.Lock()
+		old := p2pMgr
+		p2pMgr, p2pKey = nil, ""
+		p2pMu.Unlock()
+		if old != nil {
+			old.Stop()
 		}
-		runtimeDir, err := storageconfig.RuntimeDir()
-		if err != nil {
-			p2pErr = err
-			return
-		}
-		p2pMgr, p2pErr = p2p.NewPeerManager(runtimeDir, p2pCfg)
-		if p2pErr != nil {
-			return
-		}
-		// Wire mount broadcast hook to the P2P manager.
-		bucketmount.SetPeerBroadcastCallback(func(bp bucketmount.BroadcastPayload) {
-			if p2pMgr == nil || !p2pMgr.IsEnabled() {
-				return
-			}
-			accountFP := p2pCfg.AccountFingerprint()
-			bucketFP := p2p.BucketFingerprint(accountFP, bp.Bucket)
-			pathHash := p2p.PathHash(accountFP, bp.VirtualPath)
-			parentPath := parentDir(bp.VirtualPath)
-			parentHash := p2p.PathHash(accountFP, parentPath)
-			p2pMgr.BroadcastMutation(bucketFP, pathHash, parentHash, bp.VersionHint, bp.Operation)
-		})
+		return nil
+	}
+	fingerprint := p2p.AccountFingerprint(endpoint, principal)
+	authKey := p2p.AccountAuthKey(endpoint, principal, secret)
+	key := fmt.Sprintf("%x/%d", sha256.Sum256(authKey), cfg.P2PChunkSizeMB)
+	p2pMu.Lock()
+	if p2pMgr != nil && p2pKey == key {
+		manager := p2pMgr
+		p2pMu.Unlock()
+		return manager.Start()
+	}
+	old := p2pMgr
+	p2pMgr, p2pKey = nil, ""
+	p2pMu.Unlock()
+	if old != nil {
+		old.Stop()
+	}
+	runtimeDir, err := storageconfig.RuntimeDir()
+	if err != nil {
+		return err
+	}
+	manager, err := p2p.NewPeerManager(runtimeDir, fingerprint, authKey, cfg.P2PChunkSizeMB)
+	if err != nil {
+		return err
+	}
+	manager.SetReceiver(bridgePeerReceiver{cfg: cfg})
+	manager.SetContentResolver(func(ctx context.Context, bucket, path, hint string) (string, int64, bool) {
+		return bucketmount.LocalPeerContentPath(cfg, bucket, path, hint)
 	})
-	if p2pErr != nil {
-		return p2pErr
+	p2pMu.Lock()
+	p2pMgr, p2pKey = manager, key
+	p2pMu.Unlock()
+	if err := manager.Start(); err != nil {
+		return err
 	}
-	// Apply config changes.
-	p2pCfg.mu.Lock()
-	p2pCfg.enabled = cfg.P2PEnabled
-	p2pCfg.chunkMB = cfg.P2PChunkSizeMB
-	p2pCfg.endpoint = cfg.Endpoint
-	p2pCfg.accessKey = cfg.AccessKeyID
-	shouldEnable := cfg.P2PEnabled
-	p2pCfg.mu.Unlock()
-
-	if shouldEnable {
-		if !p2pMgr.IsEnabled() {
-			if err := p2pMgr.Start(); err != nil {
-				log.Printf("[bridge/p2p] start-error: %v", err)
-				return err
-			}
-		}
-	} else {
-		if p2pMgr.IsEnabled() {
-			p2pMgr.Stop()
-		}
-	}
+	installPeerHooks()
 	return nil
 }
 
-// parentDir returns the parent directory of a virtual path (e.g. "a/b/c" -> "a/b").
+func p2pCredentials(cfg storageconfig.RemoteStorageConfig) (endpoint, principal, secret string) {
+	switch cfg.StorageType {
+	case storageconfig.StorageTypeWebDAV:
+		return cfg.Endpoint, cfg.WebDAVUsername, cfg.WebDAVPassword
+	case storageconfig.StorageTypeFTP, storageconfig.StorageTypeSFTP:
+		return cfg.Endpoint, cfg.FTPUsername, cfg.FTPPassword
+	default:
+		return cfg.Endpoint, cfg.AccessKeyID, cfg.SecretAccessKey
+	}
+}
+
+func installPeerHooks() {
+	bucketmount.SetPeerBroadcastCallback(func(payload bucketmount.BroadcastPayload) {
+		p2pMu.Lock()
+		manager := p2pMgr
+		p2pMu.Unlock()
+		if manager != nil {
+			manager.BroadcastMutation(payload.Bucket, payload.VirtualPath, parentDir(payload.VirtualPath), payload.VersionHint, payload.Operation)
+		}
+	})
+	bucketmount.SetPeerContentFetcher(func(ctx context.Context, payload bucketmount.ContentFetchPayload) error {
+		p2pMu.Lock()
+		manager := p2pMgr
+		p2pMu.Unlock()
+		if manager == nil {
+			return fmt.Errorf("P2P disabled")
+		}
+		return manager.FetchToFile(ctx, payload.Bucket, payload.VirtualPath, payload.VersionHint, payload.Size, payload.DestinationPath, payload.ChunkSize)
+	})
+}
+
 func parentDir(virtualPath string) string {
-	for i := len(virtualPath) - 1; i >= 0; i-- {
-		if virtualPath[i] == '/' {
-			return virtualPath[:i]
+	for index := len(virtualPath) - 1; index >= 0; index-- {
+		if virtualPath[index] == '/' {
+			return virtualPath[:index]
 		}
 	}
 	return ""
 }
 
-// p2pStatus handles the "get_p2p_status" bridge method.
-func p2pStatus() (any, error) {
-	if p2pMgr == nil {
-		return map[string]any{
-			"enabled":  false,
-			"deviceId": "",
-			"peers":    []any{},
-		}, nil
+// broadcastPeerMutation mirrors a remote-confirmed bridge mutation to LAN peers.
+func broadcastPeerMutation(bucket, path, operation string) {
+	p2pMu.Lock()
+	manager := p2pMgr
+	p2pMu.Unlock()
+	if manager != nil {
+		manager.BroadcastMutation(bucket, path, parentDir(path), "", operation)
 	}
-	data, err := p2pMgr.StatusJSON()
+}
+
+func p2pStatus() (any, error) {
+	p2pMu.Lock()
+	manager := p2pMgr
+	p2pMu.Unlock()
+	if manager == nil {
+		return map[string]any{"enabled": false, "deviceId": "", "peers": []any{}}, nil
+	}
+	data, err := manager.StatusJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +146,6 @@ func p2pStatus() (any, error) {
 	return result, json.Unmarshal(data, &result)
 }
 
-// setP2PEnabled handles the "set_p2p_enabled" bridge method.
 func setP2PEnabled(args json.RawMessage) (any, error) {
 	var params struct {
 		Enabled bool `json:"enabled"`
@@ -145,10 +153,14 @@ func setP2PEnabled(args json.RawMessage) (any, error) {
 	if err := json.Unmarshal(args, &params); err != nil {
 		return nil, fmt.Errorf("parse args: %w", err)
 	}
-	if p2pMgr == nil {
-		return nil, fmt.Errorf("p2p manager not initialized")
+	p2pMu.Lock()
+	manager := p2pMgr
+	p2pMu.Unlock()
+	if manager == nil {
+		return nil, fmt.Errorf("P2P is unavailable until an account is configured")
 	}
-	if err := p2pMgr.SetEnabled(params.Enabled); err != nil {
+	if err := manager.SetEnabled(params.Enabled); err != nil {
+		log.Printf("[bridge/p2p] toggle error: %v", err)
 		return nil, err
 	}
 	return map[string]any{"ok": true, "enabled": params.Enabled}, nil

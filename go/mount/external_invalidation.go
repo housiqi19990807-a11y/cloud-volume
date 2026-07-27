@@ -43,6 +43,7 @@ func NotifyExternalDelete(
 	virtualPath string,
 	isDir bool,
 ) {
+	ForgetPeerContent(cfg, bucket, virtualPath)
 	globalManager.notifyExternalMutation(cfg, bucket, func(access *bucketAccess) {
 		log.Printf("[mount/external] delete bucket=%q path=%q isDir=%v", bucket, virtualPath, isDir)
 		access.MarkExternalDelete(virtualPath, isDir)
@@ -75,6 +76,7 @@ func NotifyExternalRename(
 	newPath string,
 	isDir bool,
 ) {
+	ForgetPeerContent(cfg, bucket, oldPath)
 	globalManager.notifyExternalMutation(cfg, bucket, func(access *bucketAccess) {
 		log.Printf("[mount/external] rename bucket=%q old=%q new=%q isDir=%v", bucket, oldPath, newPath, isDir)
 		access.InvalidateExternalRename(oldPath, newPath, isDir)

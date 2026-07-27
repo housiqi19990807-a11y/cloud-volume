@@ -170,7 +170,11 @@ func (q *deleteQueue) runDelete(ctx context.Context, entry *pendingDelete) error
 		deleteFunc = q.access.backend.DeleteObjectHard
 	}
 	err := deleteFunc(ctx, q.access.bucket, q.access.remoteKeyForMutation(entry.virtualPath, entry.isDir), entry.isDir, entry.taskID)
-	if err == nil || entry.isDir || entry.hardDelete || !isRetryableCopySourceError(err) {
+	if err == nil {
+		q.notifyPeerDelete(entry)
+		return nil
+	}
+	if entry.isDir || entry.hardDelete || !isRetryableCopySourceError(err) {
 		return err
 	}
 	for attempt := 0; attempt < 4; attempt++ {
@@ -181,6 +185,7 @@ func (q *deleteQueue) runDelete(ctx context.Context, entry *pendingDelete) error
 		}
 		retryErr := deleteFunc(ctx, q.access.bucket, q.access.remoteKeyForMutation(entry.virtualPath, entry.isDir), entry.isDir, entry.taskID)
 		if retryErr == nil {
+			q.notifyPeerDelete(entry)
 			return nil
 		}
 		err = retryErr
@@ -189,6 +194,13 @@ func (q *deleteQueue) runDelete(ctx context.Context, entry *pendingDelete) error
 		}
 	}
 	return err
+}
+
+func (q *deleteQueue) notifyPeerDelete(entry *pendingDelete) {
+	ForgetPeerContent(q.access.config, q.access.bucket, entry.virtualPath)
+	if hook := PeerBroadcastHook(); hook != nil {
+		hook(BroadcastPayload{Bucket: q.access.bucket, VirtualPath: entry.virtualPath, IsDir: entry.isDir, Operation: "delete"})
+	}
 }
 
 func isRetryableCopySourceError(err error) bool {

@@ -1,5 +1,4 @@
-// PeerManager orchestrates discovery, transport, and event routing for the
-// entire P2P subsystem. It is the single entry point for mount/bridge code.
+// PeerManager coordinates LAN discovery, authenticated events, and content reads.
 package p2p
 
 import (
@@ -12,297 +11,244 @@ import (
 	"time"
 )
 
-// EventReceiver is implemented by the mount layer to handle incoming change
-// notifications. When a peer signals "bucket X, path Y may have changed",
-// this callback refreshes the matching mount session's cache.
+// EventReceiver receives an already authenticated remote mutation.
 type EventReceiver interface {
-	OnPeerEvent(accountFP, bucketFP, pathHash, parentHash, versionHint, operation string)
+	OnPeerEvent(accountFP, bucket, parentPath, operation string)
 }
 
-// PeerStatus is the JSON-serializable status returned to the Flutter UI.
+// PeerStatus is the JSON-serializable state returned to the settings UI.
 type PeerStatus struct {
-	Enabled   bool          `json:"enabled"`
-	DeviceID  string        `json:"deviceId"`
-	Peers     []PeerInfo    `json:"peers"`
-	StartedAt time.Time     `json:"startedAt"`
+	Enabled   bool       `json:"enabled"`
+	DeviceID  string     `json:"deviceId"`
+	Peers     []PeerInfo `json:"peers"`
+	StartedAt time.Time  `json:"startedAt"`
 }
 
-// PeerInfo is one discovered peer as seen by the UI.
+// PeerInfo describes one mDNS-discovered compatible device.
 type PeerInfo struct {
 	DeviceID string `json:"deviceId"`
 	Addr     string `json:"addr"`
 	LastSeen string `json:"lastSeen"`
 }
 
-// PeerManager is the top-level coordinator for P2P operations.
+// PeerManager keeps P2P isolated from mount/storage packages.
 type PeerManager struct {
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	enabled     bool
+	running     bool
+	starting    bool
+	generation  uint64
 	identity    *DeviceIdentity
 	accountFP   string
+	accountKey  []byte
+	chunkSizeMB int
+	startedAt   time.Time
 	discovery   *Discovery
 	transport   *Transport
 	receiver    EventReceiver
+	resolver    ContentResolver
 	seqCounter  uint64
-	cancel      context.CancelFunc
-	connMutex   sync.Mutex
-	connections map[string]*quicConn // deviceID -> connection
-
-	// configRef provides the current chunk size and account details for content transfer.
-	configRef ConfigProvider
 }
 
-// ConfigProvider gives the P2P layer access to user-configurable settings.
-type ConfigProvider interface {
-	P2PEnabled() bool
-	P2PChunkSizeMB() int
-	AccountFingerprint() string
-}
-
-// quicConn wraps a live connection with metadata.
-type quicConn struct {
-	conn   any // *quic.Conn, kept as any to avoid import leak in header
-	device string
-	addr   string
-}
-
-// NewPeerManager creates the coordinator. It does not start anything yet;
-// call Start() after configuring the receiver.
-func NewPeerManager(runtimeDir string, provider ConfigProvider) (*PeerManager, error) {
+// NewPeerManager constructs a stopped manager for one configured account.
+func NewPeerManager(runtimeDir, accountFP string, accountKey []byte, chunkSizeMB int) (*PeerManager, error) {
+	if accountFP == "" || len(accountKey) == 0 {
+		return nil, fmt.Errorf("missing P2P account identity")
+	}
 	identity, err := LoadOrCreateIdentity(runtimeDir)
 	if err != nil {
 		return nil, err
 	}
-	return &PeerManager{
-		identity:    identity,
-		enabled:     provider.P2PEnabled(),
-		accountFP:   provider.AccountFingerprint(),
-		connections: make(map[string]*quicConn),
-		configRef:   provider,
-	}, nil
+	return &PeerManager{identity: identity, enabled: true, accountFP: accountFP,
+		accountKey: append([]byte(nil), accountKey...), chunkSizeMB: normalizeChunkSizeMB(chunkSizeMB)}, nil
 }
 
-// SetReceiver registers the mount-layer handler for incoming events.
-func (pm *PeerManager) SetReceiver(r EventReceiver) {
+// SetReceiver registers the mount-side invalidation callback.
+func (pm *PeerManager) SetReceiver(receiver EventReceiver) {
 	pm.mu.Lock()
-	pm.receiver = r
+	pm.receiver = receiver
 	pm.mu.Unlock()
 }
 
-// Start begins mDNS discovery and QUIC listening. It is safe to call after Stop.
+// SetContentResolver registers a provider for fully cached local objects.
+func (pm *PeerManager) SetContentResolver(resolver ContentResolver) {
+	pm.mu.Lock()
+	pm.resolver = resolver
+	pm.mu.Unlock()
+}
+
+// Start starts listening once. It may be called repeatedly by config bootstrap.
 func (pm *PeerManager) Start() error {
 	pm.mu.Lock()
-	if !pm.enabled {
+	if !pm.enabled || pm.running || pm.starting {
 		pm.mu.Unlock()
 		return nil
 	}
+	pm.starting = true
+	generation := pm.generation
+	transport := NewTransport(pm.identity, pm.accountKey)
+	transport.SetEventHandler(pm.handleIncomingEvent)
+	transport.SetContentResolver(func(ctx context.Context, bucket, path, hint string) (string, int64, bool) {
+		pm.mu.RLock()
+		resolver := pm.resolver
+		pm.mu.RUnlock()
+		if resolver == nil {
+			return "", 0, false
+		}
+		return resolver(ctx, bucket, path, hint)
+	})
 	pm.mu.Unlock()
-
-	transport := NewTransport(pm.identity)
 	port, err := transport.Listen("0.0.0.0:0")
 	if err != nil {
+		pm.mu.Lock()
+		if pm.generation == generation {
+			pm.starting = false
+		}
+		pm.mu.Unlock()
 		return err
 	}
-	pm.transport = transport
-
-	// Wire incoming events to the receiver.
-	transport.onEventReceived = func(se SignedEvent) {
-		pm.handleIncomingEvent(se)
-	}
-
 	discovery := NewDiscovery(pm.identity, pm.accountFP, port)
-	discovery.SetCallbacks(
-		func(peer DiscoveredPeer) {
-			pm.onPeerJoined(peer)
-		},
-		func(deviceID string) {
-			pm.onPeerLeft(deviceID)
-		},
-	)
+	discovery.SetCallbacks(pm.onPeerJoined, pm.onPeerLeft)
 	if err := discovery.Start(); err != nil {
-		transport.Close()
+		_ = transport.Close()
+		pm.mu.Lock()
+		if pm.generation == generation {
+			pm.starting = false
+		}
+		pm.mu.Unlock()
 		return err
 	}
-	pm.discovery = discovery
-	log.Printf("[p2p/manager] started device=%s fp=%s", pm.identity.DeviceID, pm.accountFP[:8]+"…")
+	pm.mu.Lock()
+	if !pm.enabled || pm.generation != generation {
+		pm.starting = false
+		pm.mu.Unlock()
+		discovery.Stop()
+		_ = transport.Close()
+		return nil
+	}
+	pm.transport, pm.discovery, pm.running, pm.starting, pm.startedAt = transport, discovery, true, false, time.Now()
+	pm.mu.Unlock()
+	log.Printf("[p2p/manager] started device=%s", pm.identity.DeviceID)
 	return nil
 }
 
-// Stop shuts down discovery and transport.
+// Stop releases network resources without holding the manager lock.
 func (pm *PeerManager) Stop() {
 	pm.mu.Lock()
-	defer pm.mu.Unlock()
-	if pm.discovery != nil {
-		pm.discovery.Stop()
-		pm.discovery = nil
-	}
-	if pm.transport != nil {
-		pm.transport.Close()
-		pm.transport = nil
-	}
-	pm.connMutex.Lock()
-	pm.connections = make(map[string]*quicConn)
-	pm.connMutex.Unlock()
-	log.Printf("[p2p/manager] stopped")
-}
-
-// IsEnabled returns whether P2P is currently active.
-func (pm *PeerManager) IsEnabled() bool {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-	return pm.enabled
-}
-
-// BroadcastMutation sends a change notification to all discovered peers.
-// It is called from writeback_queue.go after a successful remote upload,
-// and from bridge dispatchers after successful UI mutations.
-func (pm *PeerManager) BroadcastMutation(
-	bucketFP, pathHash, parentHash, versionHint, operation string,
-) {
-	pm.mu.Lock()
-	if !pm.enabled || pm.transport == nil {
-		pm.mu.Unlock()
-		return
-	}
+	discovery, transport := pm.discovery, pm.transport
+	pm.discovery, pm.transport, pm.running, pm.starting = nil, nil, false, false
+	pm.generation++
 	pm.mu.Unlock()
-
-	seq := atomic.AddUint64(&pm.seqCounter, 1)
-	event := PeerEvent{
-		DeviceID:    pm.identity.DeviceID,
-		Sequence:    seq,
-		AccountFP:   pm.accountFP,
-		BucketFP:    bucketFP,
-		PathHash:    pathHash,
-		ParentHash:  parentHash,
-		VersionHint: versionHint,
-		Operation:   operation,
-		Timestamp:   time.Now().UnixMilli(),
-		Nonce:       randomHex(8),
+	if discovery != nil {
+		discovery.Stop()
 	}
-	signed, err := event.Sign(pm.identity)
-	if err != nil {
-		log.Printf("[p2p/broadcast] sign-error: %v", err)
-		return
-	}
-	// Fan-out to all peers. Non-blocking; failures are logged, not fatal.
-	for _, peer := range pm.discovery.Peers() {
-		go func(addr, devID string) {
-			if err := pm.sendToPeer(devID, addr, signed); err != nil {
-				log.Printf("[p2p/broadcast] send-to %s error: %v", devID, err)
-			}
-		}(peer.Addr, peer.DeviceID)
+	if transport != nil {
+		_ = transport.Close()
 	}
 }
 
-// sendToPeer opens or reuses a connection and sends one signed event.
-func (pm *PeerManager) sendToPeer(deviceID, addr string, se SignedEvent) error {
-	pm.connMutex.Lock()
-	existing, ok := pm.connections[deviceID]
-	pm.connMutex.Unlock()
-	if ok && existing != nil {
-		conn, _ := existing.conn.(interface {
-			OpenStreamSync(context.Context) (any, error)
-		})
-		_ = conn // try reuse path omitted for simplicity in this layer
+// IsEnabled reports the user setting, while IsRunning reports active network state.
+func (pm *PeerManager) IsEnabled() bool { pm.mu.RLock(); defer pm.mu.RUnlock(); return pm.enabled }
+func (pm *PeerManager) IsRunning() bool { pm.mu.RLock(); defer pm.mu.RUnlock(); return pm.running }
+
+// BroadcastMutation tells peers to refresh a specific directory immediately.
+func (pm *PeerManager) BroadcastMutation(bucket, path, parentPath, versionHint, operation string) {
+	pm.mu.RLock()
+	transport, discovery, enabled := pm.transport, pm.discovery, pm.enabled
+	pm.mu.RUnlock()
+	if !enabled || transport == nil || discovery == nil {
+		return
 	}
-	// For now, open a fresh connection per broadcast. QUIC 1-RTT is fast
-	// enough for occasional events, and this avoids stale-connection bugs.
-	conn, err := pm.transport.Connect(addr)
+	event := PeerEvent{DeviceID: pm.identity.DeviceID, Sequence: atomic.AddUint64(&pm.seqCounter, 1), AccountFP: pm.accountFP,
+		BucketFP: BucketFingerprint(pm.accountFP, bucket), PathHash: PathHash(pm.accountFP, path), ParentHash: PathHash(pm.accountFP, parentPath),
+		Bucket: bucket, Path: path, ParentPath: parentPath, VersionHint: versionHint, Operation: operation, Timestamp: time.Now().UnixMilli(), Nonce: randomHex(8)}
+	signed, err := event.Sign(pm.identity, pm.accountKey)
 	if err != nil {
-		return err
+		log.Printf("[p2p/broadcast] sign: %v", err)
+		return
 	}
-	defer func() {
+	for _, peer := range discovery.Peers() {
+		go pm.sendToPeer(transport, peer, signed)
+	}
+}
+
+func (pm *PeerManager) sendToPeer(transport *Transport, peer DiscoveredPeer, event SignedEvent) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	conn, err := transport.Connect(ctx, peer.Addr)
+	if err == nil {
+		err = transport.SendEvent(ctx, conn, event)
 		_ = conn.CloseWithError(0, "done")
-	}()
-	return pm.transport.SendEvent(conn, se)
+	}
+	if err != nil {
+		log.Printf("[p2p/broadcast] peer=%s error=%v", peer.DeviceID, err)
+	}
 }
 
-// handleIncomingEvent validates and dispatches an event from a peer.
-func (pm *PeerManager) handleIncomingEvent(se SignedEvent) {
-	// Reject events from different accounts.
-	if se.Event.AccountFP != pm.accountFP {
+func (pm *PeerManager) handleIncomingEvent(event SignedEvent) {
+	pm.mu.RLock()
+	receiver, accountFP, key := pm.receiver, pm.accountFP, append([]byte(nil), pm.accountKey...)
+	pm.mu.RUnlock()
+	if !event.Verify(key) || event.Event.AccountFP != accountFP || event.Event.Bucket == "" {
 		return
 	}
-	// TODO: verify signature against known peer public keys (from discovery).
-	// For now, the mDNS fingerprint match + same-account check is sufficient.
-	pm.mu.Lock()
-	r := pm.receiver
-	pm.mu.Unlock()
-	if r != nil {
-		r.OnPeerEvent(
-			se.Event.AccountFP,
-			se.Event.BucketFP,
-			se.Event.PathHash,
-			se.Event.ParentHash,
-			se.Event.VersionHint,
-			se.Event.Operation,
-		)
+	if age := time.Since(time.UnixMilli(event.Event.Timestamp)); age > 5*time.Minute || age < -time.Minute {
+		return
+	}
+	if receiver != nil {
+		receiver.OnPeerEvent(accountFP, event.Event.Bucket, event.Event.ParentPath, event.Event.Operation)
 	}
 }
 
-// onPeerJoined is called when mDNS discovers a new trusted peer.
 func (pm *PeerManager) onPeerJoined(peer DiscoveredPeer) {
 	log.Printf("[p2p/manager] peer-online device=%s addr=%s", peer.DeviceID, peer.Addr)
 }
-
-// onPeerLeft is called when a peer has not been seen for a while.
 func (pm *PeerManager) onPeerLeft(deviceID string) {
 	log.Printf("[p2p/manager] peer-offline device=%s", deviceID)
-	pm.connMutex.Lock()
-	delete(pm.connections, deviceID)
-	pm.connMutex.Unlock()
 }
 
-// Status returns the current P2P state for the UI.
+// Status produces a stable UI snapshot.
 func (pm *PeerManager) Status() PeerStatus {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-	peers := []PeerInfo{}
-	if pm.discovery != nil {
-		for _, p := range pm.discovery.Peers() {
-			peers = append(peers, PeerInfo{
-				DeviceID: p.DeviceID,
-				Addr:     p.Addr,
-				LastSeen: p.LastSeen.Format(time.RFC3339),
-			})
+	pm.mu.RLock()
+	enabled, device, discovery, started := pm.enabled, pm.identity.DeviceID, pm.discovery, pm.startedAt
+	pm.mu.RUnlock()
+	status := PeerStatus{Enabled: enabled, DeviceID: device, Peers: []PeerInfo{}, StartedAt: started}
+	if discovery != nil {
+		for _, peer := range discovery.Peers() {
+			status.Peers = append(status.Peers, PeerInfo{DeviceID: peer.DeviceID, Addr: peer.Addr, LastSeen: peer.LastSeen.Format(time.RFC3339)})
 		}
 	}
-	return PeerStatus{
-		Enabled:  pm.enabled,
-		DeviceID: pm.identity.DeviceID,
-		Peers:    peers,
-	}
+	return status
 }
-
-// StatusJSON is a convenience for the bridge layer.
-func (pm *PeerManager) StatusJSON() ([]byte, error) {
-	return json.Marshal(pm.Status())
-}
-
-// SetEnabled toggles P2P at runtime (from the settings UI).
+func (pm *PeerManager) StatusJSON() ([]byte, error) { return json.Marshal(pm.Status()) }
 func (pm *PeerManager) SetEnabled(enabled bool) error {
 	pm.mu.Lock()
-	wasEnabled := pm.enabled
 	pm.enabled = enabled
 	pm.mu.Unlock()
-	if enabled && !wasEnabled {
+	if enabled {
 		return pm.Start()
 	}
-	if !enabled && wasEnabled {
-		pm.Stop()
-	}
+	pm.Stop()
 	return nil
 }
-
-// DeviceID returns this device's identifier (for UI display).
-func (pm *PeerManager) DeviceID() string {
-	return pm.identity.DeviceID
+func (pm *PeerManager) DeviceID() string  { return pm.identity.DeviceID }
+func (pm *PeerManager) AccountFP() string { return pm.accountFP }
+func (pm *PeerManager) chunkSize() int64 {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return int64(pm.chunkSizeMB) * 1024 * 1024
 }
-
-// AccountFP returns the account fingerprint (for diagnostics).
-func (pm *PeerManager) AccountFP() string {
-	return pm.accountFP
+func (pm *PeerManager) peerSnapshot() (*Transport, []DiscoveredPeer) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	if !pm.running || pm.transport == nil || pm.discovery == nil {
+		return nil, nil
+	}
+	return pm.transport, pm.discovery.Peers()
 }
-
-// fmtStringer avoids unused import warning.
-var _ = fmt.Sprintf
+func normalizeChunkSizeMB(value int) int {
+	if value < 1 || value > 64 {
+		return 4
+	}
+	return value
+}
