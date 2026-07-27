@@ -100,6 +100,48 @@ void main() {
     expect(find.text('盘符'), findsNothing);
   });
 
+  testWidgets('WinFsp only offers drive-letter mounts', (tester) async {
+    MountBucketOptions? selected;
+    await _openDialog(
+      tester,
+      onSelected: (value) => selected = value,
+      showWindowsMountMode: true,
+      availableDriveLetters: const <String>['Z:', 'Y:'],
+      currentEngine: WindowsMountEngine.winFsp,
+      winFspAvailable: true,
+    );
+
+    expect(find.text('挂载模式'), findsNothing);
+    expect(find.text('路径挂载'), findsNothing);
+    expect(find.text('挂载路径'), findsNothing);
+    expect(find.text('盘符'), findsOneWidget);
+
+    await tester.tap(find.text('开始挂载'));
+    await tester.pumpAndSettle();
+
+    expect(selected?.mountPath, isEmpty);
+    expect(selected?.driveLetter, 'Z:');
+    expect(selected?.windowsMountEngine, WindowsMountEngine.winFsp);
+  });
+
+  testWidgets('blocks WinFsp mounts when no drive letter is free', (
+    tester,
+  ) async {
+    await _openDialog(
+      tester,
+      onSelected: (_) {},
+      showWindowsMountMode: true,
+      currentEngine: WindowsMountEngine.winFsp,
+      winFspAvailable: true,
+    );
+
+    expect(find.text('WinFsp 虚拟文件系统仅支持盘符挂载，请先释放一个可用盘符。'), findsOneWidget);
+    final mountButton = tester.widget<ShadButton>(
+      find.widgetWithText(ShadButton, '开始挂载'),
+    );
+    expect(mountButton.onPressed, isNull);
+  });
+
   testWidgets('non-Windows dialog keeps the path-only presentation', (
     tester,
   ) async {
@@ -175,6 +217,8 @@ Future<void> _openDialog(
   required ValueChanged<MountBucketOptions?> onSelected,
   bool showWindowsMountMode = false,
   List<String> availableDriveLetters = const <String>[],
+  WindowsMountEngine? currentEngine,
+  bool winFspAvailable = false,
   bool forceReadOnly = false,
 }) async {
   await tester.pumpWidget(
@@ -189,6 +233,8 @@ Future<void> _openDialog(
                   bucket: 'bucket-a',
                   showWindowsMountMode: showWindowsMountMode,
                   availableDriveLetters: availableDriveLetters,
+                  currentEngine: currentEngine,
+                  winFspAvailable: winFspAvailable,
                   forceReadOnly: forceReadOnly,
                 ),
               );

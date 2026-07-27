@@ -7,6 +7,7 @@
 package mount
 
 import (
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -100,4 +101,13 @@ func hasWinFspMountSuffix(name string) bool {
 func isWindowsDriveMount(path string) bool {
 	trimmed := strings.TrimSpace(path)
 	return len(trimmed) == 2 && trimmed[1] == ':'
+}
+
+// validateWinFspDriveLetter keeps directory mount requests from reaching the
+// driver, where this virtual-volume configuration cannot mount them reliably.
+func validateWinFspDriveLetter(drive string) error {
+	if isWindowsDriveMount(drive) {
+		return nil
+	}
+	return fmt.Errorf("WinFsp only supports drive-letter mounts; choose an available drive letter")
 }

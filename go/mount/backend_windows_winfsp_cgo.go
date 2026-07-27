@@ -44,31 +44,18 @@ func newWindowsWinFspBackend(cfg storageconfig.RemoteStorageConfig) (mountBacken
 func (b *windowsWinFspBackend) Initialize(session *mountSession) error {
 	session.mountName = safeSegment(session.bucket)
 
-	// Prefer mounting directly onto a free drive letter so Explorer shows a
-	// real volume with the configured capacity. Fall back to a managed path
-	// under the Cloud Volume root when no letter was requested.
-	if session.requestedDriveLetter != "" {
-		drive, err := selectWindowsDriveLetter(session.requestedDriveLetter)
-		if err != nil {
-			return err
-		}
-		session.mountPath = drive
-		session.mountTarget = drive
-		session.driveLetter = drive + `\`
-		return nil
+	// WinFsp directory mounts fail for the virtual-volume configuration used by
+	// this backend, so keep its contract explicitly drive-letter only.
+	if err := validateWinFspDriveLetter(session.requestedDriveLetter); err != nil {
+		return err
 	}
-
-	mountPath := normalizeMountPath(session.requestedPath)
-	if mountPath == "" {
-		rootPath, err := windowsCloudFilesRootPath()
-		if err != nil {
-			return err
-		}
-		session.managedPath = true
-		mountPath = filepath.Join(rootPath, session.mountName+"-winfsp")
+	drive, err := selectWindowsDriveLetter(session.requestedDriveLetter)
+	if err != nil {
+		return err
 	}
-	session.mountPath = mountPath
-	session.mountTarget = mountPath
+	session.mountPath = drive
+	session.mountTarget = drive
+	session.driveLetter = drive + `\`
 	return nil
 }
 

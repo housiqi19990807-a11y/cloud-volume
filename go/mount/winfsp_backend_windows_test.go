@@ -59,3 +59,27 @@ func TestIsWindowsDriveMount(t *testing.T) {
 	}
 }
 
+func TestValidateWinFspDriveLetter(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		drive   string
+		wantErr bool
+	}{
+		{name: "available drive", drive: "Z:"},
+		{name: "empty drive", drive: "", wantErr: true},
+		{name: "directory path", drive: `C:\Cloud Volume`, wantErr: true},
+		{name: "drive root path", drive: `Z:\`, wantErr: true},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if err := validateWinFspDriveLetter(tc.drive); (err != nil) != tc.wantErr {
+				t.Fatalf("validateWinFspDriveLetter(%q) error = %v, wantErr %v", tc.drive, err, tc.wantErr)
+			}
+		})
+	}
+}

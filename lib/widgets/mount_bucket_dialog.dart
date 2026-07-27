@@ -83,7 +83,9 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final usesPath = _presentation == _MountPresentation.path;
+    final requiresDriveLetter = _usesWinFsp;
+    final usesPath =
+        !requiresDriveLetter && _presentation == _MountPresentation.path;
     return ShadDialog(
       title: const Text('挂载存储桶'),
       description: Text('配置 ${widget.bucket} 的本地挂载。'),
@@ -128,7 +130,37 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                 onChanged: _setEngine,
               ),
             ],
-            if (widget.showWindowsMountMode) ...[
+            if (widget.showWindowsMountMode && requiresDriveLetter) ...[
+              const SizedBox(height: 18),
+              _FieldLabel(text: '盘符', theme: theme),
+              const SizedBox(height: 8),
+              if (widget.availableDriveLetters.isNotEmpty)
+                ShadSelect<String>(
+                  key: ValueKey<String?>(_driveLetter),
+                  minWidth: 440,
+                  initialValue: _driveLetter,
+                  ensureSelectedVisible: false,
+                  selectedOptionBuilder: (context, value) => Text(value),
+                  options: widget.availableDriveLetters
+                      .map(
+                        (letter) => ShadOption<String>(
+                          value: letter,
+                          child: Text(letter),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => setState(() => _driveLetter = value),
+                )
+              else
+                Text(
+                  'WinFsp 虚拟文件系统仅支持盘符挂载，请先释放一个可用盘符。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+            ],
+            if (widget.showWindowsMountMode && !requiresDriveLetter) ...[
               const SizedBox(height: 18),
               _FieldLabel(text: '挂载模式', theme: theme),
               const SizedBox(height: 8),
@@ -164,7 +196,9 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
                 ),
               ],
             ],
-            if (widget.showWindowsMountMode && !usesPath) ...[
+            if (widget.showWindowsMountMode &&
+                !usesPath &&
+                !requiresDriveLetter) ...[
               const SizedBox(height: 16),
               _FieldLabel(text: '盘符', theme: theme),
               const SizedBox(height: 8),
@@ -250,8 +284,12 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
     );
   }
 
-  bool get _canSubmit =>
-      _presentation == _MountPresentation.path || _driveLetter != null;
+  bool get _usesWinFsp =>
+      widget.showWindowsMountMode && _engine == WindowsMountEngine.winFsp;
+
+  bool get _canSubmit => _usesWinFsp
+      ? _driveLetter != null
+      : _presentation == _MountPresentation.path || _driveLetter != null;
 
   void _setReadOnly(bool value) {
     setState(() {
@@ -260,6 +298,9 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
       // Explorer write. WinFsp rejects the write itself with EROFS instead.
       if (value && widget.showWindowsMountMode) {
         _engine = WindowsMountEngine.winFsp;
+        if (_driveLetter != null) {
+          _presentation = _MountPresentation.driveLetter;
+        }
       }
     });
   }
@@ -270,6 +311,9 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
       _engine = _readOnly && value == WindowsMountEngine.cloudFiles
           ? WindowsMountEngine.winFsp
           : value;
+      if (_usesWinFsp && _driveLetter != null) {
+        _presentation = _MountPresentation.driveLetter;
+      }
     });
   }
 
