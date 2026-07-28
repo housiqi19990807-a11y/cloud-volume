@@ -159,7 +159,7 @@ func (a *bucketAccess) renamePath(
 	a.cache.invalidatePath(newClean)
 	ForgetPeerContent(a.config, a.bucket, oldClean)
 	if hook := PeerBroadcastHook(); hook != nil {
-		hook(BroadcastPayload{Bucket: a.bucket, VirtualPath: newClean, OldPath: oldClean, IsDir: isDir, Operation: "rename"})
+		hook(BroadcastPayload{Config: a.config, Bucket: a.bucket, VirtualPath: newClean, OldPath: oldClean, IsDir: isDir, Operation: "rename"})
 	}
 	return nil
 }

@@ -199,7 +199,7 @@ func (q *deleteQueue) runDelete(ctx context.Context, entry *pendingDelete) error
 func (q *deleteQueue) notifyPeerDelete(entry *pendingDelete) {
 	ForgetPeerContent(q.access.config, q.access.bucket, entry.virtualPath)
 	if hook := PeerBroadcastHook(); hook != nil {
-		hook(BroadcastPayload{Bucket: q.access.bucket, VirtualPath: entry.virtualPath, IsDir: entry.isDir, Operation: "delete"})
+		hook(BroadcastPayload{Config: q.access.config, Bucket: q.access.bucket, VirtualPath: entry.virtualPath, IsDir: entry.isDir, Operation: "delete"})
 	}
 }
 

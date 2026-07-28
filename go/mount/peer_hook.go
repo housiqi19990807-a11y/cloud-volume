@@ -13,6 +13,7 @@ import (
 
 // BroadcastPayload carries the minimal info needed to fan out a peer event.
 type BroadcastPayload struct {
+	Config      storageconfig.RemoteStorageConfig // originating account, for routing
 	Bucket      string
 	VirtualPath string
 	IsDir       bool

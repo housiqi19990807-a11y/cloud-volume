@@ -93,6 +93,8 @@ class _SettingsP2PSectionState extends State<SettingsP2PSection> {
                 deviceId: p['deviceId'] as String? ?? '',
                 addr: p['addr'] as String? ?? '',
                 lastSeen: p['lastSeen'] as String? ?? '',
+                accounts:
+                    (p['accounts'] as List?)?.cast<String>() ?? const [],
               ),
             )
             .toList();
@@ -343,11 +345,13 @@ class _PeerInfo {
   final String deviceId;
   final String addr;
   final String lastSeen;
+  final List<String> accounts;
 
   _PeerInfo({
     required this.deviceId,
     required this.addr,
     required this.lastSeen,
+    this.accounts = const [],
   });
 }
 
@@ -389,6 +393,16 @@ class _PeerRow extends StatelessWidget {
                     color: theme.colorScheme.mutedForeground,
                   ),
                 ),
+                if (peer.accounts.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '共享账号：${peer.accounts.join('、')}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

@@ -52,8 +52,9 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	configured := len(profiles) > 0
 
 	var config storageconfig.RemoteStorageConfig
+	activeName := ""
 	if configured {
-		activeName := profiles[0].Name
+		activeName = profiles[0].Name
 		for _, profile := range profiles {
 			if profile.Active {
 				activeName = profile.Name
@@ -64,7 +65,13 @@ func loadBootstrapState() (storageconfig.BootstrapState, error) {
 	} else {
 		config = storageconfig.DefaultConfig()
 	}
-	if err := ensureP2PManager(config); err != nil {
+	// Multi-account discovery: every stored profile with P2P enabled gets its
+	// own broadcast, so peers sharing any account can be found.
+	overlays := map[string]storageconfig.RemoteStorageConfig{}
+	if activeName != "" {
+		overlays[activeName] = config
+	}
+	if err := ensureP2PManagers(overlays); err != nil {
 		// LAN acceleration must never block bootstrap of the storage client.
 		log.Printf("[bridge/p2p] bootstrap error: %v", err)
 	}
@@ -107,7 +114,9 @@ func saveConfig(args json.RawMessage) (storageconfig.BootstrapState, error) {
 	}
 	_ = storageconfig.SetActiveProfile("default")
 	queueAutomaticConfigBackup()
-	if err := ensureP2PManager(input.Config); err != nil {
+	if err := ensureP2PManagers(map[string]storageconfig.RemoteStorageConfig{
+		"default": input.Config,
+	}); err != nil {
 		log.Printf("[bridge/p2p] config update error: %v", err)
 	}
 	return loadBootstrapState()
@@ -171,6 +180,11 @@ func saveProfile(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	queueAutomaticConfigBackup()
+	if err := ensureP2PManagers(map[string]storageconfig.RemoteStorageConfig{
+		input.Name: input.Config,
+	}); err != nil {
+		log.Printf("[bridge/p2p] profile save error: %v", err)
+	}
 	return map[string]any{"ok": true}, nil
 }
 
@@ -204,6 +218,9 @@ func deleteProfile(args json.RawMessage) (any, error) {
 		return nil, err
 	}
 	queueAutomaticConfigBackup()
+	if err := ensureP2PManagers(nil); err != nil {
+		log.Printf("[bridge/p2p] profile delete error: %v", err)
+	}
 	// Cascade: remove any directory-sync tasks that referenced this account so
 	// they do not keep running against a profile that no longer exists. Best
 	// effort — a failure here must not un-delete the account.
@@ -261,6 +278,10 @@ func resetUserConfig(args json.RawMessage) (any, error) {
 	}
 	if err := storageconfig.ResetAllProfiles(); err != nil {
 		return nil, err
+	}
+	// Drop every P2P manager so the wiped accounts stop broadcasting at once.
+	if err := ensureP2PManagers(nil); err != nil {
+		log.Printf("[bridge/p2p] config reset error: %v", err)
 	}
 	return loadBootstrapState()
 }

@@ -288,6 +288,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 		_ = q.store.delete(entry.virtualPath)
 		if hook := PeerBroadcastHook(); hook != nil {
 			hook(BroadcastPayload{
+				Config:      access.config,
 				Bucket:      access.bucket,
 				VirtualPath: entry.virtualPath,
 				Operation:   "upload",
