@@ -18,7 +18,7 @@ import (
 // p2pManagerEntry tracks one account's manager plus the config it captured.
 type p2pManagerEntry struct {
 	manager *p2p.PeerManager
-	key     string
+	secrets string // credential fingerprint, not a lifecycle hash
 	label   string
 }
 
@@ -32,6 +32,15 @@ var (
 	p2pDisabledProfiles = map[string]bool{}
 )
 
+// p2pSecretsKey fingerprints only the credential material. Non-credential
+// edits (cache dir, chunk size, timestamps) must NOT restart P2P, otherwise
+// a backup/restore with a different timestamp would change the fingerprint.
+func p2pSecretsKey(cfg storageconfig.RemoteStorageConfig) string {
+	endpoint, principal, secret := p2pCredentials(cfg)
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(
+		cfg.StorageType+"|"+endpoint+"|"+principal+"|"+secret)))
+}
+
 type bridgePeerReceiver struct {
 	cfg storageconfig.RemoteStorageConfig
 }
@@ -39,12 +48,6 @@ type bridgePeerReceiver struct {
 // OnPeerEvent refreshes only the announced parent directory in matching mounts.
 func (r bridgePeerReceiver) OnPeerEvent(_ string, bucket, parentPath, _ string) {
 	bucketmount.RefreshRemoteDirectory(r.cfg, bucket, parentPath)
-}
-
-// ensureP2PManager applies a private, credential-bearing account config for
-// the active profile; multi-account bootstrap uses ensureP2PManagers instead.
-func ensureP2PManager(cfg storageconfig.RemoteStorageConfig) error {
-	return ensureP2PManagers(nil)
 }
 
 // ensureP2PManagers reconciles running managers with the stored profiles:
@@ -86,14 +89,8 @@ func ensureP2PManagers(overlays map[string]storageconfig.RemoteStorageConfig) er
 			}
 			continue
 		}
-		key, err := p2pManagerKey(cfg)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		if entry != nil && (entry.key != key || entry.label != cfg.AccountLabel(name)) {
+		secrets := p2pSecretsKey(cfg)
+		if entry != nil && (entry.secrets != secrets || entry.label != cfg.AccountLabel(name)) {
 			stopP2PManager(name)
 			entry = nil
 		}
@@ -111,7 +108,7 @@ func ensureP2PManagers(overlays map[string]storageconfig.RemoteStorageConfig) er
 			manager.SetContentResolver(func(ctx context.Context, bucket, path, hint string) (string, int64, bool) {
 				return bucketmount.LocalPeerContentPath(cfg, bucket, path, hint)
 			})
-			entry = &p2pManagerEntry{manager: manager, key: key, label: cfg.AccountLabel(name)}
+			entry = &p2pManagerEntry{manager: manager, secrets: secrets, label: cfg.AccountLabel(name)}
 			p2pMu.Lock()
 			p2pManagers[name] = entry
 			p2pMu.Unlock()
@@ -168,15 +165,6 @@ func managerForConfig(cfg storageconfig.RemoteStorageConfig) *p2p.PeerManager {
 		}
 	}
 	return nil
-}
-
-// p2pManagerKey follows the full captured config, not merely account credentials.
-func p2pManagerKey(cfg storageconfig.RemoteStorageConfig) (string, error) {
-	configBytes, err := json.Marshal(cfg)
-	if err != nil {
-		return "", fmt.Errorf("encode P2P config: %w", err)
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(configBytes)), nil
 }
 
 func p2pCredentials(cfg storageconfig.RemoteStorageConfig) (endpoint, principal, secret string) {

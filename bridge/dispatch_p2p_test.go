@@ -1,4 +1,4 @@
-// P2P bridge tests protect manager replacement when captured config changes.
+// P2P bridge tests protect manager routing and credential-change replacement.
 package main
 
 import (
@@ -8,7 +8,9 @@ import (
 	"remote-storage/go/p2p"
 )
 
-func TestP2PManagerKeyChangesWithCapturedConfig(t *testing.T) {
+// The manager lifecycle must follow credential material only. Timestamps or
+// non-credential fields (cache dir, chunk size) must not restart P2P.
+func TestP2PSecretsKeyIgnoresNonCredentialFields(t *testing.T) {
 	base := storageconfig.RemoteStorageConfig{
 		Endpoint:        "https://example.test",
 		AccessKeyID:     "access",
@@ -16,18 +18,19 @@ func TestP2PManagerKeyChangesWithCapturedConfig(t *testing.T) {
 		P2PEnabled:      true,
 		P2PChunkSizeMB:  4,
 	}.Normalized()
-	baseKey, err := p2pManagerKey(base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	baseKey := p2pSecretsKey(base)
+
 	updated := base
 	updated.CacheDirectory = "C:/cache/updated"
-	updatedKey, err := p2pManagerKey(updated)
-	if err != nil {
-		t.Fatal(err)
+	updated.P2PChunkSizeMB = 16
+	if p2pSecretsKey(updated) != baseKey {
+		t.Fatal("non-credential change must not alter the P2P secrets key")
 	}
-	if baseKey == updatedKey {
-		t.Fatal("captured mount config change did not replace the P2P manager")
+
+	rotated := base
+	rotated.SecretAccessKey = "new-secret"
+	if p2pSecretsKey(rotated) == baseKey {
+		t.Fatal("credential change must alter the P2P secrets key")
 	}
 }
 
@@ -64,8 +67,8 @@ func TestManagerForConfigMatchesAccountFingerprint(t *testing.T) {
 	p2pMu.Lock()
 	savedManagers, savedDisabled := p2pManagers, p2pDisabledProfiles
 	p2pManagers = map[string]*p2pManagerEntry{
-		"profile-a": {manager: mgrA, key: "a"},
-		"profile-b": {manager: mgrB, key: "b"},
+		"profile-a": {manager: mgrA, secrets: "a"},
+		"profile-b": {manager: mgrB, secrets: "b"},
 	}
 	p2pDisabledProfiles = map[string]bool{}
 	p2pMu.Unlock()
