@@ -649,6 +649,8 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 **Shared mDNS socket (2026-07-28):** `go/p2p/discovery.go` uses a single `sharedMDNS` with a `multiServiceZone` to serve all account fingerprints on one UDP 5353 socket. Never create one `mdns.Server` per account — the port conflict silently drops broadcasts. IPv6 mDNS queries are disabled (`DisableIPv6: true`) because LANs without routable IPv6 multicast cause hashicorp/mdns to spam bind errors; both the client query and the shared server pass `Logger: log.New(io.Discard, ...)` so the library's INFO/ERR lines don't flood bridge.log.
 
+**Multi-interface query (2026-07-28):** `queryPeers` must iterate `multicastIPv4Interfaces()` and query each one separately. hashicorp/mdns's default query only uses the primary interface, so on hosts with multiple NICs (e.g. Mac with VMware bridge on en1 while en0 is primary) the default query misses peers reachable through the secondary interface. Do not revert to a single default-interface query.
+
 **Automatic-discovery option (2026-07-23):** 可以免配对，但组密钥只能在内存中由同一挂载范围的规范化 `storageType + endpoint + bucket + rootPrefix` 与实际凭证材料经 HKDF-SHA256 派生；mDNS TXT 仅广播截断 `HMAC(groupKey, "cloud-volume/p1/discovery/v1")` 标签和临时端口，绝不广播 endpoint、bucket、路径或凭证。标签匹配后才建立 QUIC，首个双向流以随机 nonce、组密钥 HMAC 和 event MAC 认证；事件路径放在该加密流内，接收端按父目录刷新。这样无需持久化新的组密钥，但凭证轮换会自然换组，匿名/无密钥账号不能启用，并且弱 WebDAV/FTP 密码会让广播标签成为离线猜测验证器；自动发现应默认关闭或至少明确告知该风险。不要依赖 HMAC `pathHash` 反查任意路径，它不可逆；需传加密路径或只发已知目录刷新提示。
 
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)

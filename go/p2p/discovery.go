@@ -196,25 +196,64 @@ func (d *Discovery) queryPeers() {
 			d.processEntry(entry)
 		}
 	}()
-	params := &mdns.QueryParam{
-		Service:             mdnsService,
-		Domain:              mdnsDomain,
-		Timeout:             5 * time.Second,
-		Entries:             entriesCh,
-		WantUnicastResponse: false,
-		// Disable IPv6: many LANs (VMware bridge, Windows firewall) have no
-		// routable IPv6 multicast, which makes hashicorp/mdns spam
-		// "Failed to bind to udp6 port" every query. IPv4 mDNS is sufficient.
-		DisableIPv6: true,
-		// Discard the library's INFO/ERR logs; DisableIPv6 already prevents
-		// the IPv6 listener from being created, but the client still logs a
-		// one-line notice on every query.
-		Logger: log.New(io.Discard, "", 0),
+	// Query every multicast-capable interface that has an IPv4 address.
+	// The default query only uses the primary interface, so peers reachable
+	// through a secondary NIC (e.g. VMware bridge on en1) are missed.
+	ifaces := multicastIPv4Interfaces()
+	if len(ifaces) == 0 {
+		ifaces = []net.Interface{{}} // zero value = library default
 	}
-	if err := mdns.Query(params); err != nil {
-		log.Printf("[p2p/discovery] query-error: %v", err)
+	for _, iface := range ifaces {
+		ifaceCopy := iface
+		params := &mdns.QueryParam{
+			Service:             mdnsService,
+			Domain:              mdnsDomain,
+			Timeout:             5 * time.Second,
+			Entries:             entriesCh,
+			WantUnicastResponse: false,
+			Interface:           &ifaceCopy,
+			// Disable IPv6: many LANs (VMware bridge, Windows firewall) have no
+			// routable IPv6 multicast, which makes hashicorp/mdns spam
+			// "Failed to bind to udp6 port" every query. IPv4 mDNS is sufficient.
+			DisableIPv6: true,
+			// Discard the library's INFO/ERR logs; DisableIPv6 already prevents
+			// the IPv6 listener from being created, but the client still logs a
+			// one-line notice on every query.
+			Logger: log.New(io.Discard, "", 0),
+		}
+		if err := mdns.Query(params); err != nil {
+			log.Printf("[p2p/discovery] query-error iface=%s: %v", iface.Name, err)
+		}
 	}
 	close(entriesCh)
+}
+
+// multicastIPv4Interfaces returns up, multicast-capable interfaces with an
+// IPv4 address, so discovery queries can target each LAN segment.
+func multicastIPv4Interfaces() []net.Interface {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []net.Interface
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagMulticast == 0 ||
+			iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if ok && ipNet.IP.To4() != nil {
+				out = append(out, iface)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // processEntry inspects one mDNS response; adds or refreshes matching peers.
