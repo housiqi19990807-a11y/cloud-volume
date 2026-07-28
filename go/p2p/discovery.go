@@ -231,6 +231,7 @@ func (d *Discovery) processEntry(entry *mdns.ServiceEntry) {
 	if fp != d.accountFP || devID == "" || devID == d.identity.DeviceID {
 		return
 	}
+	log.Printf("[p2p/discovery] matched-fp device=%s port=%d fp=%s", devID, entry.Port, fp)
 	ip := entry.AddrV4
 	if ip == nil && len(entry.AddrV6) > 0 {
 		ip = entry.AddrV6
