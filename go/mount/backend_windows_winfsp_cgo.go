@@ -106,10 +106,7 @@ func (b *windowsWinFspBackend) Start(session *mountSession) error {
 	volumeLabel := "Cloud Volume " + session.bucket
 	go func() {
 		defer close(b.doneCh)
-		opts := []string{
-			"-o", "volname=" + volumeLabel,
-		}
-		ok := host.Mount(mountPath, opts)
+		ok := host.Mount(mountPath, winFspMountOptions(volumeLabel))
 		log.Printf("[mount/winfsp] host-exited bucket=%q ok=%t", session.bucket, ok)
 	}()
 
@@ -206,6 +203,17 @@ func (b *windowsWinFspBackend) waitUntilActive(session *mountSession, timeout ti
 		time.Sleep(150 * time.Millisecond)
 	}
 	return fmt.Errorf("WinFsp mount did not become active for %q", session.mountPath)
+}
+
+// winFspMountOptions keeps the FUSE volume geometry aligned with Statfs so
+// Explorer calculates total and free space from the same 4096-byte unit.
+func winFspMountOptions(volumeLabel string) []string {
+	return []string{
+		"-o", "volname=" + volumeLabel,
+		"-o", "FileSystemName=CloudVolume",
+		"-o", "SectorSize=4096",
+		"-o", "SectorsPerAllocationUnit=1",
+	}
 }
 
 // stopHost unmounts the cgofuse host exactly once and waits for the serving

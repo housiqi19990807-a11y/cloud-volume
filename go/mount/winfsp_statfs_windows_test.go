@@ -34,3 +34,23 @@ func TestWinFspStatfsReportsConfiguredCapacity(t *testing.T) {
 		t.Fatalf("block sizes = %d/%d, want %d", stat.Bsize, stat.Frsize, winFspBlockBytes)
 	}
 }
+
+func TestWinFspMountOptionsMatchStatfsGeometry(t *testing.T) {
+	t.Parallel()
+
+	want := []string{
+		"-o", "volname=Cloud Volume test",
+		"-o", "FileSystemName=CloudVolume",
+		"-o", "SectorSize=4096",
+		"-o", "SectorsPerAllocationUnit=1",
+	}
+	got := winFspMountOptions("Cloud Volume test")
+	if len(got) != len(want) {
+		t.Fatalf("option count = %d, want %d", len(got), len(want))
+	}
+	for index, value := range want {
+		if got[index] != value {
+			t.Fatalf("option %d = %q, want %q", index, got[index], value)
+		}
+	}
+}

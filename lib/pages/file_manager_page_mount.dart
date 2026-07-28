@@ -257,11 +257,21 @@ extension _FileManagerPageMount on _FileManagerPageState {
     if (options.windowsMountEngine != null &&
         options.windowsMountEngine != mountConfig.windowsMountEngine) {
       try {
-        final saved = await widget.api.saveConfig(
-          mountConfig.copyWith(windowsMountEngine: options.windowsMountEngine),
+        final updatedConfig = mountConfig.copyWith(
+          windowsMountEngine: options.windowsMountEngine,
         );
+        if (widget.profiles.isEmpty) {
+          // The legacy single-account flow has no named profile yet.
+          final saved = await widget.api.saveConfig(updatedConfig);
+          mountConfig = saved.config;
+        } else {
+          // saveConfig always writes the "default" profile. Saving a bucket
+          // from another account there cloned the account and duplicated its
+          // buckets after the subsequent bootstrap refresh.
+          await widget.api.saveProfile(targetBucket.profileName, updatedConfig);
+          mountConfig = updatedConfig;
+        }
         if (!mounted) return;
-        mountConfig = saved.config;
         widget.onRefresh();
       } catch (error) {
         _showPageError(error);
