@@ -4,6 +4,7 @@ package p2p
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -68,7 +69,12 @@ var (
 func sharedMDNSServer() (*sharedMDNS, error) {
 	sharedOnce.Do(func() {
 		zone := &multiServiceZone{svcs: map[string]*mdns.MDNSService{}}
-		server, err := mdns.NewServer(&mdns.Config{Zone: zone})
+		server, err := mdns.NewServer(&mdns.Config{
+			Zone: zone,
+			// Silence the IPv6 listener warning; many LANs have no routable
+			// IPv6 multicast and hashicorp/mdns logs it as INFO every query.
+			Logger: log.New(io.Discard, "", 0),
+		})
 		if err != nil {
 			sharedErr = err
 			return
@@ -200,6 +206,10 @@ func (d *Discovery) queryPeers() {
 		// routable IPv6 multicast, which makes hashicorp/mdns spam
 		// "Failed to bind to udp6 port" every query. IPv4 mDNS is sufficient.
 		DisableIPv6: true,
+		// Discard the library's INFO/ERR logs; DisableIPv6 already prevents
+		// the IPv6 listener from being created, but the client still logs a
+		// one-line notice on every query.
+		Logger: log.New(io.Discard, "", 0),
 	}
 	if err := mdns.Query(params); err != nil {
 		log.Printf("[p2p/discovery] query-error: %v", err)
