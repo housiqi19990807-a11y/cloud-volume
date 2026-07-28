@@ -92,6 +92,7 @@ func ListObjectsPageContext(
 		}
 		info := ObjectInfo{Key: *obj.Key, Size: *obj.Size}
 		info.LastModified = formatObjectLastModified(obj.LastModified)
+		info.ETag = aws.ToString(obj.ETag)
 		items = append(items, info)
 	}
 	if items == nil {

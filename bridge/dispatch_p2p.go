@@ -46,7 +46,10 @@ func ensureP2PManager(cfg storageconfig.RemoteStorageConfig) error {
 	}
 	fingerprint := p2p.AccountFingerprint(endpoint, principal)
 	authKey := p2p.AccountAuthKey(endpoint, principal, secret)
-	key := fmt.Sprintf("%x/%d", sha256.Sum256(authKey), cfg.P2PChunkSizeMB)
+	key, err := p2pManagerKey(cfg)
+	if err != nil {
+		return err
+	}
 	p2pMu.Lock()
 	if p2pMgr != nil && p2pKey == key {
 		manager := p2pMgr
@@ -79,6 +82,15 @@ func ensureP2PManager(cfg storageconfig.RemoteStorageConfig) error {
 	}
 	installPeerHooks()
 	return nil
+}
+
+// p2pManagerKey follows the full captured config, not merely account credentials.
+func p2pManagerKey(cfg storageconfig.RemoteStorageConfig) (string, error) {
+	configBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return "", fmt.Errorf("encode P2P config: %w", err)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(configBytes)), nil
 }
 
 func p2pCredentials(cfg storageconfig.RemoteStorageConfig) (endpoint, principal, secret string) {
@@ -157,6 +169,9 @@ func setP2PEnabled(args json.RawMessage) (any, error) {
 	manager := p2pMgr
 	p2pMu.Unlock()
 	if manager == nil {
+		if !params.Enabled {
+			return map[string]any{"ok": true, "enabled": false}, nil
+		}
 		return nil, fmt.Errorf("P2P is unavailable until an account is configured")
 	}
 	if err := manager.SetEnabled(params.Enabled); err != nil {

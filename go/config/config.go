@@ -1,6 +1,9 @@
 package config
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // RemoteStorageConfig stores account connection values persisted to TOML.
 type RemoteStorageConfig struct {
@@ -62,6 +65,32 @@ type RemoteStorageConfig struct {
 	P2PEnabled bool `json:"p2pEnabled" toml:"p2p_enabled"`
 	// P2PChunkSizeMB is the chunk size in MB used for peer-to-peer content transfer.
 	P2PChunkSizeMB int `json:"p2pChunkSizeMb" toml:"p2p_chunk_size_mb"`
+}
+
+// UnmarshalJSON preserves the enabled-by-default setting when reading profiles written
+// before LAN P2P was introduced. New JSON always writes the explicit setting.
+func (c *RemoteStorageConfig) UnmarshalJSON(data []byte) error {
+	type configJSON RemoteStorageConfig
+	var decoded configJSON
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if _, present := fields["p2pEnabled"]; !present {
+		if _, present = fields["p2p_enabled"]; !present {
+			decoded.P2PEnabled = true
+		}
+	}
+	if _, present := fields["p2pChunkSizeMb"]; !present {
+		if _, present = fields["p2p_chunk_size_mb"]; !present {
+			decoded.P2PChunkSizeMB = defaultP2PChunkSizeMB
+		}
+	}
+	*c = RemoteStorageConfig(decoded)
+	return nil
 }
 
 type BucketSettings struct {

@@ -641,6 +641,8 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 **P1/D2 update (2026-07-27):** 已实现 mDNS/QUIC 自动发现和受账号 secret HMAC 认证的事件/内容流。对端事件只应触发受影响父目录的 `RefreshRemoteDirectory`，绝不能直接调用 `NotifyExternalDelete`，因为后者会取消本机 pending writeback 并写 tombstone。事件生产端仍只能放在 `writebackQueue.flushNow`、`deleteQueue.runDelete`、`bucketAccess.renamePath` 和 bridge 的远端 mutation 成功点；P0 继续是 P2P 不可用时的可靠性兜底。
 
+**P2P safety update (2026-07-28):** D2 content transfer now requires a non-empty provider ETag. `go/s3.ObjectInfo` carries the ETag from Head/List responses, cache stamps persist it, and the requester re-checks it after transfer; providers without a stable ETag skip D2 and use the ordinary remote download path. This avoids same-second, same-size overwrites without forcing full-file hashing. `ensureP2PManager` hashes the normalized full config for its lifecycle key because its receiver/resolver closures capture that config, and `RemoteStorageConfig.UnmarshalJSON` supplies enabled/default P2P fields for pre-feature profiles. The settings toggle persists config before issuing the runtime toggle, and disabling is idempotent after the manager has been released.
+
 **Automatic-discovery option (2026-07-23):** 可以免配对，但组密钥只能在内存中由同一挂载范围的规范化 `storageType + endpoint + bucket + rootPrefix` 与实际凭证材料经 HKDF-SHA256 派生；mDNS TXT 仅广播截断 `HMAC(groupKey, "cloud-volume/p1/discovery/v1")` 标签和临时端口，绝不广播 endpoint、bucket、路径或凭证。标签匹配后才建立 QUIC，首个双向流以随机 nonce、组密钥 HMAC 和 event MAC 认证；事件路径放在该加密流内，接收端按父目录刷新。这样无需持久化新的组密钥，但凭证轮换会自然换组，匿名/无密钥账号不能启用，并且弱 WebDAV/FTP 密码会让广播标签成为离线猜测验证器；自动发现应默认关闭或至少明确告知该风险。不要依赖 HMAC `pathHash` 反查任意路径，它不可逆；需传加密路径或只发已知目录刷新提示。
 
 ### Feature: File Preview & Upload Cache Seeding (文件预览与上传缓存衔接)

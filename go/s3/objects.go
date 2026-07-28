@@ -23,6 +23,7 @@ type ObjectInfo struct {
 	Key          string `json:"key"`
 	Size         int64  `json:"size"`
 	LastModified string `json:"lastModified,omitempty"`
+	ETag         string `json:"etag,omitempty"`
 	IsDir        bool   `json:"isDir"`
 }
 
@@ -53,6 +54,7 @@ func HeadObjectContext(
 		IsDir: false,
 	}
 	info.LastModified = formatObjectLastModified(out.LastModified)
+	info.ETag = aws.ToString(out.ETag)
 	return info, nil
 }
 

@@ -67,6 +67,7 @@ func ListObjectsRecursiveContext(
 			}
 			info := ObjectInfo{Key: key, Size: aws.ToInt64(obj.Size)}
 			info.LastModified = formatObjectLastModified(obj.LastModified)
+			info.ETag = aws.ToString(obj.ETag)
 			items = append(items, info)
 		}
 	}
@@ -76,4 +77,3 @@ func ListObjectsRecursiveContext(
 	log.Printf("[s3/list-recursive] done bucket=%q prefix=%q duration=%s items=%d", bucket, logPrefix, time.Since(startedAt).Round(time.Millisecond), len(items))
 	return items, nil
 }
-

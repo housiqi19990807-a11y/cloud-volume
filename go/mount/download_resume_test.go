@@ -17,6 +17,7 @@ func TestCompleteDownloadUsableRequiresMatchingStamp(t *testing.T) {
 		Key:          "object.txt",
 		Size:         11,
 		LastModified: "2026-05-26 22:00:00",
+		ETag:         "etag-v1",
 	}
 	if err := writeDownloadStamp(localPath, info); err != nil {
 		t.Fatalf("writeDownloadStamp: %v", err)
@@ -28,8 +29,30 @@ func TestCompleteDownloadUsableRequiresMatchingStamp(t *testing.T) {
 		Key:          info.Key,
 		Size:         info.Size,
 		LastModified: "2026-05-26 22:00:01",
+		ETag:         info.ETag,
 	}) {
 		t.Fatal("expected cache file to be invalid after remote last-modified changes")
+	}
+}
+
+func TestCompleteDownloadUsableRejectsSameSizeSameTimestampETagChange(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	localPath := createTempFile(t, root, "cache/object.txt", "hello world")
+	original := s3ops.ObjectInfo{
+		Key:          "object.txt",
+		Size:         11,
+		LastModified: "2026-05-26 22:00:00",
+		ETag:         "etag-v1",
+	}
+	if err := writeDownloadStamp(localPath, original); err != nil {
+		t.Fatalf("writeDownloadStamp: %v", err)
+	}
+	overwritten := original
+	overwritten.ETag = "etag-v2"
+	if isCompleteDownloadUsable(localPath, overwritten) {
+		t.Fatal("expected cache file to be invalid after same-size same-time overwrite")
 	}
 }
 

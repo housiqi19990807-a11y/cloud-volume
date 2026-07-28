@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	storageconfig "remote-storage/go/config"
@@ -58,7 +59,7 @@ func LocalPeerContentPath(
 	}
 	access := session.access
 	info, ok := access.cache.cachedObject(virtualPath)
-	if ok && !info.IsDir && info.LastModified == versionHint {
+	if ok && !info.IsDir && info.ETag == versionHint {
 		if path, ok := access.localReadablePath(virtualPath, info); ok {
 			return path, info.Size, true
 		}
@@ -67,7 +68,7 @@ func LocalPeerContentPath(
 	// valid for peer service through its persistent remote-version stamp.
 	path := access.cachePathFor(cleanVirtualPath(virtualPath))
 	stamp, ok := loadDownloadStamp(path)
-	if !ok || stamp.LastModified != versionHint || !isUsableLocalFile(path, stamp.Size) {
+	if !ok || stamp.ETag != versionHint || !isUsableLocalFile(path, stamp.Size) {
 		return "", 0, false
 	}
 	return path, stamp.Size, true
@@ -77,7 +78,7 @@ func lookupPeerSource(cfg storageconfig.RemoteStorageConfig, bucket, path, versi
 	peerSources.RLock()
 	source, ok := peerSources.items[peerSourceKey(cfg, bucket, path)]
 	peerSources.RUnlock()
-	if !ok || source.info.LastModified != versionHint || !isUsableLocalFile(source.path, source.info.Size) {
+	if !ok || source.info.ETag != versionHint || !isUsableLocalFile(source.path, source.info.Size) {
 		return peerSource{}, false
 	}
 	return source, true
@@ -100,6 +101,12 @@ func (a *bucketAccess) downloadFromPeerToCache(
 	if fetcher == nil || !a.config.P2PEnabled {
 		return "", false
 	}
+	// Only immutable provider version identifiers may authorize a LAN cache fill.
+	// Timestamp plus size is insufficient for same-second overwrites.
+	versionHint := strings.TrimSpace(info.ETag)
+	if versionHint == "" {
+		return "", false
+	}
 	tempPath := partialDownloadPath(localPath)
 	clearDownloadArtifacts(localPath)
 	if err := writeDownloadStamp(tempPath, info); err != nil {
@@ -107,7 +114,7 @@ func (a *bucketAccess) downloadFromPeerToCache(
 	}
 	timeoutCtx, cancel := a.withTransferTimeout(ctx)
 	err := fetcher(timeoutCtx, ContentFetchPayload{Config: a.config, Bucket: a.bucket, VirtualPath: virtualPath,
-		VersionHint: info.LastModified, Size: info.Size, DestinationPath: tempPath})
+		VersionHint: versionHint, Size: info.Size, DestinationPath: tempPath})
 	cancel()
 	if err != nil || !isPartialDownloadUsable(localPath, info) {
 		clearDownloadArtifacts(localPath)
@@ -115,7 +122,7 @@ func (a *bucketAccess) downloadFromPeerToCache(
 	}
 	// Remote metadata remains authoritative if the object changed mid-transfer.
 	current, err := a.fetchStat(ctx, virtualPath)
-	if err != nil || current.Size != info.Size || current.LastModified != info.LastModified {
+	if err != nil || current.Size != info.Size || current.ETag != info.ETag {
 		clearDownloadArtifacts(localPath)
 		return "", false
 	}

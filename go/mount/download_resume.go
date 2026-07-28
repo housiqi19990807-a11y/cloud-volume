@@ -12,6 +12,7 @@ import (
 type downloadStamp struct {
 	Size         int64  `json:"size"`
 	LastModified string `json:"lastModified"`
+	ETag         string `json:"etag,omitempty"`
 }
 
 func partialDownloadPath(localPath string) string {
@@ -31,7 +32,7 @@ func matchesDownloadStamp(localPath string, info s3ops.ObjectInfo) bool {
 	if !ok {
 		return false
 	}
-	return stamp.Size == info.Size && stamp.LastModified == info.LastModified
+	return stamp.Size == info.Size && stamp.LastModified == info.LastModified && stamp.ETag == info.ETag
 }
 
 func loadDownloadStamp(localPath string) (downloadStamp, bool) {
@@ -53,6 +54,7 @@ func writeDownloadStamp(localPath string, info s3ops.ObjectInfo) error {
 	data, err := json.Marshal(downloadStamp{
 		Size:         info.Size,
 		LastModified: info.LastModified,
+		ETag:         info.ETag,
 	})
 	if err != nil {
 		return err

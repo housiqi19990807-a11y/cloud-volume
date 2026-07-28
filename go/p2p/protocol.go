@@ -28,14 +28,11 @@ type ContentQuery struct {
 	AuthTag     []byte `json:"authTag"`
 }
 
-// ContentResponse tells the requester whether the peer has the object.
-// If Has is true, Sha256 and Size describe the full file content.
+// ContentResponse tells the requester whether the peer has the requested size.
 type ContentResponse struct {
-	Has       bool   `json:"has"`
-	Sha256    string `json:"sha256,omitempty"`    // full-file content hash
-	Size      int64  `json:"size,omitempty"`      // total file size in bytes
-	ChunkSize int64  `json:"chunkSize,omitempty"` // suggested chunk size
-	AuthTag   []byte `json:"authTag"`
+	Has     bool   `json:"has"`
+	Size    int64  `json:"size,omitempty"` // total file size in bytes
+	AuthTag []byte `json:"authTag"`
 }
 
 // ChunkRequest requests a specific byte range from the peer's local copy.

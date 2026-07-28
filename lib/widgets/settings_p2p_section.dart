@@ -100,10 +100,10 @@ class _SettingsP2PSectionState extends State<SettingsP2PSection> {
     if (_toggling) return;
     setState(() => _toggling = true);
     try {
-      await widget.api.setP2PEnabled(enabled);
       await widget.onSaveConfig(
         widget.config.copyWith(p2pEnabled: enabled),
       );
+      await widget.api.setP2PEnabled(enabled);
     } finally {
       if (mounted) setState(() => _toggling = false);
     }
