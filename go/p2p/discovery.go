@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/mdns"
+	"github.com/miekg/dns"
 )
 
 const (
@@ -40,7 +41,7 @@ type Discovery struct {
 	mu    sync.Mutex
 	peers map[string]*DiscoveredPeer // keyed by DeviceID
 
-	server   *mdns.Server
+	server   *sharedMDNS
 	cancel   context.CancelFunc
 	stopOnce sync.Once
 	stopCh   chan struct{}
@@ -48,6 +49,66 @@ type Discovery struct {
 
 	onPeerJoined func(DiscoveredPeer)
 	onPeerLeft   func(string)
+}
+
+// sharedMDNS owns one UDP 5353 socket and multiplexes several account
+// fingerprints on it. hashicorp/mdns binds 5353 per Server, so parallel
+// managers on the same device would fight for the port and lose broadcasts.
+type sharedMDNS struct {
+	server *mdns.Server
+	zone   *multiServiceZone
+}
+
+var (
+	sharedOnce sync.Once
+	sharedInst *sharedMDNS
+	sharedErr  error
+)
+
+func sharedMDNSServer() (*sharedMDNS, error) {
+	sharedOnce.Do(func() {
+		zone := &multiServiceZone{svcs: map[string]*mdns.MDNSService{}}
+		server, err := mdns.NewServer(&mdns.Config{Zone: zone})
+		if err != nil {
+			sharedErr = err
+			return
+		}
+		sharedInst = &sharedMDNS{server: server, zone: zone}
+	})
+	return sharedInst, sharedErr
+}
+
+// multiServiceZone implements mdns.Zone by fanning queries out to every
+// registered account fingerprint. It lets one socket serve many accounts.
+type multiServiceZone struct {
+	mu   sync.RWMutex
+	svcs map[string]*mdns.MDNSService
+}
+
+// Records answers an mDNS query by merging records from every registered
+// fingerprint service that matches the question.
+func (z *multiServiceZone) Records(q dns.Question) []dns.RR {
+	z.mu.RLock()
+	defer z.mu.RUnlock()
+	var out []dns.RR
+	for _, svc := range z.svcs {
+		out = append(out, svc.Records(q)...)
+	}
+	return out
+}
+
+// add registers one account fingerprint's records under the shared socket.
+func (z *multiServiceZone) add(fp string, svc *mdns.MDNSService) {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	z.svcs[fp] = svc
+}
+
+// remove deregisters one account fingerprint; the socket stays open.
+func (z *multiServiceZone) remove(fp string) {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	delete(z.svcs, fp)
 }
 
 // NewDiscovery creates a discovery instance. accountFP must match what the
@@ -69,8 +130,14 @@ func (d *Discovery) SetCallbacks(joined func(DiscoveredPeer), left func(string))
 	d.onPeerLeft = left
 }
 
-// Start registers the mDNS service and begins periodic browsing.
+// Start registers the mDNS service and begins periodic browsing. Multiple
+// account fingerprints share one mDNS server to avoid UDP 5353 port
+// conflicts when several managers start on the same device.
 func (d *Discovery) Start() error {
+	shared, err := sharedMDNSServer()
+	if err != nil {
+		return fmt.Errorf("mdns server: %w", err)
+	}
 	service, err := mdns.NewMDNSService(
 		d.identity.DeviceID,
 		mdnsService,
@@ -86,16 +153,13 @@ func (d *Discovery) Start() error {
 	if err != nil {
 		return fmt.Errorf("mdns service: %w", err)
 	}
-	server, err := mdns.NewServer(&mdns.Config{Zone: service})
-	if err != nil {
-		return fmt.Errorf("mdns server: %w", err)
-	}
-	d.server = server
+	shared.zone.add(d.accountFP, service)
+	d.server = shared
 
 	ctx, cancel := context.WithCancel(context.Background())
 	d.cancel = cancel
 	go d.browseLoop(ctx)
-	log.Printf("[p2p/discovery] started device=%s port=%d", d.identity.DeviceID, d.quicPort)
+	log.Printf("[p2p/discovery] started device=%s port=%d fp=%s", d.identity.DeviceID, d.quicPort, d.accountFP)
 	return nil
 }
 
@@ -132,6 +196,10 @@ func (d *Discovery) queryPeers() {
 		Timeout:             5 * time.Second,
 		Entries:             entriesCh,
 		WantUnicastResponse: false,
+		// Disable IPv6: many LANs (VMware bridge, Windows firewall) have no
+		// routable IPv6 multicast, which makes hashicorp/mdns spam
+		// "Failed to bind to udp6 port" every query. IPv4 mDNS is sufficient.
+		DisableIPv6: true,
 	}
 	if err := mdns.Query(params); err != nil {
 		log.Printf("[p2p/discovery] query-error: %v", err)
@@ -214,7 +282,8 @@ func (d *Discovery) Peers() []DiscoveredPeer {
 	return out
 }
 
-// Stop shuts down the mDNS server and browsing loop.
+// Stop deregisters this fingerprint from the shared socket and stops browsing.
+// The UDP socket stays open while other account managers still need it.
 func (d *Discovery) Stop() {
 	d.stopOnce.Do(func() {
 		if d.cancel != nil {
@@ -223,7 +292,7 @@ func (d *Discovery) Stop() {
 		close(d.stopCh)
 		<-d.doneCh
 		if d.server != nil {
-			_ = d.server.Shutdown()
+			d.server.zone.remove(d.accountFP)
 		}
 	})
 }
