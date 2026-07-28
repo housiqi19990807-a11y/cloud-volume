@@ -7,6 +7,7 @@
 package mount
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/winfsp/cgofuse/fuse"
 
 	storageconfig "remote-storage/go/config"
+	storageops "remote-storage/go/storage"
 )
 
 const (
@@ -61,20 +63,13 @@ func (b *windowsWinFspBackend) Initialize(session *mountSession) error {
 
 func (b *windowsWinFspBackend) Start(session *mountSession) error {
 	defaultCapacityBytes := uint64(b.cfg.WindowsWinFspCapacityGB) * mountBytesPerGiB
-	capacityBytes := resolvedMountCapacityBytes(
-		b.cfg,
-		session.bucket,
-		defaultCapacityBytes,
-	)
-	capacitySource := "windows_default"
-	if b.cfg.BucketSettingsFor(session.bucket).CustomQuotaBytes > 0 {
-		capacitySource = "bucket_custom"
-	}
+	capacityBytes, usedBytes, capacitySource := b.resolveCapacity(session.bucket, defaultCapacityBytes)
 	log.Printf(
-		"[mount/winfsp] start bucket=%q path=%q capacity_bytes=%d capacity_source=%q read_only=%t",
+		"[mount/winfsp] start bucket=%q path=%q capacity_bytes=%d used_bytes=%d capacity_source=%q read_only=%t",
 		session.bucket,
 		session.mountPath,
 		capacityBytes,
+		usedBytes,
 		capacitySource,
 		session.readOnly,
 	)
@@ -90,6 +85,7 @@ func (b *windowsWinFspBackend) Start(session *mountSession) error {
 		session.access,
 		session.mountName,
 		capacityBytes,
+		usedBytes,
 		session.readOnly,
 	)
 	host := fuse.NewFileSystemHost(fs)
@@ -118,6 +114,34 @@ func (b *windowsWinFspBackend) Start(session *mountSession) error {
 	session.mounted = true
 	log.Printf("[mount/winfsp] start-done bucket=%q path=%q", session.bucket, session.mountPath)
 	return nil
+}
+
+// resolveCapacity keeps an unavailable provider quota from blocking a mount,
+// while using the provider's total and used values whenever it reports them.
+func (b *windowsWinFspBackend) resolveCapacity(bucket string, fallback uint64) (uint64, uint64, string) {
+	if b.cfg.BucketSettingsFor(bucket).CustomQuotaBytes > 0 {
+		capacity, used := resolvedMountCapacity(b.cfg, bucket, 0, 0, fallback)
+		return capacity, used, "bucket_custom"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	providerQuota, err := storageops.GetBucketQuota(ctx, b.cfg, bucket)
+	if err != nil {
+		log.Printf("[mount/winfsp] quota lookup failed bucket=%q error=%v", bucket, err)
+	} else if providerQuota.QuotaBytes > 0 {
+		capacity, used := resolvedMountCapacity(
+			b.cfg,
+			bucket,
+			providerQuota.QuotaBytes,
+			providerQuota.UsedBytes,
+			fallback,
+		)
+		return capacity, used, "provider"
+	}
+
+	capacity, used := resolvedMountCapacity(b.cfg, bucket, 0, 0, fallback)
+	return capacity, used, "windows_default"
 }
 
 func (b *windowsWinFspBackend) Stop(session *mountSession) error {

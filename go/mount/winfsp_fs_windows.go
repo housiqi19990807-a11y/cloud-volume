@@ -27,6 +27,7 @@ type winFspBucketFS struct {
 	access      *bucketAccess
 	volumeLabel string
 	capacity    uint64
+	used        uint64
 	readOnly    bool
 	openFiles   map[uint64]*winFspOpenFile
 	openDirs    map[uint64]*winFspOpenDir
@@ -59,6 +60,7 @@ func newWinFspBucketFS(
 	access *bucketAccess,
 	volumeLabel string,
 	capacity uint64,
+	used uint64,
 	readOnly bool,
 ) *winFspBucketFS {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -66,6 +68,7 @@ func newWinFspBucketFS(
 		access:      access,
 		volumeLabel: volumeLabel,
 		capacity:    capacity,
+		used:        used,
 		readOnly:    readOnly,
 		openFiles:   make(map[uint64]*winFspOpenFile),
 		openDirs:    make(map[uint64]*winFspOpenDir),
@@ -91,16 +94,19 @@ func (fs *winFspBucketFS) Destroy() {
 	fs.mu.Unlock()
 }
 
-// Statfs reports the configured virtual capacity so Explorer shows the user
-// chosen size. Free space mirrors capacity because the real backend is a
-// remote object store, not a bounded disk.
+// Statfs projects the resolved remote quota into Explorer's volume statistics.
 func (fs *winFspBucketFS) Statfs(_ string, stat *fuse.Statfs_t) int {
 	blocks := mountCapacityBlocks(fs.capacity, winFspBlockBytes)
+	freeBytes := uint64(0)
+	if fs.used < fs.capacity {
+		freeBytes = fs.capacity - fs.used
+	}
+	freeBlocks := mountCapacityBlocks(freeBytes, winFspBlockBytes)
 	stat.Bsize = winFspBlockBytes
 	stat.Frsize = winFspBlockBytes
 	stat.Blocks = blocks
-	stat.Bfree = blocks
-	stat.Bavail = blocks
+	stat.Bfree = freeBlocks
+	stat.Bavail = freeBlocks
 	stat.Files = 1 << 32
 	stat.Ffree = 1 << 32
 	stat.Favail = 1 << 32

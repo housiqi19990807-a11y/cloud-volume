@@ -10,11 +10,36 @@ func resolvedMountCapacityBytes(
 	bucket string,
 	fallbackBytes uint64,
 ) uint64 {
-	quota := cfg.BucketSettingsFor(bucket).CustomQuotaBytes
-	if quota > 0 {
-		return uint64(quota)
+	capacityBytes, _ := resolvedMountCapacity(
+		cfg,
+		bucket,
+		0,
+		0,
+		fallbackBytes,
+	)
+	return capacityBytes
+}
+
+// resolvedMountCapacity uses the user override first, then provider quota,
+// and leaves the backend fallback only for providers without quota support.
+func resolvedMountCapacity(
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+	providerQuotaBytes, providerUsedBytes int64,
+	fallbackBytes uint64,
+) (capacityBytes, usedBytes uint64) {
+	customQuotaBytes := cfg.BucketSettingsFor(bucket).CustomQuotaBytes
+	if customQuotaBytes > 0 {
+		return uint64(customQuotaBytes), 0
 	}
-	return fallbackBytes
+	if providerQuotaBytes > 0 {
+		capacityBytes = uint64(providerQuotaBytes)
+		if providerUsedBytes > 0 {
+			usedBytes = uint64(providerUsedBytes)
+		}
+		return capacityBytes, usedBytes
+	}
+	return fallbackBytes, 0
 }
 
 func mountCapacityBlocks(capacityBytes, blockBytes uint64) uint64 {

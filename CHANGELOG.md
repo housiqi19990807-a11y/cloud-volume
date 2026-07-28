@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Fixed mounting a bucket from a non-default account with a different Windows mount engine creating a duplicate `default` profile and duplicate bucket rows. WinFsp mounts now explicitly align their volume geometry with the filesystem capacity statistics reported to Explorer.
+- Fixed mounting a bucket from a non-default account with a different Windows mount engine creating a duplicate `default` profile and duplicate bucket rows. WinFsp mounts now query the provider quota API and report its total/free values to Explorer, using the configured virtual capacity only when the provider does not expose quota data.
 
 - 修复多账号 P2P 发现互相不可见：4 个账号各自创建独立的 mDNS Server 导致 UDP 5353 端口冲突，实际只有部分指纹在广播。改为共享一个 mDNS socket，多个账号指纹复用同一端口注册各自的 SRV/TXT 记录；同时禁用 IPv6 mDNS 查询并静默 hashicorp/mdns 的 IPv6 监听失败日志，消除无 IPv6 路由环境下的错误刷屏。
 - 修复多网卡设备发现不到对端：mDNS 查询不再只走默认网卡，改为对所有有 IPv4 地址且支持组播的网卡分别查询，解决 VMware 桥接虚拟机绑在副网卡（如 en1）时宿主主机发现不到的问题。

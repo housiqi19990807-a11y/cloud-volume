@@ -13,7 +13,7 @@ func TestWinFspStatfsReportsConfiguredCapacity(t *testing.T) {
 	t.Parallel()
 
 	const capacity = uint64(1536 * 1024 * 1024)
-	fs := newWinFspBucketFS(nil, "test", capacity, false)
+	fs := newWinFspBucketFS(nil, "test", capacity, 0, false)
 	t.Cleanup(fs.Destroy)
 
 	var stat fuse.Statfs_t
@@ -32,6 +32,29 @@ func TestWinFspStatfsReportsConfiguredCapacity(t *testing.T) {
 	}
 	if stat.Bsize != winFspBlockBytes || stat.Frsize != winFspBlockBytes {
 		t.Fatalf("block sizes = %d/%d, want %d", stat.Bsize, stat.Frsize, winFspBlockBytes)
+	}
+}
+
+func TestWinFspStatfsReportsProviderFreeSpace(t *testing.T) {
+	t.Parallel()
+
+	const capacity = uint64(1536 * 1024 * 1024)
+	const used = uint64(512 * 1024 * 1024)
+	fs := newWinFspBucketFS(nil, "test", capacity, used, false)
+	t.Cleanup(fs.Destroy)
+
+	var stat fuse.Statfs_t
+	if errno := fs.Statfs("/", &stat); errno != 0 {
+		t.Fatalf("Statfs errno = %d", errno)
+	}
+	wantFreeBlocks := (capacity - used) / winFspBlockBytes
+	if stat.Bfree != wantFreeBlocks || stat.Bavail != wantFreeBlocks {
+		t.Fatalf(
+			"free/available = %d/%d, want %d",
+			stat.Bfree,
+			stat.Bavail,
+			wantFreeBlocks,
+		)
 	}
 }
 
