@@ -3,6 +3,7 @@ package mount
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,7 +60,7 @@ func LocalPeerContentPath(
 	}
 	access := session.access
 	info, ok := access.cache.cachedObject(virtualPath)
-	if ok && !info.IsDir && info.ETag == versionHint {
+	if ok && !info.IsDir && peerContentVersionHint(info) == versionHint {
 		if path, ok := access.localReadablePath(virtualPath, info); ok {
 			return path, info.Size, true
 		}
@@ -68,7 +69,9 @@ func LocalPeerContentPath(
 	// valid for peer service through its persistent remote-version stamp.
 	path := access.cachePathFor(cleanVirtualPath(virtualPath))
 	stamp, ok := loadDownloadStamp(path)
-	if !ok || stamp.ETag != versionHint || !isUsableLocalFile(path, stamp.Size) {
+	if !ok || peerContentVersionHint(s3ops.ObjectInfo{
+		Size: stamp.Size, LastModified: stamp.LastModified, ETag: stamp.ETag,
+	}) != versionHint || !isUsableLocalFile(path, stamp.Size) {
 		return "", 0, false
 	}
 	return path, stamp.Size, true
@@ -78,7 +81,7 @@ func lookupPeerSource(cfg storageconfig.RemoteStorageConfig, bucket, path, versi
 	peerSources.RLock()
 	source, ok := peerSources.items[peerSourceKey(cfg, bucket, path)]
 	peerSources.RUnlock()
-	if !ok || source.info.ETag != versionHint || !isUsableLocalFile(source.path, source.info.Size) {
+	if !ok || peerContentVersionHint(source.info) != versionHint || !isUsableLocalFile(source.path, source.info.Size) {
 		return peerSource{}, false
 	}
 	return source, true
@@ -87,6 +90,20 @@ func lookupPeerSource(cfg storageconfig.RemoteStorageConfig, bucket, path, versi
 func peerSourceKey(cfg storageconfig.RemoteStorageConfig, bucket, path string) string {
 	normalized := cfg.Normalized()
 	return normalized.StorageType + "\x00" + normalized.Endpoint + "\x00" + normalized.AccessKeyID + "\x00" + normalized.WebDAVUsername + "\x00" + normalized.FTPUsername + "\x00" + normalizeBucketName(bucket) + "\x00" + cleanVirtualPath(path)
+}
+
+// peerContentVersionHint prefers a provider's strong ETag. Backends without
+// one use their normal cache version tuple, retaining D2 acceleration for
+// SFTP/FTP/WebDAV while accepting their same-second overwrite limitation.
+func peerContentVersionHint(info s3ops.ObjectInfo) string {
+	if etag := strings.TrimSpace(info.ETag); etag != "" {
+		return "etag:" + etag
+	}
+	modified := strings.TrimSpace(info.LastModified)
+	if modified == "" || info.Size < 0 {
+		return ""
+	}
+	return fmt.Sprintf("mtime-size:%s:%d", modified, info.Size)
 }
 
 // downloadFromPeerToCache preserves the normal cache stamp/rename semantics
@@ -101,9 +118,7 @@ func (a *bucketAccess) downloadFromPeerToCache(
 	if fetcher == nil || !a.config.P2PEnabled {
 		return "", false
 	}
-	// Only immutable provider version identifiers may authorize a LAN cache fill.
-	// Timestamp plus size is insufficient for same-second overwrites.
-	versionHint := strings.TrimSpace(info.ETag)
+	versionHint := peerContentVersionHint(info)
 	if versionHint == "" {
 		return "", false
 	}
@@ -122,7 +137,7 @@ func (a *bucketAccess) downloadFromPeerToCache(
 	}
 	// Remote metadata remains authoritative if the object changed mid-transfer.
 	current, err := a.fetchStat(ctx, virtualPath)
-	if err != nil || current.Size != info.Size || current.ETag != info.ETag {
+	if err != nil || current.Size != info.Size || peerContentVersionHint(current) != versionHint {
 		clearDownloadArtifacts(localPath)
 		return "", false
 	}
