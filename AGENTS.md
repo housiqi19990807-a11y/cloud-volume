@@ -59,6 +59,8 @@ Canonical implementations to copy:
 - `lib/widgets/cloud_storage_account_dialog_steps.dart` `StorageProtocolCard` — selectable cards (neutral hover; primary chrome only when selected).
 - `lib/widgets/desktop_modal_shell.dart` `_ModalShellCloseButton` — modal title-bar close (no splash; neutral hover only).
 
+Settings card visual consistency: every `Settings*Section` should follow the same structure — 12px muted intro text at the top, then secondary-container blocks (`colorScheme.secondary`, radius 10, padding 14/12), with optional `_SectionHeader` (14px w700 title + 11.5px muted description) between functional groups. Do not use `textTheme.h4` inside settings cards; it belongs to page-level headers only. See `lib/widgets/settings_p2p_section.dart` for the canonical card layout.
+
 Cursor: dense list rows use idle `SystemMouseCursors.basic` and `click` only while hovered (or a constant `click` cursor for always-interactive cards if it never sticks). Never leave a pointing hand stuck after unhover/unmount.
 
 ## Go Bridge Organization
