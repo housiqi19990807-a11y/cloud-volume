@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	mdnsService = "_cloudvolume"
-	mdnsProto   = "_tcp"
+	mdnsService = "_cloudvolume._tcp"
+	// mdnsDomain must remain an FQDN because hashicorp/mdns validates it on registration.
+	mdnsDomain = "local."
 	// discoveryInterval controls how often we query for peers on the LAN.
 	discoveryInterval = 30 * time.Second
 	// peerExpiry is how long since last-seen before a peer is considered gone.
@@ -73,7 +74,7 @@ func (d *Discovery) Start() error {
 	service, err := mdns.NewMDNSService(
 		d.identity.DeviceID,
 		mdnsService,
-		mdnsProto,
+		mdnsDomain,
 		"",
 		d.quicPort,
 		nil,
@@ -126,8 +127,8 @@ func (d *Discovery) queryPeers() {
 		}
 	}()
 	params := &mdns.QueryParam{
-		Service:             mdnsService + "." + mdnsProto,
-		Domain:              "local",
+		Service:             mdnsService,
+		Domain:              mdnsDomain,
 		Timeout:             5 * time.Second,
 		Entries:             entriesCh,
 		WantUnicastResponse: false,

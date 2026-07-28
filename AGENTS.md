@@ -618,7 +618,7 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 
 同账号设备以 mDNS 自动发现，P2P 只加速通知和读取；对象存储的 `size + LastModified` 始终是版本权威，任何失败都会退回普通远端下载。
 
-- `go/p2p/discovery.go` / `identity.go` / `events.go` / `manager.go` - `_cloudvolume._tcp` 只广播账号指纹和设备 ID；账户凭证中的 secret 在本机派生 HMAC key，事件同时用 HMAC 和 Ed25519 认证。`PeerManager` 维护实际 running 状态，配置账号改变时由 bridge 停止并重建。
+- `go/p2p/discovery.go` / `discovery_test.go` / `identity.go` / `events.go` / `manager.go` - `_cloudvolume._tcp` 在 `local.` mDNS 域中只广播账号指纹和设备 ID；注册时服务名和完整域名必须分别传给 `hashicorp/mdns.NewMDNSService`，查询复用相同值。账户凭证中的 secret 在本机派生 HMAC key，事件同时用 HMAC 和 Ed25519 认证。`PeerManager` 维护实际 running 状态，配置账号改变时由 bridge 停止并重建。
 - `go/p2p/transport.go` / `protocol.go` / `content_client.go` - QUIC 流承载有长度上限的 JSON 控制帧和原始 chunk bytes。查询、范围请求、查询响应和 chunk metadata 都有 HMAC，原始 bytes 在传输时计算并校验绑定对象/版本/范围的 chunk HMAC；下载最多 4 路并发，chunk 大小限定为 1–64 MiB。
 - `bridge/dispatch_p2p.go` / `bridge/dispatch_config.go` / `bridge/dispatch.go` / `bridge/dispatch_object_transfer.go` - bootstrap 在读取私有 profile 配置后一次性更新 P2P，绝不递归调用 bootstrap。远端确认的 bridge/mount mutation 广播父目录刷新；bridge 上传和 mount writeback 的成功 `HeadObject` 会登记本地源供 D2 读取。
 - `go/mount/peer_hook.go` / `peer_content.go` / `bucket_remote.go` / `peer_refresh.go` - mount 通过回调避免反向导入 `p2p`。读取顺序是本地完整 cache → P2P 临时 `.downloading` 文件 → 远端；P2P 完成后再次 `HeadObject` 检查版本，成功才按既有 stamp/rename 流程进入缓存。`LocalPeerContentPath` 只提供匹配版本的完整缓存或远端已确认的上传源。
