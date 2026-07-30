@@ -36,7 +36,7 @@ S3 账号支持 endpoint、access key、secret key、region 和 path-style URL �
 
 ![远端文件浏览](docs/screenshots/file-page.png)
 
-常用 bucket 可以挂载到本地目录，按系统文件管理器的方式读写远端对象；读写会先使用本地缓存和写回队列，再异步同步到远端。
+常用 bucket 可以挂载到本地目录，按系统文件管理器的方式读写远端对象；读写会先使用本地缓存和写回队列，再异步同步到远端。macOS Finder 批量写入新目录时，目标存在性探测也由本地目录视图回答，避免 SFTP 等高握手延迟上游退化为每个小文件一次远端查询。
 
 ![挂载存储桶](docs/screenshots/mount.png)
 
@@ -68,7 +68,7 @@ S3 账号支持 endpoint、access key、secret key、region 和 path-style URL �
 - 设置页可配置缓存目录；未自定义时使用工作路径下的 `cache/`，文件预览缓存和挂载读写缓存都会归到这个根目录下。
 - 设置页可配置挂载写入后的异步推送等待时间，默认 10 秒，适合想让本地保存更快回传远端的桌面工作流。
 - 设置页可配置挂载元数据缓存策略：默认启用 1 分钟缓存，也可以直接关闭，关闭后目录浏览和文件信息读取会始终请求远端。
-- 设置页里的回收站目录仍是全局默认值，并提供“自动清理”显式开关与保留天数；每个桶还可以在文件管理首页的“桶设置”里单独覆盖回收站目录、直接关闭回收站，或填写自定义配额（GB）。自定义配额会覆盖列表中的服务端配额，并在重新挂载后同步到 Linux FUSE / Windows WinFsp 的文件系统容量统计；它不会限制上传，0 或留空表示使用服务端配额（如支持）。Cloud Files 与 WebDAV 挂载的容量由宿主文件系统或 WebDAV 客户端决定。
+- 设置页里的回收站目录仍是全局默认值，并提供“自动清理”显式开关与保留天数；每个桶还可以在文件管理首页的“桶设置”里单独覆盖回收站目录、直接关闭回收站，或填写自定义配额（GB）。自定义配额会覆盖列表中的服务端配额，并在重新挂载后同步到 Linux FUSE / Windows WinFsp 的文件系统容量统计；它不会限制上传，0 或留空表示使用服务端配额（如支持）。macOS WebDAV 会在挂载握手前限时读取该容量或上游配额并通过 RFC 4331 提供给系统；Windows Cloud Files 的容量仍由宿主文件系统决定。
 - 设置页新增「网络代理」配置区：支持跟随系统环境变量（默认）、直连、自定义代理三种模式。自定义代理支持 HTTP / SOCKS5 代理类型，可配置代理地址、端口、账号密码（账号密码可选），影响应用所有网络请求（S3、WebDAV、百度网盘）。应用更新的 GitHub Release 版本检查始终直连 GitHub API（公共下载镜像不支持 api.github.com）；如需加速安装包下载，可在「应用更新」区单独配置 GitHub 下载加速镜像（如 `gh-proxy.com`），仅作用于安装包下载。
 - 设置页采用左侧锚点目录 + 右侧完整滚动页布局；左侧按“通用 / Windows / 关于”分组，点击应用更新、网络代理、缓存设置、关于云卷等条目会滚动定位到对应配置区块，入口只在鼠标悬停时显示轻量反馈。
 - “关于”页的版本号现在统一来自构建时注入：本地开发默认显示 `dev`，CI/tag 发布构建会显示对应版本号。
@@ -108,7 +108,7 @@ make run
 
 - macOS: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`，再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
 - macOS 调试挂载卡住时，可直接查看 `~/.cloud-volume/runtime/logs/bridge.log`；当前版本会额外记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 等阶段日志，并为 `osascript` / `umount` / `diskutil` / `mount -t webdav` 加上超时，便于区分是旧挂载残留清理卡住，还是新挂载本身失败。排查 WebDAV 目录可写/只读误判时，可在同一日志里搜索 `[webdav/access]` 查看 PROPFIND / OPTIONS 判定链路；排查新建目录失败时，可搜索 `[webdav/mkdir]` 查看 `MKCOL` 状态码、`405` 后的目录存在性反查以及最终错误。
-- macOS WebDAV 挂载的内容写入会先落到本地缓存，再按 quiet period 异步推送上游。Finder 为文件时间等属性发送的 `PROPPATCH` 元数据探测不会触发文件内容下载或重复上传；FTP、SFTP 和 WebDAV 上游的上传进度、成功和失败会及时反映到传输队列，不会在实际同步完成后继续停留在“等待同步”。挂载根目录通过 RFC 4331 向 `webdavfs` 返回容量：桶自定义容量优先，上游支持配额时同时返回实际已用量，因此 macOS `df` 可显示非零的总量、已用和可用空间；上游与配置均没有容量信息时仍保持未知。远端配额在后台刷新，不会阻塞 Finder 首次连接；系统卷已创建但 AppleScript 超时时，应用会从 mount 表确认并继续持有该会话。
+- macOS WebDAV 挂载的内容写入会先落到本地缓存，再按 quiet period 异步推送上游。Finder 为文件时间等属性发送的 `PROPPATCH` 元数据探测不会触发文件内容下载或重复上传；新建目录和新鲜目录快照中的缺失目标直接由本地视图返回，不会为每个待写小文件同步查询 SFTP。FTP、SFTP 和 WebDAV 上游的上传进度、成功和失败会及时反映到传输队列，不会在实际同步完成后继续停留在“等待同步”。挂载根目录通过 RFC 4331 向 `webdavfs` 返回容量：桶自定义容量优先，上游支持配额时同时返回实际已用量，因此 macOS `df` 可显示非零的总量、已用和可用空间；上游与配置均没有容量信息时仍保持未知。挂载前会给配额查询最多 2 秒，快速上游可让首次 `PROPFIND` 直接携带容量，慢上游超时后仍继续挂载并在后台完成刷新；系统卷已创建但 AppleScript 超时时，应用会从 mount 表确认并继续持有该会话。
 - Linux: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.so`，并把它随 Linux bundle 一起安装后再启动 Flutter Linux 应用
 
 平台相关命令：

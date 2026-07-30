@@ -21,6 +21,14 @@ type unmountCommand struct {
 
 func (s *mountSession) start() error {
 	log.Printf("[mount/session] start bucket=%q mount_name=%q", s.bucket, s.mountName)
+	quotaStartedAt := time.Now()
+	quotaKnown := s.access.primeWebDAVQuota(macOSWebDAVQuotaPrimeTimeout)
+	log.Printf(
+		"[mount/session] quota-prime bucket=%q known=%t duration=%s",
+		s.bucket,
+		quotaKnown,
+		time.Since(quotaStartedAt),
+	)
 	server, serverURL, port, err := startWebDAVServer(s.access, s.mountName)
 	if err != nil {
 		return err

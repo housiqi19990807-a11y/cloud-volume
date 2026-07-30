@@ -102,6 +102,14 @@ func (c *bucketCache) localFile(virtualPath string) (localFile, bool) {
 	return item, ok
 }
 
+func (c *bucketCache) isLocalDirectory(virtualPath string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	item, ok := c.localEntries[cleanVirtualPath(virtualPath)]
+	return ok && item.info.IsDir
+}
+
 func (c *bucketCache) storeList(virtualPrefix string, items []s3ops.ObjectInfo) {
 	if c.ttl <= 0 {
 		return

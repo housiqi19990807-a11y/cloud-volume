@@ -13,6 +13,10 @@ import (
 
 const webDAVMountQuotaCacheTTL = 30 * time.Second
 
+// macOS webdavfs snapshots quota during its first root PROPFIND. Give fast
+// providers a small startup window without letting a slow StatVFS block mount.
+const macOSWebDAVQuotaPrimeTimeout = 2 * time.Second
+
 var (
 	webDAVQuotaAvailableName = xml.Name{Space: "DAV:", Local: "quota-available-bytes"}
 	webDAVQuotaUsedName      = xml.Name{Space: "DAV:", Local: "quota-used-bytes"}
@@ -43,6 +47,32 @@ func (a *bucketAccess) webDAVQuota(_ context.Context) (total, used int64, known 
 	}
 	a.quotaMu.Unlock()
 	return total, used, known
+}
+
+func (a *bucketAccess) primeWebDAVQuota(maxWait time.Duration) bool {
+	_, _, known := a.webDAVQuota(context.Background())
+	if known || maxWait <= 0 {
+		return known
+	}
+
+	deadline := time.NewTimer(maxWait)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer deadline.Stop()
+	defer ticker.Stop()
+	for {
+		select {
+		case <-deadline.C:
+			return false
+		case <-ticker.C:
+			a.quotaMu.Lock()
+			known = a.quotaKnown
+			loading := a.quotaLoading
+			a.quotaMu.Unlock()
+			if known || !loading {
+				return known
+			}
+		}
+	}
 }
 
 func (a *bucketAccess) refreshWebDAVQuota() {
