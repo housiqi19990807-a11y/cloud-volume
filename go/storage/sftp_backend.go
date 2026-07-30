@@ -26,6 +26,12 @@ func newSFTPBackend(cfg storageconfig.RemoteStorageConfig) Backend {
 	return sftpBackend{cfg: cfg}
 }
 
+// SupportsMountPrefetch avoids opening several speculative SSH connections
+// when Finder first displays a directory. Explicit navigation still lists it.
+func (b sftpBackend) SupportsMountPrefetch() bool {
+	return false
+}
+
 // sftpClient dials the configured SFTP endpoint and returns a live client.
 // The caller is responsible for closing both the sftp client and the underlying SSH connection.
 func (b sftpBackend) sftpClient(ctx context.Context) (*sftp.Client, *ssh.Client, error) {

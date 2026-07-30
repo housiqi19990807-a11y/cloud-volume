@@ -85,12 +85,19 @@ func GetBucketQuota(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) (BucketInfo, error) {
+	if cached, ok := CachedBucketQuota(cfg, bucket); ok {
+		return cached, nil
+	}
 	backend := ForConfig(cfg)
 	provider, ok := backend.(BucketQuotaProvider)
 	if !ok {
 		return BucketInfo{Name: bucket}, nil
 	}
-	return provider.BucketQuota(ctx, bucket)
+	quota, err := provider.BucketQuota(ctx, bucket)
+	if err == nil {
+		cacheBucketQuota(cfg, bucket, quota)
+	}
+	return quota, err
 }
 
 func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {

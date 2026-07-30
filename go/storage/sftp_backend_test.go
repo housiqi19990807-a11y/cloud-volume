@@ -23,6 +23,13 @@ func sftpTestConfig(addr, user, pass string) storageconfig.RemoteStorageConfig {
 	}
 }
 
+func TestSFTPDisablesSpeculativeMountPrefetch(t *testing.T) {
+	backend := newSFTPBackend(sftpTestConfig("127.0.0.1:22", "u", "p"))
+	if SupportsMountPrefetch(backend) {
+		t.Fatal("SFTP mount prefetch should stay disabled")
+	}
+}
+
 func TestSFTPListObjectsPage(t *testing.T) {
 	srv := newMockSFTPServer(t, "sftpuser", "sftppass")
 	defer srv.Stop()

@@ -129,6 +129,9 @@ func newBucketAccess(
 		overlay:           overlay,
 		directoryActivity: newDirectoryActivityTracker(),
 	}
+	if quota, ok := storageops.CachedBucketQuota(cfg, bucket); ok {
+		access.seedWebDAVQuota(quota.QuotaBytes, quota.UsedBytes, quota.QuotaKnown)
+	}
 	access.dirSync = newDirSyncQueue(access)
 	writeback, err := newWritebackQueue(access)
 	if err != nil {

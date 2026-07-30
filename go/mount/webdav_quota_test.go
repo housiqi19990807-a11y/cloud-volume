@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -84,27 +85,53 @@ func TestWebDAVRootCustomQuotaOverridesProviderTotal(t *testing.T) {
 	waitForMountedWebDAVQuota(t, access, "550", "250")
 }
 
-func TestPrimeWebDAVQuotaMakesFirstPROPFINDReportProviderQuota(t *testing.T) {
+func TestSeedWebDAVQuotaMakesFirstPROPFINDReportCachedQuota(t *testing.T) {
 	access := newTestBucketAccess(t)
-	provider := mountQuotaTestBackend{
-		total:   1000,
-		used:    250,
-		started: make(chan struct{}),
-		release: make(chan struct{}),
-	}
-	access.quotaProvider = &provider
-	close(provider.release)
-
-	if !access.primeWebDAVQuota(time.Second) {
-		t.Fatal("expected bounded quota prime to resolve provider quota")
-	}
+	access.seedWebDAVQuota(1000, 250, true)
 	available, used := requestMountedWebDAVQuota(t, access)
 	if available != "750" || used != "250" {
 		t.Fatalf("first quota PROPFIND = %s/%s, want 750/250", available, used)
 	}
 }
 
-func TestPrimeWebDAVQuotaTimesOutWithoutBlockingMountNegotiation(t *testing.T) {
+func TestNewBucketAccessReusesStorageQuotaCacheWithoutProviderRequest(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", `application/xml; charset="utf-8"`)
+		_, _ = io.WriteString(w, `<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:prop>
+<D:quota-available-bytes>750</D:quota-available-bytes>
+<D:quota-used-bytes>250</D:quota-used-bytes>
+</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus>`)
+	}))
+	defer server.Close()
+
+	cfg := storageconfig.RemoteStorageConfig{
+		StorageType:      storageconfig.StorageTypeWebDAV,
+		Endpoint:         server.URL + "/dav/",
+		MappedBucketName: "test-bucket",
+		CacheDirectory:   t.TempDir(),
+	}
+	if _, err := storageops.GetBucketQuota(t.Context(), cfg, "test-bucket"); err != nil {
+		t.Fatalf("prime storage quota cache: %v", err)
+	}
+	access, err := newBucketAccess(cfg, "test-bucket")
+	if err != nil {
+		t.Fatalf("newBucketAccess: %v", err)
+	}
+	t.Cleanup(func() { _ = access.close() })
+
+	available, used := requestMountedWebDAVQuota(t, access)
+	if available != "750" || used != "250" {
+		t.Fatalf("first quota PROPFIND = %s/%s, want 750/250", available, used)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("provider quota requests = %d, want only the bucket-list request", got)
+	}
+}
+
+func TestUnknownSeedLeavesInitialPROPFINDNonBlocking(t *testing.T) {
 	access := newTestBucketAccess(t)
 	provider := mountQuotaTestBackend{
 		total:   1000,
@@ -114,17 +141,15 @@ func TestPrimeWebDAVQuotaTimesOutWithoutBlockingMountNegotiation(t *testing.T) {
 	}
 	access.quotaProvider = &provider
 	t.Cleanup(func() { close(provider.release) })
+	access.seedWebDAVQuota(0, 0, false)
 
 	startedAt := time.Now()
-	if access.primeWebDAVQuota(40 * time.Millisecond) {
-		t.Fatal("blocked provider unexpectedly returned known quota")
-	}
-	if elapsed := time.Since(startedAt); elapsed > 300*time.Millisecond {
-		t.Fatalf("quota prime exceeded bounded wait: %v", elapsed)
-	}
 	available, used := requestMountedWebDAVQuota(t, access)
+	if elapsed := time.Since(startedAt); elapsed > 300*time.Millisecond {
+		t.Fatalf("initial quota PROPFIND blocked for %v", elapsed)
+	}
 	if available != "" || used != "" {
-		t.Fatalf("quota after timed-out prime = %s/%s, want unsupported", available, used)
+		t.Fatalf("quota after unknown seed = %s/%s, want unsupported", available, used)
 	}
 }
 

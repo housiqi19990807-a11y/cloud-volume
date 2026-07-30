@@ -39,6 +39,9 @@ func runLoggedCommand(
 		)
 	}
 	cmd := exec.CommandContext(ctx, name, args...)
+	// LaunchServices helpers may leave descendants holding the output pipes.
+	// Bound that post-cancel wait so a five-second command cannot block for a minute.
+	cmd.WaitDelay = 500 * time.Millisecond
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(startedAt).Round(time.Millisecond)
 	trimmedOutput := strings.TrimSpace(string(output))
