@@ -24,8 +24,8 @@ var sharedBucketQuotaCache = struct {
 	entries map[[sha256.Size]byte]bucketQuotaCacheEntry
 }{entries: make(map[[sha256.Size]byte]bucketQuotaCacheEntry)}
 
-// CachedBucketQuota returns capacity already fetched by the bucket list flow.
-// Mount startup uses this read-only path and never waits for the provider.
+// CachedBucketQuota returns fresh capacity already fetched by the bucket list
+// flow. Ordinary callers use this TTL-bound view to decide when to refresh.
 func CachedBucketQuota(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
@@ -35,16 +35,36 @@ func CachedBucketQuota(
 	entry, ok := sharedBucketQuotaCache.entries[key]
 	sharedBucketQuotaCache.RUnlock()
 	if !ok || time.Now().After(entry.expiresAt) {
-		if ok {
-			sharedBucketQuotaCache.Lock()
-			delete(sharedBucketQuotaCache.entries, key)
-			sharedBucketQuotaCache.Unlock()
-		}
 		log.Printf("[storage/quota-cache] miss bucket=%q key=%x", strings.TrimSpace(bucket), key[:6])
 		return BucketInfo{}, false
 	}
 	log.Printf("[storage/quota-cache] hit bucket=%q key=%x", strings.TrimSpace(bucket), key[:6])
 	return entry.quota, true
+}
+
+// CachedBucketQuotaForMount returns the last known capacity even after its
+// refresh TTL expires. A mount must answer the initial WebDAV quota handshake
+// immediately; it can refresh stale capacity asynchronously after doing so.
+func CachedBucketQuotaForMount(
+	cfg storageconfig.RemoteStorageConfig,
+	bucket string,
+) (quota BucketInfo, fresh bool, ok bool) {
+	key := bucketQuotaCacheKey(cfg, bucket)
+	sharedBucketQuotaCache.RLock()
+	entry, ok := sharedBucketQuotaCache.entries[key]
+	sharedBucketQuotaCache.RUnlock()
+	if !ok {
+		log.Printf("[storage/quota-cache] mount-miss bucket=%q key=%x", strings.TrimSpace(bucket), key[:6])
+		return BucketInfo{}, false, false
+	}
+	fresh = !time.Now().After(entry.expiresAt)
+	log.Printf(
+		"[storage/quota-cache] mount-hit bucket=%q key=%x fresh=%t",
+		strings.TrimSpace(bucket),
+		key[:6],
+		fresh,
+	)
+	return entry.quota, fresh, true
 }
 
 func cacheBucketQuota(

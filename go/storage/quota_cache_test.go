@@ -80,4 +80,22 @@ func TestBucketQuotaCacheExpiresEntries(t *testing.T) {
 	if _, ok := CachedBucketQuota(cfg, "bucket-a"); ok {
 		t.Fatal("expired quota cache entry remained visible")
 	}
+	quota, fresh, ok := CachedBucketQuotaForMount(cfg, "bucket-a")
+	if !ok || fresh || quota.Name != "bucket-a" {
+		t.Fatalf("mount quota = %+v, fresh=%t, ok=%t; want stale bucket-a", quota, fresh, ok)
+	}
+}
+
+func TestBucketQuotaCacheForMountReportsFreshEntry(t *testing.T) {
+	cfg := storageconfig.RemoteStorageConfig{
+		StorageType: storageconfig.StorageTypeSFTP,
+		Endpoint:    "sftp://fresh-mount-cache-test",
+	}
+	want := BucketInfo{Name: "bucket-a", QuotaBytes: 1000, UsedBytes: 250, QuotaKnown: true}
+	cacheBucketQuota(cfg, "bucket-a", want)
+
+	got, fresh, ok := CachedBucketQuotaForMount(cfg, "bucket-a")
+	if !ok || !fresh || got != want {
+		t.Fatalf("mount quota = %+v, fresh=%t, ok=%t; want %+v, true, true", got, fresh, ok, want)
+	}
 }

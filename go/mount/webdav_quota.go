@@ -46,6 +46,16 @@ func (a *bucketAccess) webDAVQuota(_ context.Context) (total, used int64, known 
 }
 
 func (a *bucketAccess) seedWebDAVQuota(total, used int64, known bool) {
+	a.seedWebDAVQuotaState(total, used, known, true)
+}
+
+// seedStaleWebDAVQuota makes the last known capacity available to the first
+// PROPFIND while leaving it immediately eligible for an async refresh.
+func (a *bucketAccess) seedStaleWebDAVQuota(total, used int64, known bool) {
+	a.seedWebDAVQuotaState(total, used, known, false)
+}
+
+func (a *bucketAccess) seedWebDAVQuotaState(total, used int64, known, fresh bool) {
 	if !known || total <= 0 {
 		return
 	}
@@ -53,7 +63,11 @@ func (a *bucketAccess) seedWebDAVQuota(total, used int64, known bool) {
 		total = custom
 	}
 	a.quotaMu.Lock()
-	a.quotaCachedAt = time.Now()
+	if fresh {
+		a.quotaCachedAt = time.Now()
+	} else {
+		a.quotaCachedAt = time.Time{}
+	}
 	a.quotaTotal = total
 	a.quotaUsed = clampMountQuotaUsed(total, used)
 	a.quotaKnown = true
@@ -71,7 +85,10 @@ func (a *bucketAccess) refreshWebDAVQuota() {
 
 	a.quotaMu.Lock()
 	defer a.quotaMu.Unlock()
-	total, used, known := int64(0), int64(0), false
+	// Keep the last usable capacity through a transient refresh failure. A
+	// failed provider probe must not turn an already mounted volume back into
+	// 0/0 until the next successful refresh.
+	total, used, known := a.quotaTotal, a.quotaUsed, a.quotaKnown
 	if err == nil && quota.QuotaKnown && quota.QuotaBytes > 0 {
 		total, used, known = quota.QuotaBytes, quota.UsedBytes, true
 	}

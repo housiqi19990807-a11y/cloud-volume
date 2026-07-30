@@ -42,6 +42,10 @@ type trashStubBackend struct {
 	quota             BucketInfo
 }
 
+type noRemotePollingBackend struct{ trashStubBackend }
+
+func (noRemotePollingBackend) SupportsMountRemotePolling() bool { return false }
+
 func (s *trashStubBackend) ListTrashPage(context.Context, string, string, int32) (TrashPage, error) {
 	// Return a slice that aliases the stub's backing array so tests can
 	// detect accidental mutation of shared provider state.
@@ -181,5 +185,15 @@ func TestScopedBackendForwardsBucketQuota(t *testing.T) {
 	}
 	if quota != stub.quota {
 		t.Fatalf("quota = %+v, want %+v", quota, stub.quota)
+	}
+}
+
+func TestScopedBackendForwardsRemotePollingPolicy(t *testing.T) {
+	scoped := scopedBackend{
+		Backend: &noRemotePollingBackend{},
+		root:    "archive/2026",
+	}
+	if SupportsMountRemotePolling(scoped) {
+		t.Fatal("scoped backend lost the provider remote-polling policy")
 	}
 }

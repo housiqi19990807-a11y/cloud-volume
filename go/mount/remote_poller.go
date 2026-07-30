@@ -165,7 +165,7 @@ type remoteDirectoryPoller struct {
 }
 
 func newRemoteDirectoryPoller(session *mountSession) *remoteDirectoryPoller {
-	if session == nil {
+	if session == nil || session.access == nil || !session.access.allowRemotePoll {
 		return nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())

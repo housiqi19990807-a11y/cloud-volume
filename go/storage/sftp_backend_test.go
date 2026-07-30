@@ -30,6 +30,9 @@ func TestSFTPDisablesSpeculativeMountPrefetch(t *testing.T) {
 	if SupportsMountPrefetch(backend) {
 		t.Fatal("SFTP mount prefetch should stay disabled")
 	}
+	if SupportsMountRemotePolling(backend) {
+		t.Fatal("SFTP mount remote polling should stay disabled")
+	}
 }
 
 func TestSFTPClientHonorsCanceledContextBeforeDial(t *testing.T) {

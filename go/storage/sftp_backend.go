@@ -32,6 +32,12 @@ func (b sftpBackend) SupportsMountPrefetch() bool {
 	return false
 }
 
+// SupportsMountRemotePolling prevents Finder's recursive metadata crawl from
+// turning into a second stream of repeated SFTP connections every few seconds.
+func (b sftpBackend) SupportsMountRemotePolling() bool {
+	return false
+}
+
 // sftpClient dials the configured SFTP endpoint and returns a live client.
 // The caller is responsible for closing both the sftp client and the underlying SSH connection.
 func (b sftpBackend) sftpClient(ctx context.Context) (*sftp.Client, *ssh.Client, error) {

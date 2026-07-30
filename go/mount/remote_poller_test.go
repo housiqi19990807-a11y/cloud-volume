@@ -88,3 +88,12 @@ func TestDirectoryActivitySignalsPollerAfterIdle(t *testing.T) {
 		t.Fatal("directory activity did not wake the poller")
 	}
 }
+
+func TestRemotePollerStaysDisabledForConnectionSensitiveBackend(t *testing.T) {
+	access := newTestBucketAccess(t)
+	access.allowRemotePoll = false
+	session := &mountSession{access: access, bucket: "test-bucket"}
+	if poller := newRemoteDirectoryPoller(session); poller != nil {
+		t.Fatal("disabled backend unexpectedly created a remote poller")
+	}
+}

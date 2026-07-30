@@ -30,6 +30,7 @@ type bucketAccess struct {
 	listTTL         time.Duration
 	prefetchTTL     time.Duration
 	allowPrefetch   bool
+	allowRemotePoll bool
 	autoSync        bool
 	readOnly        bool
 	uploadWorkers   int
@@ -124,17 +125,23 @@ func newBucketAccess(
 		listTTL:           metadataCacheTTL,
 		prefetchTTL:       prefetchTTL,
 		allowPrefetch:     allowPrefetch,
+		allowRemotePoll:   storageops.SupportsMountRemotePolling(backend),
 		quotaProvider:     quotaProvider,
 		cache:             newBucketCache(metadataCacheTTL, prefetchTTL),
 		pageViews:         newMountedDirectoryPageSnapshots(),
 		overlay:           overlay,
 		directoryActivity: newDirectoryActivityTracker(),
 	}
-	if quota, ok := storageops.CachedBucketQuota(cfg, bucket); ok {
-		access.seedWebDAVQuota(quota.QuotaBytes, quota.UsedBytes, quota.QuotaKnown)
+	if quota, fresh, ok := storageops.CachedBucketQuotaForMount(cfg, bucket); ok {
+		if fresh {
+			access.seedWebDAVQuota(quota.QuotaBytes, quota.UsedBytes, quota.QuotaKnown)
+		} else {
+			access.seedStaleWebDAVQuota(quota.QuotaBytes, quota.UsedBytes, quota.QuotaKnown)
+		}
 		log.Printf(
-			"[mount/quota] seeded bucket=%q known=%t total_bytes=%d used_bytes=%d",
+			"[mount/quota] seeded bucket=%q fresh=%t known=%t total_bytes=%d used_bytes=%d",
 			bucket,
+			fresh,
 			quota.QuotaKnown,
 			quota.QuotaBytes,
 			quota.UsedBytes,
