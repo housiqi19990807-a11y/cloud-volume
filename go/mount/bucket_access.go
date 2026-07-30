@@ -32,6 +32,12 @@ type bucketAccess struct {
 	autoSync        bool
 	readOnly        bool
 	uploadWorkers   int
+	quotaProvider   storageops.BucketQuotaProvider
+	quotaMu         sync.Mutex
+	quotaCachedAt   time.Time
+	quotaTotal      int64
+	quotaUsed       int64
+	quotaKnown      bool
 
 	group singleflight.Group
 
@@ -66,6 +72,8 @@ func newBucketAccess(
 	backendCfg := cfg
 	backendCfg.RootPrefix = ""
 	backend := storageops.ForConfig(backendCfg)
+	quotaBackend := storageops.ForConfig(cfg)
+	quotaProvider, _ := quotaBackend.(storageops.BucketQuotaProvider)
 	metadataCacheTTL := time.Duration(cfg.MountMetadataCacheSeconds) * time.Second
 	if cfg.MountMetadataCacheSeconds < 0 {
 		metadataCacheTTL = 0
@@ -114,6 +122,7 @@ func newBucketAccess(
 		listTTL:           metadataCacheTTL,
 		prefetchTTL:       prefetchTTL,
 		allowPrefetch:     allowPrefetch,
+		quotaProvider:     quotaProvider,
 		cache:             newBucketCache(metadataCacheTTL, prefetchTTL),
 		pageViews:         newMountedDirectoryPageSnapshots(),
 		overlay:           overlay,

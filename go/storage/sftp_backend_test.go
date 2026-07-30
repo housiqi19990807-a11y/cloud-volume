@@ -86,16 +86,7 @@ func TestSFTPUploadFileFinishesQueuedTransfer(t *testing.T) {
 	if err := backend.UploadFile(nil, "SFTP", "tracked.txt", localPath, taskID); err != nil {
 		t.Fatalf("UploadFile error: %v", err)
 	}
-	snapshot, ok := s3ops.GetTransferSnapshot(taskID)
-	if !ok {
-		t.Fatal("tracked transfer snapshot missing")
-	}
-	if snapshot.Status != "done" {
-		t.Fatalf("transfer status = %q, want done", snapshot.Status)
-	}
-	if snapshot.BytesCompleted != snapshot.TotalBytes || snapshot.TotalBytes != 14 {
-		t.Fatalf("transfer bytes = %d/%d, want 14/14", snapshot.BytesCompleted, snapshot.TotalBytes)
-	}
+	assertCompletedUploadSnapshot(t, taskID, 14)
 }
 
 func TestSFTPHeadObject(t *testing.T) {

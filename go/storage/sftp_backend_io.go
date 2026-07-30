@@ -12,8 +12,6 @@ import (
 	"strings"
 
 	"github.com/pkg/sftp"
-
-	s3ops "remote-storage/go/s3"
 )
 
 func (b sftpBackend) ReadObjectRange(
@@ -210,7 +208,18 @@ func (b sftpBackend) UploadFile(
 	if err != nil {
 		return err
 	}
-	return b.sftpStoreTracked(ctx, bucket, key, file, info.Size(), taskID, localPath)
+	return runTrackedUpload(
+		ctx,
+		bucket,
+		key,
+		localPath,
+		file,
+		info.Size(),
+		taskID,
+		func(uploadCtx context.Context, body io.Reader) error {
+			return b.sftpStore(uploadCtx, key, body)
+		},
+	)
 }
 
 func (b sftpBackend) UploadReader(
@@ -223,47 +232,18 @@ func (b sftpBackend) UploadReader(
 	if err := b.ensureBucketWritable(bucket); err != nil {
 		return err
 	}
-	return b.sftpStoreTracked(ctx, bucket, key, body, size, taskID, "")
-}
-
-// sftpStoreTracked keeps SFTP uploads aligned with the shared transfer monitor.
-func (b sftpBackend) sftpStoreTracked(
-	ctx context.Context,
-	bucket, key string,
-	body io.Reader,
-	size int64,
-	taskID, localPath string,
-) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if strings.TrimSpace(taskID) == "" {
-		return b.sftpStore(ctx, key, body)
-	}
-	trackedCtx, cancel := context.WithCancel(ctx)
-	s3ops.StartQueuedTransfer(taskID, "upload", bucket, key, localPath, size, cancel)
-	tracked := &sftpProgressReader{ctx: trackedCtx, reader: body, taskID: taskID}
-	err := b.sftpStore(trackedCtx, key, tracked)
-	s3ops.FinishQueuedTransfer(taskID, err)
-	cancel()
-	return err
-}
-
-type sftpProgressReader struct {
-	ctx    context.Context
-	reader io.Reader
-	taskID string
-}
-
-func (r *sftpProgressReader) Read(p []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	n, err := r.reader.Read(p)
-	if n > 0 {
-		s3ops.AdvanceTransfer(r.taskID, int64(n))
-	}
-	return n, err
+	return runTrackedUpload(
+		ctx,
+		bucket,
+		key,
+		"",
+		body,
+		size,
+		taskID,
+		func(uploadCtx context.Context, tracked io.Reader) error {
+			return b.sftpStore(uploadCtx, key, tracked)
+		},
+	)
 }
 
 func (b sftpBackend) DownloadFile(
