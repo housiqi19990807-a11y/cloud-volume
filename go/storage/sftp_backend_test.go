@@ -2,6 +2,8 @@
 package storage
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +29,16 @@ func TestSFTPDisablesSpeculativeMountPrefetch(t *testing.T) {
 	backend := newSFTPBackend(sftpTestConfig("127.0.0.1:22", "u", "p"))
 	if SupportsMountPrefetch(backend) {
 		t.Fatal("SFTP mount prefetch should stay disabled")
+	}
+}
+
+func TestSFTPClientHonorsCanceledContextBeforeDial(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	backend := sftpBackend{cfg: sftpTestConfig("203.0.113.1:22", "u", "p")}
+	_, _, err := backend.sftpClient(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("sftpClient error = %v, want context canceled", err)
 	}
 }
 

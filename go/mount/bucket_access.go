@@ -3,6 +3,7 @@ package mount
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -131,6 +132,15 @@ func newBucketAccess(
 	}
 	if quota, ok := storageops.CachedBucketQuota(cfg, bucket); ok {
 		access.seedWebDAVQuota(quota.QuotaBytes, quota.UsedBytes, quota.QuotaKnown)
+		log.Printf(
+			"[mount/quota] seeded bucket=%q known=%t total_bytes=%d used_bytes=%d",
+			bucket,
+			quota.QuotaKnown,
+			quota.QuotaBytes,
+			quota.UsedBytes,
+		)
+	} else {
+		log.Printf("[mount/quota] cache-miss bucket=%q", bucket)
 	}
 	access.dirSync = newDirSyncQueue(access)
 	writeback, err := newWritebackQueue(access)

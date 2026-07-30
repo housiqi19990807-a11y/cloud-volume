@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,11 @@ type unmountCommand struct {
 	name string
 	args []string
 }
+
+var (
+	probeWebDAVMountActive = isWebDAVMountActive
+	executeUnmountWebDAV   = unmountWebDAV
+)
 
 func (s *mountSession) start() error {
 	log.Printf("[mount/session] start bucket=%q mount_name=%q", s.bucket, s.mountName)
@@ -55,29 +61,37 @@ func (s *mountSession) stop() error {
 		s.mounted,
 		s.mountTarget,
 	)
+	var mountErr error
+	if s.mounted && s.mountTarget != "" {
+		active, err := probeWebDAVMountActive(s.mountTarget)
+		if err != nil {
+			mountErr = err
+		} else if active {
+			mountErr = executeUnmountWebDAV(s.mountTarget)
+		}
+		if mountErr != nil {
+			s.lastError = mountErr.Error()
+			s.stopping = false
+			log.Printf(
+				"[mount/session] keep-webdav-after-unmount-error bucket=%q err=%v",
+				s.bucket,
+				mountErr,
+			)
+			return mountErr
+		}
+		s.mounted = false
+	}
 	serverErr := error(nil)
 	if s.server != nil {
 		log.Printf("[mount/session] stop-webdav bucket=%q", s.bucket)
 		serverErr = s.server.stop()
-	}
-	var mountErr error
-	if s.mounted && s.mountTarget != "" {
-		active, err := isWebDAVMountActive(s.mountTarget)
-		if err != nil {
-			mountErr = err
-		} else if active {
-			mountErr = unmountWebDAV(s.mountTarget)
-		}
-		s.mounted = false
+		s.server = nil
 	}
 	accessErr := error(nil)
 	if s.access != nil {
 		log.Printf("[mount/session] close-access bucket=%q", s.bucket)
 		accessErr = s.access.close()
-	}
-	if mountErr != nil {
-		s.lastError = mountErr.Error()
-		return mountErr
+		s.access = nil
 	}
 	if serverErr != nil {
 		s.lastError = serverErr.Error()
@@ -97,13 +111,21 @@ func mountWebDAV(serverURL, requestedPath string) (string, error) {
 		if err := os.MkdirAll(mountPath, 0o755); err != nil {
 			return "", err
 		}
-		output, err := runLoggedCommand(
+		output, recovered, err := runLoggedCommandUntilSuccess(
 			macosMountCommandTimeout,
+			100*time.Millisecond,
 			"mount-webdav-path",
+			func() (string, bool) {
+				mounted := probeMountedWebDAVPath(serverURL, mountPath)
+				return mounted, mounted != ""
+			},
 			"/sbin/mount_webdav",
 			serverURL,
 			mountPath,
 		)
+		if recovered != "" {
+			return recovered, nil
+		}
 		if err != nil {
 			if recovered := recoverMountedWebDAVPath(serverURL, mountPath); recovered != "" {
 				return recovered, nil
@@ -116,13 +138,21 @@ func mountWebDAV(serverURL, requestedPath string) (string, error) {
 		"POSIX path of (mount volume %s)",
 		appleScriptStringLiteral(serverURL),
 	)
-	output, err := runLoggedCommand(
+	output, recovered, err := runLoggedCommandUntilSuccess(
 		macosMountCommandTimeout,
+		100*time.Millisecond,
 		"mount-volume",
+		func() (string, bool) {
+			mounted := probeMountedWebDAVPath(serverURL, "")
+			return mounted, mounted != ""
+		},
 		"osascript",
 		"-e",
 		script,
 	)
+	if recovered != "" {
+		return recovered, nil
+	}
 	if err != nil {
 		if recovered := recoverMountedWebDAVPath(serverURL, ""); recovered != "" {
 			return recovered, nil
@@ -142,23 +172,22 @@ func mountWebDAV(serverURL, requestedPath string) (string, error) {
 func recoverMountedWebDAVPath(serverURL, requestedPath string) string {
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		paths, err := listWebDAVMountPaths()
-		if err == nil {
-			if recovered := findMountedWebDAVPath(serverURL, requestedPath, paths); recovered != "" {
-				log.Printf(
-					"[mount/macos] mount-command-recovered url=%q requested_path=%q actual_path=%q",
-					serverURL,
-					requestedPath,
-					recovered,
-				)
-				return recovered
-			}
+		if recovered := probeMountedWebDAVPath(serverURL, requestedPath); recovered != "" {
+			return recovered
 		}
 		if time.Now().After(deadline) {
 			return ""
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func probeMountedWebDAVPath(serverURL, requestedPath string) string {
+	paths, err := listWebDAVMountPaths()
+	if err != nil {
+		return ""
+	}
+	return findMountedWebDAVPath(serverURL, requestedPath, paths)
 }
 
 func findMountedWebDAVPath(serverURL, requestedPath string, paths []string) string {
@@ -231,11 +260,46 @@ func mountPathInactive(mountPath string) (bool, error) {
 	return !active, nil
 }
 
-func openMountPath(mountPath string) error {
-	output, err := runLoggedCommand(macosOpenCommandTimeout, "open-mount-path", "open", mountPath)
-	if err != nil {
-		return fmt.Errorf("open mount path: %w: %s", err, string(output))
+var macOSMountOpenGate = newMountOpenGate()
+
+type mountOpenGate struct {
+	mu      sync.Mutex
+	running map[string]struct{}
+}
+
+func newMountOpenGate() *mountOpenGate {
+	return &mountOpenGate{running: make(map[string]struct{})}
+}
+
+func (g *mountOpenGate) tryStart(mountPath string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if _, exists := g.running[mountPath]; exists {
+		return false
 	}
+	g.running[mountPath] = struct{}{}
+	return true
+}
+
+func (g *mountOpenGate) finish(mountPath string) {
+	g.mu.Lock()
+	delete(g.running, mountPath)
+	g.mu.Unlock()
+}
+
+func openMountPath(mountPath string) error {
+	clean := filepath.Clean(mountPath)
+	if !macOSMountOpenGate.tryStart(clean) {
+		log.Printf("[mount/macos] open-mount-path coalesced path=%q", clean)
+		return nil
+	}
+	go func() {
+		defer macOSMountOpenGate.finish(clean)
+		output, err := runLoggedCommand(macosOpenCommandTimeout, "open-mount-path", "open", clean)
+		if err != nil {
+			log.Printf("[mount/macos] open-mount-path async-error path=%q err=%v output=%q", clean, err, strings.TrimSpace(string(output)))
+		}
+	}()
 	return nil
 }
 

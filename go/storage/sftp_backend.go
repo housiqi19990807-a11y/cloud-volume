@@ -46,10 +46,21 @@ func (b sftpBackend) sftpClient(ctx context.Context) (*sftp.Client, *ssh.Client,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         30 * time.Second,
 	}
-	sshClient, err := ssh.Dial("tcp", host, sshConfig)
+	dialer := &net.Dialer{Timeout: sshConfig.Timeout}
+	netConn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return nil, nil, fmt.Errorf("sftp ssh dial %s: %w", host, err)
 	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = netConn.SetDeadline(deadline)
+	}
+	context.AfterFunc(ctx, func() { _ = netConn.Close() })
+	clientConn, channels, requests, err := ssh.NewClientConn(netConn, host, sshConfig)
+	if err != nil {
+		_ = netConn.Close()
+		return nil, nil, fmt.Errorf("sftp ssh handshake %s: %w", host, err)
+	}
+	sshClient := ssh.NewClient(clientConn, channels, requests)
 	client, err := sftp.NewClient(sshClient)
 	if err != nil {
 		_ = sshClient.Close()

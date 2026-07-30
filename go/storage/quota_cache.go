@@ -4,6 +4,8 @@ package storage
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,8 +40,10 @@ func CachedBucketQuota(
 			delete(sharedBucketQuotaCache.entries, key)
 			sharedBucketQuotaCache.Unlock()
 		}
+		log.Printf("[storage/quota-cache] miss bucket=%q key=%x", strings.TrimSpace(bucket), key[:6])
 		return BucketInfo{}, false
 	}
+	log.Printf("[storage/quota-cache] hit bucket=%q key=%x", strings.TrimSpace(bucket), key[:6])
 	return entry.quota, true
 }
 
@@ -61,11 +65,43 @@ func bucketQuotaCacheKey(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) [sha256.Size]byte {
-	// Hash the normalized config so credential changes cannot reuse stale quota,
-	// while the cache itself never retains a plaintext credential-bearing key.
+	normalized := cfg.Normalized()
+	// Only connection identity participates. Mount, cache, display, and bucket
+	// presentation settings do not change which upstream quota is being read.
 	payload, _ := json.Marshal(struct {
-		Config storageconfig.RemoteStorageConfig `json:"config"`
-		Bucket string                            `json:"bucket"`
-	}{Config: cfg.Normalized(), Bucket: bucket})
+		StorageType     string `json:"storageType"`
+		ProviderType    string `json:"providerType"`
+		Endpoint        string `json:"endpoint"`
+		Region          string `json:"region"`
+		AccessKeyID     string `json:"accessKeyId"`
+		SecretAccessKey string `json:"secretAccessKey"`
+		WebDAVUsername  string `json:"webdavUsername"`
+		WebDAVPassword  string `json:"webdavPassword"`
+		FTPUsername     string `json:"ftpUsername"`
+		FTPPassword     string `json:"ftpPassword"`
+		FTPPort         int    `json:"ftpPort"`
+		FTPAnonymous    bool   `json:"ftpAnonymous"`
+		UsePathStyle    bool   `json:"usePathStyle"`
+		JWanMode        string `json:"jwanMode"`
+		ProxyMode       string `json:"proxyMode"`
+		ProxyType       string `json:"proxyType"`
+		ProxyHost       string `json:"proxyHost"`
+		ProxyPort       string `json:"proxyPort"`
+		ProxyUsername   string `json:"proxyUsername"`
+		ProxyPassword   string `json:"proxyPassword"`
+		Bucket          string `json:"bucket"`
+	}{
+		StorageType: normalized.StorageType, ProviderType: normalized.ProviderType,
+		Endpoint: normalized.Endpoint, Region: normalized.Region,
+		AccessKeyID: normalized.AccessKeyID, SecretAccessKey: normalized.SecretAccessKey,
+		WebDAVUsername: normalized.WebDAVUsername, WebDAVPassword: normalized.WebDAVPassword,
+		FTPUsername: normalized.FTPUsername, FTPPassword: normalized.FTPPassword,
+		FTPPort: normalized.FTPPort, FTPAnonymous: normalized.FTPAnonymous,
+		UsePathStyle: normalized.UsePathStyle, JWanMode: normalized.JWanFSGatewayMode,
+		ProxyMode: normalized.ProxyMode, ProxyType: normalized.ProxyType,
+		ProxyHost: normalized.ProxyHost, ProxyPort: normalized.ProxyPort,
+		ProxyUsername: normalized.ProxyUsername, ProxyPassword: normalized.ProxyPassword,
+		Bucket: strings.TrimSpace(bucket),
+	})
 	return sha256.Sum256(payload)
 }

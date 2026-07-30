@@ -1,9 +1,15 @@
 //go:build darwin
 
-// macOS mount tests pin unmount fallback order for busy WebDAV volumes.
+// macOS mount tests pin path recovery, Finder coalescing, and safe unmount lifecycle.
 package mount
 
-import "testing"
+import (
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"testing"
+)
 
 func TestUnmountCommands(t *testing.T) {
 	t.Parallel()
@@ -47,4 +53,62 @@ func TestFindMountedWebDAVPathRecoversRequestedPath(t *testing.T) {
 	if got != "/tmp/cloud-volume" {
 		t.Fatalf("recovered requested path = %q", got)
 	}
+}
+
+func TestMountOpenGateCoalescesBusyFinderOpen(t *testing.T) {
+	t.Parallel()
+
+	gate := newMountOpenGate()
+	const mountPath = "/Volumes/云卷-demo"
+	if !gate.tryStart(mountPath) {
+		t.Fatal("first Finder open was not admitted")
+	}
+	if gate.tryStart(mountPath) {
+		t.Fatal("duplicate Finder open was not coalesced")
+	}
+	gate.finish(mountPath)
+	if !gate.tryStart(mountPath) {
+		t.Fatal("Finder open remained stuck after command completion")
+	}
+}
+
+func TestStopKeepsWebDAVAliveWhenUnmountFails(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "alive")
+	})}
+	go func() { _ = server.Serve(listener) }()
+	webDAV := &webDAVServer{server: server, listener: listener}
+	t.Cleanup(func() { _ = webDAV.stop() })
+
+	oldProbe := probeWebDAVMountActive
+	oldUnmount := executeUnmountWebDAV
+	probeWebDAVMountActive = func(string) (bool, error) { return true, nil }
+	executeUnmountWebDAV = func(string) error { return errors.New("busy") }
+	t.Cleanup(func() {
+		probeWebDAVMountActive = oldProbe
+		executeUnmountWebDAV = oldUnmount
+	})
+
+	session := &mountSession{
+		bucket:      "test-bucket",
+		mounted:     true,
+		stopping:    true,
+		mountTarget: "/Volumes/云卷-test",
+		server:      webDAV,
+	}
+	if err := session.stop(); err == nil {
+		t.Fatal("stop unexpectedly succeeded")
+	}
+	if !session.mounted || session.stopping || session.server == nil {
+		t.Fatal("failed unmount discarded the live mount server")
+	}
+	response, err := http.Get("http://" + listener.Addr().String())
+	if err != nil {
+		t.Fatalf("WebDAV server stopped after failed unmount: %v", err)
+	}
+	_ = response.Body.Close()
 }
