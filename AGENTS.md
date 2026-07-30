@@ -596,6 +596,14 @@ The metadata handle intentionally does not implement `DeadPropsHolder`, so unsup
 
 When diagnosing an SFTP row stuck in `sync_wait`, inspect both `<runtime>/mounts/<bucket>/writeback/queue-*.json` and the remote object. An empty persisted map means the writeback layer no longer has recoverable pending work. Provider upload implementations that accept a task ID must explicitly start, advance, and finish that shared transfer task; pruning a stale snapshot sooner only hides lifecycle bugs.
 
+#### Provider impact matrix (audited 2026-07-30)
+
+- The Finder `PROPPATCH` misrouting was above the storage-provider boundary in `webDAVFS`, so before the metadata-only handle fix it could trigger redundant content work for every macOS mount upstream: S3, WebDAV, Baidu Pan, FTP, and SFTP. The exact-`O_RDWR` routing fix applies to all of them.
+- S3 `UploadFile` / `UploadReader` own the supplied task ID in `go/s3/upload_resume.go` and `go/s3/http_stream.go`; both start, advance, and finish the transfer monitor entry.
+- Baidu Pan owns the task lifecycle in `baidu_pan_backend_io.go`, including byte progress and terminal status.
+- SFTP owns the task lifecycle in `sftp_backend_io.go` after the 2026-07-30 fix.
+- FTP `UploadFile` / `UploadReader` and WebDAV-upstream `UploadFile` / `UploadReader` still discard their task ID. Their remote writeback may succeed and clear the persisted queue while the UI snapshot remains `sync_wait` until the 10-minute monitor retention expires. This is a task-reporting defect, separate from whether local-first caching worked; fix these providers by wrapping their existing store/PUT readers with the same start/advance/finish contract, not by shortening snapshot retention.
+
 ### Feature: Mount Cache Sync from External Mutations (挂载缓存外部失效)
 
 文件管理界面的删除/重命名/移动/复制/建目录/上传通过 bridge/webapi 直接改远端对象，绕过 `go/mount`。为了让挂载点（Finder/WebDAV/FUSE）和文件管理列表不显示幽灵文件、不卡"删除中"，所有外部 mutation 在成功后必须同步失效挂载 session 的 `bucketCache`。
