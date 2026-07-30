@@ -34,6 +34,12 @@ func (f *webDAVFS) OpenFile(
 		}
 		return newLocalWebDAVFile(file), nil
 	}
+	// x/net/webdav uses an exact O_RDWR open only to inspect optional dead
+	// property support during PROPPATCH. Keep that metadata probe away from the
+	// staged content-write path so Finder metadata cannot download/re-upload a file.
+	if flag == os.O_RDWR {
+		return newMetadataWebDAVFile(ctx, f.access, clean)
+	}
 	switch {
 	case flag&os.O_CREATE != 0 || flag&os.O_WRONLY != 0 || flag&os.O_RDWR != 0 || flag&os.O_TRUNC != 0:
 		return newWritableWebDAVFile(ctx, f.access, clean, perm, flag)

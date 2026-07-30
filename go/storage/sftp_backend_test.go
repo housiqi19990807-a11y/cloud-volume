@@ -2,10 +2,13 @@
 package storage
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
 )
 
 // sftpTestConfig builds a RemoteStorageConfig pointing at the mock SFTP server.
@@ -64,6 +67,34 @@ func TestSFTPUploadAndRead(t *testing.T) {
 	}
 	if string(data) != "sftp" {
 		t.Fatalf("data = %q, want 'sftp'", string(data))
+	}
+}
+
+func TestSFTPUploadFileFinishesQueuedTransfer(t *testing.T) {
+	srv := newMockSFTPServer(t, "u", "p")
+	defer srv.Stop()
+
+	localPath := filepath.Join(t.TempDir(), "tracked.txt")
+	if err := os.WriteFile(localPath, []byte("tracked upload"), 0o644); err != nil {
+		t.Fatalf("write upload source: %v", err)
+	}
+	taskID := "sftp-upload-file-finishes-queued-transfer"
+	s3ops.QueueTransfer(taskID, "upload", "SFTP", "tracked.txt", localPath, 14)
+	t.Cleanup(func() { s3ops.ForgetTransfer(taskID) })
+
+	backend := newSFTPBackend(sftpTestConfig(srv.endpoint(), "u", "p"))
+	if err := backend.UploadFile(nil, "SFTP", "tracked.txt", localPath, taskID); err != nil {
+		t.Fatalf("UploadFile error: %v", err)
+	}
+	snapshot, ok := s3ops.GetTransferSnapshot(taskID)
+	if !ok {
+		t.Fatal("tracked transfer snapshot missing")
+	}
+	if snapshot.Status != "done" {
+		t.Fatalf("transfer status = %q, want done", snapshot.Status)
+	}
+	if snapshot.BytesCompleted != snapshot.TotalBytes || snapshot.TotalBytes != 14 {
+		t.Fatalf("transfer bytes = %d/%d, want 14/14", snapshot.BytesCompleted, snapshot.TotalBytes)
 	}
 }
 
