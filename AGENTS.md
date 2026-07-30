@@ -574,6 +574,24 @@ Shared upload/download queue backing both manual file operations and sync-genera
 - A task with `totalBytes==0` renders indeterminate (modal) or plain "删除中" text (transfers row); setting `totalBytes>0` via `startTransfer`/`AddTransferTotal` + `advanceTransfer` immediately turns the modal summary bar and transfers subtitle into real percentage/bytes — no UI change needed.
 - Successful local completion must normalize both progress dimensions: Go `finishTransfer` already sets `BytesCompleted = TotalBytes` and `ItemsCompleted = TotalItems` before the bridge returns, and Flutter `TransferQueue.markTaskDone` mirrors that invariant immediately. Without the item normalization, the last-polled count (for example `10 / 20`) could remain visible after the status changed to `done` until idle polling refreshed the authoritative snapshot about 2 seconds later.
 
+### Feature: macOS WebDAV Local-First Writes
+
+macOS mounts the loopback WebDAV server through `webdavfs_agent`. File content is meant to land in a local staging/cache file first, then enter the shared delayed-writeback queue; the Finder-facing `PUT` must not wait for the upstream provider upload.
+
+#### Key files and data flow
+
+- `go/mount/webdav_http_handler.go` / `webdav_fs.go` - The loopback `x/net/webdav.Handler` delegates file opens to `webDAVFS`. Content-write flags select `newWritableWebDAVFile`; reads select the range-capable readable handle.
+- `go/mount/webdav_file.go` - A writable handle uses `<runtime>/mounts/<bucket>/staging/<hashed-key>` while the request body is arriving. `Close` moves that file into `<cache>/mounts/<bucket>/<hashed-key>`, calls `registerLocalWrite`, then `scheduleUpload`.
+- `go/mount/bucket_access_writes.go` / `writeback_queue.go` / `writeback_store.go` - `scheduleUpload` persists a pending record, publishes `sync_wait`, resets the configured quiet timer (default 10 seconds), then uploads in the background worker pool. A successful remote upload clears the local overlay marker and persisted record; the cache file itself remains available for reads.
+- `go/storage/sftp_backend.go` / `sftp_backend_io.go` - The SFTP backend currently establishes a fresh SSH/SFTP connection per operation. `UploadFile` is a single `io.Copy`; the writeback success path then performs a separate `HeadObject`, so handshake latency and server connection limits strongly affect many-small-file throughput without changing the intended local-first foreground semantics.
+- `go/mount/webdav_logging.go` - Successful `PUT`, `COPY`, and `PROPPATCH` requests are not currently logged; ordinary logs therefore cannot time the foreground write path. `writeback` enqueue/ready/flush lines and the staging/cache/writeback directories are the reliable current evidence.
+
+#### Known PROPPATCH gotcha (diagnosed 2026-07-30)
+
+Finder sends `PROPPATCH` requests for creation dates and other dead properties. `golang.org/x/net/webdav` opens the target with exactly `os.O_RDWR` before checking whether the returned handle implements `DeadPropsHolder`. `webDAVFS.OpenFile` currently treats that metadata-only open as a content write. `newWritableWebDAVFile` then calls `seedWritableTempFile`; because there is no `O_TRUNC`, a cold target is fully downloaded through `ensureLocalFile`. The handle does not implement `DeadPropsHolder`, and its `Close` schedules writeback even when no `Write` occurred. On SFTP this becomes a per-file download plus redundant upload/SSH handshakes and can leave visible tasks repeatedly in `sync_wait`.
+
+Do not diagnose this pattern as a disabled cache: the cache is being populated, but the metadata request is incorrectly routed through the content mutation lifecycle. The durable fix must keep `PUT` local-first while making metadata-only opens non-content-dirty (for example, a dedicated metadata handle or lazy content seeding plus an explicit dirty bit). Merely shortening `writeback_quiet_seconds` does not remove the redundant download/upload, and increasing writeback concurrency can worsen SFTP handshake resets.
+
 ### Feature: Mount Cache Sync from External Mutations (挂载缓存外部失效)
 
 文件管理界面的删除/重命名/移动/复制/建目录/上传通过 bridge/webapi 直接改远端对象，绕过 `go/mount`。为了让挂载点（Finder/WebDAV/FUSE）和文件管理列表不显示幽灵文件、不卡"删除中"，所有外部 mutation 在成功后必须同步失效挂载 session 的 `bucketCache`。
