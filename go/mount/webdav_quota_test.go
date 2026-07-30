@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	storageconfig "remote-storage/go/config"
 	storageops "remote-storage/go/storage"
@@ -17,11 +19,16 @@ import (
 )
 
 type mountQuotaTestBackend struct {
-	total int64
-	used  int64
+	total   int64
+	used    int64
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
 }
 
-func (b mountQuotaTestBackend) BucketQuota(context.Context, string) (storageops.BucketInfo, error) {
+func (b *mountQuotaTestBackend) BucketQuota(context.Context, string) (storageops.BucketInfo, error) {
+	b.once.Do(func() { close(b.started) })
+	<-b.release
 	return storageops.BucketInfo{
 		Name:       "test-bucket",
 		QuotaBytes: b.total,
@@ -32,12 +39,25 @@ func (b mountQuotaTestBackend) BucketQuota(context.Context, string) (storageops.
 
 func TestWebDAVRootReportsProviderQuota(t *testing.T) {
 	access := newTestBucketAccess(t)
-	access.quotaProvider = mountQuotaTestBackend{total: 1000, used: 250}
-
-	available, used := requestMountedWebDAVQuota(t, access)
-	if available != "750" || used != "250" {
-		t.Fatalf("quota available/used = %s/%s, want 750/250", available, used)
+	provider := mountQuotaTestBackend{
+		total:   1000,
+		used:    250,
+		started: make(chan struct{}),
+		release: make(chan struct{}),
 	}
+	access.quotaProvider = &provider
+
+	startedAt := time.Now()
+	available, used := requestMountedWebDAVQuota(t, access)
+	if elapsed := time.Since(startedAt); elapsed > 500*time.Millisecond {
+		t.Fatalf("initial quota PROPFIND blocked for %v", elapsed)
+	}
+	if available != "" || used != "" {
+		t.Fatalf("quota before provider response = %s/%s, want unsupported", available, used)
+	}
+	<-provider.started
+	close(provider.release)
+	waitForMountedWebDAVQuota(t, access, "750", "250")
 }
 
 func TestWebDAVRootCustomQuotaOverridesProviderTotal(t *testing.T) {
@@ -47,12 +67,36 @@ func TestWebDAVRootCustomQuotaOverridesProviderTotal(t *testing.T) {
 			"test-bucket": {CustomQuotaBytes: 800},
 		},
 	}
-	access.quotaProvider = mountQuotaTestBackend{total: 1000, used: 250}
+	provider := mountQuotaTestBackend{
+		total:   1000,
+		used:    250,
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	access.quotaProvider = &provider
 
 	available, used := requestMountedWebDAVQuota(t, access)
-	if available != "550" || used != "250" {
-		t.Fatalf("custom quota available/used = %s/%s, want 550/250", available, used)
+	if available != "800" || used != "0" {
+		t.Fatalf("initial custom quota available/used = %s/%s, want 800/0", available, used)
 	}
+	<-provider.started
+	close(provider.release)
+	waitForMountedWebDAVQuota(t, access, "550", "250")
+}
+
+func waitForMountedWebDAVQuota(t *testing.T, access *bucketAccess, wantAvailable, wantUsed string) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		available, used := requestMountedWebDAVQuota(t, access)
+		if available == wantAvailable && used == wantUsed {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	available, used := requestMountedWebDAVQuota(t, access)
+	t.Fatalf("quota available/used = %s/%s, want %s/%s", available, used, wantAvailable, wantUsed)
 }
 
 func requestMountedWebDAVQuota(t *testing.T, access *bucketAccess) (string, string) {
@@ -101,9 +145,6 @@ func quotaValuesFromResponse(t *testing.T, body io.Reader) (string, string) {
 				t.Fatal(err)
 			}
 		}
-	}
-	if available == "" || used == "" {
-		t.Fatalf("quota properties missing: available=%q used=%q", available, used)
 	}
 	return available, used
 }

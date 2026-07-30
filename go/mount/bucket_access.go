@@ -38,6 +38,7 @@ type bucketAccess struct {
 	quotaTotal      int64
 	quotaUsed       int64
 	quotaKnown      bool
+	quotaLoading    bool
 
 	group singleflight.Group
 

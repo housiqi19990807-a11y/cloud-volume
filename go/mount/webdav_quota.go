@@ -18,46 +18,65 @@ var (
 	webDAVQuotaUsedName      = xml.Name{Space: "DAV:", Local: "quota-used-bytes"}
 )
 
-func (a *bucketAccess) webDAVQuota(ctx context.Context) (total, used int64, known bool) {
+func (a *bucketAccess) webDAVQuota(_ context.Context) (total, used int64, known bool) {
+	a.quotaMu.Lock()
+	if time.Since(a.quotaCachedAt) < webDAVMountQuotaCacheTTL {
+		total, used, known = a.quotaTotal, a.quotaUsed, a.quotaKnown
+		a.quotaMu.Unlock()
+		return total, used, known
+	}
+
+	total, used, known = a.quotaTotal, a.quotaUsed, a.quotaKnown
+	if custom := a.config.BucketSettingsFor(a.bucket).CustomQuotaBytes; custom > 0 {
+		total, known = custom, true
+		used = clampMountQuotaUsed(total, used)
+	}
+	if a.quotaProvider == nil {
+		a.quotaCachedAt = time.Now()
+		a.quotaTotal, a.quotaUsed, a.quotaKnown = total, used, known
+		a.quotaMu.Unlock()
+		return total, used, known
+	}
+	if !a.quotaLoading {
+		a.quotaLoading = true
+		go a.refreshWebDAVQuota()
+	}
+	a.quotaMu.Unlock()
+	return total, used, known
+}
+
+func (a *bucketAccess) refreshWebDAVQuota() {
+	ctx := context.Background()
+	cancel := func() {}
+	if a.requestTimeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, a.requestTimeout)
+	}
+	quota, err := a.quotaProvider.BucketQuota(ctx, a.bucket)
+	cancel()
+
 	a.quotaMu.Lock()
 	defer a.quotaMu.Unlock()
-
-	if time.Since(a.quotaCachedAt) < webDAVMountQuotaCacheTTL {
-		return a.quotaTotal, a.quotaUsed, a.quotaKnown
-	}
-	if a.quotaProvider != nil {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		quotaCtx := ctx
-		cancel := func() {}
-		if a.requestTimeout > 0 {
-			quotaCtx, cancel = context.WithTimeout(ctx, a.requestTimeout)
-		}
-		quota, err := a.quotaProvider.BucketQuota(quotaCtx, a.bucket)
-		cancel()
-		if err == nil && quota.QuotaKnown {
-			total = quota.QuotaBytes
-			used = quota.UsedBytes
-		}
+	total, used, known := int64(0), int64(0), false
+	if err == nil && quota.QuotaKnown && quota.QuotaBytes > 0 {
+		total, used, known = quota.QuotaBytes, quota.UsedBytes, true
 	}
 	if custom := a.config.BucketSettingsFor(a.bucket).CustomQuotaBytes; custom > 0 {
-		total = custom
+		total, known = custom, true
 	}
-	if total > 0 {
-		if used < 0 {
-			used = 0
-		}
-		if used > total {
-			used = total
-		}
-		known = true
-	}
+	used = clampMountQuotaUsed(total, used)
 	a.quotaCachedAt = time.Now()
-	a.quotaTotal = total
-	a.quotaUsed = used
-	a.quotaKnown = known
-	return total, used, known
+	a.quotaTotal, a.quotaUsed, a.quotaKnown = total, used, known
+	a.quotaLoading = false
+}
+
+func clampMountQuotaUsed(total, used int64) int64 {
+	if used < 0 {
+		return 0
+	}
+	if used > total {
+		return total
+	}
+	return used
 }
 
 func (f *readableWebDAVFile) DeadProps() (map[xml.Name]webdav.Property, error) {

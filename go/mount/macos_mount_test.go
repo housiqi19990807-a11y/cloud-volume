@@ -22,3 +22,29 @@ func TestUnmountCommands(t *testing.T) {
 		t.Fatalf("expected third command to be diskutil unmount force, got %+v", commands[2])
 	}
 }
+
+func TestFindMountedWebDAVPathRecoversEncodedVolumeName(t *testing.T) {
+	t.Parallel()
+
+	got := findMountedWebDAVPath(
+		"http://127.0.0.1:60250/%E4%BA%91%E5%8D%B7-%E6%B5%8B%E8%AF%95/",
+		"",
+		[]string{"/Volumes/云卷-测试"},
+	)
+	if got != "/Volumes/云卷-测试" {
+		t.Fatalf("recovered path = %q", got)
+	}
+}
+
+func TestFindMountedWebDAVPathRecoversRequestedPath(t *testing.T) {
+	t.Parallel()
+
+	got := findMountedWebDAVPath(
+		"http://127.0.0.1:60250/volume/",
+		"/tmp/cloud-volume",
+		[]string{"/tmp/cloud-volume"},
+	)
+	if got != "/tmp/cloud-volume" {
+		t.Fatalf("recovered requested path = %q", got)
+	}
+}

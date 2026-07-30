@@ -6,9 +6,12 @@ package mount
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type unmountCommand struct {
@@ -102,6 +105,9 @@ func mountWebDAV(serverURL, requestedPath string) (string, error) {
 			mountPath,
 		)
 		if err != nil {
+			if recovered := recoverMountedWebDAVPath(serverURL, mountPath); recovered != "" {
+				return recovered, nil
+			}
 			return "", fmt.Errorf("mount bucket with macOS mount_webdav: %w: %s", err, string(output))
 		}
 		return mountPath, nil
@@ -118,13 +124,66 @@ func mountWebDAV(serverURL, requestedPath string) (string, error) {
 		script,
 	)
 	if err != nil {
+		if recovered := recoverMountedWebDAVPath(serverURL, ""); recovered != "" {
+			return recovered, nil
+		}
 		return "", fmt.Errorf("mount bucket with macOS mount volume: %w: %s", err, string(output))
 	}
 	mountPath := strings.TrimSpace(string(output))
 	if mountPath == "" {
+		if recovered := recoverMountedWebDAVPath(serverURL, ""); recovered != "" {
+			return recovered, nil
+		}
 		return "", fmt.Errorf("mount bucket with macOS mount volume: empty mount path")
 	}
 	return filepath.Clean(mountPath), nil
+}
+
+func recoverMountedWebDAVPath(serverURL, requestedPath string) string {
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		paths, err := listWebDAVMountPaths()
+		if err == nil {
+			if recovered := findMountedWebDAVPath(serverURL, requestedPath, paths); recovered != "" {
+				log.Printf(
+					"[mount/macos] mount-command-recovered url=%q requested_path=%q actual_path=%q",
+					serverURL,
+					requestedPath,
+					recovered,
+				)
+				return recovered
+			}
+		}
+		if time.Now().After(deadline) {
+			return ""
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func findMountedWebDAVPath(serverURL, requestedPath string, paths []string) string {
+	if strings.TrimSpace(requestedPath) != "" {
+		requested := filepath.Clean(requestedPath)
+		for _, current := range paths {
+			if filepath.Clean(current) == requested {
+				return requested
+			}
+		}
+		return ""
+	}
+	parsed, err := url.Parse(serverURL)
+	if err != nil {
+		return ""
+	}
+	mountName := path.Base(strings.TrimSuffix(parsed.Path, "/"))
+	if mountName == "." || mountName == "/" || mountName == "" {
+		return ""
+	}
+	matches := matchingBucketMountPaths(paths, mountName)
+	if len(matches) == 0 {
+		return ""
+	}
+	return matches[0]
 }
 
 func unmountWebDAV(mountPath string) error {
@@ -141,9 +200,15 @@ func unmountWebDAV(mountPath string) error {
 		if err == nil {
 			return nil
 		}
-		if gone, probeErr := mountPathInactive(mountPath); probeErr == nil && gone {
-			log.Printf("[mount/macos] unmount-confirmed-inactive path=%q", mountPath)
-			return nil
+		gone, probeErr := mountPathInactive(mountPath)
+		if probeErr == nil {
+			if gone {
+				log.Printf("[mount/macos] unmount-confirmed-inactive path=%q", mountPath)
+				return nil
+			}
+			lastErr = err
+			lastOutput = strings.TrimSpace(string(output))
+			continue
 		}
 		if _, statErr := os.Stat(mountPath); statErr != nil && os.IsNotExist(statErr) {
 			log.Printf("[mount/macos] unmount-path-gone path=%q", mountPath)
