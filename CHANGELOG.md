@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 修复 macOS P2P mDNS 在没有组播路由的 `en0`/`en1` 上持续刷 `no route to host`：对 `ENETUNREACH`/`EHOSTUNREACH` 按接口共享 2 分钟退避，同一故障不再随多账号和 30 秒发现周期重复刷日志；网络恢复后自动重试。
 - 修复 Finder/Spotlight 递归扫描后 SFTP 挂载持续刷新深层目录：SFTP 现在关闭 P0 后台远端目录轮询，避免每 5 秒为最多 12 个活跃路径重复建立 SSH/SFTP 连接并挤占写回链路；用户主动打开目录仍按需读取。挂载配额缓存过期后不再丢弃最后一次已知容量，首次 WebDAV `PROPFIND` 会立即使用旧值、异步刷新，并在刷新暂时失败时继续保留可用容量。
 - 修复 macOS WebDAV 挂载向 SFTP 上游写入小文件异常缓慢：Finder 的 `PROPPATCH` 元数据探测不再误走内容暂存/下载/回写流程，新建目录或新鲜目录列表内的目标缺失探测也直接由本地视图返回，不再为每个文件同步建立 SFTP 连接做 `stat`；正常 `PUT` 仍先写本地缓存并按单文件 quiet period 异步上传。SFTP 上传会同步更新共享传输任务的进度与完成/失败状态，不再在远端已写入、持久化队列已清空后仍显示“等待同步”长达 10 分钟。
 - macOS WebDAV 挂载根目录现在通过 RFC 4331 返回 `quota-available-bytes` 与 `quota-used-bytes`，优先使用桶自定义容量并复用上游实际配额/已用量，让 `df` 不再在已有容量信息时显示 `0/0`。桶列表的配额结果现在同时进入 Go 后端 5 分钟共享缓存；缓存身份只包含协议、endpoint、凭据、端口、provider 与代理等上游连接字段，缓存目录、RootPrefix、挂载参数或显示设置不同仍可初始化首次 `PROPFIND`。无缓存时仍立即挂载并异步刷新。
