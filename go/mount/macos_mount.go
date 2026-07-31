@@ -8,10 +8,12 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -19,6 +21,13 @@ type unmountCommand struct {
 	name string
 	args []string
 }
+
+// macosOpenLaunchTimeout bounds how long openMountPath waits for the Finder
+// open call to fire before returning. macOS LaunchServices may block for
+// ~90s on a freshly mounted webdav volume's first statfs; we never want
+// to hold a goroutine that long, and the gate only needs to know the
+// request was dispatched.
+const macosOpenLaunchTimeout = 3 * time.Second
 
 var (
 	probeWebDAVMountActive = isWebDAVMountActive
@@ -293,14 +302,50 @@ func openMountPath(mountPath string) error {
 		log.Printf("[mount/macos] open-mount-path coalesced path=%q", clean)
 		return nil
 	}
-	go func() {
-		defer macOSMountOpenGate.finish(clean)
-		output, err := runLoggedCommand(macosOpenCommandTimeout, "open-mount-path", "open", clean)
-		if err != nil {
-			log.Printf("[mount/macos] open-mount-path async-error path=%q err=%v output=%q", clean, err, strings.TrimSpace(string(output)))
-		}
-	}()
+	go runMacOSFinderOpen(clean)
 	return nil
+}
+
+// runMacOSFinderOpen launches Finder without inheriting our pipes.
+// macOS LaunchServices spawns Finder via XPC; a plain exec inherits
+// stdout/stderr which Finder keeps open for ~90s during the first statfs,
+// so CombinedOutput blocks far past its context timeout. We detach the
+// process: Start it with Stdout/Stderr set to os.DevNull and never Wait,
+// logging only whether the launch itself succeeded.
+func runMacOSFinderOpen(mountPath string) {
+	defer macOSMountOpenGate.finish(mountPath)
+	log.Printf("[mount/macos] open-mount-path start path=%q", mountPath)
+
+	startedAt := time.Now()
+	cmd := exec.Command("open", mountPath)
+	// Detach all standard streams so no descendant (Finder, webdavfs_agent)
+	// can hold our goroutine via an inherited pipe.
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		log.Printf("[mount/macos] open-mount-path detach-error path=%q err=%v", mountPath, err)
+		return
+	}
+	defer devNull.Close()
+	cmd.Stdout = devNull
+	cmd.Stderr = devNull
+	// Place the child in its own process group so a signal sent to our
+	// process tree (e.g. during shutdown) cannot drag Finder with it.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	if err := cmd.Start(); err != nil {
+		log.Printf("[mount/macos] open-mount-path start-error path=%q err=%v", mountPath, err)
+		return
+	}
+	// Reap the immediate child (open exits quickly); do NOT wait for
+	// descendants, which is exactly what blocks CombinedOutput.
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-done:
+		log.Printf("[mount/macos] open-mount-path done path=%q duration=%s", mountPath, time.Since(startedAt).Round(time.Millisecond))
+	case <-time.After(macosOpenLaunchTimeout):
+		log.Printf("[mount/macos] open-mount-path dispatched path=%q duration=%s (open still running, Finder will appear)", mountPath, time.Since(startedAt).Round(time.Millisecond))
+	}
 }
 
 func appleScriptStringLiteral(value string) string {

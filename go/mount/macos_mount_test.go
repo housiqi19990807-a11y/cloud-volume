@@ -9,6 +9,9 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
+
+	"path/filepath"
 )
 
 func TestUnmountCommands(t *testing.T) {
@@ -111,4 +114,27 @@ func TestStopKeepsWebDAVAliveWhenUnmountFails(t *testing.T) {
 		t.Fatalf("WebDAV server stopped after failed unmount: %v", err)
 	}
 	_ = response.Body.Close()
+}
+func TestOpenMountPathReturnsBeforeFinderStatfs(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	startedAt := time.Now()
+	if err := openMountPath(dir); err != nil {
+		t.Fatalf("openMountPath: %v", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("openMountPath blocked for %v; should return immediately", elapsed)
+	}
+	// The gate must eventually release so a subsequent open is not coalesced.
+	clean := filepath.Clean(dir)
+	deadline := time.Now().Add(macosOpenLaunchTimeout + 2*time.Second)
+	for time.Now().Before(deadline) {
+		if macOSMountOpenGate.tryStart(clean) {
+			macOSMountOpenGate.finish(clean)
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("open gate was never released after Finder open dispatched")
 }
