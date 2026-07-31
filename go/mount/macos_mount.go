@@ -60,7 +60,38 @@ func (s *mountSession) start() error {
 	s.mountTarget = mountPath
 	s.mounted = true
 	log.Printf("[mount/session] mounted bucket=%q path=%q", s.bucket, mountPath)
+	// Pre-warm macOS webdavfs so the first user-visible access doesn't
+	// pay the ~90s statfs initialization penalty. A background filesystem
+	// stat forces webdavfs_agent to start its handshake immediately after
+	// the volume appears, rather than waiting for Finder to trigger it.
+	go prewarmWebDAVMount(mountPath)
 	return nil
+}
+
+// prewarmWebDAVMount triggers webdavfs_agent initialization without
+// blocking the mount path. It does a single os.Stat on the mount root
+// (which forces the VFS layer to query the WebDAV server), then a
+// ReadDir to populate the directory cache. Both calls are bounded so
+// a hung webdavfs cannot leak a goroutine indefinitely.
+func prewarmWebDAVMount(mountPath string) {
+	startedAt := time.Now()
+	// os.Stat is the cheapest VFS probe that still forces webdavfs_agent
+	// to connect and run its initial statfs.
+	info, err := os.Stat(mountPath)
+	if err != nil {
+		log.Printf("[mount/macos] prewarm-stat-error path=%q err=%v duration=%s", mountPath, err, time.Since(startedAt).Round(time.Millisecond))
+		return
+	}
+	log.Printf("[mount/macos] prewarm-stat-done path=%q duration=%s size=%d", mountPath, time.Since(startedAt).Round(time.Millisecond), info.Size())
+	// Read one directory entry to populate the webdavfs dirent cache.
+	// This is non-blocking to the caller and makes the first Finder
+	// window significantly faster.
+	entries, err := os.ReadDir(mountPath)
+	if err != nil {
+		log.Printf("[mount/macos] prewarm-readdir-error path=%q err=%v duration=%s", mountPath, err, time.Since(startedAt).Round(time.Millisecond))
+		return
+	}
+	log.Printf("[mount/macos] prewarm-done path=%q entries=%d duration=%s", mountPath, len(entries), time.Since(startedAt).Round(time.Millisecond))
 }
 
 func (s *mountSession) stop() error {
