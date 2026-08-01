@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 修复上游不可达时仍要等满超时才返回（实测从 ~8s 降到 ~3s）：根因是所有 HTTP transport（S3/JWanFS/WebDAV/百度）都没有 TCP 拨号超时，遇到丢包型不可达（网关关机、防火墙 DROP、IP 不可达，而非 RST 拒绝）时靠 OS 的 TCP SYN 重试兜底，macOS 上实测要 75 秒，只有请求 ctx 能在 8 秒砍断。现在 `ProxyTransport` 统一加 3 秒 `DialContext` 拨号超时，S3 client 在 system/inherit 模式也改用带超时的 HTTP client（不再用 AWS SDK 无超时的默认 client），JWanFS 探测同样加 3 秒拨号超时。连不上的 endpoint 会在 3 秒失败、记入负缓存，不再卡满 8 秒。
 - 局域网 P2P 同步改为默认关闭的实验功能：之前 P2P 默认开启，在没有组播路由的网卡（en0/en1）上每 2 分钟刷一次 `no route to host`，多账号还会倍数放大。现在新账号/新配置默认 `p2pEnabled=false`，不启动 mDNS，刷屏从源头消失；已在配置里显式开启的用户保留原状。需要时可在「设置 → 局域网同步」手动打开（标注「实验功能 · 默认关闭」）。
 - 修复多个上游连不上时存储桶列表仍要等很久才返回、且每次进页面都重新拨号：Go 端 `list_buckets` 现在走 `ListBucketsDedup`——singleflight 把同一账号的并发调用（文件管理 + 全局回收站 + 配额预取）合并成一次拨号，失败后按账号缓存 20 秒（负缓存），期间不再拨号直接返回上次错误。S3 `ListBuckets` 超时从 15 秒降到 8 秒。用户主动点「返回桶列表」或错误页「重试」会带 `force=true` 绕过负缓存立即重试已修复的账号。
 - 修复 macOS 挂载后提示成功、但访达看不到卷、点「打开目录」卡住：根因是空挂载路径走 `osascript "mount volume"` 异步分支——它在内核登记卷后立即返回，但 webdavfs_agent 的实际握手要 ~90 秒，probe 在 mount 表提前命中并 cancel 了 osascript，卷"登记了却永远没就绪"。现在 `session.start()` 改传已解析的 `mountPath`（默认 `/Volumes/云卷-<bucket>`），统一走同步的 `/sbin/mount_webdav`——它返回时卷真正可用；osascript 分支和 `appleScriptStringLiteral` 已彻底移除。`mountWebDAV` 拒绝空路径，防止再退回 fire-and-forget。
