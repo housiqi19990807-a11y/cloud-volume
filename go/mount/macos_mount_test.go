@@ -32,29 +32,104 @@ func TestUnmountCommands(t *testing.T) {
 	}
 }
 
-func TestFindMountedWebDAVPathRecoversEncodedVolumeName(t *testing.T) {
+func TestFindMountedWebDAVPathAcceptsExactURLMatch(t *testing.T) {
 	t.Parallel()
 
 	got := findMountedWebDAVPath(
 		"http://127.0.0.1:60250/%E4%BA%91%E5%8D%B7-%E6%B5%8B%E8%AF%95/",
 		"",
-		[]string{"/Volumes/云卷-测试"},
+		[]mountEntry{
+			{SourceURL: "http://127.0.0.1:60250/云卷-测试/", Path: "/Volumes/云卷-测试"},
+		},
 	)
 	if got != "/Volumes/云卷-测试" {
-		t.Fatalf("recovered path = %q", got)
+		t.Fatalf("recovered path = %q; want /Volumes/云卷-测试", got)
 	}
 }
 
-func TestFindMountedWebDAVPathRecoversRequestedPath(t *testing.T) {
+// TestMountWebDAVRejectsEmptyMountPath pins the post-osascript-removal contract:
+// mountWebDAV now always mounts at an explicit, resolved path via the synchronous
+// /sbin/mount_webdav. An empty path must error explicitly rather than silently
+// fall back to the old `osascript "mount volume"` fire-and-forget path, which
+// registered the volume in the kernel and returned "mounted" before webdavfs_agent
+// finished its ~90s handshake (leaving Finder unable to see or open the volume).
+func TestMountWebDAVRejectsEmptyMountPath(t *testing.T) {
+	t.Parallel()
+
+	if _, err := mountWebDAV("http://127.0.0.1:65075/云卷-测试/", ""); err == nil {
+		t.Fatal("expected mountWebDAV to reject an empty mount path")
+	}
+	if _, err := mountWebDAV("http://127.0.0.1:65075/云卷-测试/", "   "); err == nil {
+		t.Fatal("expected mountWebDAV to reject a whitespace-only mount path")
+	}
+}
+
+func TestFindMountedWebDAVPathMatchesRequestedPathByURL(t *testing.T) {
 	t.Parallel()
 
 	got := findMountedWebDAVPath(
 		"http://127.0.0.1:60250/volume/",
 		"/tmp/cloud-volume",
-		[]string{"/tmp/cloud-volume"},
+		[]mountEntry{
+			{SourceURL: "http://127.0.0.1:60250/volume/", Path: "/tmp/cloud-volume"},
+		},
 	)
 	if got != "/tmp/cloud-volume" {
 		t.Fatalf("recovered requested path = %q", got)
+	}
+}
+
+// TestFindMountedWebDAVPathRejectsSameNameDifferentPort is the regression
+// anchor for the "reports mounted but Finder shows nothing" bug. A stale or
+// cross-process volume with the same display name but a different source port
+// must NOT be accepted as our mount — the random loopback port is the only
+// proof the row belongs to the server we just started.
+func TestFindMountedWebDAVPathRejectsSameNameDifferentPort(t *testing.T) {
+	t.Parallel()
+
+	got := findMountedWebDAVPath(
+		"http://127.0.0.1:60123/云卷-demo/",
+		"",
+		[]mountEntry{
+			{SourceURL: "http://127.0.0.1:19090/云卷-demo/", Path: "/Volumes/云卷-demo"},
+		},
+	)
+	if got != "" {
+		t.Fatalf("expected empty (port mismatch), got %q", got)
+	}
+}
+
+// TestFindMountedWebDAVPathRejectsPathMatchWithoutURL guards the requested-path
+// branch: even if a directory with the requested path exists in the mount
+// table, it must not be reported unless its source URL matches our server.
+// This catches the MkdirAll-then-misread-as-mounted failure mode.
+func TestFindMountedWebDAVPathRejectsPathMatchWithoutURL(t *testing.T) {
+	t.Parallel()
+
+	got := findMountedWebDAVPath(
+		"http://127.0.0.1:60123/云卷-demo/",
+		"/tmp/cloud-volume-mount",
+		[]mountEntry{
+			{SourceURL: "http://127.0.0.1:19090/other/", Path: "/tmp/cloud-volume-mount"},
+		},
+	)
+	if got != "" {
+		t.Fatalf("expected empty (URL mismatch despite path match), got %q", got)
+	}
+}
+
+// TestNormalizeServerURLTreatsTrailingSlashAsEqual confirms two equivalent
+// spellings of the same loopback URL compare equal after normalization.
+func TestNormalizeServerURLTreatsTrailingSlashAsEqual(t *testing.T) {
+	t.Parallel()
+
+	a, ok := normalizeServerURL("http://127.0.0.1:60123/scope")
+	if !ok {
+		t.Fatal("expected normalization to succeed")
+	}
+	b, ok := normalizeServerURL("http://127.0.0.1:60123/scope/")
+	if !ok || a != b {
+		t.Fatalf("trailing-slash variants must normalize equal: %q vs %q", a, b)
 	}
 }
 
