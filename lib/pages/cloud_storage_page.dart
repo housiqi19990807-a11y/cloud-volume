@@ -45,15 +45,20 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   void initState() {
     super.initState();
     _accounts = List<ProfileInfo>.from(widget.state.profiles);
-    _refreshStatus();
+    _refreshStatus(force: true);
   }
 
   @override
   void didUpdateWidget(covariant CloudStoragePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.state.profiles, widget.state.profiles) ||
-        oldWidget.state.profiles != widget.state.profiles) {
+    final profilesChanged = !identical(oldWidget.state.profiles, widget.state.profiles) ||
+        oldWidget.state.profiles != widget.state.profiles;
+    if (profilesChanged) {
       _accounts = List<ProfileInfo>.from(widget.state.profiles);
+      // Preserve existing ok/error statuses across a refresh triggered by a
+      // single account toggle/edit so the rest of the list does not flash
+      // back to "检测中". Only accounts that are new, removed, or changed
+      // disable state get re-probed.
       _refreshStatus();
     }
   }
@@ -63,19 +68,40 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   /// 20s negative cache) so one unreachable account does not slow the page, and
   /// the results seed the shared negative cache so the file manager benefits
   /// too. Disabled accounts are marked without probing.
-  void _refreshStatus() {
+  ///
+  /// Pass [force: true] to drop every cached status and re-probe from scratch
+  /// (used on first entry / when the account *set* changes). The default
+  /// [force: false] keeps existing ok/error results for accounts whose name did
+  /// not change, so toggling one account's disable switch does not flash the
+  /// whole list back to "检测中".
+  void _refreshStatus({bool force = false}) {
+    final liveNames = <String>{};
     for (final account in _accounts) {
+      liveNames.add(account.name);
       if (account.disabled) {
         _status[account.name] = AccountStatus.disabled;
-      } else {
+        _statusError.remove(account.name);
+        continue;
+      }
+      // Enabled account. Drop any stale "disabled" marker left from a prior
+      // state, but preserve an existing ok/error so the row does not flash.
+      final existing = _status[account.name];
+      final stale = force ||
+          existing == null ||
+          existing == AccountStatus.disabled;
+      if (stale) {
         _status[account.name] = AccountStatus.checking;
       }
     }
-    final toProbe = _accounts.where((a) => !a.disabled).toList();
+    // Purge statuses for accounts that no longer exist (deleted/renamed).
+    _status.removeWhere((name, _) => !liveNames.contains(name));
+    _statusError.removeWhere((name, _) => !liveNames.contains(name));
+    final toProbe = _accounts
+        .where((a) => !a.disabled && _status[a.name] == AccountStatus.checking)
+        .toList();
     if (toProbe.isEmpty) return;
     for (final account in toProbe) {
-      final name = account.name;
-      unawaited(_probeAccount(name));
+      unawaited(_probeAccount(account.name));
     }
   }
 
