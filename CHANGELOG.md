@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 修复多个上游连不上时存储桶列表仍要等很久才返回、且每次进页面都重新拨号：Go 端 `list_buckets` 现在走 `ListBucketsDedup`——singleflight 把同一账号的并发调用（文件管理 + 全局回收站 + 配额预取）合并成一次拨号，失败后按账号缓存 20 秒（负缓存），期间不再拨号直接返回上次错误。S3 `ListBuckets` 超时从 15 秒降到 8 秒。用户主动点「返回桶列表」或错误页「重试」会带 `force=true` 绕过负缓存立即重试已修复的账号。
+- 修复 macOS 挂载后提示成功、但访达看不到卷、点「打开目录」卡住：根因是空挂载路径走 `osascript "mount volume"` 异步分支——它在内核登记卷后立即返回，但 webdavfs_agent 的实际握手要 ~90 秒，probe 在 mount 表提前命中并 cancel 了 osascript，卷"登记了却永远没就绪"。现在 `session.start()` 改传已解析的 `mountPath`（默认 `/Volumes/云卷-<bucket>`），统一走同步的 `/sbin/mount_webdav`——它返回时卷真正可用；osascript 分支和 `appleScriptStringLiteral` 已彻底移除。`mountWebDAV` 拒绝空路径，防止再退回 fire-and-forget。
+- 修复多账号存储桶列表因某个上游连不上而整页卡死：Flutter 端 `BucketSourceService` 的 `loadProfile` 与 `listBuckets` 改为 `Future.wait` 并发、按账号 try/catch 隔离，坏账号进独立「重新配置」错误条、好账号正常显示；每个调用加 40 秒超时兜底。Go bridge `list_buckets` 用 `context.Background()` 改为 30 秒超时 ctx；S3 client 构造期的 JWanFS 网关探测（`IsJWanFSGateway`）与 `NewClient` 的 `balancer.Refresh` 此前都用无超时 ctx，不可达 endpoint 会卡在 OS 级 TCP 超时（1-2 分钟），现统一加 10 秒构造期上限，失败走已有直连 fallback。
+- 修复 macOS（尤其 SFTP）点击挂载后提示成功、但访达看不到卷、再点「打开目录」无响应卡住：根因是「提速」轮询用挂载点路径名作为成功信号，而 `parseMountPoint` 解析 `mount -t webdav` 时丢弃了源 URL，导致残留同名卷、其它进程的同名卷、或请求路径分支 `MkdirAll` 出来的目录都能被误判为本次挂载成功，真正的 `mount_webdav` 反被取消。现在 `parseMountEntry` 同时保留源 URL 与路径，挂载成功判定要求源 URL（含 `127.0.0.1:<随机端口>`）严格相等，残留/同名/异端口卷一律拒绝；匹配失败会继续等真正的卷出现，超时则如实返回失败，不再误报成功。`prewarmWebDAVMount` 的 `os.Stat`/`os.ReadDir` 同时加了 30 秒上限，避免 webdavfs 卡死时泄漏后台 goroutine。
 - 修复 macOS P2P mDNS 在没有组播路由的 `en0`/`en1` 上持续刷 `no route to host`：对 `ENETUNREACH`/`EHOSTUNREACH` 按接口共享 2 分钟退避，同一故障不再随多账号和 30 秒发现周期重复刷日志；网络恢复后自动重试。
 - 修复 macOS 挂载后「打开目录」卡住约 90 秒无响应：Finder 打开 WebDAV 卷时 `open` 命令的 stdout/stderr 被 LaunchServices 继承，`CombinedOutput` 即使在 context 超时后仍被管道阻塞。改为完全分离进程（Stdout/Stderr → /dev/null + Setpgid），最多等 3 秒即返回，Finder 在后台异步出现。
 - 修复 Finder/Spotlight 递归扫描后 SFTP 挂载持续刷新深层目录：SFTP 现在关闭 P0 后台远端目录轮询，避免每 5 秒为最多 12 个活跃路径重复建立 SSH/SFTP 连接并挤占写回链路；用户主动打开目录仍按需读取。挂载配额缓存过期后不再丢弃最后一次已知容量，首次 WebDAV `PROPFIND` 会立即使用旧值、异步刷新，并在刷新暂时失败时继续保留可用容量。

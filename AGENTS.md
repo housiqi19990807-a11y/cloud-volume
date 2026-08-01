@@ -611,6 +611,53 @@ When diagnosing an SFTP row stuck in `sync_wait`, inspect both `<runtime>/mounts
 - Baidu Pan owns the task lifecycle in `baidu_pan_backend_io.go`, including byte progress and terminal status.
 - FTP, SFTP, and WebDAV-upstream `UploadFile` / `UploadReader` use `runTrackedUpload` in `tracked_upload.go`; the wrapper owns start/advance/finish and provider closures own only the actual store/PUT call. Keep new backends on that contract instead of shortening snapshot retention.
 
+#### macOS mount-success probe must match the source URL, not the path name (fixed 2026-08-01)
+
+- `go/mount/system_mounts.go` parses macOS `mount -t webdav` rows via `parseMountEntry`, which preserves **both** the source URL (`http://127.0.0.1:<random-port>/<scope>/`) and the on-disk path into a `mountEntry`. `parseMountPoint`/`parseMountPaths` remain as path-only thin wrappers for the unmount/cleanup callers that do not care about the source.
+- `go/mount/macos_mount.go` `findMountedWebDAVPath`/`probeMountedWebDAVPath`/`recoverMountedWebDAVPath` require the row's source URL to equal `serverURL` after `normalizeServerURL` (lowercased scheme/host, trailing slash on path). A row with the same display name but a different port — a stale volume, a different process's mount, or the directory created by the requested-path branch's `MkdirAll` — is rejected.
+- **Do not** relax this back to path-name-only matching. The earlier `0126a09b` "finish startup promptly" optimization polled the mount table and returned as soon as any path matched; because `parseMountPoint` discarded the source URL, a residual same-name `/Volumes/云卷-<bucket>` (or the `MkdirAll`-created request directory itself) satisfied the probe, the live `mount_webdav` was canceled, and the UI reported "mounted" while Finder showed nothing. Clicking **open** then blocked indefinitely on a path that was never a real WebDAV volume. SFTP surfaced this first because its high first-access latency and disabled prefetch/polling made the name-collision shortcut win the race most often.
+- The regression anchors live in `go/mount/macos_mount_test.go` (`TestFindMountedWebDAVPathRejectsSameNameDifferentPort`, `TestFindMountedWebDAVPathRejectsPathMatchWithoutURL`) and `go/mount/system_mounts_test.go` (`TestParseMountEntryExtractsSourceURLAndPath`). Keep them green.
+- `prewarmWebDAVMount` runs `os.Stat`/`os.ReadDir` through `boundedStat`/`boundedReadDir` (30s ceiling via `prewarmStatTimeout`). Those syscalls have no context parameter and cannot be interrupted once blocked inside `webdavfs_agent`, so a truly wedged webdavfs leaves one leaked syscall goroutine behind; the bound guarantees `prewarmWebDAVMount` itself returns within the timeout and never blocks `start()`/`stop()`. Do not remove the bound or claim the underlying call is cancellable.
+
+#### macOS mount must use synchronous mount_webdav, never osascript (fixed 2026-08-01)
+
+- `go/mount/macos_mount.go` `mountWebDAV` now always mounts at an explicit resolved path via the synchronous `/sbin/mount_webdav` command. `session.start()` passes `s.mountPath` (already resolved by `macOSWebDAVBackend.Initialize` to either the caller's path or the default `/Volumes/云卷-<bucket>`), not the raw `s.requestedPath`.
+- The `osascript "mount volume"` branch and `appleScriptStringLiteral` have been **removed entirely**. `osascript "mount volume"` is fire-and-forget: it registers the volume in the kernel and returns immediately, while `webdavfs_agent` finishes its ~90s handshake asynchronously. The previous code returned "mounted" from a stale mount-table entry before the volume was usable, and canceling the still-running osascript could interrupt the handshake — leaving Finder unable to see or open the volume and `os.Stat` blocking for 30s+.
+- `/sbin/mount_webdav` is synchronous: when it returns (or when the probe confirms the volume in the mount table matching our exact source URL), the volume is actually usable. The `runLoggedCommandUntilSuccess` probe still short-circuits early once the volume is confirmed, but even without a probe hit the command's own synchronous return is reliable.
+- **Do not** reintroduce an `osascript`/`mount volume` path or route an empty `requestedPath` to a fire-and-forget mount. If a caller needs a custom mount point it must be resolved to a concrete path before `mountWebDAV`. The regression anchor is `TestMountWebDAVRejectsEmptyMountPath` in `go/mount/macos_mount_test.go`.
+
+### Feature: Multi-Account Bucket Loading Resilience (桶加载并发/超时/去重/负缓存)
+
+桌面端加载存储桶列表必须并发、按账号隔离、带超时、去重、负缓存——一个不可达上游不能阻塞其它账号、不能重复拨号、不能让整页卡死。
+
+#### Key files
+
+- `lib/services/bucket_source_service.dart` — `BucketSourceService.loadEntriesWithFailures` now loads profiles and lists buckets **concurrently** via `Future.wait`, with per-account try/catch isolation (`_loadSource` / `_listBucketsForSource` helpers + `_SourceLoadOutcome` / `_BucketListingOutcome`). Each `loadProfile`/`listBuckets` is wrapped in `.timeout(_perAccountTimeout = 40s)`. A failing or stalled account surfaces in `failures` (driving the existing "重新配置" error bar) instead of blocking healthy accounts. Profile order is preserved for the deterministic fallback sort. `loadEntriesWithFailures`/`loadEntries` carry an optional `force` flag.
+- `bridge/dispatch.go` — `listBuckets` wraps the call in `context.WithTimeout(context.Background(), bridgeListBucketsTimeout = 30s)` and routes it through `storageops.ListBucketsDedup` (singleflight + negative cache). `listBucketsArgs` carries an optional `force` flag.
+- `go/storage/list_buckets_cache.go` — `ListBucketsDedup(ctx, cfg, listFn, force)`: singleflight collapses N concurrent callers for the same connection identity into one upstream dial; a 20s per-account negative cache (`listBucketsNegativeCacheTTL`) returns the previous failure immediately so a known-bad account does not re-dial on every page load; `force: true` bypasses the negative cache (used by the user's explicit refresh) and a success clears the stale entry. Keyed by `bucketListIdentityKey` (connection identity, account-scoped).
+- `go/s3/buckets.go` — `bucketListTimeout = 8s` (down from 15s) so a single ListBuckets fails fast before the negative cache records it.
+- `go/s3/failover_pool.go` — S3 client construction's JWanFS gateway detection (`IsJWanFSGateway`) runs under `jwanfsDetectionTimeout = 10s`.
+- `go/jwanfs/detect.go` / `go/jwanfs/client.go` — `NewClient`'s initial `balancer.Refresh` runs under `gatewayRefreshTimeout = 10s`; failure falls back to direct connect as before.
+- `lib/services/remote_storage_gateway.dart` / `remote_storage_api_desktop_storage.dart` / `remote_storage_api_web_transfers.dart` — `listBuckets(config, {force = false})`; desktop passes `force` through to bridge `list_buckets` args.
+- `lib/pages/file_manager_page.dart` / `file_manager_page_bucket_loading.dart` / `file_manager_page_sources.dart` — `_loadBuckets({force})` / `_loadBucketEntries({force})`; the user's explicit "返回桶列表" navigation (`onOpenBucketList`) and the error-view "重试" button pass `force: true`. Automatic reloads (startup, post-mount, post-reorder) stay non-forced so they reuse the negative cache.
+
+#### Gotchas (binding)
+
+- The singleflight + negative cache live in **Go** (`ListBucketsDedup`), keyed on connection identity. The 3 concurrent `list_buckets s3 test` calls observed in the 2026-08-01 reproduction (file manager + global trash + quota prefetch) now share ONE upstream dial instead of each waiting 8s+ independently.
+- A failure is cached for `listBucketsNegativeCacheTTL = 20s`. Within that window, non-forced reloads return the cached error instantly (no dial). The user's explicit refresh (`force: true`) **must** bypass this so a fixed account can be retried — keep `force` wired to the two user-initiated paths only, not to automatic reloads, or the negative cache becomes useless.
+- jwanfs `IsJWanFSGateway` and `NewClient`'s `balancer.Refresh` run **during S3 client construction**, before any per-request context exists. They previously used `context.Background()`, so an unreachable endpoint stalled on the OS-level TCP timeout (~1-2 minutes). Always bound construction-phase probes explicitly; the bridge/req timeouts only bound what runs inside `ListBuckets` itself.
+- `bridge list_buckets` uses `context.Background()` (no inbound HTTP request to inherit a deadline from), so it **must** establish its own timeout — without it a single unreachable S3 account hangs the bridge call indefinitely.
+- Flutter `_perAccountTimeout` (40s) is intentionally longer than the Go `bucketListTimeout` (8s) + construction (10s) so the backend's descriptive error is preferred over a generic Dart `TimeoutException`.
+- FTP/SFTP/WebDAV/Baidu `ListBuckets` all return a synthetic bucket immediately without contacting the server, so they cannot hang or be negatively cached in practice; only S3 (and its JWanFS gateway probe) actually dials out during bucket listing.
+- The regression anchors are `go/storage/list_buckets_cache_test.go` (singleflight collapse, negative cache fast-fail, force bypass + clear, account isolation), `go/jwanfs/detect_test.go` (construction-phase timeout), and `test/bucket_source_service_test.dart` (Flutter isolation + stall-timeout). Keep them green.
+
+#### Data flow
+
+1. File manager / global-trash page → `BucketSourceService.loadEntriesWithFailures(api, profiles, fallbackConfig, force)`.
+2. `loadProfile` for all profiles concurrently → `BucketSource` list + isolated `failures`.
+3. `listBuckets` for all sources concurrently → bridge `list_buckets` → `ListBucketsDedup` (singleflight collapses duplicates; negative cache short-circuits recent failures unless `force`) → backend `ListBuckets` (8s S3 / instant synthetic for others).
+4. Apply saved bucket order (fallback: profile order then label sort); `failures` drive the existing per-account "重新配置" error bar in the file-manager home view.
+
 ### Feature: Mount Cache Sync from External Mutations (挂载缓存外部失效)
 
 文件管理界面的删除/重命名/移动/复制/建目录/上传通过 bridge/webapi 直接改远端对象，绕过 `go/mount`。为了让挂载点（Finder/WebDAV/FUSE）和文件管理列表不显示幽灵文件、不卡"删除中"，所有外部 mutation 在成功后必须同步失效挂载 session 的 `bucketCache`。
