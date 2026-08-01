@@ -1,11 +1,14 @@
 // 账号管理页负责展示所有账号，并把账号新增、编辑与退出操作串起来。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/account_editor_presenter.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/account_profile_name.dart';
+import 'package:remote_storage/utils/bridge_error_text.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/bucket_visibility_dialog.dart';
 import 'package:remote_storage/widgets/cloud_storage_account_list.dart';
@@ -32,11 +35,17 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
   bool _isGrid = false;
   bool _busy = false;
   late List<ProfileInfo> _accounts;
+  /// Per-profile connection status, populated by a background probe. Keyed by
+  /// profile name. Disabled accounts are marked [AccountStatus.disabled]
+  /// without probing.
+  final Map<String, AccountStatus> _status = <String, AccountStatus>{};
+  final Map<String, String> _statusError = <String, String>{};
 
   @override
   void initState() {
     super.initState();
     _accounts = List<ProfileInfo>.from(widget.state.profiles);
+    _refreshStatus();
   }
 
   @override
@@ -45,6 +54,51 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
     if (!identical(oldWidget.state.profiles, widget.state.profiles) ||
         oldWidget.state.profiles != widget.state.profiles) {
       _accounts = List<ProfileInfo>.from(widget.state.profiles);
+      _refreshStatus();
+    }
+  }
+
+  /// Probes each enabled account's reachability concurrently by listing its
+  /// buckets. This reuses the fast-fail path (3s dial timeout, no SDK retry,
+  /// 20s negative cache) so one unreachable account does not slow the page, and
+  /// the results seed the shared negative cache so the file manager benefits
+  /// too. Disabled accounts are marked without probing.
+  void _refreshStatus() {
+    for (final account in _accounts) {
+      if (account.disabled) {
+        _status[account.name] = AccountStatus.disabled;
+      } else {
+        _status[account.name] = AccountStatus.checking;
+      }
+    }
+    final toProbe = _accounts.where((a) => !a.disabled).toList();
+    if (toProbe.isEmpty) return;
+    for (final account in toProbe) {
+      final name = account.name;
+      unawaited(_probeAccount(name));
+    }
+  }
+
+  Future<void> _probeAccount(String name) async {
+    try {
+      final config = await widget.api.loadProfile(name);
+      // list_buckets walks the full fast-fail path (dial timeout, no retry,
+      // negative cache). A short Dart timeout caps the wait for the UI.
+      await widget.api.listBuckets(config).timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => throw TimeoutException('连接超时'),
+      );
+      if (!mounted) return;
+      setState(() {
+        _status[name] = AccountStatus.ok;
+        _statusError.remove(name);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _status[name] = AccountStatus.error;
+        _statusError[name] = describeBridgeError(error);
+      });
     }
   }
 
@@ -75,6 +129,8 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
               onDelete: _delete,
               onManageBuckets: _showBucketVisibilityDialog,
               onToggleDisabled: _toggleDisabled,
+              status: _status,
+              statusError: _statusError,
               onReorder: _isGrid ? null : _reorderAccounts,
             ),
           ),

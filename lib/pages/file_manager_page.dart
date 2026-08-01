@@ -16,7 +16,6 @@ import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/platform/platform_info.dart';
 import 'package:remote_storage/services/file_access_service.dart';
-import 'package:remote_storage/services/account_editor_presenter.dart';
 import 'package:remote_storage/services/file_access_transfer_request.dart';
 import 'package:remote_storage/services/desktop_file_transfer_service.dart';
 import 'package:remote_storage/services/clipboard_shortcut_channel.dart';
@@ -53,7 +52,6 @@ import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/bucket_source_service.dart';
 
 part 'file_manager_page_actions.dart';
-part 'file_manager_page_account_editor.dart';
 part 'file_manager_page_access.dart';
 part 'file_manager_page_bucket_policy.dart';
 part 'file_manager_page_bucket_loading.dart';
@@ -88,6 +86,7 @@ class FileManagerPage extends StatefulWidget {
     this.homeView = FileManagerHomeView.files,
     this.pendingSyncRemoteOpen,
     this.onPendingSyncRemoteOpenConsumed,
+    this.onOpenAccountManagement,
   });
 
   final RemoteStorageGateway api;
@@ -97,6 +96,9 @@ class FileManagerPage extends StatefulWidget {
   final FileManagerHomeView homeView;
   final SyncRemoteOpenRequest? pendingSyncRemoteOpen;
   final VoidCallback? onPendingSyncRemoteOpenConsumed;
+  /// Jumps to the account-management page. Used by the bucket-list error bar
+  /// so the user can fix/disable a failing account in one click.
+  final VoidCallback? onOpenAccountManagement;
 
   @override
   State<FileManagerPage> createState() => _FileManagerPageState();
@@ -147,15 +149,16 @@ class _FileManagerPageState extends State<FileManagerPage> {
   bool _trashHasMore = false;
   bool _pagingTrash = false;
   int _seenObjectListingMutationVersion = 0, _bucketQuotaRefreshGeneration = 0;
-  String? _failedBucketProfileName;
   List<BucketSourceLoadFailure> _unavailableBucketSources =
       const <BucketSourceLoadFailure>[];
   final Map<String, _PendingUploadRefresh> _pendingUploadRefreshes =
       <String, _PendingUploadRefresh>{};
 
   void _reconfigureUnavailableBucketSource(String profileName) {
-    setState(() => _failedBucketProfileName = profileName);
-    unawaited(_showFailedAccountEditor());
+    // Jump to the account-management page where the user can edit, disable,
+    // or re-enable the failing account. This is more discoverable than the
+    // old behavior of opening an in-place editor for just one profile.
+    widget.onOpenAccountManagement?.call();
   }
 
   // Keep setState inside the State subclass; view extensions only coordinate UI.
@@ -374,9 +377,9 @@ class _FileManagerPageState extends State<FileManagerPage> {
             : () => unawaited(
                 _loadObjects(_activeBucketEntry!, _prefix, forceRefresh: true),
               ),
-        secondaryActionLabel: _activeBucket == null ? '重新配置认证信息' : null,
+        secondaryActionLabel: _activeBucket == null ? '账号管理' : null,
         onSecondaryAction: _activeBucket == null
-            ? () => unawaited(_showFailedAccountEditor())
+            ? () => widget.onOpenAccountManagement?.call()
             : null,
       );
     }

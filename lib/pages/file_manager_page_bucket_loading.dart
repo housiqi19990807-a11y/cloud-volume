@@ -24,7 +24,6 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
         return false;
       }
       setState(() {
-        _failedBucketProfileName = null;
         _unavailableBucketSources = sourceResult.failures;
         _objectListingCache.clear();
         _buckets = entriesWithQuota;
@@ -60,7 +59,6 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
         return false;
       }
       setState(() {
-        _failedBucketProfileName = null;
         _error = describeBridgeError(error);
         _endLoading();
       });

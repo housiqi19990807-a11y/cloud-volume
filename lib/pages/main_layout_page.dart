@@ -292,6 +292,8 @@ class _MainLayoutPageState extends State<MainLayoutPage> {
           onRefresh: widget.onRefresh,
           pendingSyncRemoteOpen: _pendingSyncRemoteOpen,
           onPendingSyncRemoteOpenConsumed: _clearPendingSyncRemoteOpen,
+          onOpenAccountManagement: () =>
+              widget.onSelectedItemChanged(SidebarItem.storage),
         ),
         CloudStoragePage(
           state: widget.state,
