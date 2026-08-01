@@ -8,7 +8,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CloudStorageAccountList extends StatelessWidget {
   static const double _typeColumnWidth = 104;
-  static const double _actionColumnWidth = 300;
+  static const double _actionColumnWidth = 360;
 
   const CloudStorageAccountList({
     super.key,
@@ -18,6 +18,7 @@ class CloudStorageAccountList extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onManageBuckets,
+    required this.onToggleDisabled,
     this.onReorder,
   });
 
@@ -27,6 +28,8 @@ class CloudStorageAccountList extends StatelessWidget {
   final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onDelete;
   final ValueChanged<ProfileInfo> onManageBuckets;
+  /// (profile, disabled) — disabled=true means the user turned the account OFF.
+  final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
   final void Function(int oldIndex, int newIndex)? onReorder;
 
   @override
@@ -64,6 +67,7 @@ class CloudStorageAccountList extends StatelessWidget {
               onEdit: onEdit,
               onDelete: onDelete,
               onManageBuckets: onManageBuckets,
+              onToggleDisabled: onToggleDisabled,
             );
           },
         );
@@ -141,7 +145,9 @@ class CloudStorageAccountList extends StatelessWidget {
           const _AccountIcon(),
         ],
       ),
-      title: _profileTitle(profile),
+      title: profile.disabled
+          ? '${_profileTitle(profile)}（已禁用）'
+          : _profileTitle(profile),
       subtitleLabel: profile.endpoint,
       sizeLabel: _storageLabel(profile),
       sizeColumnWidthOverride: _typeColumnWidth,
@@ -151,6 +157,7 @@ class CloudStorageAccountList extends StatelessWidget {
         onEdit: onEdit,
         onDelete: onDelete,
         onManageBuckets: onManageBuckets,
+        onToggleDisabled: onToggleDisabled,
       ),
       onTap: () {},
       showDivider: index != accounts.length - 1,
@@ -174,6 +181,7 @@ class _AccountCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onManageBuckets,
+    required this.onToggleDisabled,
   });
 
   final ProfileInfo profile;
@@ -181,10 +189,14 @@ class _AccountCard extends StatelessWidget {
   final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onDelete;
   final ValueChanged<ProfileInfo> onManageBuckets;
+  final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final title = profile.disabled
+        ? '${CloudStorageAccountList._profileTitle(profile)}（已禁用）'
+        : CloudStorageAccountList._profileTitle(profile);
     return ShadCard(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -196,7 +208,7 @@ class _AccountCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  CloudStorageAccountList._profileTitle(profile),
+                  title,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -229,8 +241,14 @@ class _AccountCard extends StatelessWidget {
           ),
           const Spacer(),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              ShadSwitch(
+                value: !profile.disabled,
+                onChanged: busy
+                    ? null
+                    : (enabled) => onToggleDisabled(profile, !enabled),
+              ),
+              const Spacer(),
               _AccountActionButton(
                 label: '桶管理',
                 icon: LucideIcons.listFilter,
@@ -305,6 +323,7 @@ class _AccountActions extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onManageBuckets,
+    required this.onToggleDisabled,
   });
 
   final ProfileInfo profile;
@@ -312,6 +331,7 @@ class _AccountActions extends StatelessWidget {
   final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onDelete;
   final ValueChanged<ProfileInfo> onManageBuckets;
+  final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
 
   @override
   Widget build(BuildContext context) {
@@ -320,6 +340,13 @@ class _AccountActions extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          ShadSwitch(
+            value: !profile.disabled,
+            onChanged: busy
+                ? null
+                : (enabled) => onToggleDisabled(profile, !enabled),
+          ),
+          const SizedBox(width: 10),
           _AccountActionButton(
             label: '桶管理',
             icon: LucideIcons.listFilter,

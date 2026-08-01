@@ -12,6 +12,7 @@ class ProfileInfo {
     required this.endpoint,
     required this.accessKeyId,
     this.active = false,
+    this.disabled = false,
   });
 
   factory ProfileInfo.fromJson(Map<String, dynamic> json) {
@@ -23,6 +24,7 @@ class ProfileInfo {
       endpoint: (json['endpoint'] ?? '').toString(),
       accessKeyId: (json['accessKeyId'] ?? '').toString(),
       active: json['active'] == true,
+      disabled: json['disabled'] == true,
     );
   }
 
@@ -33,6 +35,10 @@ class ProfileInfo {
   final String endpoint;
   final String accessKeyId;
   final bool active;
+  /// When true the account is opted out of the file manager: it is not
+  /// bucket-listed, does not connect to its backend, and does not start P2P.
+  /// It stays in the account list so the user can re-enable it.
+  final bool disabled;
 }
 
 class BootstrapState {

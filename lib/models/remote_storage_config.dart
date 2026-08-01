@@ -78,6 +78,7 @@ class RemoteStorageConfig {
     required this.proxyPassword,
     this.p2pEnabled = false,
     this.p2pChunkSizeMb = 4,
+    this.disabled = false,
   });
 
   factory RemoteStorageConfig.empty() {
@@ -131,6 +132,7 @@ class RemoteStorageConfig {
       proxyPassword: '',
       p2pEnabled: false,
       p2pChunkSizeMb: 4,
+      disabled: false,
     );
   }
 
@@ -304,6 +306,7 @@ class RemoteStorageConfig {
       p2pChunkSizeMb:
           _intFromDynamic(json['p2pChunkSizeMb'] ?? json['p2p_chunk_size_mb']) ??
               4,
+      disabled: _boolFromDynamic(json['disabled']) ?? false,
     );
   }
 
@@ -357,6 +360,7 @@ class RemoteStorageConfig {
 
   final bool p2pEnabled;
   final int p2pChunkSizeMb;
+  final bool disabled;
 
   // Bucket and rootPrefix are optional; only endpoint + auth are required.
   bool get isConfigured {
@@ -477,6 +481,7 @@ class RemoteStorageConfig {
       'proxyPassword': proxyPassword,
       'p2pEnabled': p2pEnabled,
       'p2pChunkSizeMb': p2pChunkSizeMb,
+      if (disabled) 'disabled': disabled,
     };
   }
 }

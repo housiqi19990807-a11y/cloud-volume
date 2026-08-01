@@ -89,8 +89,12 @@ class BucketSourceService {
         ),
       ];
     }
+    // Disabled accounts are skipped entirely: they must not connect to their
+    // backend or appear as load failures. They remain visible in the account
+    // management page so the user can re-enable them.
+    final activeProfiles = profiles.where((p) => !p.disabled).toList();
     return Future.wait(
-      profiles.map((profile) async {
+      activeProfiles.map((profile) async {
         try {
           final config = await api.loadProfile(profile.name);
           return BucketSource(
@@ -144,7 +148,10 @@ class BucketSourceService {
   }) async {
     final sources = <BucketSource>[];
     final failures = <BucketSourceLoadFailure>[];
-    final profilesToLoad = profiles.isEmpty ? <ProfileInfo>[] : profiles;
+    // Skip disabled accounts before any backend call: they must not connect,
+    // appear in the bucket list, or surface as a load failure.
+    final profilesToLoad =
+        profiles.isEmpty ? <ProfileInfo>[] : profiles.where((p) => !p.disabled).toList();
     if (profilesToLoad.isEmpty) {
       sources.add(
         BucketSource(

@@ -74,6 +74,7 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
               onEdit: _showEditAccountDialog,
               onDelete: _delete,
               onManageBuckets: _showBucketVisibilityDialog,
+              onToggleDisabled: _toggleDisabled,
               onReorder: _isGrid ? null : _reorderAccounts,
             ),
           ),
@@ -93,6 +94,28 @@ class _CloudStoragePageState extends State<CloudStoragePage> {
           ? _profileTitle(profile)
           : '${_profileTitle(profile)} $cascade';
       showAppToast(context, title: '账号已退出', message: message);
+      widget.onRefresh();
+    } catch (error) {
+      if (mounted) showAppErrorToast(context, message: error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _toggleDisabled(ProfileInfo profile, bool disabled) async {
+    setState(() => _busy = true);
+    try {
+      final config = await widget.api.loadProfile(profile.name);
+      await widget.api.saveProfile(
+        profile.name,
+        config.copyWith(disabled: disabled),
+      );
+      if (!mounted) return;
+      showAppToast(
+        context,
+        title: disabled ? '账号已禁用' : '账号已启用',
+        message: _profileTitle(profile),
+      );
       widget.onRefresh();
     } catch (error) {
       if (mounted) showAppErrorToast(context, message: error.toString());

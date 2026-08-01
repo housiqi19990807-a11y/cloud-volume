@@ -117,6 +117,34 @@ When the user asks to add a new storage type (e.g. FTP, SFTP, or any new remote 
 > 2. **Exploration:** Any time the codebase is explored to answer a question, debug an issue, or understand a feature — even when no code change lands — record the discovered structure, file responsibilities, gotchas, and data flow into the relevant Code Map entry (or create a new one) before the turn ends. The goal is that the next session never has to re-read the same files to learn the same thing.
 > 3. **Freshness:** Correct or remove entries that are no longer accurate. Do not leave this section stale — stale knowledge here is worse than no knowledge.
 
+### Feature: Account Disable (账号禁用)
+
+An account can be disabled from the account-management page. A disabled account is kept (so the user can re-enable it) but skipped everywhere it would otherwise connect to its backend: it is not bucket-listed, does not appear as a load failure, does not participate in P2P, and is not contacted during quota prefetch.
+
+#### Key files
+
+- `go/config/config.go` — `RemoteStorageConfig.Disabled bool` (`json:"disabled" toml:"disabled"`). The zero value `false` means **enabled**, so no `UnmarshalJSON` shim is needed (contrast with `P2PEnabled`, which needed a shim because its default changed to false). `Normalized()` passes it through unchanged.
+- `go/config/profile.go` — `ProfileInfo.Disabled bool` (`json:"disabled"`), populated in `go/config/config_db.go` `listProfilesFromDB` from `normalized.Disabled`.
+- `bridge/dispatch_p2p.go:81` — the P2P manager gate now reads `cfg.P2PEnabled && cfg.IsConfigured() && secret != "" && !cfg.Disabled`. A disabled account never starts a P2P manager.
+- `lib/models/remote_storage_config.dart` / `remote_storage_config_copy.dart` — `disabled` field (default false, fromJson, toJson omit-when-false, copyWith).
+- `lib/models/bootstrap_state.dart` — `ProfileInfo.disabled` (`json['disabled'] == true`).
+- `lib/services/bucket_source_service.dart` — `loadEntriesWithFailures` and `loadSources` filter `profiles.where((p) => !p.disabled)` **before** any `loadProfile`/`listBuckets` call. This is the single gate for file manager, global trash, and sync picker.
+- `lib/widgets/cloud_storage_account_list.dart` — `_AccountActions` (list) and `_AccountCard` (grid) show a `ShadSwitch` (value = `!profile.disabled`); toggling calls `onToggleDisabled(profile, disabled)`. A disabled account's title gets a "（已禁用）" suffix. The account-management page does **not** filter disabled accounts (they must remain visible to re-enable).
+- `lib/pages/cloud_storage_page.dart` — `_toggleDisabled(profile, disabled)` mirrors `_delete`/`_saveEditedAccount`: `loadProfile` → `copyWith(disabled:)` → `saveProfile` → `onRefresh` + busy guard + toast.
+
+#### Data flow
+
+1. User toggles the switch on an account row → `_toggleDisabled(profile, disabled)` → `loadProfile` + `saveProfile(name, config.copyWith(disabled: disabled))`.
+2. `onRefresh` reloads bootstrap → `listProfilesFromDB` returns the profile with `Disabled` populated → `ProfileInfo.disabled` flows to Flutter.
+3. File manager / global trash / sync picker call `BucketSourceService.loadEntriesWithFailures` → disabled profiles filtered out before any backend call → disabled account's buckets never load, no connection is attempted, no failure is recorded.
+
+#### Gotchas
+
+- **`Disabled=false` means enabled.** The zero value is "enabled", so missing fields, old configs, and `DefaultConfig()` all produce enabled accounts. Disabling is always an explicit user action. Do not add an `UnmarshalJSON` shim that forces a default — unlike `P2PEnabled`, the natural zero value is already the desired default.
+- **Filter in the service, not the page.** `BucketSourceService` is the shared entry point for file manager, global trash, and sync picker. Filtering there guarantees all consumers skip disabled accounts consistently. Do not filter in `FileManagerPage` (the profiles list is also needed for mount status and re-enable flows).
+- **Account management page never filters.** Disabled accounts must stay visible there with a switch, or the user cannot re-enable them.
+- Regression anchors: `go/config/config_disabled_test.go` (defaults-false, explicit true/false retained, DefaultConfig enabled, Normalized preserves), `test/bucket_source_service_test.dart` (`loadEntriesWithFailures skips a disabled account entirely`).
+
 ### Feature: Windows Local Development Workflow
 
 Windows development now has two scripts: one for new-machine dependency bootstrap, and one for project run/build after dependencies exist.

@@ -65,6 +65,11 @@ type RemoteStorageConfig struct {
 	P2PEnabled bool `json:"p2pEnabled" toml:"p2p_enabled"`
 	// P2PChunkSizeMB is the chunk size in MB used for peer-to-peer content transfer.
 	P2PChunkSizeMB int `json:"p2pChunkSizeMb" toml:"p2p_chunk_size_mb"`
+	// Disabled marks an account as opted-out of the file manager: a disabled
+	// account is not bucket-listed, does not connect to its backend, and does
+	// not start P2P. It stays in the account list so the user can re-enable it.
+	// The zero value (false) means enabled — no UnmarshalJSON shim is needed.
+	Disabled bool `json:"disabled" toml:"disabled"`
 }
 
 // UnmarshalJSON preserves an explicitly saved P2P-enabled choice. LAN P2P is
@@ -235,6 +240,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		ProxyPassword:               c.ProxyPassword,
 		P2PEnabled:                  c.P2PEnabled,
 		P2PChunkSizeMB:              normalizeP2PChunkSizeMB(c.P2PChunkSizeMB),
+		Disabled:                    c.Disabled,
 	}
 }
 

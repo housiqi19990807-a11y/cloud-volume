@@ -110,6 +110,58 @@ void main() {
       contains('slow'),
     );
   }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test('loadEntriesWithFailures skips a disabled account entirely', () async {
+    // A disabled account must not connect to its backend or appear as a
+    // failure — it is filtered out before any loadProfile/listBuckets call.
+    // The fake would throw if 'off' were ever queried, which the test asserts
+    // by verifying only 'on' is contacted and no failure is recorded for 'off'.
+    final api = _FakeBucketSourceApi(
+      configs: {
+        'on': _config('on', 'https://on.example'),
+        'off': _config('off', 'https://off.example'),
+      },
+      bucketForProfile: {'on': const [BucketInfo(name: 'on-bucket')]},
+      // If 'off' is ever queried, listBuckets throws StateError (unknown
+      // profile) — proving the disable filter skipped it.
+    );
+
+    final result = await BucketSourceService.instance.loadEntriesWithFailures(
+      api,
+      const [
+        ProfileInfo(
+          name: 'on',
+          displayName: 'on',
+          storageType: StorageType.s3,
+          providerType: StorageProviderType.s3,
+          endpoint: 'https://on.example',
+          accessKeyId: 'ak',
+          active: false,
+          disabled: false,
+        ),
+        ProfileInfo(
+          name: 'off',
+          displayName: 'off',
+          storageType: StorageType.s3,
+          providerType: StorageProviderType.s3,
+          endpoint: 'https://off.example',
+          accessKeyId: 'ak',
+          active: false,
+          disabled: true,
+        ),
+      ],
+      fallbackConfig: _config('default', 'https://default.example'),
+    );
+
+    // Only the enabled account's bucket appears.
+    expect(
+      result.entries.map((FileManagerBucketEntry e) => e.bucket.name),
+      contains('on-bucket'),
+    );
+    // The disabled account is neither in entries nor in failures — it was
+    // filtered out before any backend call.
+    expect(result.failures, isEmpty);
+  });
 }
 
 RemoteStorageConfig _config(String display, String endpoint) {
