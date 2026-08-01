@@ -135,6 +135,23 @@ class _SettingsP2PSectionState extends State<SettingsP2PSection> {
             color: theme.colorScheme.mutedForeground,
           ),
         ),
+        const SizedBox(height: 8),
+        // 实验功能标识：P2P 默认关闭，仅在调测阶段开放给需要的用户。
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.muted,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            '实验功能 · 默认关闭',
+            style: TextStyle(
+              fontSize: 10.5,
+              height: 1.4,
+              color: theme.colorScheme.mutedForeground,
+            ),
+          ),
+        ),
         const SizedBox(height: 14),
         _EnableP2PBlock(
           theme: theme,

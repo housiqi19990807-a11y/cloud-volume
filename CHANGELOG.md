@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 局域网 P2P 同步改为默认关闭的实验功能：之前 P2P 默认开启，在没有组播路由的网卡（en0/en1）上每 2 分钟刷一次 `no route to host`，多账号还会倍数放大。现在新账号/新配置默认 `p2pEnabled=false`，不启动 mDNS，刷屏从源头消失；已在配置里显式开启的用户保留原状。需要时可在「设置 → 局域网同步」手动打开（标注「实验功能 · 默认关闭」）。
 - 修复多个上游连不上时存储桶列表仍要等很久才返回、且每次进页面都重新拨号：Go 端 `list_buckets` 现在走 `ListBucketsDedup`——singleflight 把同一账号的并发调用（文件管理 + 全局回收站 + 配额预取）合并成一次拨号，失败后按账号缓存 20 秒（负缓存），期间不再拨号直接返回上次错误。S3 `ListBuckets` 超时从 15 秒降到 8 秒。用户主动点「返回桶列表」或错误页「重试」会带 `force=true` 绕过负缓存立即重试已修复的账号。
 - 修复 macOS 挂载后提示成功、但访达看不到卷、点「打开目录」卡住：根因是空挂载路径走 `osascript "mount volume"` 异步分支——它在内核登记卷后立即返回，但 webdavfs_agent 的实际握手要 ~90 秒，probe 在 mount 表提前命中并 cancel 了 osascript，卷"登记了却永远没就绪"。现在 `session.start()` 改传已解析的 `mountPath`（默认 `/Volumes/云卷-<bucket>`），统一走同步的 `/sbin/mount_webdav`——它返回时卷真正可用；osascript 分支和 `appleScriptStringLiteral` 已彻底移除。`mountWebDAV` 拒绝空路径，防止再退回 fire-and-forget。
 - 修复多账号存储桶列表因某个上游连不上而整页卡死：Flutter 端 `BucketSourceService` 的 `loadProfile` 与 `listBuckets` 改为 `Future.wait` 并发、按账号 try/catch 隔离，坏账号进独立「重新配置」错误条、好账号正常显示；每个调用加 40 秒超时兜底。Go bridge `list_buckets` 用 `context.Background()` 改为 30 秒超时 ctx；S3 client 构造期的 JWanFS 网关探测（`IsJWanFSGateway`）与 `NewClient` 的 `balancer.Refresh` 此前都用无超时 ctx，不可达 endpoint 会卡在 OS 级 TCP 超时（1-2 分钟），现统一加 10 秒构造期上限，失败走已有直连 fallback。

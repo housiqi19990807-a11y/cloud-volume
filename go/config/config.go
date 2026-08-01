@@ -67,8 +67,10 @@ type RemoteStorageConfig struct {
 	P2PChunkSizeMB int `json:"p2pChunkSizeMb" toml:"p2p_chunk_size_mb"`
 }
 
-// UnmarshalJSON preserves the enabled-by-default setting when reading profiles written
-// before LAN P2P was introduced. New JSON always writes the explicit setting.
+// UnmarshalJSON preserves an explicitly saved P2P-enabled choice. LAN P2P is
+// an off-by-default experimental feature, so profiles written without the
+// field (including those saved before P2P shipped) stay disabled; only an
+// explicit p2pEnabled:true turns it on. New JSON always writes the setting.
 func (c *RemoteStorageConfig) UnmarshalJSON(data []byte) error {
 	type configJSON RemoteStorageConfig
 	var decoded configJSON
@@ -79,11 +81,9 @@ func (c *RemoteStorageConfig) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	if _, present := fields["p2pEnabled"]; !present {
-		if _, present = fields["p2p_enabled"]; !present {
-			decoded.P2PEnabled = true
-		}
-	}
+	// P2PEnabled has no shim: a missing field keeps the Go zero value (false),
+	// matching the off-by-default beta behavior. An explicit p2pEnabled value
+	// (true or false) is honored as written by json.Unmarshal above.
 	if _, present := fields["p2pChunkSizeMb"]; !present {
 		if _, present = fields["p2p_chunk_size_mb"]; !present {
 			decoded.P2PChunkSizeMB = defaultP2PChunkSizeMB
@@ -180,7 +180,7 @@ func DefaultConfig() RemoteStorageConfig {
 		JWanFSGatewayMode:           JWanFSGatewayModeAuto,
 		ProxyMode:                   ProxyModeInherit,
 		ProxyType:                   ProxyTypeHTTP,
-		P2PEnabled:                  true,
+		P2PEnabled:                  false,
 		P2PChunkSizeMB:              defaultP2PChunkSizeMB,
 	}
 }

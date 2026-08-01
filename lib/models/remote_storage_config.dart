@@ -76,7 +76,7 @@ class RemoteStorageConfig {
     required this.proxyPort,
     required this.proxyUsername,
     required this.proxyPassword,
-    this.p2pEnabled = true,
+    this.p2pEnabled = false,
     this.p2pChunkSizeMb = 4,
   });
 
@@ -129,7 +129,7 @@ class RemoteStorageConfig {
       proxyPort: '',
       proxyUsername: '',
       proxyPassword: '',
-      p2pEnabled: true,
+      p2pEnabled: false,
       p2pChunkSizeMb: 4,
     );
   }
@@ -300,7 +300,7 @@ class RemoteStorageConfig {
       proxyPassword: (json['proxyPassword'] ?? json['proxy_password'] ?? '')
           .toString(),
       p2pEnabled:
-          _boolFromDynamic(json['p2pEnabled'] ?? json['p2p_enabled']) ?? true,
+          _boolFromDynamic(json['p2pEnabled'] ?? json['p2p_enabled']) ?? false,
       p2pChunkSizeMb:
           _intFromDynamic(json['p2pChunkSizeMb'] ?? json['p2p_chunk_size_mb']) ??
               4,
