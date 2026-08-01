@@ -17,12 +17,18 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	storageconfig "remote-storage/go/config"
 	jwanfs "remote-storage/go/jwanfs"
 )
+
+// jwanfsDetectionTimeout bounds the JWanFS gateway probe performed during S3
+// client construction. The probe runs before any per-request context exists,
+// so without this bound an unreachable endpoint stalls the whole bucket load.
+const jwanfsDetectionTimeout = 10 * time.Second
 
 // upstreamS3 pairs one endpoint URL with its dedicated aws-sdk-go-v2 client.
 type upstreamS3 struct {
@@ -56,8 +62,17 @@ func NewFailoverClient(cfg storageconfig.RemoteStorageConfig) *FailoverClient {
 	normalized := cfg.Normalized()
 	servers := failoverServers(normalized)
 
+	// The gateway detection + balancer refresh happen during client construction,
+	// before any per-request context is established. An unreachable endpoint
+	// would otherwise stall here on the OS-level TCP timeout (~1-2 minutes),
+	// which neither the ListBuckets request context nor the bridge timeout can
+	// interrupt (the probe uses its own context.Background). Bound the whole
+	// construction phase so a dead upstream surfaces as a fast failure instead
+	// of locking the multi-account bucket load.
 	mode := jwanfs.ParseDetectionMode(normalized.JWanFSGatewayMode)
-	if jwanfs.IsJWanFSGateway(context.Background(), normalized, mode) {
+	detectCtx, detectCancel := context.WithTimeout(context.Background(), jwanfsDetectionTimeout)
+	defer detectCancel()
+	if jwanfs.IsJWanFSGateway(detectCtx, normalized, mode) {
 		if balancer, err := jwanfs.NewClient(&jwanfs.ClientOption{
 			Ak:      normalized.AccessKeyID,
 			Sk:      normalized.SecretAccessKey,

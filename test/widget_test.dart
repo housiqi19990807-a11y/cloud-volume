@@ -396,7 +396,10 @@ class _FakeApi implements RemoteStorageGateway {
   Future<int> cleanupStaleWindowsProcesses() async => 0;
 
   @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
+  Future<List<BucketInfo>> listBuckets(
+    RemoteStorageConfig config, {
+    bool force = false,
+  }) async {
     return bucketsByStorageType[config.storageType] ?? buckets;
   }
 

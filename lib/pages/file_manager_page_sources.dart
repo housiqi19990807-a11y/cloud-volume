@@ -8,11 +8,12 @@ part of 'file_manager_page.dart';
 // _FileManagerPageBucketLoading catches to surface a "reconfigure this
 // account" action.
 extension _FileManagerPageSources on _FileManagerPageState {
-  Future<BucketSourceLoadResult> _loadBucketEntries() {
+  Future<BucketSourceLoadResult> _loadBucketEntries({bool force = false}) {
     return BucketSourceService.instance.loadEntriesWithFailures(
       widget.api,
       widget.profiles,
       fallbackConfig: widget.config,
+      force: force,
     );
   }
 }

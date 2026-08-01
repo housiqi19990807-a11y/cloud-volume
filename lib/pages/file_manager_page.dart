@@ -299,7 +299,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
           theme: theme,
           activeBucket: _activeBucketLabel,
           breadcrumbs: _breadcrumbs,
-          onOpenBucketList: () => unawaited(_loadBuckets()),
+          onOpenBucketList: () => unawaited(_loadBuckets(force: true)),
           onOpenBucketRoot: () => unawaited(_navToBucket(_activeBucketEntry!)),
           onOpenCrumb: (index) => unawaited(_navCrumb(index)),
         ),
@@ -370,7 +370,7 @@ class _FileManagerPageState extends State<FileManagerPage> {
         theme: theme,
         message: _error!,
         onRetry: _activeBucket == null
-            ? () => unawaited(_loadBuckets())
+            ? () => unawaited(_loadBuckets(force: true))
             : () => unawaited(
                 _loadObjects(_activeBucketEntry!, _prefix, forceRefresh: true),
               ),

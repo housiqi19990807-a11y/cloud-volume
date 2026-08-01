@@ -17,9 +17,13 @@ mixin _RemoteStorageDesktopStorageApiMixin
   );
 
   @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
+  Future<List<BucketInfo>> listBuckets(
+    RemoteStorageConfig config, {
+    bool force = false,
+  }) async {
     final result = await runBridgeCall('list_buckets', <String, dynamic>{
       'config': config.toJson(),
+      if (force) 'force': true,
     });
     return parseBridgeList(result, (m) => BucketInfo.fromJson(m));
   }
