@@ -28,7 +28,11 @@ import (
 // jwanfsDetectionTimeout bounds the JWanFS gateway probe performed during S3
 // client construction. The probe runs before any per-request context exists,
 // so without this bound an unreachable endpoint stalls the whole bucket load.
-const jwanfsDetectionTimeout = 10 * time.Second
+// Kept to a single dial's worth (3s, matching proxyDialTimeout): the probe
+// dials the endpoint, and if that one dial cannot connect within 3s the
+// endpoint is treated as non-JWanFS (and ListBuckets will fail fast against
+// it). A longer window just stacks multiple failed dials (Refresh + AuthInfo).
+const jwanfsDetectionTimeout = 3 * time.Second
 
 // upstreamS3 pairs one endpoint URL with its dedicated aws-sdk-go-v2 client.
 type upstreamS3 struct {

@@ -28,3 +28,15 @@ func newSingleObjectRetryer() aws.Retryer {
 	})
 }
 
+// newListBucketsRetryer makes ListBuckets fail fast on connectivity errors.
+// The AWS SDK default retries up to 3 times; for an unreachable endpoint each
+// attempt waits on the 3s dial timeout, so 3 attempts burn the whole 8s
+// bucketListTimeout before surfacing the error. ListBuckets is an account-level
+// connectivity probe behind the singleflight + negative cache, so one attempt
+// (no retry) lets the failure reach the negative cache promptly.
+func newListBucketsRetryer() aws.Retryer {
+	return retry.NewStandard(func(options *retry.StandardOptions) {
+		options.MaxAttempts = 1
+	})
+}
+

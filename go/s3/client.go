@@ -39,6 +39,21 @@ func singleObjectCallOptions() []func(*s3.Options) {
 	}
 }
 
+// NewListBucketsClient is like NewClient but disables retries. ListBuckets is
+// an account-level connectivity probe behind the singleflight + negative cache:
+// a single failed attempt should surface immediately so the failure reaches the
+// negative cache promptly, instead of burning the whole bucketListTimeout on
+// SDK retries against an unreachable endpoint.
+func NewListBucketsClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
+	base := NewClient(cfg)
+	// Rebuild the client with a no-retry retryer. s3.Client.Options() returns a
+	// copy, so we mutate it and construct a fresh client that shares the same
+	// endpoint/credentials/HTTP client while only changing the retry policy.
+	opts := base.Options()
+	opts.Retryer = newListBucketsRetryer()
+	return s3.New(opts)
+}
+
 // NewClient resolves the current best S3 endpoint through the failover SDK so
 // every existing S3 operation benefits from JWanFS gateway discovery. The
 // returned AWS client remains a single-request client; operations needing

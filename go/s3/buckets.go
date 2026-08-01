@@ -28,8 +28,11 @@ type BucketInfo struct {
 }
 
 // ListBuckets returns all buckets accessible by the configured credentials.
+// It uses a no-retry client so an unreachable endpoint fails fast (within the
+// 3s dial timeout) and reaches the bridge negative cache promptly, instead of
+// burning the whole bucketListTimeout on SDK retries.
 func ListBuckets(cfg storageconfig.RemoteStorageConfig) ([]BucketInfo, error) {
-	client := NewClient(cfg)
+	client := NewListBucketsClient(cfg)
 	ctx, cancel := context.WithTimeout(Ctx(), bucketListTimeout)
 	defer cancel()
 	startedAt := time.Now()
