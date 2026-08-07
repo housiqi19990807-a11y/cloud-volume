@@ -90,9 +90,19 @@ func cloudFilesPlaceholderInfo(info s3ops.ObjectInfo) cloudPlaceholderInfo {
 		RelativePath: strings.TrimSuffix(filepath.Base(filepath.Clean(info.Key)), "/"),
 		FileSize:     info.Size,
 		ModTime:      cloudFilesObjectModTime(info),
-		FileID:       info.Key,
+		FileID:       cloudFilesObjectIdentity(info),
 		IsDirectory:  info.IsDir,
 	}
+}
+
+// cloudFilesObjectIdentity includes the ETag when present so a same-size
+// overwrite in the same timestamp tick still dehydrates stale Explorer bytes.
+func cloudFilesObjectIdentity(info s3ops.ObjectInfo) string {
+	identity := info.Key
+	if etag := strings.TrimSpace(info.ETag); etag != "" {
+		identity += "\x1f" + etag
+	}
+	return identity
 }
 
 func isWindowsLocalOnlyPath(virtualPath string) bool {

@@ -7,8 +7,6 @@ import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/widgets/mount_engine_picker.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-enum _MountPresentation { driveLetter, path }
-
 Future<MountBucketOptions?> showMountBucketDialog(
   BuildContext context, {
   required String bucket,
@@ -55,7 +53,6 @@ class _MountBucketDialog extends StatefulWidget {
 class _MountBucketDialogState extends State<_MountBucketDialog> {
   String _mountPath = '';
   bool _readOnly = false;
-  late _MountPresentation _presentation;
   String? _driveLetter;
   WindowsMountEngine? _engine;
 
@@ -64,17 +61,17 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
     super.initState();
     _readOnly = widget.forceReadOnly;
     final hasDrive = widget.availableDriveLetters.isNotEmpty;
-    _presentation = widget.showWindowsMountMode && hasDrive
-        ? _MountPresentation.driveLetter
-        : _MountPresentation.path;
     _driveLetter = hasDrive ? widget.availableDriveLetters.first : null;
     // When WinFsp is not installed the picker hides it; fall back to Cloud
     // Files so the selected value always reflects something mountable.
+    final configuredEngine =
+        widget.currentEngine ??
+        (widget.showWindowsMountMode ? WindowsMountEngine.cloudFiles : null);
     _engine =
-        (widget.currentEngine == WindowsMountEngine.winFsp &&
+        (configuredEngine == WindowsMountEngine.winFsp &&
             !widget.winFspAvailable)
         ? WindowsMountEngine.cloudFiles
-        : widget.currentEngine;
+        : configuredEngine;
     if (_readOnly && widget.showWindowsMountMode) {
       _engine = WindowsMountEngine.winFsp;
     }
@@ -84,8 +81,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final requiresDriveLetter = _usesWinFsp;
-    final usesPath =
-        !requiresDriveLetter && _presentation == _MountPresentation.path;
+    final usesPath = !requiresDriveLetter;
     return ShadDialog(
       title: const Text('挂载存储桶'),
       description: Text('配置 ${widget.bucket} 的本地挂载。'),
@@ -162,83 +158,13 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
             ],
             if (widget.showWindowsMountMode && !requiresDriveLetter) ...[
               const SizedBox(height: 18),
-              _FieldLabel(text: '挂载模式', theme: theme),
-              const SizedBox(height: 8),
-              ShadSelect<_MountPresentation>(
-                key: ValueKey<_MountPresentation>(_presentation),
-                minWidth: 440,
-                initialValue: _presentation,
-                selectedOptionBuilder: (context, value) =>
-                    Text(_presentationLabel(value)),
-                options: [
-                  if (widget.availableDriveLetters.isNotEmpty)
-                    const ShadOption<_MountPresentation>(
-                      value: _MountPresentation.driveLetter,
-                      child: Text('分配盘符'),
-                    ),
-                  const ShadOption<_MountPresentation>(
-                    value: _MountPresentation.path,
-                    child: Text('路径挂载'),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) setState(() => _presentation = value);
-                },
-              ),
-              if (widget.availableDriveLetters.isEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  '当前没有可分配的盘符，请使用路径挂载。',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
+              Text(
+                'Cloud Files 使用本地同步目录。需要在资源管理器显示桶级容量时，请选择 WinFsp 虚拟文件系统并分配盘符。',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.45,
+                  color: theme.colorScheme.mutedForeground,
                 ),
-              ],
-            ],
-            if (widget.showWindowsMountMode &&
-                !usesPath &&
-                !requiresDriveLetter) ...[
-              const SizedBox(height: 16),
-              _FieldLabel(text: '盘符', theme: theme),
-              const SizedBox(height: 8),
-              ShadSelect<String>(
-                key: ValueKey<String?>(_driveLetter),
-                minWidth: 440,
-                initialValue: _driveLetter,
-                ensureSelectedVisible: false,
-                selectedOptionBuilder: (context, value) => Text(value),
-                options: widget.availableDriveLetters
-                    .map(
-                      (letter) => ShadOption<String>(
-                        value: letter,
-                        child: Text(letter),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) => setState(() => _driveLetter = value),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    LucideIcons.info,
-                    size: 15,
-                    color: theme.colorScheme.mutedForeground,
-                  ),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Text(
-                      '映射盘符只是将本地同步目录映射到盘符入口，不代表云存储的真实容量。',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.45,
-                        color: theme.colorScheme.mutedForeground,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
             if (!widget.showWindowsMountMode || usesPath) ...[
@@ -287,9 +213,7 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
   bool get _usesWinFsp =>
       widget.showWindowsMountMode && _engine == WindowsMountEngine.winFsp;
 
-  bool get _canSubmit => _usesWinFsp
-      ? _driveLetter != null
-      : _presentation == _MountPresentation.path || _driveLetter != null;
+  bool get _canSubmit => _usesWinFsp ? _driveLetter != null : true;
 
   void _setReadOnly(bool value) {
     setState(() {
@@ -298,9 +222,6 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
       // Explorer write. WinFsp rejects the write itself with EROFS instead.
       if (value && widget.showWindowsMountMode) {
         _engine = WindowsMountEngine.winFsp;
-        if (_driveLetter != null) {
-          _presentation = _MountPresentation.driveLetter;
-        }
       }
     });
   }
@@ -311,9 +232,6 @@ class _MountBucketDialogState extends State<_MountBucketDialog> {
       _engine = _readOnly && value == WindowsMountEngine.cloudFiles
           ? WindowsMountEngine.winFsp
           : value;
-      if (_usesWinFsp && _driveLetter != null) {
-        _presentation = _MountPresentation.driveLetter;
-      }
     });
   }
 
@@ -395,13 +313,6 @@ class _FieldLabel extends StatelessWidget {
       ),
     );
   }
-}
-
-String _presentationLabel(_MountPresentation value) {
-  return switch (value) {
-    _MountPresentation.driveLetter => '分配盘符',
-    _MountPresentation.path => '路径挂载',
-  };
 }
 
 /// Confirms unmounting and makes Cloud Files cache retention an explicit choice.

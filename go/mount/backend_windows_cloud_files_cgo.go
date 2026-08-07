@@ -308,8 +308,11 @@ func cleanupManagedWindowsCloudFilesForBucket(bucket string) error {
 		log.Printf("[mount/cloud-files] cleanup-bucket-deregister bucket=%q path=%q", bucket, mountPath)
 	}
 	if err := os.RemoveAll(mountPath); err != nil && !os.IsNotExist(err) {
-		log.Printf("[mount/cloud-files] cleanup-bucket-remove bucket=%q path=%q error=%v", bucket, mountPath, err)
-		return err
+		// A disconnected Cloud Files root can retain a hydrated file opened by
+		// Explorer or another application. The provider is already deregistered,
+		// so retain that cache and let Start reuse the stable managed root.
+		log.Printf("[mount/cloud-files] cleanup-bucket-retain bucket=%q path=%q error=%v", bucket, mountPath, err)
+		return nil
 	}
 	log.Printf("[mount/cloud-files] cleanup-bucket-remove bucket=%q path=%q", bucket, mountPath)
 	return nil

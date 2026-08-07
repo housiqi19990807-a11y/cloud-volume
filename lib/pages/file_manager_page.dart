@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
 import 'package:remote_storage/models/bucket_mount_status.dart';
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
@@ -46,7 +47,6 @@ import 'package:remote_storage/widgets/share_dialogs.dart';
 import 'package:remote_storage/widgets/batch_task_progress_dialog.dart';
 import 'package:remote_storage/widgets/batch_task_progress_mode.dart';
 import 'package:remote_storage/utils/file_preview_type.dart';
-import 'package:path/path.dart' as path;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/bucket_source_service.dart';
@@ -96,6 +96,7 @@ class FileManagerPage extends StatefulWidget {
   final FileManagerHomeView homeView;
   final SyncRemoteOpenRequest? pendingSyncRemoteOpen;
   final VoidCallback? onPendingSyncRemoteOpenConsumed;
+
   /// Jumps to the account-management page. Used by the bucket-list error bar
   /// so the user can fix/disable a failing account in one click.
   final VoidCallback? onOpenAccountManagement;

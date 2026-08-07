@@ -90,3 +90,49 @@ func TestMutationEntriesAddsOmittedDirectoryRootMarker(t *testing.T) {
 		}
 	}
 }
+
+func TestRenameDirectoryDeletesPlannedKeysWithoutRelistingSource(t *testing.T) {
+	const bucket = "bucket"
+	var listCalls int
+	var deletedKeys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Query().Get("list-type") == "2":
+			listCalls++
+			w.Header().Set("Content-Type", "application/xml")
+			_, _ = fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult><Name>bucket</Name><Prefix>old/</Prefix><KeyCount>2</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>
+<Contents><Key>old/</Key><Size>0</Size></Contents>
+<Contents><Key>old/readme.txt</Key><Size>4</Size></Contents>
+</ListBucketResult>`)
+		case r.Method == http.MethodPut:
+			w.Header().Set("Content-Type", "application/xml")
+			if r.Header.Get("X-Amz-Copy-Source") != "" {
+				_, _ = fmt.Fprint(w, `<CopyObjectResult><LastModified>2026-08-07T00:00:00.000Z</LastModified><ETag>"etag"</ETag></CopyObjectResult>`)
+			}
+		case r.Method == http.MethodDelete:
+			deletedKeys = append(deletedKeys, strings.TrimPrefix(r.URL.Path, "/"+bucket+"/"))
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.Error(w, "unexpected request", http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+
+	cfg := storageconfig.RemoteStorageConfig{
+		Endpoint:        server.URL,
+		Region:          "us-east-1",
+		AccessKeyID:     "test",
+		SecretAccessKey: "test",
+		UsePathStyle:    true,
+	}
+	if err := RenameObjectContext(context.Background(), cfg, bucket, "old/", true, "new"); err != nil {
+		t.Fatalf("RenameObjectContext: %v", err)
+	}
+	if listCalls != 1 {
+		t.Fatalf("source listings = %d, want exactly the planning listing", listCalls)
+	}
+	if len(deletedKeys) != 2 || deletedKeys[0] != "old/" || deletedKeys[1] != "old/readme.txt" {
+		t.Fatalf("deleted keys = %v, want planned source keys", deletedKeys)
+	}
+}

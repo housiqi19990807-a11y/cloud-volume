@@ -172,7 +172,9 @@ func RenameObjectContext(
 	); err != nil {
 		return err
 	}
-	return DeleteObjectHardContextProgress(ctx, cfg, bucket, key, isDirectory, "")
+	// Delete exactly the keys captured before the copy. Re-listing a directory
+	// after copying can observe a delayed empty listing and leave the source tree.
+	return deleteObjectKeysHard(ctx, client, bucket, plan.deleteKeys)
 }
 
 func renamedKeyTarget(key string, isDirectory bool, newName string) (string, error) {

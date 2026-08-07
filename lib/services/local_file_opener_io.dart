@@ -28,10 +28,10 @@ class LocalFileOpener {
       return _ShellCommand('xdg-open', <String>[filePath]);
     }
     if (isWindowsPlatform) {
-      // `start` parses the first quoted arg as the window title, so an empty
-      // title is mandatory; the path must itself be quoted so spaces, & and ()
-      // do not break shell tokenization.
-      return _ShellCommand('cmd', <String>['/c', 'start', '', '"$filePath"']);
+      // Dart passes each argv element directly to cmd.exe. `start` still needs
+      // the empty title argument, but quoting the path here creates literal
+      // quote characters and makes Explorer report a nonexistent file.
+      return _ShellCommand('cmd', <String>['/c', 'start', '', filePath]);
     }
     throw UnsupportedError('当前平台暂不支持直接打开本地文件');
   }

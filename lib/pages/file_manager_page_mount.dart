@@ -157,7 +157,7 @@ extension _FileManagerPageMount on _FileManagerPageState {
     final forceReadOnly = config
         .bucketSettingsFor(targetBucket.bucket.name)
         .readOnly;
-    final winFspInstalled =
+    var winFspInstalled =
         isWindowsPlatform &&
         widget.api is WindowsWinFspQuery &&
         await (widget.api as WindowsWinFspQuery).listWindowsWinFspAvailable();
@@ -187,20 +187,20 @@ extension _FileManagerPageMount on _FileManagerPageState {
           );
           return;
         }
+        winFspInstalled = true;
       } catch (error) {
         _showPageError(error);
         return;
       }
     }
-    // WinFsp exposes a real virtual volume, so drive letters are always offered.
-    // Cloud Files offers a drive letter via sync-root mapping; WebDAV owns its
-    // own net-use drive and must not show the selector.
-    final supportsDriveLetters =
+    // Cloud Files needs the Windows engine picker but is path-only. Querying
+    // free letters still lets a newly selected read-only WinFsp mount complete
+    // the install flow from this dialog.
+    final showWindowsMountMode =
         isWindowsPlatform &&
-        (winFspEnabled ||
-            targetBucket.config.windowsMountMode != WindowsMountMode.webdav);
+        targetBucket.config.windowsMountMode != WindowsMountMode.webdav;
     var availableDriveLetters = const <String>[];
-    if (supportsDriveLetters && widget.api is AvailableDriveLetterQuery) {
+    if (showWindowsMountMode && widget.api is AvailableDriveLetterQuery) {
       try {
         availableDriveLetters = await (widget.api as AvailableDriveLetterQuery)
             .listAvailableDriveLetters();
@@ -213,7 +213,7 @@ extension _FileManagerPageMount on _FileManagerPageState {
     final options = await showMountBucketDialog(
       context,
       bucket: targetBucket.bucket.name,
-      showWindowsMountMode: supportsDriveLetters,
+      showWindowsMountMode: showWindowsMountMode,
       availableDriveLetters: availableDriveLetters,
       currentEngine: currentEngine,
       winFspAvailable: winFspInstalled,
@@ -246,6 +246,7 @@ extension _FileManagerPageMount on _FileManagerPageState {
           );
           return;
         }
+        winFspInstalled = true;
       } catch (error) {
         _showPageError(error);
         return;

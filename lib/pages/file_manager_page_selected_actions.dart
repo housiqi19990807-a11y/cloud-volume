@@ -57,20 +57,18 @@ extension _FileManagerPageSelectedActions on _FileManagerPageState {
     List<ObjectInfo> selected,
   ) async {
     final primary = selected.first;
-    final targetPath = await showObjectTargetPathDialog(
+    final targetDirectory = await showObjectTargetPathDialog(
       context,
       primary,
-      move: action == FileSelectionAction.move,
+      api: widget.api,
+      bucket: _activeBucketEntry!,
+      initialPrefix: _prefix,
     );
-    if (targetPath == null || targetPath.isEmpty) {
+    if (targetDirectory == null) {
       return;
     }
     for (final object in selected) {
-      final targetKey = _resolvedBatchTargetPath(
-        targetPath: targetPath,
-        object: object,
-        selectedCount: selected.length,
-      );
+      final targetKey = objectTargetPathInDirectory(targetDirectory, object);
       await _handleObjectAction(
         object,
         action == FileSelectionAction.move
@@ -82,21 +80,5 @@ extension _FileManagerPageSelectedActions on _FileManagerPageState {
     }
     if (!mounted) return;
     await _reloadObjectsAfterBucketMutation(_activeBucketEntry!, _prefix);
-  }
-
-  String _resolvedBatchTargetPath({
-    required String targetPath,
-    required ObjectInfo object,
-    required int selectedCount,
-  }) {
-    final trimmed = targetPath.trim();
-    if (selectedCount <= 1) {
-      return trimmed;
-    }
-    final normalized = trimmed.replaceAll(RegExp(r'/+$'), '');
-    if (normalized.isEmpty) {
-      return object.key;
-    }
-    return path.join(normalized, object.displayName);
   }
 }

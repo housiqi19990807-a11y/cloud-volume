@@ -19,6 +19,18 @@ typedef struct RS_CF_FS_METADATA {
     LARGE_INTEGER FileSize;
 } CF_FS_METADATA;
 
+typedef struct RS_CF_FILE_RANGE {
+    LARGE_INTEGER StartingOffset;
+    LARGE_INTEGER Length;
+} CF_FILE_RANGE;
+
+typedef enum RS_CF_UPDATE_FLAGS {
+    CF_UPDATE_FLAG_NONE = 0x00000000,
+    CF_UPDATE_FLAG_VERIFY_IN_SYNC = 0x00000001,
+    CF_UPDATE_FLAG_MARK_IN_SYNC = 0x00000002,
+    CF_UPDATE_FLAG_DEHYDRATE = 0x00000004,
+} CF_UPDATE_FLAGS;
+
 typedef enum RS_CF_PLACEHOLDER_CREATE_FLAGS {
     CF_PLACEHOLDER_CREATE_FLAG_NONE = 0x00000000,
     CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC = 0x00000002,
@@ -285,6 +297,12 @@ HRESULT rs_cf_create_placeholders(
     DWORD count,
     DWORD* outCreated);
 HRESULT rs_cf_set_sync_state(LPCWSTR localPath, int state);
+HRESULT rs_cf_update_placeholder(
+    LPCWSTR localPath,
+    const CF_FS_METADATA* metadata,
+    LPCVOID identity,
+    DWORD identityLength,
+    int dehydrate);
 HRESULT rs_cf_execute_transfer(
     uintptr_t callbackInfoPtr,
     LARGE_INTEGER offset,

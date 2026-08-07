@@ -144,12 +144,24 @@ func (q *writebackQueue) hasPendingAtOrBelow(virtualPath string, isDir bool) boo
 
 	clean := cleanVirtualPath(virtualPath)
 	if !isDir {
-		_, ok := q.entries[clean]
-		return ok
+		if _, ok := q.entries[clean]; ok {
+			return true
+		}
+		for _, entry := range q.running {
+			if entry.virtualPath == clean {
+				return true
+			}
+		}
+		return false
 	}
 	prefix := ensureDirSuffix(clean)
 	for key := range q.entries {
 		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	for _, entry := range q.running {
+		if strings.HasPrefix(entry.virtualPath, prefix) {
 			return true
 		}
 	}

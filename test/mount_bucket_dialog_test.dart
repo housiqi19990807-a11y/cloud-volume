@@ -8,41 +8,36 @@ import 'package:remote_storage/widgets/mount_bucket_dialog.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 void main() {
-  testWidgets('defaults to an available drive letter on Windows', (
-    tester,
-  ) async {
-    MountBucketOptions? selected;
-    await _openDialog(
-      tester,
-      onSelected: (value) => selected = value,
-      showWindowsMountMode: true,
-      availableDriveLetters: const <String>['Z:', 'Y:'],
-    );
+  testWidgets(
+    'Cloud Files uses a path instead of a capacity-misleading drive',
+    (tester) async {
+      MountBucketOptions? selected;
+      await _openDialog(
+        tester,
+        onSelected: (value) => selected = value,
+        showWindowsMountMode: true,
+        availableDriveLetters: const <String>['Z:', 'Y:'],
+      );
 
-    expect(find.text('只读挂载'), findsOneWidget);
-    expect(find.text('挂载模式'), findsOneWidget);
-    expect(find.text('分配盘符'), findsOneWidget);
-    expect(find.text('盘符'), findsOneWidget);
-    expect(find.text('Z:'), findsOneWidget);
-    expect(find.text('挂载路径'), findsNothing);
-    expect(find.text('映射盘符只是将本地同步目录映射到盘符入口，不代表云存储的真实容量。'), findsOneWidget);
+      expect(find.text('只读挂载'), findsOneWidget);
+      expect(find.text('挂载路径'), findsOneWidget);
+      expect(find.text('盘符'), findsNothing);
+      expect(
+        find.text(
+          'Cloud Files 使用本地同步目录。需要在资源管理器显示桶级容量时，请选择 WinFsp 虚拟文件系统并分配盘符。',
+        ),
+        findsOneWidget,
+      );
 
-    final driveSelect = tester.widget<ShadSelect<String>>(
-      find.byType(ShadSelect<String>),
-    );
-    expect(driveSelect.ensureSelectedVisible, isFalse);
+      await tester.tap(find.text('开始挂载'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(ShadSwitch));
-    await tester.tap(find.text('开始挂载'));
-    await tester.pumpAndSettle();
-
-    expect(selected, isNotNull);
-    expect(selected!.readOnly, isTrue);
-    expect(selected!.driveLetter, 'Z:');
-    expect(selected!.mountPath, isEmpty);
-    expect(selected!.windowsMountEngine, WindowsMountEngine.winFsp);
-    expect(selected!.toJson()['driveLetter'], 'Z:');
-  });
+      expect(selected, isNotNull);
+      expect(selected!.readOnly, isFalse);
+      expect(selected!.driveLetter, isEmpty);
+      expect(selected!.windowsMountEngine, WindowsMountEngine.cloudFiles);
+    },
+  );
 
   testWidgets('lets the user select a different available drive letter', (
     tester,
@@ -53,6 +48,8 @@ void main() {
       onSelected: (value) => selected = value,
       showWindowsMountMode: true,
       availableDriveLetters: const <String>['Z:', 'Y:'],
+      currentEngine: WindowsMountEngine.winFsp,
+      winFspAvailable: true,
     );
 
     await tester.tap(find.text('Z:'));
@@ -65,37 +62,11 @@ void main() {
     expect(selected?.driveLetter, 'Y:');
   });
 
-  testWidgets('switches from the default drive mode to path mode', (
-    tester,
-  ) async {
-    MountBucketOptions? selected;
-    await _openDialog(
-      tester,
-      onSelected: (value) => selected = value,
-      showWindowsMountMode: true,
-      availableDriveLetters: const <String>['Z:', 'Y:'],
-    );
-
-    await tester.tap(find.text('分配盘符'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('路径挂载'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('挂载路径'), findsOneWidget);
-    expect(find.text('盘符'), findsNothing);
-
-    await tester.tap(find.text('开始挂载'));
-    await tester.pumpAndSettle();
-    expect(selected?.driveLetter, isEmpty);
-  });
-
-  testWidgets('falls back to path mode when no drive letter is free', (
+  testWidgets('Cloud Files stays path-based when no drive letter is free', (
     tester,
   ) async {
     await _openDialog(tester, onSelected: (_) {}, showWindowsMountMode: true);
 
-    expect(find.text('路径挂载'), findsOneWidget);
-    expect(find.text('当前没有可分配的盘符，请使用路径挂载。'), findsOneWidget);
     expect(find.text('挂载路径'), findsOneWidget);
     expect(find.text('盘符'), findsNothing);
   });

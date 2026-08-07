@@ -274,24 +274,24 @@ The Windows host removes the native title bar and uses app-owned chrome, while s
 
 ### Feature: Windows Mount Presentation / Drive Letters
 
-Windows has two distinct mount presentations. The selected `windows_mount_mode` decides whether a bucket receives a real mapped drive letter or remains a Cloud Files sync-root directory.
+Windows has two distinct mount presentations. Cloud Files is always a sync-root directory, while WinFsp is the virtual-volume engine that gives a bucket a real drive letter and capacity reporting.
 
 #### Key files
 
 - `go/mount/backend_windows.go` - Selects `cloud_files_cached`, `cloud_files_direct`, or `webdav`; an empty/unknown setting normalizes to `cloud_files_cached`.
 - `go/mount/backend_windows_webdav.go` / `go/mount/webdav_mount_windows.go` - WebDAV starts the local server, scans unused drive letters from `Z:` down through `D:`, and invokes `net use <drive> <url> /persistent:no`.
-- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/windows_cloud_files_paths.go` - Cloud Files registers the stable sync root at `~/Cloud Volume/<bucket>` and returns that directory as `mountPath`. When requested, startup assigns a drive letter after the provider health check; stop removes it before disconnecting the provider.
+- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/windows_cloud_files_paths.go` - Cloud Files registers the stable sync root at `~/Cloud Volume/<bucket>` and returns that directory as `mountPath`. If stale cleanup encounters an occupied cache file, it deregisters the root but retains the directory so the next start can reuse it safely.
 - `go/mount/windows_drive_mapping_windows.go` / `go/mount/windows_drive_mapping_other.go` - Shared Windows drive-letter discovery, requested-letter validation, and `subst` lifecycle, plus the portable bridge stub. It lists free letters from `Z:` down through `D:`, verifies the chosen letter again at mount time, verifies the mapping after creation, compares the current target before removal, and cleans managed mappings whose targets are direct children of the Cloud Files root.
 - `go/mount/windows_shell_namespace_windows.go` - When `windows_this_pc_entry_enabled` is true, Cloud Files can register a per-user Explorer namespace shortcut under “This PC”. This is a folder entry targeting the sync root, not an `X:`-style drive.
 - `bridge/dispatch_mount.go` / `lib/services/remote_storage_api_desktop_storage.dart` / `lib/services/remote_storage_gateway.dart` - `list_available_drive_letters` exposes the Windows list through the optional `AvailableDriveLetterQuery` capability, so Web and test gateways do not need a meaningless Windows method.
-- `lib/widgets/mount_bucket_dialog.dart` / `lib/pages/file_manager_page_mount.dart` - Read/write behavior is a `ShadSwitch`. Windows Cloud Files adds a `ShadSelect` for “分配盘符” versus “路径挂载”, defaults to drive mode when free letters exist, and provides a second `ShadSelect` for the exact letter. WebDAV and non-Windows mounts stay path-only.
+- `lib/widgets/mount_bucket_dialog.dart` / `lib/pages/file_manager_page_mount.dart` - Read/write behavior is a `ShadSwitch`. Cloud Files is path-only so Explorer does not mistake its host-volume free space for bucket capacity; WinFsp alone presents the free-drive selector and reports the configured bucket capacity. Free letters are still queried before the dialog so a user switching to strict read-only WinFsp can install the driver and continue.
 - `lib/services/remote_storage_gateway.dart` / `lib/models/bucket_mount_status.dart` / `go/mount/options.go` / `go/mount/types.go` - Carry the requested `driveLetter` into the session and return the actual `driveLetter` to Flutter. Opening a mounted bucket prefers that drive when present while the provider continues using the real sync-root path internally.
 - `lib/widgets/windows_settings_sections.dart` / `lib/models/remote_storage_config.dart` - Settings exposes both Cloud Files variants and the legacy pure-WebDAV mapped-drive fallback. New/default configs select `cloud_files_cached` and disable the optional “This PC” namespace entry.
 
 #### Gotchas
 
 - Do not describe the Cloud Files “This PC” namespace item as a drive letter. `Win32_LogicalDisk` / `net use` will not contain it, and paths remain under the user profile.
-- Cloud Files drive letters are `subst` convenience mappings, not separate volumes. Keep `session.mountPath` as the CFAPI registration/hydration root and `session.driveLetter` as presentation only; never translate provider callback paths through the drive letter.
+- Do not reintroduce Cloud Files drive selection in the UI. A `subst` mapping is only a host-directory alias and shows the wrong capacity for multi-bucket mounts; use WinFsp when a capacity-bearing volume is required.
 - The drive-letter `ShadSelect` sets `ensureSelectedVisible: false`. The package default calls `Scrollable.ensureVisible` for the selected option and can scroll the surrounding app modal to its final row when the popover opens.
 - Removal must query the current `subst` target and refuse to delete a drive whose target differs from the session path. Per-bucket stale cleanup runs before deleting the sync root, and full cleanup only removes mappings targeting direct children of `~/Cloud Volume`.
 - The current WebDAV allocator does not let users request a specific letter; it always chooses the highest free letter in `Z:` to `D:` order.
@@ -724,10 +724,21 @@ P0 是多客户端挂载变更发现的无服务兜底：它只刷新用户近�
 - `lib/pages/settings_page.dart` / `lib/pages/settings_page_poll_actions.dart` / `lib/pages/settings_page_sections.dart` / `lib/widgets/settings_sync_section.dart` / `lib/pages/config_setup_page.dart` - 「同步设置」保存 P0 远端目录轮询间隔；首次配置编辑会保留该值；保存后重新挂载，新的会话才会采用该间隔。
 - `go/mount/remote_poller.go` - `directoryActivityTracker` 在 `bucketAccess.listDirectory` 和 Cloud Files 的 placeholder 回调中记录目录活动，最多保留 12 个目录，并在新目录活动时唤醒等待中的 poller。`remoteDirectoryPoller` 在活动 45 秒内按 `mount_remote_poll_seconds` 刷新，之后每 30 秒刷新；3 分钟没有活动目录时停止网络访问。它调用 `fetchDirectory`，刷新 `bucketCache`，不会用远端状态删除本地 overlay 或 writeback。
 - `go/mount/manager.go` / `go/mount/types.go` - 每个成功启动的 `mountSession` 创建 poller；卸载时先停止轮询，再关闭平台后端，避免访问已释放的 `bucketAccess`。
-- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/cloud_files_hydrator_windows.go` - P0 轮询结果通过 `externalDirectoryRefresh` 进入 `RefreshPlaceholders`。该操作只创建尚不存在的 Cloud Files 占位符，因此 Windows A/Linux 新建的文件会出现在 Windows B 已打开的目录，而本地待写回/已水合文件不会被覆盖。
+- `go/mount/backend_windows_cloud_files_cgo.go` / `go/mount/cloud_files_hydrator_windows.go` / `go/mount/cloud_files_refresh_windows.go` - P0 轮询结果通过 `externalDirectoryRefresh` 进入 `RefreshPlaceholders`。它记录已投影目录的远端快照：新对象创建占位符，已存在对象经 `CfUpdatePlaceholder` 更新元数据并对变更文件脱水，远端删除仅移除之前投影且没有本地写回/tombstone 的项。对象 ETag 参与文件标识，保证同大小同秒覆盖也会失效 Explorer 缓存。
 - `go/mount/remote_poller_test.go` / `go/mount/object_page_test.go` - 覆盖远端目录缓存刷新、占位符投影回调、活动/空闲退避窗口，以及目录写入期间的稳定快照分页。
 
-**Gotchas:** P0 不是文件传输协议，也不是递归扫描器。它不保证即时投递，未主动刷新的文件管理器窗口仍可能需要一次目录读取；删除和覆盖的完整跨客户端投影留给后续 P1/P2 事件设计，不能在 P0 中通过盲目删除本地占位符实现，否则会误删正在本地写回的状态。
+**Gotchas:** P0 不是文件传输协议，也不是递归扫描器。它不保证即时投递，未主动刷新的文件管理器窗口仍可能需要一次目录读取；删除和覆盖投影只能作用于自己此前记录的远端占位符，并必须跳过 tombstone、排队写回和正在上传的路径，不能盲目删除本地项。
+
+### Feature: File Actions and Linux Mount Ownership
+
+File-manager copy/move chooses a destination directory rather than asking users to compose an object key, while mounts keep both cross-client metadata and local filesystem ownership coherent.
+
+- `lib/widgets/object_action_dialogs.dart` / `lib/pages/file_manager_page_actions.dart` / `lib/pages/file_manager_page_selected_actions.dart` - Copy and move open the existing remote directory picker restricted to the active bucket, then append each source object's display name with `objectTargetPathInDirectory`; the UI never asks users to reconstruct a full target key.
+- `lib/services/local_file_opener_io.dart` - Windows invokes `cmd /c start` with the path as a separate argv element, avoiding literal quote characters in Explorer's filename lookup.
+- `go/s3/object_mutations.go` / `go/s3/object_move_cleanup_test.go` - Rename and move remove the exact source keys captured during the initial copy plan, avoiding delayed re-listing that leaves the old object beside its new name.
+- `go/mount/linux_fuse_nodes.go` / `go/mount/linux_fuse_owner_test.go` - Root and entry attributes use the mounting process UID/GID so Linux FUSE `default_permissions` authorizes the desktop user instead of treating remote entries as root-owned.
+
+**Gotchas:** Cloud Files refresh code is built only for `windows && cgo`; macOS/Linux Go tests validate shared behavior but cannot exercise the Windows CFAPI call. Validate a changed hydrated file, a same-size ETag-only overwrite, a remote deletion, and an occupied-cache remount through `scripts/run_windows.ps1` on a Windows host.
 
 ### Feature: LAN P2P D1/D2
 
