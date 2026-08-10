@@ -24,7 +24,7 @@ type cloudFilesHydrator struct {
 	cancels  map[string]context.CancelFunc
 
 	placeholderMu        sync.Mutex
-	placeholderInflight  map[string]chan struct{}
+	placeholderInflight  map[string]*cloudFilesPlaceholderFetch
 	placeholderFetched   map[string]time.Time
 	projectionMu         sync.Mutex
 	projectedDirectories map[string]map[string]cloudPlaceholderInfo
@@ -44,7 +44,7 @@ func newCloudFilesHydrator(
 		watcher:              watcher,
 		reader:               reader,
 		cancels:              map[string]context.CancelFunc{},
-		placeholderInflight:  map[string]chan struct{}{},
+		placeholderInflight:  map[string]*cloudFilesPlaceholderFetch{},
 		placeholderFetched:   map[string]time.Time{},
 		projectedDirectories: map[string]map[string]cloudPlaceholderInfo{},
 	}
@@ -121,22 +121,28 @@ func (h *cloudFilesHydrator) OnCancelFetch(req cloudFilesFetchRequest) {
 	}
 }
 
-func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
+func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) (resultErr error) {
 	cleanLocalPath := filepath.Clean(localPath)
-	shouldFetch, wait := h.beginPlaceholderFetch(cleanLocalPath)
-	if wait != nil {
-		<-wait
-		return nil
+	shouldFetch, inflight := h.beginPlaceholderFetch(cleanLocalPath)
+	if inflight != nil {
+		<-inflight.done
+		return inflight.err
 	}
 	if !shouldFetch {
 		return nil
 	}
-	success := false
 	defer func() {
-		h.finishPlaceholderFetch(cleanLocalPath, success)
+		h.finishPlaceholderFetch(cleanLocalPath, resultErr)
 	}()
 
-	virtualPath := cloudFilesLocalPathToVirtual(h.syncRoot, localPath)
+	virtualPath, valid := cloudFilesLocalPathToVirtualChecked(h.syncRoot, localPath)
+	if !valid {
+		return fmt.Errorf(
+			"resolve Cloud Files placeholder path %q under %q",
+			localPath,
+			h.syncRoot,
+		)
+	}
 	h.access.noteDirectoryActivity(virtualPath)
 	log.Printf(
 		"[mount/cloud-files] fetch-placeholders local=%q virtual=%q",
@@ -168,7 +174,6 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 		if err := h.refreshProjectedDirectory(localPath, placeholders); err != nil {
 			return err
 		}
-		success = true
 		return nil
 	}
 
@@ -179,6 +184,5 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 	}
 	h.rememberProjectedDirectory(localPath, placeholders)
 	h.watcher.watchPlaceholderDirectories(localPath, placeholders)
-	success = true
 	return nil
 }

@@ -50,19 +50,27 @@ type cloudFilesCallbacks struct {
 }
 
 func cloudFilesLocalPathToVirtual(syncRoot, localPath string) string {
+	virtualPath, _ := cloudFilesLocalPathToVirtualChecked(syncRoot, localPath)
+	return virtualPath
+}
+
+func cloudFilesLocalPathToVirtualChecked(syncRoot, localPath string) (string, bool) {
 	root := filepath.Clean(strings.TrimSpace(syncRoot))
 	current := filepath.Clean(strings.TrimSpace(localPath))
 	if root == "" || current == "" {
-		return ""
+		return "", false
 	}
 	if current == root {
-		return ""
+		return "", true
 	}
 	relative, err := filepath.Rel(root, current)
 	if err != nil {
-		return ""
+		return "", false
 	}
-	return cleanVirtualPath(filepath.ToSlash(relative))
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return cleanVirtualPath(filepath.ToSlash(relative)), true
 }
 
 func cloudFilesVirtualPathToLocal(syncRoot, virtualPath string) string {

@@ -106,11 +106,22 @@ func rsOnFetchPlaceholders(callbackInfoPtr uintptr, _ uintptr) {
 	if provider == nil || provider.callbacks.OnFetchPlaceholders == nil {
 		return
 	}
-	err := provider.callbacks.OnFetchPlaceholders(cloudFilesResolvePath(info, provider.localPath))
+	localPath := cloudFilesResolvePath(info, provider.localPath)
+	err := provider.callbacks.OnFetchPlaceholders(localPath)
 	if err != nil {
-		log.Printf("[mount/cloud-files] fetch-placeholders-callback error=%v", err)
+		log.Printf(
+			"[mount/cloud-files] fetch-placeholders-callback local=%q error=%v",
+			localPath,
+			err,
+		)
 	}
-	_ = provider.CompletePlaceholders(callbackInfoPtr, err, err == nil)
+	if completeErr := provider.CompletePlaceholders(callbackInfoPtr, err, err == nil); completeErr != nil {
+		log.Printf(
+			"[mount/cloud-files] fetch-placeholders-complete local=%q error=%v",
+			localPath,
+			completeErr,
+		)
+	}
 }
 
 //export rsOnDeleteCompletion

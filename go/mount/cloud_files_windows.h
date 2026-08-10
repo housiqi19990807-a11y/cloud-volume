@@ -1,6 +1,7 @@
 #ifndef REMOTE_STORAGE_CLOUD_FILES_WINDOWS_H
 #define REMOTE_STORAGE_CLOUD_FILES_WINDOWS_H
 
+// Minimal Cloud Files ABI declarations keep MinGW builds independent of cfapi.h.
 #include <windows.h>
 #include <stdint.h>
 
@@ -29,7 +30,15 @@ typedef enum RS_CF_UPDATE_FLAGS {
     CF_UPDATE_FLAG_VERIFY_IN_SYNC = 0x00000001,
     CF_UPDATE_FLAG_MARK_IN_SYNC = 0x00000002,
     CF_UPDATE_FLAG_DEHYDRATE = 0x00000004,
+    CF_UPDATE_FLAG_ENABLE_ON_DEMAND_POPULATION = 0x00000008,
 } CF_UPDATE_FLAGS;
+
+typedef enum RS_CF_CONVERT_FLAGS {
+    CF_CONVERT_FLAG_NONE = 0x00000000,
+    CF_CONVERT_FLAG_MARK_IN_SYNC = 0x00000001,
+    CF_CONVERT_FLAG_DEHYDRATE = 0x00000002,
+    CF_CONVERT_FLAG_ENABLE_ON_DEMAND_POPULATION = 0x00000004,
+} CF_CONVERT_FLAGS;
 
 typedef enum RS_CF_PLACEHOLDER_CREATE_FLAGS {
     CF_PLACEHOLDER_CREATE_FLAG_NONE = 0x00000000,
@@ -302,7 +311,12 @@ HRESULT rs_cf_update_placeholder(
     const CF_FS_METADATA* metadata,
     LPCVOID identity,
     DWORD identityLength,
-    int dehydrate);
+    int dehydrate,
+    int enableOnDemandPopulation);
+HRESULT rs_cf_convert_directory_placeholder(
+    LPCWSTR localPath,
+    LPCVOID identity,
+    DWORD identityLength);
 HRESULT rs_cf_execute_transfer(
     uintptr_t callbackInfoPtr,
     LARGE_INTEGER offset,

@@ -131,6 +131,7 @@ Windows 本地启动前提：
 Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll` 和 `cloud-volume-crash-reporter.exe`，并复制到 runner 目录。Release 目录中的 `cloud-volume.exe` 是守护启动器，`cloud-volume-app.exe` 是 Flutter 主程序；构建脚本会在打包前检查两者、报告器、updater 和 bridge 是否齐全。
 Windows 调试启动不再依赖系统 `sqlite3.dll`。预览/打开文件用到的缓存索引现在通过 Go bridge 写入现有 bbolt `config.db`，Flutter 前端不再引入 `sqflite_common_ffi` / `sqlite3` 原生依赖，避免新机器缺少 SQLite 动态库导致界面闪退。
 排查点击文件预览卡顿时，先在 设置 → 通用 → 日志设置 把日志等级切到“调试”，再在 `~/.cloud-volume/runtime/logs/bridge.log` 搜索 `[app/preview]`；日志会显示 `headObject`、cache index、缓存文件校验、下载任务和读取预览 bytes 的分段耗时。未手动设置时，开发调试版默认采集调试日志，正式发布版默认保持安静；采集结束后可切回“安静”或“常规”，避免正式环境长期写入高频诊断日志。
+排查 Windows 挂载目录与客户端列表不一致时，同样先启用“调试”日志，再复现一次进入空目录的操作。日志文件位于 `%USERPROFILE%\.cloud-volume\runtime\logs\bridge.log`；搜索 `[mount/cloud-files] fetch-placeholders` 可核对本地目录到远端前缀的映射、返回条目数和回调错误，搜索 `retained-directory` 可确认复用缓存中的目录是重新启用按需枚举还是从普通目录修复为云占位目录。
 如果本机配置了 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，请确保 `NO_PROXY` 包含 `127.0.0.1,localhost`；仓库自带的 `scripts/run_windows.ps1` 会自动补上这两个值，避免 `flutter run` 通过代理去连接本地 Dart VM service 而导致调试连接提前断开。
 
 Linux 本地启动前提：

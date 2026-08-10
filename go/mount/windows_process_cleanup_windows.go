@@ -60,7 +60,7 @@ foreach ($process in $processes) {
 Write-Output $killed
 `, escapedGlob, currentPID)
 
-	cmd := exec.Command(exePath, "-NoProfile", "-Command", script)
+	cmd := hiddenWindowsCommand(exePath, "-NoProfile", "-Command", script)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
