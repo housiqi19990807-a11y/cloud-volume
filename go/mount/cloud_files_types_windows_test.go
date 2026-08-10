@@ -20,6 +20,19 @@ func TestCloudFilesLocalPathToVirtual(t *testing.T) {
 	}
 }
 
+func TestCloudFilesLocalPathToVirtualRejectsOutsideRoot(t *testing.T) {
+	root := filepath.Clean(`C:\Users\demo\Cloud Volume\bucket`)
+	if _, ok := cloudFilesLocalPathToVirtualChecked(root, `C:\Users\demo\other`); ok {
+		t.Fatal("path outside the sync root must be rejected")
+	}
+	if _, ok := cloudFilesLocalPathToVirtualChecked(root, `D:\bucket\docs`); ok {
+		t.Fatal("path on another volume must be rejected")
+	}
+	if got, ok := cloudFilesLocalPathToVirtualChecked(root, filepath.Join(root, "docs")); !ok || got != "docs" {
+		t.Fatalf("valid child = %q, ok=%t; want docs, true", got, ok)
+	}
+}
+
 func TestWindowsPathStateRebase(t *testing.T) {
 	t.Parallel()
 

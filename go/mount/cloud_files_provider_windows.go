@@ -132,6 +132,11 @@ func (p *cloudFilesProvider) CreatePlaceholders(baseDir string, items []cloudPla
 	for _, item := range items {
 		localPath := filepath.Join(baseDir, filepath.FromSlash(item.RelativePath))
 		if _, err := os.Lstat(localPath); err == nil {
+			if item.IsDirectory {
+				if err := p.repairExistingDirectoryPlaceholder(localPath, item); err != nil {
+					return err
+				}
+			}
 			continue
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("stat placeholder target %q: %w", item.RelativePath, err)
@@ -194,6 +199,7 @@ func (p *cloudFilesProvider) UpdatePlaceholder(
 		C.LPCVOID(unsafe.Pointer(identity)),
 		C.DWORD(len(item.FileID)),
 		dehydrate,
+		C.int(boolToInt(item.IsDirectory)),
 	)
 	if hr != 0 {
 		if uint32(hr) == cloudFilesNotACloudFile {
