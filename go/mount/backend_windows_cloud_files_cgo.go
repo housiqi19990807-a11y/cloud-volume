@@ -398,10 +398,16 @@ func (b *windowsCloudFilesBackend) handleRename(
 			return
 		}
 		isDir := watcher.IsDir(newPath)
-		watcher.MarkHydrating(oldPath)
-		watcher.MarkHydrating(newPath)
+		watcher.MarkRenameSource(oldPath, isDir)
 		watcher.Rebase(oldPath, newPath, isDir)
-		if err := session.access.renamePath(context.Background(), oldVirtual, newVirtual, isDir); err != nil {
+		if err := session.access.enqueueRenamePath(
+			oldVirtual,
+			newVirtual,
+			oldPath,
+			newPath,
+			isDir,
+			nil,
+		); err != nil {
 			session.lastError = err.Error()
 		}
 	}

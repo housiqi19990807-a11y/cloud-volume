@@ -118,6 +118,11 @@ func (w *windowsSyncWatcher) MarkHydrated(localPath string) {
 	w.state.markHydrated(localPath)
 }
 
+// MarkRenameSource suppresses stale old-path events while leaving the renamed tree writable.
+func (w *windowsSyncWatcher) MarkRenameSource(localPath string, isDir bool) {
+	w.state.ignore(localPath, windowsCFEventIgnoreTTL, isDir)
+}
+
 func (w *windowsSyncWatcher) IsDir(localPath string) bool {
 	if info, err := os.Stat(localPath); err == nil {
 		return info.IsDir()

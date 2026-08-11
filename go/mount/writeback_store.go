@@ -61,12 +61,14 @@ func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
 		return nil, fmt.Errorf("create writeback worker pool: %w", err)
 	}
 	q := &writebackQueue{
-		store:    store,
-		storeKey: storeDir,
-		entries:  map[string]*pendingWriteback{},
-		running:  map[string]*pendingWriteback{},
-		queue:    make(chan *pendingWriteback, 512),
-		pool:     pool,
+		store:       store,
+		storeKey:    storeDir,
+		entries:     map[string]*pendingWriteback{},
+		running:     map[string]*pendingWriteback{},
+		queue:       make(chan *pendingWriteback, 512),
+		renameQueue: make(chan *queuedWritebackRename, 64),
+		stop:        make(chan struct{}),
+		pool:        pool,
 	}
 	q.attach(access)
 	if err := q.restorePersistedEntries(); err != nil {
@@ -75,6 +77,8 @@ func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
 	}
 	q.wg.Add(1)
 	go q.dispatch()
+	q.renameWG.Add(1)
+	go q.dispatchRenames()
 
 	globalWritebackRegistry.mu.Lock()
 	globalWritebackRegistry.queues[storeDir] = q

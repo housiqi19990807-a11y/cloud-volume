@@ -197,20 +197,26 @@ func (a *bucketAccess) release() {
 }
 
 type writebackQueue struct {
-	accessMu sync.RWMutex
-	access   *bucketAccess
-	store    *writebackStore
-	storeKey string
-	mu       sync.Mutex
-	entries  map[string]*pendingWriteback
-	running  map[string]*pendingWriteback
-	closed   bool
-	draining bool
-	drainErr error
-	queue    chan *pendingWriteback
-	pool     *ants.Pool
-	quiet    time.Duration
-	wg       sync.WaitGroup
+	accessMu      sync.RWMutex
+	access        *bucketAccess
+	store         *writebackStore
+	storeKey      string
+	mu            sync.Mutex
+	entries       map[string]*pendingWriteback
+	running       map[string]*pendingWriteback
+	generation    uint64
+	barriers      []*writebackBarrier
+	sourceRebases []writebackSourceRebase
+	closed        bool
+	draining      bool
+	drainErr      error
+	queue         chan *pendingWriteback
+	renameQueue   chan *queuedWritebackRename
+	stop          chan struct{}
+	pool          *ants.Pool
+	quiet         time.Duration
+	wg            sync.WaitGroup
+	renameWG      sync.WaitGroup
 }
 
 type pendingWriteback struct {
@@ -224,6 +230,7 @@ type pendingWriteback struct {
 	discard         bool
 	queued          bool
 	retryCount      int
+	generation      uint64
 }
 
 func newWritebackQueue(access *bucketAccess) (*writebackQueue, error) {

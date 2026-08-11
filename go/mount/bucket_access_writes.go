@@ -164,6 +164,44 @@ func (a *bucketAccess) renamePath(
 	return nil
 }
 
+func (a *bucketAccess) enqueueRenamePath(
+	oldVirtualPath,
+	newVirtualPath,
+	oldLocalPath,
+	newLocalPath string,
+	isDir bool,
+	reportAttempt func(error),
+) error {
+	oldClean := cleanVirtualPath(oldVirtualPath)
+	newClean := cleanVirtualPath(newVirtualPath)
+	if err := a.readOnlyError(); err != nil {
+		return err
+	}
+	if oldClean == "" || newClean == "" {
+		return fmt.Errorf("source and target paths are required")
+	}
+	if a.overlay.handles(oldClean) || a.overlay.handles(newClean) || a.overlay.isTrashPath(newClean) {
+		return fmt.Errorf("queued rename requires two mounted bucket paths")
+	}
+	if err := a.hiddenTrashError(oldClean); err != nil {
+		return err
+	}
+	if err := a.hiddenTrashError(newClean); err != nil {
+		return err
+	}
+	return a.writeback.enqueueRename(
+		oldClean,
+		newClean,
+		oldLocalPath,
+		newLocalPath,
+		isDir,
+		func() error {
+			return a.renamePath(context.Background(), oldClean, newClean, isDir)
+		},
+		reportAttempt,
+	)
+}
+
 func (a *bucketAccess) remoteFileExists(ctx context.Context, virtualPath string) bool {
 	_, err := a.backend.HeadObject(ctx, a.bucket, a.remoteKey(virtualPath))
 	return err == nil

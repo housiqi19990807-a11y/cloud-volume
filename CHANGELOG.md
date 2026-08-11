@@ -5,6 +5,7 @@
 - 允许为每个桶自定义 WinFsp 挂载盘符名称（留空则使用默认值）。
 
 - Fixed mounting a bucket from a non-default account with a different Windows mount engine creating a duplicate `default` profile and duplicate bucket rows. WinFsp mounts now query the provider quota API and report its total/free values to Explorer, using the configured virtual capacity only when the provider does not expose quota data.
+- Windows Cloud Files writeback now serializes uploads with directory renames, rebases local upload sources after a rename, retries remote renames, and avoids permanently suppressing watcher events below the renamed directory.
 
 - 修复 Windows Cloud Files 重挂载后客户端能看到文件、但 Explorer 中部分目录为空：复用缓存里的目录现在会重新启用按需枚举；如果目录已退化为普通 NTFS 目录，则原地转换回云占位目录并保留现有内容。并发目录枚举会传递真实失败结果，不再把一次失败误记为“已完整加载”。
 - 修复 Windows 挂载、卸载及退出清理时短暂闪出多个黑色控制台窗口：`subst`、`net use`、`sc` 和 PowerShell 辅助进程统一以隐藏且不创建控制台窗口的方式运行。

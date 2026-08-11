@@ -214,13 +214,16 @@ func (q *writebackQueue) triggerTask(taskID string) bool {
 		entry.queued = true
 		break
 	}
-	queue := q.queue
 	q.mu.Unlock()
 	if entry == nil {
 		return false
 	}
-	queue <- entry
-	return true
+	select {
+	case q.queue <- entry:
+		return true
+	case <-q.stop:
+		return false
+	}
 }
 
 func (q *writebackQueue) shutdown() error {
@@ -230,6 +233,7 @@ func (q *writebackQueue) shutdown() error {
 		return nil
 	}
 	q.closed = true
+	close(q.stop)
 	for key, entry := range q.entries {
 		if entry.timer != nil {
 			entry.timer.Stop()
@@ -237,10 +241,9 @@ func (q *writebackQueue) shutdown() error {
 		entry.queued = false
 		delete(q.entries, key)
 	}
-	queue := q.queue
 	q.mu.Unlock()
 
-	close(queue)
+	q.renameWG.Wait()
 	q.wg.Wait()
 	q.closeResources()
 	return nil
@@ -365,7 +368,10 @@ func (q *writebackQueue) enqueueDrainEntry(entry *pendingWriteback) {
 	if entry == nil {
 		return
 	}
-	q.queue <- entry
+	select {
+	case q.queue <- entry:
+	case <-q.stop:
+	}
 }
 
 func (q *writebackQueue) drainRunningProgress() string {
