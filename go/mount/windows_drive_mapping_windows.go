@@ -6,7 +6,6 @@ package mount
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -69,7 +68,7 @@ func assignWindowsDriveLetter(targetPath, requestedDrive string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	output, err := exec.Command("subst.exe", drive, target).CombinedOutput()
+	output, err := hiddenWindowsCommand("subst.exe", drive, target).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("map %s to %q: %w: %s", drive, target, err, strings.TrimSpace(string(output)))
 	}
@@ -140,7 +139,7 @@ func removeWindowsDriveLetter(drivePath, expectedTarget string) error {
 				expectedTarget,
 			)
 		}
-		output, removeErr := exec.Command("subst.exe", drive, "/D").CombinedOutput()
+		output, removeErr := hiddenWindowsCommand("subst.exe", drive, "/D").CombinedOutput()
 		if removeErr != nil {
 			return fmt.Errorf("remove drive mapping %s: %w: %s", drive, removeErr, strings.TrimSpace(string(output)))
 		}
@@ -150,7 +149,7 @@ func removeWindowsDriveLetter(drivePath, expectedTarget string) error {
 }
 
 func listWindowsDriveMappings() ([]windowsDriveMapping, error) {
-	output, err := exec.Command("subst.exe").CombinedOutput()
+	output, err := hiddenWindowsCommand("subst.exe").CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("list drive mappings: %w: %s", err, strings.TrimSpace(string(output)))
 	}

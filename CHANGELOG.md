@@ -4,6 +4,24 @@
 
 - Fixed mounting a bucket from a non-default account with a different Windows mount engine creating a duplicate `default` profile and duplicate bucket rows. WinFsp mounts now query the provider quota API and report its total/free values to Explorer, using the configured virtual capacity only when the provider does not expose quota data.
 
+- 修复 Windows Cloud Files 重挂载后客户端能看到文件、但 Explorer 中部分目录为空：复用缓存里的目录现在会重新启用按需枚举；如果目录已退化为普通 NTFS 目录，则原地转换回云占位目录并保留现有内容。并发目录枚举会传递真实失败结果，不再把一次失败误记为“已完整加载”。
+- 修复 Windows 挂载、卸载及退出清理时短暂闪出多个黑色控制台窗口：`subst`、`net use`、`sc` 和 PowerShell 辅助进程统一以隐藏且不创建控制台窗口的方式运行。
+- 账号管理新增「状态」列：进入页面时并发探测每个启用账号的可达性（调用 `list_buckets`，复用已加的 3 秒拨号超时、不重试、20 秒负缓存路径，坏账号不拖累好账号），显示 正常 / 连接失败（悬停可看错误详情） / 已禁用 / 检测中。禁用账号直接标「已禁用」不发探测。
+- 文件管理页某个账号暂时无法访问时，错误条的「重新配置认证信息」改为「账号管理」——点击直接跳转到账号管理页，用户可在同一处编辑、禁用或重新启用出问题的账号，不再就地弹单账号编辑器。
+- 新增账号禁用：账号管理页每个账号行新增「启用/禁用」开关。禁用的账号不会出现在文件管理页/全局回收站的桶列表、不连接后端、不启动 P2P，但仍保留在账号管理页（标题标注「已禁用」），可随时重新启用。默认所有账号启用，禁用是用户主动操作。适合暂时不想连的账号（比如已知连不上的上游），避免它拖累存储桶加载。
+- 修复上游不可达时仍要等满超时才返回（实测 S3 首次从 ~9s 降到 ~6s，缓存命中后 ~3s，负缓存命中后 0s）：根因有三层。① 所有 HTTP transport 没有 TCP 拨号超时，遇到丢包型不可达（网关关机、防火墙 DROP，而非 RST 拒绝）时 macOS 上要等 OS 的 TCP SYN 重试 ~75 秒，只有请求 ctx 能砍断——现在 `ProxyTransport`/`jwanfs` 统一加 3 秒 `DialContext`，S3 client 在 system/inherit 模式也改用带超时的 HTTP client。② AWS SDK 默认对 ListBuckets 重试 3 次，每次都等拨号超时——现在 ListBuckets 用不重试的 client（`NewListBucketsClient`），失败一次就进负缓存。③ JWanFS 网关探测在不可达时会 Refresh + AuthInfo 各拨一次（6s），探测超时从 10s 降到 3s（够一次拨号判定）。RST「连接拒绝」不受影响仍立即返回，3 秒超时只管丢包场景。
+- 局域网 P2P 同步改为默认关闭的实验功能：之前 P2P 默认开启，在没有组播路由的网卡（en0/en1）上每 2 分钟刷一次 `no route to host`，多账号还会倍数放大。现在新账号/新配置默认 `p2pEnabled=false`，不启动 mDNS，刷屏从源头消失；已在配置里显式开启的用户保留原状。需要时可在「设置 → 局域网同步」手动打开（标注「实验功能 · 默认关闭」）。
+- 修复多个上游连不上时存储桶列表仍要等很久才返回、且每次进页面都重新拨号：Go 端 `list_buckets` 现在走 `ListBucketsDedup`——singleflight 把同一账号的并发调用（文件管理 + 全局回收站 + 配额预取）合并成一次拨号，失败后按账号缓存 20 秒（负缓存），期间不再拨号直接返回上次错误。S3 `ListBuckets` 超时从 15 秒降到 8 秒。用户主动点「返回桶列表」或错误页「重试」会带 `force=true` 绕过负缓存立即重试已修复的账号。
+- 修复 macOS 挂载后提示成功、但访达看不到卷、点「打开目录」卡住：根因是空挂载路径走 `osascript "mount volume"` 异步分支——它在内核登记卷后立即返回，但 webdavfs_agent 的实际握手要 ~90 秒，probe 在 mount 表提前命中并 cancel 了 osascript，卷"登记了却永远没就绪"。现在 `session.start()` 改传已解析的 `mountPath`（默认 `/Volumes/云卷-<bucket>`），统一走同步的 `/sbin/mount_webdav`——它返回时卷真正可用；osascript 分支和 `appleScriptStringLiteral` 已彻底移除。`mountWebDAV` 拒绝空路径，防止再退回 fire-and-forget。
+- 修复多账号存储桶列表因某个上游连不上而整页卡死：Flutter 端 `BucketSourceService` 的 `loadProfile` 与 `listBuckets` 改为 `Future.wait` 并发、按账号 try/catch 隔离，坏账号进独立「重新配置」错误条、好账号正常显示；每个调用加 40 秒超时兜底。Go bridge `list_buckets` 用 `context.Background()` 改为 30 秒超时 ctx；S3 client 构造期的 JWanFS 网关探测（`IsJWanFSGateway`）与 `NewClient` 的 `balancer.Refresh` 此前都用无超时 ctx，不可达 endpoint 会卡在 OS 级 TCP 超时（1-2 分钟），现统一加 10 秒构造期上限，失败走已有直连 fallback。
+- 修复 macOS（尤其 SFTP）点击挂载后提示成功、但访达看不到卷、再点「打开目录」无响应卡住：根因是「提速」轮询用挂载点路径名作为成功信号，而 `parseMountPoint` 解析 `mount -t webdav` 时丢弃了源 URL，导致残留同名卷、其它进程的同名卷、或请求路径分支 `MkdirAll` 出来的目录都能被误判为本次挂载成功，真正的 `mount_webdav` 反被取消。现在 `parseMountEntry` 同时保留源 URL 与路径，挂载成功判定要求源 URL（含 `127.0.0.1:<随机端口>`）严格相等，残留/同名/异端口卷一律拒绝；匹配失败会继续等真正的卷出现，超时则如实返回失败，不再误报成功。`prewarmWebDAVMount` 的 `os.Stat`/`os.ReadDir` 同时加了 30 秒上限，避免 webdavfs 卡死时泄漏后台 goroutine。
+- 修复 macOS P2P mDNS 在没有组播路由的 `en0`/`en1` 上持续刷 `no route to host`：对 `ENETUNREACH`/`EHOSTUNREACH` 按接口共享 2 分钟退避，同一故障不再随多账号和 30 秒发现周期重复刷日志；网络恢复后自动重试。
+- 修复 macOS 挂载后「打开目录」卡住约 90 秒无响应：Finder 打开 WebDAV 卷时 `open` 命令的 stdout/stderr 被 LaunchServices 继承，`CombinedOutput` 即使在 context 超时后仍被管道阻塞。改为完全分离进程（Stdout/Stderr → /dev/null + Setpgid），最多等 3 秒即返回，Finder 在后台异步出现。
+- 修复 Finder/Spotlight 递归扫描后 SFTP 挂载持续刷新深层目录：SFTP 现在关闭 P0 后台远端目录轮询，避免每 5 秒为最多 12 个活跃路径重复建立 SSH/SFTP 连接并挤占写回链路；用户主动打开目录仍按需读取。挂载配额缓存过期后不再丢弃最后一次已知容量，首次 WebDAV `PROPFIND` 会立即使用旧值、异步刷新，并在刷新暂时失败时继续保留可用容量。
+- 修复 macOS WebDAV 挂载向 SFTP 上游写入小文件异常缓慢：Finder 的 `PROPPATCH` 元数据探测不再误走内容暂存/下载/回写流程，新建目录或新鲜目录列表内的目标缺失探测也直接由本地视图返回，不再为每个文件同步建立 SFTP 连接做 `stat`；正常 `PUT` 仍先写本地缓存并按单文件 quiet period 异步上传。SFTP 上传会同步更新共享传输任务的进度与完成/失败状态，不再在远端已写入、持久化队列已清空后仍显示“等待同步”长达 10 分钟。
+- macOS WebDAV 挂载根目录现在通过 RFC 4331 返回 `quota-available-bytes` 与 `quota-used-bytes`，优先使用桶自定义容量并复用上游实际配额/已用量，让 `df` 不再在已有容量信息时显示 `0/0`。桶列表的配额结果现在同时进入 Go 后端 5 分钟共享缓存；缓存身份只包含协议、endpoint、凭据、端口、provider 与代理等上游连接字段，缓存目录、RootPrefix、挂载参数或显示设置不同仍可初始化首次 `PROPFIND`。无缓存时仍立即挂载并异步刷新。
+- 修复 macOS 显示“正在处理挂载”固定约 20 秒：`osascript` / `mount_webdav` 执行期间并行轮询 WebDAV mount 表，卷一出现就取消命令并返回，不再等命令超时。Finder 打开请求改为异步单飞，重复点击不会堆积多个不可中断的 `open` 进程；卸载先断开系统卷，成功后才停止本地 WebDAV，卸载失败会保留服务和会话，避免形成无后端死卷。SFTP SSH 建连与握手也改为响应请求上下文，目录枚举不会突破挂载层超时。
+- FTP 与 WebDAV 上游上传现在和 SFTP 共用传输任务跟踪器，按读取字节更新进度并在成功/失败时结束任务；挂载写回完成后不再残留 10 分钟的“等待同步”状态。
 - 修复多账号 P2P 发现互相不可见：4 个账号各自创建独立的 mDNS Server 导致 UDP 5353 端口冲突，实际只有部分指纹在广播。改为共享一个 mDNS socket，多个账号指纹复用同一端口注册各自的 SRV/TXT 记录；同时禁用 IPv6 mDNS 查询并静默 hashicorp/mdns 的 IPv6 监听失败日志，消除无 IPv6 路由环境下的错误刷屏。
 - 修复多网卡设备发现不到对端：mDNS 查询不再只走默认网卡，改为对所有有 IPv4 地址且支持组播的网卡分别查询，解决 VMware 桥接虚拟机绑在副网卡（如 en1）时宿主主机发现不到的问题。
 - 修复局域网 P2P 多账号发现的指纹不稳定问题：manager 生命周期不再对整个配置 JSON 做哈希（配置里的时间戳、缓存目录等非凭证字段会导致备份还原后指纹变化），改为只对存储类型 + endpoint + 账号 + 密钥做哈希，时间戳变化不再影响发现。
@@ -16,6 +34,12 @@
 - 配置备份：设置页新增加密远端配置备份。加密密钥改为从用户自设的备份密码派生（不再依赖连接凭证，换机器、换 endpoint 都能解密），开启备份时必须设置密码。新机器首次启动可从备份存储还原。顶部「开启备份」开关控制功能启停；开启后才显示备份存储设置，目标可选已有账号或走简化流程配置独立备份存储（仅选协议+连接凭证，不显示在账号列表）。保存位置改为单个远程目录选择器一次选定 bucket 与目录，移除了两个手动输入框。备份历史通过可点击摘要卡片打开拟态框查看，并支持二次确认还原账号、全局代理和显示排序。首次启动的「从备份存储还原」入口如检测到本地无已配置备份目标，会先引导连接一个备份存储（选协议+填凭证+选保存位置），再用该临时目标列出远端快照并还原；备份列表会探测每个快照的加密状态，加密快照显示锁标识并在还原前提示输入备份密码（密码会随还原结果一起写入系统设置）；还原成功后该备份存储（含备份密码）自动写入系统设置并开启自动备份，后续配置变更继续备份到同一位置。
 - 挂载同步：新增 P0 远端轮询兜底。挂载会话只刷新近期打开的目录，活跃轮询间隔可在「设置 → 同步设置」配置（默认 5 秒、范围 1 秒至 5 分钟），并自动退避；文件管理列表会对所有活动挂载（包括 WebDAV）复用同一份 local-first 目录视图，并以短时稳定快照分页，避免待写回条目与挂载盘显示不一致、目录变化时翻页重复或漏项。Windows Cloud Files 将其他客户端新建的条目投影为占位符，Linux FUSE、WinFsp 和 WebDAV 在下一次读取目录时使用新缓存。不会后台扫描整桶或丢弃本地待写回项。
 - Windows 挂载：严格只读挂载改为强制 WinFsp，Cloud Files 后端拒绝伪只读会话；卸载确认框新增打开文件风险说明和“同时删除默认 Cloud Files 本地缓存”选择。文件仍被占用时，挂载会安全解除并在状态中提示缓存未能清理。
+- Windows Cloud Files：远端轮询和 Explorer 的重复目录请求现在会用 `CfUpdatePlaceholder` 更新已存在的占位符元数据，并将远端变更的文件脱水，下一次读取重新拉取内容；新建和远端删除也会投影到已打开目录。待写回或正在上传的本地文件始终跳过，避免跨端刷新覆盖本地修改。
+- Windows 挂载容量：Cloud Files 不再提供 `subst` 映射盘符，因为该入口只能显示宿主磁盘容量。需要在资源管理器显示桶级配额时，挂载对话框会引导使用 WinFsp 虚拟卷及盘符。
+- Windows 重挂载：强制卸载后若 Explorer/Office 等仍占用 Cloud Files 缓存，陈旧清理会注销同步根但保留无法删除的目录，下一次挂载复用该稳定根目录而不再失败。
+- Linux 挂载权限：FUSE 根目录、目录项和文件属性现在显式使用当前进程 UID/GID，与 `default_permissions` 配合，避免 Windows 端写入后 Linux 挂载显示为 root 所有并拒绝当前用户修改。
+- 文件操作：Windows 外部应用打开不再把文件路径作为带引号的 `cmd start` 参数传递，修复预览/打开缓存文件时提示找不到路径；复制、移动改为远端目录选择器，选定目录后自动保留源文件名。
+- 对象重命名：目录重命名复制成功后直接删除复制计划中捕获的源键集合，不再重新列举源前缀，避免 S3 兼容服务的延迟列表让旧文件与新文件并存。
 - 回收站：恢复操作现在携带原始路径和目录标识通知活动挂载，清除 tombstone 并重新投影 Cloud Files 占位符，恢复后的文件/目录可继续删除和重命名。
 - 账号：编辑时未填写的 Secret/密码会保持已保存值；修改 S3 AK/SK 后显示独立鉴权按钮，验证失败不会覆盖原账号配置。文件管理桶聚合改为单账号鉴权失败不阻塞其他账号，并提供针对失效账号的重新配置入口。
 - 修复 FTP/SFTP 与配额加载回归：SFTP 删除目录现在递归清理非空子树；桶配额请求继续并发执行，并限制每项 10 秒，避免单个不可用账户无限阻塞桶列表；带 `RootPrefix` 的后端保留配额能力转发并新增回归测试。既有 S3 调用统一经 JWanFS failover SDK 选择活动网关，随后继续使用 AWS SDK v2 执行实际请求。

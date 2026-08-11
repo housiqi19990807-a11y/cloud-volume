@@ -281,13 +281,20 @@ extension _FileManagerPageActions on _FileManagerPageState {
         return;
       }
       if (action == FileObjectAction.copy || action == FileObjectAction.move) {
-        final targetPath =
+        final targetDirectory =
             overrideTargetPath ??
             await showObjectTargetPathDialog(
               context,
               object,
-              move: action == FileObjectAction.move,
+              api: widget.api,
+              bucket: _activeBucketEntry!,
+              initialPrefix: _prefix,
             );
+        final targetPath =
+            overrideTargetPath ??
+            (targetDirectory == null
+                ? null
+                : objectTargetPathInDirectory(targetDirectory, object));
         if (targetPath == null ||
             targetPath.isEmpty ||
             targetPath == object.key) {

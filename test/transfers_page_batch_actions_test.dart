@@ -240,7 +240,10 @@ class _TransfersPageFakeApi implements RemoteStorageGateway {
       throw UnimplementedError();
 
   @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async =>
+  Future<List<BucketInfo>> listBuckets(
+    RemoteStorageConfig config, {
+    bool force = false,
+  }) async =>
       throw UnimplementedError();
 
   @override

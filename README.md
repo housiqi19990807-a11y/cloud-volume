@@ -36,7 +36,7 @@ S3 账号支持 endpoint、access key、secret key、region 和 path-style URL �
 
 ![远端文件浏览](docs/screenshots/file-page.png)
 
-常用 bucket 可以挂载到本地目录，按系统文件管理器的方式读写远端对象；读写会先使用本地缓存和写回队列，再异步同步到远端。
+常用 bucket 可以挂载到本地目录，按系统文件管理器的方式读写远端对象；读写会先使用本地缓存和写回队列，再异步同步到远端。macOS Finder 批量写入新目录时，目标存在性探测也由本地目录视图回答，避免 SFTP 等高握手延迟上游退化为每个小文件一次远端查询。
 
 ![挂载存储桶](docs/screenshots/mount.png)
 
@@ -46,11 +46,11 @@ S3 账号支持 endpoint、access key、secret key、region 和 path-style URL �
 
 ## 核心能力
 
-- 多账号与多后端：统一管理 S3 兼容对象存储、WebDAV、百度网盘以及 FTP/SFTP 账号；首次启动、账号管理和文件管理都围绕同一套 profile 流程展开。每个账号可单独选择跟随全局代理、跟随系统、直连或自定义 HTTP/SOCKS5 代理，并可用统一的桶 allowlist、显示名称与入口子目录控制文件管理视图。FTP/SFTP 支持自定义端口和匿名登录。
+- 多账号与多后端：统一管理 S3 兼容对象存储、WebDAV、百度网盘以及 FTP/SFTP 账号；首次启动、账号管理和文件管理都围绕同一套 profile 流程展开。每个账号可单独选择跟随全局代理、跟随系统、直连或自定义 HTTP/SOCKS5 代理，并可用统一的桶 allowlist、显示名称与入口子目录控制文件管理视图。FTP/SFTP 支持自定义端口和匿名登录。账号管理页可对单个账号启用/禁用——禁用的账号不会出现在文件管理页、不连接后端，但仍保留可随时重新启用。
 - 配置备份：桌面端可在「设置 → 配置备份」把账号、代理和显示排序加密保存到指定远端存储；顶部开关控制功能启停，关闭时隐藏目标设置。加密采用用户自设的备份密码（不依赖连接凭证，换机器、换网络地址都不影响解密），新机器首次启动可从备份存储还原。目标可选已有账号，或点击「独立备份存储」后走简化配置流程（只选协议+填连接凭证，无需名称和桶映射），不显示在账号列表。保存位置改为单个远程目录选择器一次选定 bucket 与目录。开启后配置变更会自动备份，也可手动立即备份；备份历史通过可点击摘要打开拟态框查看并一键还原。新机器首次启动的「从备份存储还原」入口会先引导用户连接一个备份存储（如本地无已配置目标），再列出远端快照；加密的快照会显示锁标识并在还原前提示输入备份密码；还原成功后该备份目标（含备份密码）会自动保存到系统设置并开启自动备份，后续配置变更继续自动备份到同一位置。
 - 文件管理：聚合 bucket / 根目录、目录浏览、列表/网格视图、搜索、多选、右键菜单、拖拽上传、粘贴上传、复制、移动、重命名、新建目录、下载和批量删除。
 - 预览与缓存：桌面端支持图片预览、外部应用打开、另存为和下载；已下载文件会复用本地缓存，本地拖拽或粘贴上传成功后也会把本地副本登记为预览缓存，刚上传的文件双击即可打开。
-- 桌面挂载：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV、Cloud Files 与可选的 WinFsp 虚拟文件系统卷；文件管理列表在活动挂载时复用同一份 local-first 目录视图，长目录分页固定在短时目录快照上，避免待写回文件与挂载盘显示不一致，也避免翻页时重复或漏项。活动目录会以退避间隔轮询远端，作为多客户端变更发现的基础，活跃轮询间隔可在「设置 → 同步设置」配置。Windows 严格只读会自动使用 WinFsp，避免 Explorer 产生仅本地的伪成功写入。卸载 Cloud Files 时可选择保留或删除默认同步目录的本地缓存，并会提示先关闭占用文件。桶级自定义配额会作为 Linux FUSE / Windows WinFsp 的文件系统总容量返回；WinFsp 未设置桶配额时回退到 Windows 高级设置中的全局虚拟容量。驱动缺失时支持应用内一键静默安装（内嵌 MSI）。
+- 桌面挂载：macOS 通过系统 WebDAV 卷挂载，Linux 通过 FUSE 挂载，Windows 支持 WebDAV、Cloud Files 与可选的 WinFsp 虚拟文件系统卷；文件管理列表在活动挂载时复用同一份 local-first 目录视图，长目录分页固定在短时目录快照上，避免待写回文件与挂载盘显示不一致，也避免翻页时重复或漏项。活动目录会以退避间隔轮询远端，作为多客户端变更发现的基础，活跃轮询间隔可在「设置 → 同步设置」配置。Windows 严格只读会自动使用 WinFsp，避免 Explorer 产生仅本地的伪成功写入。Cloud Files 使用同步目录路径，不再提供会错误显示宿主磁盘容量的 `subst` 盘符；需要资源管理器显示桶级容量时选择 WinFsp。卸载 Cloud Files 时可选择保留或删除默认同步目录的本地缓存，并会提示先关闭占用文件；占用导致缓存删除失败时，挂载已安全解除，下一次会复用该根目录。桶级自定义配额会作为 Linux FUSE / Windows WinFsp 的文件系统总容量返回；WinFsp 未设置桶配额时回退到 Windows 高级设置中的全局虚拟容量。驱动缺失时支持应用内一键静默安装（内嵌 MSI）。
 - 文件同步：本地目录可定期同步到远端桶目录，支持上传、下载、双向同步、冲突策略、静默期、删除传播、重命名识别和空目录处理。跨客户端变更发现的 P2P 分期设计见 [docs/P2PSyncDesign.md](docs/P2PSyncDesign.md)。
 - 任务队列：上传、下载、复制、移动、删除、挂载懒加载读取、挂载写回和文件同步任务都进入统一队列，支持进度展示、筛选、取消、重试、前台弹框与后台执行。
 - 回收站与分享：提供应用级软删除、全局/桶级回收站、恢复、彻底删除、清空回收站，以及预签名分享链接的创建、续期、复制和删除。删除确认拟态框可在软删除时切换「永久删除」直接绕过回收站；目录删除按对象数实时显示确定进度条。移动/重命名/软删除/硬删除的源清理使用枚举时固定的 key 列表，并始终显式包含目录自身的 `dir/` 占位 key，避免某些 S3 兼容服务在递归列举时返回子文件却省略目录占位、导致源清理后留下空目录、重启后又重新出现的问题。软删除/移动/重命名的逐对象服务端复制与源删除自带容错重试，单个对象的临时性网关错误（502/超时等）不会直接中止整个目录操作。
@@ -63,12 +63,12 @@ S3 账号支持 endpoint、access key、secret key、region 和 path-style URL �
 - UI 基于 `shadcn_ui`，避免混用多套桌面/Material 风格控件。
 - 主界面围绕“文件管理、账号管理、任务队列、回收站、分享管理、系统设置”六类核心页面展开。
 - 列表页头部在批量选中后右侧操作按钮较多时，会自动按可用宽度把次要操作收进“…”更多操作下拉菜单，避免挤压标题导致副标题错位断行；回收站选中态仅显示已选数量、批量恢复和批量彻底删除，不再额外显示“清空选择”，操作区与普通状态保持相同高度。
-- 账号管理页直接展示所有账号，并保留和桶列表一致的卡片 / 表格视图切换；列表视图可拖拽调整账号顺序（顺序会持久保存）；新增和编辑账号默认打开应用内拟态框（`showAppModal`）；仅在 Debug 且开启 `USE_MODAL_SUB_WINDOWS` 时才使用独立 OS 子窗口。新增表单采用三步式引导——选择接入协议、填写连接信息或完成 OAuth、设置桶列表显示；编辑模式跳过协议选择，直接进入连接信息。账号添加后会直接共存，不需要额外”连接”或切换当前账号。
+- 账号管理页直接展示所有账号，并保留和桶列表一致的卡片 / 表格视图切换；列表视图可拖拽调整账号顺序（顺序会持久保存）；新增和编辑账号默认打开应用内拟态框（`showAppModal`）；仅在 Debug 且开启 `USE_MODAL_SUB_WINDOWS` 时才使用独立 OS 子窗口。新增表单采用三步式引导——选择接入协议、填写连接信息或完成 OAuth、设置桶列表显示；编辑模式跳过协议选择，直接进入连接信息。账号添加后会直接共存，不需要额外”连接”或切换当前账号。每个账号行有「状态」列：进入页面时并发探测可达性（正常 / 连接失败 / 检测中），禁用的账号直接显示「已禁用」。
 - 文件管理首页会聚合展示所有已保存账号下的 bucket / 根目录，并在“来源”列明确标出账号名；列表和网格中的每个桶都显示容量进度条。WebDAV / 百度网盘按服务端已用容量填充并可悬浮查看详情；仅设置自定义总额度的 S3 显示中性空轨道和“用量未知”，没有任何总额度时显示同样的空轨道和“未设置额度”。桶设置中的自定义容量只覆盖总容量。列表视图可拖拽调整桶顺序（顺序会持久保存），方便直接并行管理多个上游。
 - 设置页可配置缓存目录；未自定义时使用工作路径下的 `cache/`，文件预览缓存和挂载读写缓存都会归到这个根目录下。
 - 设置页可配置挂载写入后的异步推送等待时间，默认 10 秒，适合想让本地保存更快回传远端的桌面工作流。
 - 设置页可配置挂载元数据缓存策略：默认启用 1 分钟缓存，也可以直接关闭，关闭后目录浏览和文件信息读取会始终请求远端。
-- 设置页里的回收站目录仍是全局默认值，并提供“自动清理”显式开关与保留天数；每个桶还可以在文件管理首页的“桶设置”里单独覆盖回收站目录、直接关闭回收站，或填写自定义配额（GB）。自定义配额会覆盖列表中的服务端配额，并在重新挂载后同步到 Linux FUSE / Windows WinFsp 的文件系统容量统计；它不会限制上传，0 或留空表示使用服务端配额（如支持）。Cloud Files 与 WebDAV 挂载的容量由宿主文件系统或 WebDAV 客户端决定。
+- 设置页里的回收站目录仍是全局默认值，并提供“自动清理”显式开关与保留天数；每个桶还可以在文件管理首页的“桶设置”里单独覆盖回收站目录、直接关闭回收站，或填写自定义配额（GB）。自定义配额会覆盖列表中的服务端配额，并在重新挂载后同步到 Linux FUSE / Windows WinFsp 的文件系统容量统计；它不会限制上传，0 或留空表示使用服务端配额（如支持）。macOS WebDAV 会在挂载握手前限时读取该容量或上游配额并通过 RFC 4331 提供给系统；Windows Cloud Files 的容量仍由宿主文件系统决定。
 - 设置页新增「网络代理」配置区：支持跟随系统环境变量（默认）、直连、自定义代理三种模式。自定义代理支持 HTTP / SOCKS5 代理类型，可配置代理地址、端口、账号密码（账号密码可选），影响应用所有网络请求（S3、WebDAV、百度网盘）。应用更新的 GitHub Release 版本检查始终直连 GitHub API（公共下载镜像不支持 api.github.com）；如需加速安装包下载，可在「应用更新」区单独配置 GitHub 下载加速镜像（如 `gh-proxy.com`），仅作用于安装包下载。
 - 设置页采用左侧锚点目录 + 右侧完整滚动页布局；左侧按“通用 / Windows / 关于”分组，点击应用更新、网络代理、缓存设置、关于云卷等条目会滚动定位到对应配置区块，入口只在鼠标悬停时显示轻量反馈。
 - “关于”页的版本号现在统一来自构建时注入：本地开发默认显示 `dev`，CI/tag 发布构建会显示对应版本号。
@@ -107,7 +107,8 @@ make run
 `make run` 是本仓库的标准启动方式：
 
 - macOS: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.dylib`，再以正确的 `DEVELOPER_DIR` 启动 Flutter macOS 应用
-- macOS 调试挂载卡住时，可直接查看 `~/.cloud-volume/runtime/logs/bridge.log`；当前版本会额外记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path` 等阶段日志，并为 `osascript` / `umount` / `diskutil` / `mount -t webdav` 加上超时，便于区分是旧挂载残留清理卡住，还是新挂载本身失败。排查 WebDAV 目录可写/只读误判时，可在同一日志里搜索 `[webdav/access]` 查看 PROPFIND / OPTIONS 判定链路；排查新建目录失败时，可搜索 `[webdav/mkdir]` 查看 `MKCOL` 状态码、`405` 后的目录存在性反查以及最终错误。
+- macOS 调试挂载卡住时，可直接查看 `~/.cloud-volume/runtime/logs/bridge.log`；当前版本会额外记录 `cleanup-stale`、`mount-volume`、`unmount`、`open-mount-path`、`[storage/quota-cache]` 与 `[mount/quota]` 等阶段日志。`osascript` / `mount_webdav` 运行时会并行确认系统 mount 表，卷出现即完成挂载；Finder 打开请求异步且按路径合并，卸载则保持本地 WebDAV 到系统卷成功断开之后。排查 WebDAV 目录可写/只读误判时，可搜索 `[webdav/access]`；排查新建目录失败时，可搜索 `[webdav/mkdir]`。
+- macOS WebDAV 挂载的内容写入会先落到本地缓存，再按 quiet period 异步推送上游。Finder 为文件时间等属性发送的 `PROPPATCH` 元数据探测不会触发文件内容下载或重复上传；新建目录和新鲜目录快照中的缺失目标直接由本地视图返回，不会为每个待写小文件同步查询 SFTP。FTP、SFTP 和 WebDAV 上游的上传进度、成功和失败会及时反映到传输队列，不会在实际同步完成后继续停留在“等待同步”。挂载根目录通过 RFC 4331 向 `webdavfs` 返回容量：桶自定义容量优先，上游支持配额时同时返回实际已用量，因此 macOS `df` 可显示非零的总量、已用和可用空间；上游与配置均没有容量信息时仍保持未知。桶列表获取的配额会在 Go 后端缓存 5 分钟；挂载即使在 TTL 到期后也会先使用同一账号/桶最后一次已知容量并异步刷新，缓存目录、RootPrefix、挂载参数或显示设置不同不会造成缓存 miss。macOS `webdavfs_agent` 偶尔会延迟发布首次 `statfs`，此时第一次 `df` 可能暂时为 `0/0`，而后续查询显示服务端已在首次 `PROPFIND` 返回的容量。SFTP 挂载不推测预取子目录，也不后台重复轮询 Finder/Spotlight 递归扫到的深层目录；用户打开目录仍按需读取，SSH 建连与握手也服从请求超时。
 - Linux: 先构建 Go bridge 到 `bin/bridge/libremote_storage_bridge.so`，并把它随 Linux bundle 一起安装后再启动 Flutter Linux 应用
 
 平台相关命令：
@@ -130,6 +131,7 @@ Windows 本地启动前提：
 Windows 现在会在 `flutter run -d windows` / `flutter build windows` 期间自动构建 `bin/bridge/remote_storage_bridge.dll` 和 `cloud-volume-crash-reporter.exe`，并复制到 runner 目录。Release 目录中的 `cloud-volume.exe` 是守护启动器，`cloud-volume-app.exe` 是 Flutter 主程序；构建脚本会在打包前检查两者、报告器、updater 和 bridge 是否齐全。
 Windows 调试启动不再依赖系统 `sqlite3.dll`。预览/打开文件用到的缓存索引现在通过 Go bridge 写入现有 bbolt `config.db`，Flutter 前端不再引入 `sqflite_common_ffi` / `sqlite3` 原生依赖，避免新机器缺少 SQLite 动态库导致界面闪退。
 排查点击文件预览卡顿时，先在 设置 → 通用 → 日志设置 把日志等级切到“调试”，再在 `~/.cloud-volume/runtime/logs/bridge.log` 搜索 `[app/preview]`；日志会显示 `headObject`、cache index、缓存文件校验、下载任务和读取预览 bytes 的分段耗时。未手动设置时，开发调试版默认采集调试日志，正式发布版默认保持安静；采集结束后可切回“安静”或“常规”，避免正式环境长期写入高频诊断日志。
+排查 Windows 挂载目录与客户端列表不一致时，同样先启用“调试”日志，再复现一次进入空目录的操作。日志文件位于 `%USERPROFILE%\.cloud-volume\runtime\logs\bridge.log`；搜索 `[mount/cloud-files] fetch-placeholders` 可核对本地目录到远端前缀的映射、返回条目数和回调错误，搜索 `retained-directory` 可确认复用缓存中的目录是重新启用按需枚举还是从普通目录修复为云占位目录。
 如果本机配置了 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，请确保 `NO_PROXY` 包含 `127.0.0.1,localhost`；仓库自带的 `scripts/run_windows.ps1` 会自动补上这两个值，避免 `flutter run` 通过代理去连接本地 Dart VM service 而导致调试连接提前断开。
 
 Linux 本地启动前提：
@@ -432,11 +434,10 @@ Mounted writeback uploads now also respect configurable `writeback_quiet_seconds
 The cached Cloud Files writeback path now persists queued uploads in per-process queue snapshots under `~/.cloud-volume/runtime/mounts/<bucket>/writeback/queue-<pid>.json`, merges repeated writes by virtual path, compacts old queue files on remount, and resumes those pending uploads after a remount instead of dropping them with the old in-memory session queue.
 Unmount now releases the Cloud Files shell, watcher, and sync-root registration without waiting for the full writeback queue to flush first. As long as the app process stays alive, delayed uploads continue in the background after unmount and still honor the configured quiet-period debouncing.
 Cloud Files mounts on Windows now keep a stable sync-root path at `~/Cloud Volume/<bucket>` instead of creating a timestamped directory on each mount, so Explorer shortcuts, task recovery, and user-visible mount paths stay deterministic across remounts.
-The Windows Cloud Files mount dialog offers “分配盘符” and “路径挂载” presentation modes and defaults to a drive letter when one is available. It queries free letters from `Z:` down through `D:` and lets the user select the exact letter before mounting. The app maps that letter to the existing `~/Cloud Volume/<bucket>` sync root after Cloud Files startup, reports it in mount status, opens that drive from the mounted-bucket action, and removes the mapping during unmount, remount cleanup, or normal app-exit cleanup. These are local sync-directory session mappings rather than separate filesystem volumes, so Explorer's capacity display does not represent the cloud account's real capacity.
-WinFsp virtual-file-system mounts are different: they only mount directly to a selected drive letter. The mount dialog hides path mounting while WinFsp is selected and blocks the request until a free drive letter is available.
+The Windows Cloud Files mount dialog uses a sync-root path only. It does not offer a `subst` drive because such a mapping always reports the host disk's capacity, not the bucket's capacity. WinFsp virtual-file-system mounts are different: they mount directly to a selected drive letter, return the configured bucket quota to Explorer, hide path mounting, and block the request until a free letter is available.
 Settings also expose a force-reset mount action that calls `cleanup_mounts` to clear stuck bucket mounts, stale sync roots, and cached mount state before retesting Explorer writes.
 If a remount fails because `~/.cloud-volume/runtime/mounts/<bucket>/writeback/queue-<pid>.json` is still locked by a leftover `cloud-volume.exe`, the mount now returns a normal actionable error instead of panicking, and Windows Settings also expose an `结束残留占用进程` action to kill those stale local runner processes before retrying.
-The Cloud Files placeholder path now coalesces repeated directory fetch callbacks and skips placeholder creation for entries that already exist locally, which reduces Explorer browse loops and placeholder callback errors on busy folders.
+The Cloud Files placeholder path coalesces repeated directory fetch callbacks. Remote polling creates new entries, updates existing changed entries with `CfUpdatePlaceholder` and dehydrates changed files so Explorer reloads their contents, and removes known remote entries only when no local writeback owns the path. This keeps an open sync root current without overwriting delayed local writes.
 ## Runtime Logs
 
 Go bridge runtime logs are written to `~/.cloud-volume/runtime/logs/bridge.log` on macOS, Linux, and Windows when the current log level allows them. The log level is configured in Settings and applies to both Flutter-forwarded diagnostics and Go backend logs; release builds default to silent logging unless the user enables collection.

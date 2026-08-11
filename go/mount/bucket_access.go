@@ -3,6 +3,7 @@ package mount
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -29,9 +30,17 @@ type bucketAccess struct {
 	listTTL         time.Duration
 	prefetchTTL     time.Duration
 	allowPrefetch   bool
+	allowRemotePoll bool
 	autoSync        bool
 	readOnly        bool
 	uploadWorkers   int
+	quotaProvider   storageops.BucketQuotaProvider
+	quotaMu         sync.Mutex
+	quotaCachedAt   time.Time
+	quotaTotal      int64
+	quotaUsed       int64
+	quotaKnown      bool
+	quotaLoading    bool
 
 	group singleflight.Group
 
@@ -66,6 +75,8 @@ func newBucketAccess(
 	backendCfg := cfg
 	backendCfg.RootPrefix = ""
 	backend := storageops.ForConfig(backendCfg)
+	quotaBackend := storageops.ForConfig(cfg)
+	quotaProvider, _ := quotaBackend.(storageops.BucketQuotaProvider)
 	metadataCacheTTL := time.Duration(cfg.MountMetadataCacheSeconds) * time.Second
 	if cfg.MountMetadataCacheSeconds < 0 {
 		metadataCacheTTL = 0
@@ -114,10 +125,29 @@ func newBucketAccess(
 		listTTL:           metadataCacheTTL,
 		prefetchTTL:       prefetchTTL,
 		allowPrefetch:     allowPrefetch,
+		allowRemotePoll:   storageops.SupportsMountRemotePolling(backend),
+		quotaProvider:     quotaProvider,
 		cache:             newBucketCache(metadataCacheTTL, prefetchTTL),
 		pageViews:         newMountedDirectoryPageSnapshots(),
 		overlay:           overlay,
 		directoryActivity: newDirectoryActivityTracker(),
+	}
+	if quota, fresh, ok := storageops.CachedBucketQuotaForMount(cfg, bucket); ok {
+		if fresh {
+			access.seedWebDAVQuota(quota.QuotaBytes, quota.UsedBytes, quota.QuotaKnown)
+		} else {
+			access.seedStaleWebDAVQuota(quota.QuotaBytes, quota.UsedBytes, quota.QuotaKnown)
+		}
+		log.Printf(
+			"[mount/quota] seeded bucket=%q fresh=%t known=%t total_bytes=%d used_bytes=%d",
+			bucket,
+			fresh,
+			quota.QuotaKnown,
+			quota.QuotaBytes,
+			quota.UsedBytes,
+		)
+	} else {
+		log.Printf("[mount/quota] cache-miss bucket=%q", bucket)
 	}
 	access.dirSync = newDirSyncQueue(access)
 	writeback, err := newWritebackQueue(access)

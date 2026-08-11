@@ -196,6 +196,10 @@ func (b scopedBackend) UploadFilePrefix(ctx context.Context, bucket, key, local 
 
 func (b scopedBackend) SupportsMountPrefetch() bool { return SupportsMountPrefetch(b.Backend) }
 
+func (b scopedBackend) SupportsMountRemotePolling() bool {
+	return SupportsMountRemotePolling(b.Backend)
+}
+
 // Root exposes the configured view root. The mount layer clears RootPrefix
 // before calling ForConfig and owns prefix translation itself, so a non-empty
 // Root here is the signal that an unscoped caller (webapi, sync, trash UI)

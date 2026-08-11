@@ -3,12 +3,14 @@ package p2p
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/hashicorp/mdns"
@@ -23,6 +25,9 @@ const (
 	discoveryInterval = 30 * time.Second
 	// peerExpiry is how long since last-seen before a peer is considered gone.
 	peerExpiry = 90 * time.Second
+	// multicastRouteBackoff avoids retrying an interface that currently has no
+	// route to the mDNS multicast group on every account/ticker cycle.
+	multicastRouteBackoff = 2 * time.Minute
 )
 
 // DiscoveredPeer represents another device on the LAN that shares our account.
@@ -64,6 +69,11 @@ var (
 	sharedOnce sync.Once
 	sharedInst *sharedMDNS
 	sharedErr  error
+
+	multicastRouteState = struct {
+		sync.Mutex
+		blocked map[string]time.Time
+	}{blocked: make(map[string]time.Time)}
 )
 
 func sharedMDNSServer() (*sharedMDNS, error) {
@@ -204,6 +214,9 @@ func (d *Discovery) queryPeers() {
 		ifaces = []net.Interface{{}} // zero value = library default
 	}
 	for _, iface := range ifaces {
+		if multicastInterfaceBlocked(iface) {
+			continue
+		}
 		ifaceCopy := iface
 		params := &mdns.QueryParam{
 			Service:             mdnsService,
@@ -222,10 +235,62 @@ func (d *Discovery) queryPeers() {
 			Logger: log.New(io.Discard, "", 0),
 		}
 		if err := mdns.Query(params); err != nil {
-			log.Printf("[p2p/discovery] query-error iface=%s: %v", iface.Name, err)
+			if isMulticastRouteUnavailable(err) {
+				blockMulticastInterface(iface)
+				log.Printf(
+					"[p2p/discovery] query-suppressed iface=%s retry_after=%s err=%v",
+					iface.Name,
+					multicastRouteBackoff,
+					err,
+				)
+			} else {
+				log.Printf("[p2p/discovery] query-error iface=%s: %v", iface.Name, err)
+			}
+		} else {
+			clearMulticastInterfaceBlock(iface)
 		}
 	}
 	close(entriesCh)
+}
+
+func multicastInterfaceKey(iface net.Interface) string {
+	if iface.Name == "" {
+		return "<default>"
+	}
+	return iface.Name
+}
+
+func multicastInterfaceBlocked(iface net.Interface) bool {
+	key := multicastInterfaceKey(iface)
+	multicastRouteState.Lock()
+	defer multicastRouteState.Unlock()
+	until, ok := multicastRouteState.blocked[key]
+	if !ok {
+		return false
+	}
+	if time.Now().After(until) {
+		delete(multicastRouteState.blocked, key)
+		return false
+	}
+	return true
+}
+
+func blockMulticastInterface(iface net.Interface) {
+	key := multicastInterfaceKey(iface)
+	multicastRouteState.Lock()
+	multicastRouteState.blocked[key] = time.Now().Add(multicastRouteBackoff)
+	multicastRouteState.Unlock()
+}
+
+func clearMulticastInterfaceBlock(iface net.Interface) {
+	key := multicastInterfaceKey(iface)
+	multicastRouteState.Lock()
+	delete(multicastRouteState.blocked, key)
+	multicastRouteState.Unlock()
+}
+
+func isMulticastRouteUnavailable(err error) bool {
+	return errors.Is(err, syscall.ENETUNREACH) || errors.Is(err, syscall.EHOSTUNREACH)
 }
 
 // multicastIPv4Interfaces returns up, multicast-capable interfaces with an

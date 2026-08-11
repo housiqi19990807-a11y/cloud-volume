@@ -78,7 +78,7 @@ func ensureP2PManagers(overlays map[string]storageconfig.RemoteStorageConfig) er
 	for name, rawCfg := range accounts {
 		cfg := rawCfg.Normalized().WithDefaultWebDAVCredentials()
 		endpoint, principal, secret := p2pCredentials(cfg)
-		enabled := cfg.P2PEnabled && cfg.IsConfigured() && secret != ""
+		enabled := cfg.P2PEnabled && cfg.IsConfigured() && secret != "" && !cfg.Disabled
 		p2pMu.Lock()
 		runtimeDisabled := p2pDisabledProfiles[name]
 		entry := p2pManagers[name]

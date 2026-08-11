@@ -243,6 +243,12 @@ func (m *manager) unmountSessionLocked(session *mountSession) error {
 	log.Printf("[mount/manager] unmount-session bucket=%q target=%q", session.bucket, session.mountTarget)
 	err := session.backend.Stop(session)
 	if err != nil {
+		// A backend can preserve a live mount by clearing stopping before it
+		// returns the error; restore its poller so the session remains usable.
+		if session.mounted && !session.stopping {
+			session.remotePoller = newRemoteDirectoryPoller(session)
+			session.remotePoller.Start()
+		}
 		log.Printf("[mount/manager] unmount-session-error bucket=%q err=%v", session.bucket, err)
 		return err
 	}

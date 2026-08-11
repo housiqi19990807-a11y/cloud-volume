@@ -279,6 +279,7 @@ func fillLinuxFuseEntry(out *fuse.EntryOut, info os.FileInfo) {
 func fillLinuxFuseRootAttr(out *fuse.AttrOut) {
 	now := time.Now()
 	fillLinuxFuseTimes(&out.Attr, now)
+	fillLinuxFuseOwner(&out.Attr)
 	out.Mode = 0o755
 	out.Nlink = 2
 	out.Size = 4096
@@ -289,6 +290,7 @@ func fillLinuxFuseRootAttr(out *fuse.AttrOut) {
 func fillLinuxFuseLocalAttr(out *fuse.Attr, info os.FileInfo, isDir bool) {
 	modTime := info.ModTime()
 	fillLinuxFuseTimes(out, modTime)
+	fillLinuxFuseOwner(out)
 	out.Mode = 0o644
 	out.Nlink = 1
 	out.Size = uint64(info.Size())
@@ -301,6 +303,13 @@ func fillLinuxFuseLocalAttr(out *fuse.Attr, info os.FileInfo, isDir bool) {
 	}
 	out.Blksize = 4096
 	out.Blocks = (out.Size + 511) / 512
+}
+
+// fillLinuxFuseOwner makes default_permissions evaluate mounted entries as the
+// desktop user rather than as root, regardless of which client wrote them.
+func fillLinuxFuseOwner(out *fuse.Attr) {
+	out.Uid = uint32(os.Getuid())
+	out.Gid = uint32(os.Getgid())
 }
 
 func fillLinuxFuseTimes(out *fuse.Attr, value time.Time) {

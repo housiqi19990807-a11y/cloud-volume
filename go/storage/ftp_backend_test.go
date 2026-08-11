@@ -4,22 +4,25 @@
 package storage
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/spf13/afero"
 
 	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
 )
 
 // ftpTestConfig builds a RemoteStorageConfig pointing at the mock FTP server.
 func ftpTestConfig(addr, user, pass string) storageconfig.RemoteStorageConfig {
 	return storageconfig.RemoteStorageConfig{
-		StorageType:    storageconfig.StorageTypeFTP,
-		Endpoint:       addr,
-		FTPUsername:    user,
-		FTPPassword:    pass,
-		HasFTPPassword: true,
+		StorageType:      storageconfig.StorageTypeFTP,
+		Endpoint:         addr,
+		FTPUsername:      user,
+		FTPPassword:      pass,
+		HasFTPPassword:   true,
 		MappedBucketName: "FTP",
 	}
 }
@@ -79,6 +82,25 @@ func TestFTPUploadAndDownload(t *testing.T) {
 	if len(page.Items) != 1 || page.Items[0].Key != "upload/test.bin" || page.Items[0].Size != 9 {
 		t.Fatalf("items = %+v, want upload/test.bin size=9", page.Items)
 	}
+}
+
+func TestFTPUploadFileFinishesQueuedTransfer(t *testing.T) {
+	srv := newMockFTPServer(t, "u", "p")
+	defer srv.Stop()
+
+	localPath := filepath.Join(t.TempDir(), "tracked.txt")
+	if err := os.WriteFile(localPath, []byte("tracked upload"), 0o644); err != nil {
+		t.Fatalf("write upload source: %v", err)
+	}
+	taskID := "ftp-upload-file-finishes-queued-transfer"
+	s3ops.QueueTransfer(taskID, "upload", "FTP", "tracked.txt", localPath, 14)
+	t.Cleanup(func() { s3ops.ForgetTransfer(taskID) })
+
+	backend := newFTPBackend(ftpTestConfig(srv.endpoint(), "u", "p"))
+	if err := backend.UploadFile(nil, "FTP", "tracked.txt", localPath, taskID); err != nil {
+		t.Fatalf("UploadFile error: %v", err)
+	}
+	assertCompletedUploadSnapshot(t, taskID, 14)
 }
 
 func TestFTPHeadObject(t *testing.T) {

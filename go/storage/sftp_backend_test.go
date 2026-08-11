@@ -2,10 +2,15 @@
 package storage
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	storageconfig "remote-storage/go/config"
+	s3ops "remote-storage/go/s3"
 )
 
 // sftpTestConfig builds a RemoteStorageConfig pointing at the mock SFTP server.
@@ -17,6 +22,26 @@ func sftpTestConfig(addr, user, pass string) storageconfig.RemoteStorageConfig {
 		FTPPassword:      pass,
 		HasFTPPassword:   true,
 		MappedBucketName: "SFTP",
+	}
+}
+
+func TestSFTPDisablesSpeculativeMountPrefetch(t *testing.T) {
+	backend := newSFTPBackend(sftpTestConfig("127.0.0.1:22", "u", "p"))
+	if SupportsMountPrefetch(backend) {
+		t.Fatal("SFTP mount prefetch should stay disabled")
+	}
+	if SupportsMountRemotePolling(backend) {
+		t.Fatal("SFTP mount remote polling should stay disabled")
+	}
+}
+
+func TestSFTPClientHonorsCanceledContextBeforeDial(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	backend := sftpBackend{cfg: sftpTestConfig("203.0.113.1:22", "u", "p")}
+	_, _, err := backend.sftpClient(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("sftpClient error = %v, want context canceled", err)
 	}
 }
 
@@ -65,6 +90,25 @@ func TestSFTPUploadAndRead(t *testing.T) {
 	if string(data) != "sftp" {
 		t.Fatalf("data = %q, want 'sftp'", string(data))
 	}
+}
+
+func TestSFTPUploadFileFinishesQueuedTransfer(t *testing.T) {
+	srv := newMockSFTPServer(t, "u", "p")
+	defer srv.Stop()
+
+	localPath := filepath.Join(t.TempDir(), "tracked.txt")
+	if err := os.WriteFile(localPath, []byte("tracked upload"), 0o644); err != nil {
+		t.Fatalf("write upload source: %v", err)
+	}
+	taskID := "sftp-upload-file-finishes-queued-transfer"
+	s3ops.QueueTransfer(taskID, "upload", "SFTP", "tracked.txt", localPath, 14)
+	t.Cleanup(func() { s3ops.ForgetTransfer(taskID) })
+
+	backend := newSFTPBackend(sftpTestConfig(srv.endpoint(), "u", "p"))
+	if err := backend.UploadFile(nil, "SFTP", "tracked.txt", localPath, taskID); err != nil {
+		t.Fatalf("UploadFile error: %v", err)
+	}
+	assertCompletedUploadSnapshot(t, taskID, 14)
 }
 
 func TestSFTPHeadObject(t *testing.T) {

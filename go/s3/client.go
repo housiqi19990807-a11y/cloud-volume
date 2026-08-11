@@ -39,6 +39,21 @@ func singleObjectCallOptions() []func(*s3.Options) {
 	}
 }
 
+// NewListBucketsClient is like NewClient but disables retries. ListBuckets is
+// an account-level connectivity probe behind the singleflight + negative cache:
+// a single failed attempt should surface immediately so the failure reaches the
+// negative cache promptly, instead of burning the whole bucketListTimeout on
+// SDK retries against an unreachable endpoint.
+func NewListBucketsClient(cfg storageconfig.RemoteStorageConfig) *s3.Client {
+	base := NewClient(cfg)
+	// Rebuild the client with a no-retry retryer. s3.Client.Options() returns a
+	// copy, so we mutate it and construct a fresh client that shares the same
+	// endpoint/credentials/HTTP client while only changing the retry policy.
+	opts := base.Options()
+	opts.Retryer = newListBucketsRetryer()
+	return s3.New(opts)
+}
+
 // NewClient resolves the current best S3 endpoint through the failover SDK so
 // every existing S3 operation benefits from JWanFS gateway discovery. The
 // returned AWS client remains a single-request client; operations needing
@@ -106,15 +121,14 @@ func newSingleEndpointClient(cfg storageconfig.RemoteStorageConfig, endpoint str
 		opts.UsePathStyle = true
 	}
 
-	// Only override the HTTP client when the user explicitly chooses direct or
-	// custom proxy. In system mode (default) and inherit mode (which is resolved
-	// to a concrete mode by ResolveProxyConfig before reaching here) we let the
-	// AWS SDK use its own default client, which already respects
-	// HTTP_PROXY / HTTPS_PROXY / NO_PROXY via Go's net/http defaults.
-	if cfg.ProxyMode == storageconfig.ProxyModeDirect ||
-		cfg.ProxyMode == storageconfig.ProxyModeCustom {
-		opts.HTTPClient = storageconfig.ProxyHTTPClient(cfg, 0)
-	}
+	// Always use our proxy-aware HTTP client. It respects HTTP_PROXY /
+	// HTTPS_PROXY / NO_PROXY in system/inherit mode (matching the AWS SDK
+	// default) and, critically, applies a bounded TCP dial timeout so an
+	// endpoint that drops packets (powered-off gateway, firewall, unroutable
+	// IP) fails in ~3s instead of stalling on the OS TCP timeout (~75s) until
+	// the request context expires. The previous behavior let the AWS SDK use
+	// its own default client, which has no dial timeout.
+	opts.HTTPClient = storageconfig.ProxyHTTPClient(cfg, 0)
 
 	return s3.New(opts)
 }

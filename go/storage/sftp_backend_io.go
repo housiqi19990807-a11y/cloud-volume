@@ -194,7 +194,7 @@ func (b sftpBackend) MoveObject(
 
 func (b sftpBackend) UploadFile(
 	ctx context.Context,
-	bucket, key, localPath, _ string,
+	bucket, key, localPath, taskID string,
 ) error {
 	if err := b.ensureBucketWritable(bucket); err != nil {
 		return err
@@ -204,20 +204,46 @@ func (b sftpBackend) UploadFile(
 		return err
 	}
 	defer file.Close()
-	return b.sftpStore(ctx, key, file)
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	return runTrackedUpload(
+		ctx,
+		bucket,
+		key,
+		localPath,
+		file,
+		info.Size(),
+		taskID,
+		func(uploadCtx context.Context, body io.Reader) error {
+			return b.sftpStore(uploadCtx, key, body)
+		},
+	)
 }
 
 func (b sftpBackend) UploadReader(
 	ctx context.Context,
 	bucket, key string,
 	body io.Reader,
-	_ int64,
-	_, _ string,
+	size int64,
+	taskID, _ string,
 ) error {
 	if err := b.ensureBucketWritable(bucket); err != nil {
 		return err
 	}
-	return b.sftpStore(ctx, key, body)
+	return runTrackedUpload(
+		ctx,
+		bucket,
+		key,
+		"",
+		body,
+		size,
+		taskID,
+		func(uploadCtx context.Context, tracked io.Reader) error {
+			return b.sftpStore(uploadCtx, key, tracked)
+		},
+	)
 }
 
 func (b sftpBackend) DownloadFile(

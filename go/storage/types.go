@@ -57,6 +57,12 @@ type MountPrefetchPolicy interface {
 	SupportsMountPrefetch() bool
 }
 
+// MountRemotePollingPolicy lets connection-sensitive backends disable P0
+// refreshes that desktop background crawlers could otherwise amplify.
+type MountRemotePollingPolicy interface {
+	SupportsMountRemotePolling() bool
+}
+
 // PartialFileUploader exposes optional prefix upload support for append-heavy mount writes.
 type PartialFileUploader interface {
 	UploadFilePrefix(context.Context, string, string, string, os.FileInfo, int64, int) error
@@ -69,6 +75,15 @@ func SupportsMountPrefetch(backend Backend) bool {
 		return true
 	}
 	return policy.SupportsMountPrefetch()
+}
+
+// SupportsMountRemotePolling defaults to true for existing providers.
+func SupportsMountRemotePolling(backend Backend) bool {
+	policy, ok := backend.(MountRemotePollingPolicy)
+	if !ok {
+		return true
+	}
+	return policy.SupportsMountRemotePolling()
 }
 
 // IsScoped reports whether backend is a scopedBackend wrapper. Mount layer
@@ -85,12 +100,19 @@ func GetBucketQuota(
 	cfg storageconfig.RemoteStorageConfig,
 	bucket string,
 ) (BucketInfo, error) {
+	if cached, ok := CachedBucketQuota(cfg, bucket); ok {
+		return cached, nil
+	}
 	backend := ForConfig(cfg)
 	provider, ok := backend.(BucketQuotaProvider)
 	if !ok {
 		return BucketInfo{Name: bucket}, nil
 	}
-	return provider.BucketQuota(ctx, bucket)
+	quota, err := provider.BucketQuota(ctx, bucket)
+	if err == nil {
+		cacheBucketQuota(cfg, bucket, quota)
+	}
+	return quota, err
 }
 
 func ForConfig(cfg storageconfig.RemoteStorageConfig) Backend {

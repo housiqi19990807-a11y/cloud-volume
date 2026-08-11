@@ -252,6 +252,7 @@ func listProfilesFromDB() ([]ProfileInfo, error) {
 				Endpoint:     normalized.Endpoint,
 				AccessKeyID:  normalized.AccessKeyID,
 				Active:       name == activeName,
+				Disabled:     normalized.Disabled,
 			})
 			return nil
 		}); err != nil {

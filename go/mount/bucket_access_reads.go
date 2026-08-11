@@ -97,6 +97,15 @@ func (a *bucketAccess) statPath(
 				return item, nil
 			}
 		}
+		// A fresh directory listing is an authoritative negative lookup too.
+		// Finder probes every destination before PUT; falling through here would
+		// turn a many-small-file copy into one upstream Stat call per file.
+		return s3ops.ObjectInfo{}, os.ErrNotExist
+	}
+	if a.cache.isLocalDirectory(parentPrefix) {
+		// Children of a directory created in this mount are represented by the
+		// local overlay until writeback catches up, so an absent child is local.
+		return s3ops.ObjectInfo{}, os.ErrNotExist
 	}
 
 	flightKey := "stat:" + clean

@@ -1,5 +1,6 @@
 #ifdef _WIN32
 
+// Cloud Files calls are loaded dynamically so older Windows hosts fail gracefully.
 #include "cloud_files_windows.h"
 #include <objbase.h>
 #include <stdlib.h>
@@ -28,6 +29,23 @@ typedef HRESULT (WINAPI *rs_cf_set_in_sync_fn)(
     CF_IN_SYNC_STATE,
     CF_SET_IN_SYNC_FLAGS,
     USN*);
+typedef HRESULT (WINAPI *rs_cf_update_placeholder_fn)(
+    HANDLE,
+    const CF_FS_METADATA*,
+    LPCVOID,
+    DWORD,
+    const CF_FILE_RANGE*,
+    DWORD,
+    CF_UPDATE_FLAGS,
+    USN*,
+    LPOVERLAPPED);
+typedef HRESULT (WINAPI *rs_cf_convert_placeholder_fn)(
+    HANDLE,
+    LPCVOID,
+    DWORD,
+    CF_CONVERT_FLAGS,
+    USN*,
+    LPOVERLAPPED);
 typedef HRESULT (WINAPI *rs_cf_execute_fn)(
     const CF_OPERATION_INFO*,
     CF_OPERATION_PARAMETERS*);
@@ -212,6 +230,78 @@ HRESULT rs_cf_set_sync_state(LPCWSTR localPath, int state) {
         state == 0 ? CF_IN_SYNC_STATE_NOT_IN_SYNC : CF_IN_SYNC_STATE_IN_SYNC,
         CF_SET_IN_SYNC_FLAG_NONE,
         NULL);
+    CloseHandle(handle);
+    return hr;
+}
+
+HRESULT rs_cf_update_placeholder(
+        LPCWSTR localPath,
+        const CF_FS_METADATA* metadata,
+        LPCVOID identity,
+        DWORD identityLength,
+        int dehydrate,
+        int enableOnDemandPopulation) {
+    rs_cf_update_placeholder_fn fn = (rs_cf_update_placeholder_fn)rs_load_proc("CfUpdatePlaceholder");
+    if (!fn) return HRESULT_FROM_WIN32(ERROR_PROC_NOT_FOUND);
+
+    HANDLE handle = CreateFileW(
+        localPath,
+        FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    CF_UPDATE_FLAGS flags = CF_UPDATE_FLAG_MARK_IN_SYNC;
+    if (dehydrate) {
+        flags = (CF_UPDATE_FLAGS)(flags | CF_UPDATE_FLAG_DEHYDRATE);
+    }
+    if (enableOnDemandPopulation) {
+        flags = (CF_UPDATE_FLAGS)(
+            flags | CF_UPDATE_FLAG_ENABLE_ON_DEMAND_POPULATION);
+    }
+    HRESULT hr = fn(
+        handle,
+        metadata,
+        identity,
+        identityLength,
+        NULL,
+        0,
+        flags,
+        NULL,
+        NULL);
+    CloseHandle(handle);
+    return hr;
+}
+
+HRESULT rs_cf_convert_directory_placeholder(
+        LPCWSTR localPath,
+        LPCVOID identity,
+        DWORD identityLength) {
+    rs_cf_convert_placeholder_fn fn =
+        (rs_cf_convert_placeholder_fn)rs_load_proc("CfConvertToPlaceholder");
+    if (!fn) return HRESULT_FROM_WIN32(ERROR_PROC_NOT_FOUND);
+
+    HANDLE handle = CreateFileW(
+        localPath,
+        FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    CF_CONVERT_FLAGS flags = (CF_CONVERT_FLAGS)(
+        CF_CONVERT_FLAG_MARK_IN_SYNC |
+        CF_CONVERT_FLAG_ENABLE_ON_DEMAND_POPULATION);
+    HRESULT hr = fn(handle, identity, identityLength, flags, NULL, NULL);
     CloseHandle(handle);
     return hr;
 }

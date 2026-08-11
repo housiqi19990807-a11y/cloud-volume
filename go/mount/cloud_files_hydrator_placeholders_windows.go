@@ -10,7 +10,14 @@ import (
 
 const windowsCloudFilesPlaceholderRefreshTTL = 3 * time.Second
 
-func (h *cloudFilesHydrator) beginPlaceholderFetch(localPath string) (bool, <-chan struct{}) {
+type cloudFilesPlaceholderFetch struct {
+	done chan struct{}
+	err  error
+}
+
+func (h *cloudFilesHydrator) beginPlaceholderFetch(
+	localPath string,
+) (bool, *cloudFilesPlaceholderFetch) {
 	h.placeholderMu.Lock()
 	defer h.placeholderMu.Unlock()
 
@@ -22,21 +29,22 @@ func (h *cloudFilesHydrator) beginPlaceholderFetch(localPath string) (bool, <-ch
 		time.Since(lastFetch) < windowsCloudFilesPlaceholderRefreshTTL {
 		return false, nil
 	}
-	done := make(chan struct{})
-	h.placeholderInflight[cleanLocalPath] = done
+	flight := &cloudFilesPlaceholderFetch{done: make(chan struct{})}
+	h.placeholderInflight[cleanLocalPath] = flight
 	return true, nil
 }
 
-func (h *cloudFilesHydrator) finishPlaceholderFetch(localPath string, success bool) {
+func (h *cloudFilesHydrator) finishPlaceholderFetch(localPath string, fetchErr error) {
 	h.placeholderMu.Lock()
 	defer h.placeholderMu.Unlock()
 
 	cleanLocalPath := filepath.Clean(localPath)
-	if done, ok := h.placeholderInflight[cleanLocalPath]; ok {
-		close(done)
+	if flight, ok := h.placeholderInflight[cleanLocalPath]; ok {
+		flight.err = fetchErr
+		close(flight.done)
 		delete(h.placeholderInflight, cleanLocalPath)
 	}
-	if success {
+	if fetchErr == nil {
 		h.placeholderFetched[cleanLocalPath] = time.Now()
 	} else {
 		delete(h.placeholderFetched, cleanLocalPath)

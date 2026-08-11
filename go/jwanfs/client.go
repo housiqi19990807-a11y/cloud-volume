@@ -102,12 +102,18 @@ func NewClient(opt *ClientOption) (*Client, error) {
 
 	// 创建负载均衡
 	client.balancer = newGatewayBalancer(client, lbEndpoint)
-	// 尝试第一次discovery并更新配置
-	if err := client.balancer.Refresh(context.Background()); err != nil {
+	// 尝试第一次discovery并更新配置。Discovery 的网络探测可能对不可达
+	// endpoint 阻塞到 OS 级 TCP 超时（1-2 分钟），这里用有界 ctx 兜住；
+	// 失败时下方已有的直连 fallback 仍会生效。
+	refreshCtx, refreshCancel := context.WithTimeout(context.Background(), gatewayRefreshTimeout)
+	if err := client.balancer.Refresh(refreshCtx); err != nil {
+		refreshCancel()
 		// 如果discovery失败，当成直连fgw用
 		if err := client.replaceUpstreams(opt.Servers, lbEndpoint); err != nil {
 			return nil, err
 		}
+	} else {
+		refreshCancel()
 	}
 	if client.DefaultServer() == "" {
 		return nil, ErrNoServer

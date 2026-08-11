@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/app/remote_storage_app.dart';
 import 'package:remote_storage/models/auth_session_state.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -152,24 +153,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('百度网盘'));
     await tester.pumpAndSettle();
-    expect(find.text('重新配置认证信息'), findsOneWidget);
-
-    await tester.tap(find.text('重新配置认证信息'));
-    await tester.pumpAndSettle();
-    expect(find.text('编辑账号'), findsOneWidget);
-    expect(find.text('百度账号'), findsOneWidget);
-    expect(find.text('添加存储账号'), findsNothing);
-
-    await tester.enterText(
-      find.byKey(const ValueKey<String>('baidu-pan-auth-code')),
-      'authorization-code',
+    // The object-list error view exposes a secondary action that jumps to the
+    // account-management page (instead of opening an in-place editor), so the
+    // user can edit, disable, or re-enable the failing account in one place.
+    // The sidebar also shows "账号管理", so find the button by type+text.
+    final secondaryAction = find.descendant(
+      of: find.byType(ShadButton),
+      matching: find.text('账号管理'),
     );
-    await tester.tap(find.text('提交授权码'));
-    await tester.pumpAndSettle();
-    // Editing still auto-saves on Baidu re-auth (bucket visibility is now a
-    // separate dialog from the account list, not part of the editor).
+    expect(secondaryAction, findsOneWidget);
     expect(find.text('编辑账号'), findsNothing);
-    expect(api.savedProfiles['baidu-profile']?.accessKeyId, 'new-baidu-access');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -396,7 +389,10 @@ class _FakeApi implements RemoteStorageGateway {
   Future<int> cleanupStaleWindowsProcesses() async => 0;
 
   @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
+  Future<List<BucketInfo>> listBuckets(
+    RemoteStorageConfig config, {
+    bool force = false,
+  }) async {
     return bucketsByStorageType[config.storageType] ?? buckets;
   }
 

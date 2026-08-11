@@ -6,9 +6,14 @@ import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+/// Connection-probe status for one account, shown in the account-management
+/// status column. Defined here (next to the widget that renders it) and
+/// re-exported so the page can populate it without a circular import.
+enum AccountStatus { checking, ok, error, disabled }
+
 class CloudStorageAccountList extends StatelessWidget {
   static const double _typeColumnWidth = 104;
-  static const double _actionColumnWidth = 300;
+  static const double _actionColumnWidth = 360;
 
   const CloudStorageAccountList({
     super.key,
@@ -18,6 +23,9 @@ class CloudStorageAccountList extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onManageBuckets,
+    required this.onToggleDisabled,
+    required this.status,
+    required this.statusError,
     this.onReorder,
   });
 
@@ -27,6 +35,12 @@ class CloudStorageAccountList extends StatelessWidget {
   final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onDelete;
   final ValueChanged<ProfileInfo> onManageBuckets;
+  /// (profile, disabled) — disabled=true means the user turned the account OFF.
+  final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
+  /// Per-profile connection status (keyed by profile name) for the status column.
+  final Map<String, AccountStatus> status;
+  /// Optional human-readable error message for accounts in [AccountStatus.error].
+  final Map<String, String> statusError;
   final void Function(int oldIndex, int newIndex)? onReorder;
 
   @override
@@ -64,6 +78,9 @@ class CloudStorageAccountList extends StatelessWidget {
               onEdit: onEdit,
               onDelete: onDelete,
               onManageBuckets: onManageBuckets,
+              onToggleDisabled: onToggleDisabled,
+              status: status[profile.name] ?? AccountStatus.checking,
+              statusError: statusError[profile.name],
             );
           },
         );
@@ -141,7 +158,9 @@ class CloudStorageAccountList extends StatelessWidget {
           const _AccountIcon(),
         ],
       ),
-      title: _profileTitle(profile),
+      title: profile.disabled
+          ? '${_profileTitle(profile)}（已禁用）'
+          : _profileTitle(profile),
       subtitleLabel: profile.endpoint,
       sizeLabel: _storageLabel(profile),
       sizeColumnWidthOverride: _typeColumnWidth,
@@ -151,6 +170,9 @@ class CloudStorageAccountList extends StatelessWidget {
         onEdit: onEdit,
         onDelete: onDelete,
         onManageBuckets: onManageBuckets,
+        onToggleDisabled: onToggleDisabled,
+        status: status[profile.name] ?? AccountStatus.checking,
+        statusError: statusError[profile.name],
       ),
       onTap: () {},
       showDivider: index != accounts.length - 1,
@@ -168,23 +190,32 @@ class CloudStorageAccountList extends StatelessWidget {
 }
 
 class _AccountCard extends StatelessWidget {
-  const _AccountCard({
+ const _AccountCard({
     required this.profile,
     required this.busy,
     required this.onEdit,
     required this.onDelete,
     required this.onManageBuckets,
-  });
+    required this.onToggleDisabled,
+    required this.status,
+    required this.statusError,
+ });
 
-  final ProfileInfo profile;
-  final bool busy;
-  final ValueChanged<ProfileInfo> onEdit;
-  final ValueChanged<ProfileInfo> onDelete;
-  final ValueChanged<ProfileInfo> onManageBuckets;
+ final ProfileInfo profile;
+ final bool busy;
+ final ValueChanged<ProfileInfo> onEdit;
+ final ValueChanged<ProfileInfo> onDelete;
+ final ValueChanged<ProfileInfo> onManageBuckets;
+ final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
+ final AccountStatus status;
+ final String? statusError;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final title = profile.disabled
+        ? '${CloudStorageAccountList._profileTitle(profile)}（已禁用）'
+        : CloudStorageAccountList._profileTitle(profile);
     return ShadCard(
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -196,7 +227,7 @@ class _AccountCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  CloudStorageAccountList._profileTitle(profile),
+                  title,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -207,6 +238,8 @@ class _AccountCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          _AccountStatusChip(status: status, error: statusError),
           const SizedBox(height: 10),
           Text(
             CloudStorageAccountList._storageLabel(profile),
@@ -229,8 +262,14 @@ class _AccountCard extends StatelessWidget {
           ),
           const Spacer(),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              ShadSwitch(
+                value: !profile.disabled,
+                onChanged: busy
+                    ? null
+                    : (enabled) => onToggleDisabled(profile, !enabled),
+              ),
+              const Spacer(),
               _AccountActionButton(
                 label: '桶管理',
                 icon: LucideIcons.listFilter,
@@ -299,27 +338,42 @@ class _AccountTableHeader extends StatelessWidget {
 }
 
 class _AccountActions extends StatelessWidget {
-  const _AccountActions({
+ const _AccountActions({
     required this.profile,
     required this.busy,
     required this.onEdit,
     required this.onDelete,
     required this.onManageBuckets,
-  });
+    required this.onToggleDisabled,
+    required this.status,
+    required this.statusError,
+ });
 
-  final ProfileInfo profile;
-  final bool busy;
-  final ValueChanged<ProfileInfo> onEdit;
-  final ValueChanged<ProfileInfo> onDelete;
-  final ValueChanged<ProfileInfo> onManageBuckets;
+ final ProfileInfo profile;
+ final bool busy;
+ final ValueChanged<ProfileInfo> onEdit;
+ final ValueChanged<ProfileInfo> onDelete;
+ final ValueChanged<ProfileInfo> onManageBuckets;
+ final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
+ final AccountStatus status;
+ final String? statusError;
 
-  @override
-  Widget build(BuildContext context) {
+ @override
+ Widget build(BuildContext context) {
     return SizedBox(
       width: CloudStorageAccountList._actionColumnWidth,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          _AccountStatusChip(status: status, error: statusError),
+          const SizedBox(width: 10),
+          ShadSwitch(
+            value: !profile.disabled,
+            onChanged: busy
+                ? null
+                : (enabled) => onToggleDisabled(profile, !enabled),
+          ),
+          const SizedBox(width: 10),
           _AccountActionButton(
             label: '桶管理',
             icon: LucideIcons.listFilter,
@@ -341,7 +395,61 @@ class _AccountActions extends StatelessWidget {
         ],
       ),
     );
-  }
+ }
+}
+
+/// Status chip for the account-management status column. Shows a small dot +
+/// label. Uses mutedForeground colors so it never reads as a hover/theme change
+/// (per the hover visual rule, an idle column must look identical at hover).
+class _AccountStatusChip extends StatelessWidget {
+ const _AccountStatusChip({required this.status, this.error});
+
+ final AccountStatus status;
+ final String? error;
+
+ @override
+ Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final (label, color) = switch (status) {
+      AccountStatus.ok => ('正常', const Color(0xFF16A34A)),
+      AccountStatus.error => ('连接失败', const Color(0xFFDC2626)),
+      AccountStatus.disabled => ('已禁用', theme.colorScheme.mutedForeground),
+      AccountStatus.checking => ('检测中', theme.colorScheme.mutedForeground),
+    };
+    return Tooltip(
+      message: status == AccountStatus.error
+          ? (error?.isNotEmpty == true ? error! : '连接失败')
+          : label,
+      waitDuration: const Duration(milliseconds: 400),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: status == AccountStatus.checking
+                  ? theme.colorScheme.mutedForeground.withValues(alpha: 0.4)
+                  : color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: status == AccountStatus.checking
+                  ? theme.colorScheme.mutedForeground
+                  : (status == AccountStatus.ok
+                      ? theme.colorScheme.foreground
+                      : color),
+            ),
+          ),
+        ],
+      ),
+    );
+ }
 }
 
 class _AccountActionButton extends StatefulWidget {

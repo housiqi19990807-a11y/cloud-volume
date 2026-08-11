@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	s3ops "remote-storage/go/s3"
 )
 
 type cloudFilesHydrator struct {
@@ -25,9 +23,11 @@ type cloudFilesHydrator struct {
 	cancelMu sync.Mutex
 	cancels  map[string]context.CancelFunc
 
-	placeholderMu       sync.Mutex
-	placeholderInflight map[string]chan struct{}
-	placeholderFetched  map[string]time.Time
+	placeholderMu        sync.Mutex
+	placeholderInflight  map[string]*cloudFilesPlaceholderFetch
+	placeholderFetched   map[string]time.Time
+	projectionMu         sync.Mutex
+	projectedDirectories map[string]map[string]cloudPlaceholderInfo
 }
 
 func newCloudFilesHydrator(
@@ -38,14 +38,15 @@ func newCloudFilesHydrator(
 	reader cloudFilesReader,
 ) *cloudFilesHydrator {
 	return &cloudFilesHydrator{
-		syncRoot:            syncRoot,
-		access:              access,
-		provider:            provider,
-		watcher:             watcher,
-		reader:              reader,
-		cancels:             map[string]context.CancelFunc{},
-		placeholderInflight: map[string]chan struct{}{},
-		placeholderFetched:  map[string]time.Time{},
+		syncRoot:             syncRoot,
+		access:               access,
+		provider:             provider,
+		watcher:              watcher,
+		reader:               reader,
+		cancels:              map[string]context.CancelFunc{},
+		placeholderInflight:  map[string]*cloudFilesPlaceholderFetch{},
+		placeholderFetched:   map[string]time.Time{},
+		projectedDirectories: map[string]map[string]cloudPlaceholderInfo{},
 	}
 }
 
@@ -120,22 +121,28 @@ func (h *cloudFilesHydrator) OnCancelFetch(req cloudFilesFetchRequest) {
 	}
 }
 
-func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
+func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) (resultErr error) {
 	cleanLocalPath := filepath.Clean(localPath)
-	shouldFetch, wait := h.beginPlaceholderFetch(cleanLocalPath)
-	if wait != nil {
-		<-wait
-		return nil
+	shouldFetch, inflight := h.beginPlaceholderFetch(cleanLocalPath)
+	if inflight != nil {
+		<-inflight.done
+		return inflight.err
 	}
 	if !shouldFetch {
 		return nil
 	}
-	success := false
 	defer func() {
-		h.finishPlaceholderFetch(cleanLocalPath, success)
+		h.finishPlaceholderFetch(cleanLocalPath, resultErr)
 	}()
 
-	virtualPath := cloudFilesLocalPathToVirtual(h.syncRoot, localPath)
+	virtualPath, valid := cloudFilesLocalPathToVirtualChecked(h.syncRoot, localPath)
+	if !valid {
+		return fmt.Errorf(
+			"resolve Cloud Files placeholder path %q under %q",
+			localPath,
+			h.syncRoot,
+		)
+	}
 	h.access.noteDirectoryActivity(virtualPath)
 	log.Printf(
 		"[mount/cloud-files] fetch-placeholders local=%q virtual=%q",
@@ -157,55 +164,25 @@ func (h *cloudFilesHydrator) OnFetchPlaceholders(localPath string) error {
 		placeholder.RelativePath = relativeName
 		placeholders = append(placeholders, placeholder)
 	}
-	h.watcher.RememberPlaceholders(localPath, placeholders)
 	log.Printf(
 		"[mount/cloud-files] fetch-placeholders-done local=%q virtual=%q count=%d",
 		localPath,
 		virtualPath,
 		len(placeholders),
 	)
+	if h.hasProjectedDirectory(localPath) {
+		if err := h.refreshProjectedDirectory(localPath, placeholders); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	h.watcher.RememberPlaceholders(localPath, placeholders)
 	if err := h.provider.CreatePlaceholders(localPath, placeholders); err != nil {
 		h.watcher.watchPlaceholderDirectories(localPath, placeholders)
 		return err
 	}
+	h.rememberProjectedDirectory(localPath, placeholders)
 	h.watcher.watchPlaceholderDirectories(localPath, placeholders)
-	success = true
-	return nil
-}
-
-// RefreshPlaceholders projects a P0 remote-poll result into an already opened
-// directory. CreatePlaceholders is idempotent, so local pending writes and
-// hydrated files are left untouched while another client’s new entries appear.
-func (h *cloudFilesHydrator) RefreshPlaceholders(
-	virtualPrefix string,
-	items []s3ops.ObjectInfo,
-) error {
-	if h == nil || h.provider == nil || h.watcher == nil {
-		return nil
-	}
-	localPath := cloudFilesVirtualPathToLocal(h.syncRoot, virtualPrefix)
-	if virtualPrefix == "" {
-		localPath = h.syncRoot
-	}
-	placeholders := make([]cloudPlaceholderInfo, 0, len(items))
-	for _, item := range items {
-		relativeName := strings.TrimSuffix(baseName(item.Key), "/")
-		if relativeName == "" {
-			continue
-		}
-		placeholder := cloudFilesPlaceholderInfo(item)
-		placeholder.RelativePath = relativeName
-		placeholders = append(placeholders, placeholder)
-	}
-	h.watcher.RememberPlaceholders(localPath, placeholders)
-	if err := h.provider.CreatePlaceholders(localPath, placeholders); err != nil {
-		return err
-	}
-	h.watcher.watchPlaceholderDirectories(localPath, placeholders)
-	log.Printf(
-		"[mount/cloud-files] poll-placeholders virtual=%q count=%d",
-		virtualPrefix,
-		len(placeholders),
-	)
 	return nil
 }

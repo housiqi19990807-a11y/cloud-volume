@@ -19,7 +19,11 @@ mixin _RemoteStorageWebTransferApiMixin implements RemoteStorageGateway {
   );
 
   @override
-  Future<List<BucketInfo>> listBuckets(RemoteStorageConfig config) async {
+  Future<List<BucketInfo>> listBuckets(
+    RemoteStorageConfig config, {
+    bool force = false,
+  }) async {
+    // Web is single-account; the force flag has no effect server-side here.
     final result = await _invoke('list_buckets');
     return _parseList(result, (m) => BucketInfo.fromJson(m));
   }

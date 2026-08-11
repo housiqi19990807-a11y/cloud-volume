@@ -92,6 +92,20 @@ func TestCancelRunningTransferRemovesLocalCacheState(t *testing.T) {
 	}
 }
 
+func TestHasPendingAtOrBelowIncludesRunningWriteback(t *testing.T) {
+	access := newTestBucketAccess(t)
+	access.writeback.running["task-running"] = &pendingWriteback{
+		taskID:      "task-running",
+		virtualPath: "docs/report.txt",
+	}
+	if !access.writeback.hasPendingAtOrBelow("docs/report.txt", false) {
+		t.Fatal("expected running file writeback to block remote replacement")
+	}
+	if !access.writeback.hasPendingAtOrBelow("docs", true) {
+		t.Fatal("expected running descendant writeback to block remote directory removal")
+	}
+}
+
 func TestEnqueueProjectsNotInSyncState(t *testing.T) {
 	t.Parallel()
 

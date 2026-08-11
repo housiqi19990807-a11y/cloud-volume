@@ -11,6 +11,8 @@
 // freshly added / deleted accounts are picked up immediately. Callers that
 // need caching (the file manager's quota cache) layer that on top.
 
+import 'dart:async';
+
 import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
@@ -87,8 +89,12 @@ class BucketSourceService {
         ),
       ];
     }
+    // Disabled accounts are skipped entirely: they must not connect to their
+    // backend or appear as load failures. They remain visible in the account
+    // management page so the user can re-enable them.
+    final activeProfiles = profiles.where((p) => !p.disabled).toList();
     return Future.wait(
-      profiles.map((profile) async {
+      activeProfiles.map((profile) async {
         try {
           final config = await api.loadProfile(profile.name);
           return BucketSource(
@@ -116,24 +122,36 @@ class BucketSourceService {
     RemoteStorageGateway api,
     List<ProfileInfo> profiles, {
     required RemoteStorageConfig fallbackConfig,
+    bool force = false,
   }) async {
     return (await loadEntriesWithFailures(
       api,
       profiles,
       fallbackConfig: fallbackConfig,
+      force: force,
     )).entries;
   }
 
   /// Loads every account independently, preserving usable buckets when a
   /// separate profile has expired credentials or a temporary network error.
+  ///
+  /// Accounts are loaded and listed **concurrently** with per-account failure
+  /// isolation: one slow or unreachable upstream cannot block the others, and a
+  /// failing account surfaces as a "reconfigure" action instead of an empty
+  /// page. A per-call timeout bounds how long any single upstream is allowed to
+  /// stall the aggregate result.
   Future<BucketSourceLoadResult> loadEntriesWithFailures(
     RemoteStorageGateway api,
     List<ProfileInfo> profiles, {
     required RemoteStorageConfig fallbackConfig,
+    bool force = false,
   }) async {
     final sources = <BucketSource>[];
     final failures = <BucketSourceLoadFailure>[];
-    final profilesToLoad = profiles.isEmpty ? <ProfileInfo>[] : profiles;
+    // Skip disabled accounts before any backend call: they must not connect,
+    // appear in the bucket list, or surface as a load failure.
+    final profilesToLoad =
+        profiles.isEmpty ? <ProfileInfo>[] : profiles.where((p) => !p.disabled).toList();
     if (profilesToLoad.isEmpty) {
       sources.add(
         BucketSource(
@@ -143,50 +161,57 @@ class BucketSourceService {
         ),
       );
     } else {
-      for (final profile in profilesToLoad) {
-        try {
-          final config = await api.loadProfile(profile.name);
-          sources.add(
-            BucketSource(
-              profileName: profile.name,
-              sourceLabel: _sourceLabelForConfig(config),
-              config: config,
-            ),
-          );
-        } catch (error) {
+      // Load all profiles concurrently so one slow bbolt read does not gate the
+      // rest. Results are re-collected in profile order so the fallback sort
+      // below stays deterministic.
+      final loaded = await Future.wait(
+        profilesToLoad.map((profile) => _loadSource(api, profile)),
+      );
+      for (final result in loaded) {
+        if (result.source != null) {
+          sources.add(result.source!);
+        } else {
           failures.add(
-            BucketSourceLoadFailure(profileName: profile.name, cause: error),
+            BucketSourceLoadFailure(
+              profileName: result.profileName,
+              // result.error is only null in the success branch we just handled.
+              cause: result.error!,
+            ),
           );
         }
       }
     }
     final entries = <FileManagerBucketEntry>[];
-    for (final source in sources) {
-      final List<BucketInfo> buckets;
-      try {
-        buckets = await api.listBuckets(source.config);
-      } catch (error) {
+    // List buckets for every source concurrently. A single unreachable account
+    // is isolated into `failures` and never blocks the healthy accounts.
+    final listings = await Future.wait(
+      sources.map((source) => _listBucketsForSource(api, source, force)),
+    );
+    for (final listing in listings) {
+      if (listing.buckets != null) {
+        final source = listing.source;
+        final views = source.config.bucketViews;
+        for (final bucket in listing.buckets!) {
+          final view = views[bucket.name];
+          // Non-empty bucketViews acts as an allowlist: buckets without an entry
+          // are hidden. An empty map means "show everything dynamically".
+          if (views.isNotEmpty && view == null) continue;
+          entries.add(
+            FileManagerBucketEntry.fromBucketInfo(
+              bucket: bucket,
+              profileName: source.profileName,
+              sourceLabel: source.sourceLabel,
+              config: source.config,
+              view: view,
+            ),
+          );
+        }
+      } else {
         failures.add(
           BucketSourceLoadFailure(
-            profileName: source.profileName,
-            cause: error,
-          ),
-        );
-        continue;
-      }
-      final views = source.config.bucketViews;
-      for (final bucket in buckets) {
-        final view = views[bucket.name];
-        // Non-empty bucketViews acts as an allowlist: buckets without an entry
-        // are hidden. An empty map means "show everything dynamically".
-        if (views.isNotEmpty && view == null) continue;
-        entries.add(
-          FileManagerBucketEntry.fromBucketInfo(
-            bucket: bucket,
-            profileName: source.profileName,
-            sourceLabel: source.sourceLabel,
-            config: source.config,
-            view: view,
+            profileName: listing.source.profileName,
+            // listing.error is only null in the success branch we just handled.
+            cause: listing.error!,
           ),
         );
       }
@@ -212,6 +237,47 @@ class BucketSourceService {
       return left.label.compareTo(right.label);
     });
     return BucketSourceLoadResult(entries: entries, failures: failures);
+  }
+
+  /// Bounds how long a single account is allowed to stall the aggregate load.
+  /// Set slightly above the Go bridge `list_buckets` timeout so the backend's
+  /// error (with a useful message) is preferred over a generic Dart timeout.
+  static const _perAccountTimeout = Duration(seconds: 40);
+
+  Future<_SourceLoadOutcome> _loadSource(
+    RemoteStorageGateway api,
+    ProfileInfo profile,
+  ) async {
+    try {
+      final config = await api
+          .loadProfile(profile.name)
+          .timeout(_perAccountTimeout);
+      return _SourceLoadOutcome(
+        profileName: profile.name,
+        source: BucketSource(
+          profileName: profile.name,
+          sourceLabel: _sourceLabelForConfig(config),
+          config: config,
+        ),
+      );
+    } catch (error) {
+      return _SourceLoadOutcome(profileName: profile.name, error: error);
+    }
+  }
+
+  Future<_BucketListingOutcome> _listBucketsForSource(
+    RemoteStorageGateway api,
+    BucketSource source,
+    bool force,
+  ) async {
+    try {
+      final buckets = await api
+          .listBuckets(source.config, force: force)
+          .timeout(_perAccountTimeout);
+      return _BucketListingOutcome(source: source, buckets: buckets);
+    } catch (error) {
+      return _BucketListingOutcome(source: source, error: error);
+    }
   }
 
   List<FileManagerBucketEntry> _applySavedOrder(
@@ -244,4 +310,34 @@ class BucketSourceService {
         : config.accessKeyId.trim();
     return name.isEmpty ? '账号' : name;
   }
+}
+
+/// Outcome of loading one profile's config: either a resolved [BucketSource]
+/// or the error that prevented resolution. Carries the profile name so a
+/// failure can be attributed for the "reconfigure" action.
+class _SourceLoadOutcome {
+  const _SourceLoadOutcome({
+    required this.profileName,
+    this.source,
+    this.error,
+  });
+
+  final String profileName;
+  final BucketSource? source;
+  final Object? error;
+}
+
+/// Outcome of listing one source's buckets: either the bucket list or the
+/// error that prevented it. The source is always present so failures can be
+/// attributed to the right account.
+class _BucketListingOutcome {
+  const _BucketListingOutcome({
+    required this.source,
+    this.buckets,
+    this.error,
+  });
+
+  final BucketSource source;
+  final List<BucketInfo>? buckets;
+  final Object? error;
 }

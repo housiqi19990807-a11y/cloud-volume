@@ -22,6 +22,10 @@ type ProfileInfo struct {
 	Endpoint     string `json:"endpoint"`
 	AccessKeyID  string `json:"accessKeyId"`
 	Active       bool   `json:"active"`
+	// Disabled reports the account's opt-out state. A disabled account is kept
+	// in the list (so the user can re-enable it) but skipped by the file manager
+	// and P2P.
+	Disabled bool `json:"disabled"`
 }
 
 // Constants shared across the old TOML layout and the new bbolt layout.

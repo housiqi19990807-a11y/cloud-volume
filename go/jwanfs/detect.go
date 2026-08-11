@@ -37,6 +37,13 @@ var (
 	detectionMu      sync.RWMutex
 	detectionCache   = make(map[string]detectionResult)
 	detectionCacheTTL = 10 * time.Minute
+	// gatewayRefreshTimeout bounds the initial balancer discovery inside
+	// NewClient. Without it, gateway discovery against an unreachable endpoint
+	// stalls on the OS-level TCP timeout (~1-2 minutes), which neither the
+	// S3 ListBuckets request context nor the bridge list_buckets timeout can
+	// interrupt (discovery runs during client construction, before those
+	// contexts exist). Discovery failure falls back to direct connect.
+	gatewayRefreshTimeout = 10 * time.Second
 )
 
 // cacheKey derives a stable cache key from config + mode.

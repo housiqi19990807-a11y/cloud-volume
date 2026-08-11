@@ -65,10 +65,17 @@ type RemoteStorageConfig struct {
 	P2PEnabled bool `json:"p2pEnabled" toml:"p2p_enabled"`
 	// P2PChunkSizeMB is the chunk size in MB used for peer-to-peer content transfer.
 	P2PChunkSizeMB int `json:"p2pChunkSizeMb" toml:"p2p_chunk_size_mb"`
+	// Disabled marks an account as opted-out of the file manager: a disabled
+	// account is not bucket-listed, does not connect to its backend, and does
+	// not start P2P. It stays in the account list so the user can re-enable it.
+	// The zero value (false) means enabled — no UnmarshalJSON shim is needed.
+	Disabled bool `json:"disabled" toml:"disabled"`
 }
 
-// UnmarshalJSON preserves the enabled-by-default setting when reading profiles written
-// before LAN P2P was introduced. New JSON always writes the explicit setting.
+// UnmarshalJSON preserves an explicitly saved P2P-enabled choice. LAN P2P is
+// an off-by-default experimental feature, so profiles written without the
+// field (including those saved before P2P shipped) stay disabled; only an
+// explicit p2pEnabled:true turns it on. New JSON always writes the setting.
 func (c *RemoteStorageConfig) UnmarshalJSON(data []byte) error {
 	type configJSON RemoteStorageConfig
 	var decoded configJSON
@@ -79,11 +86,9 @@ func (c *RemoteStorageConfig) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	if _, present := fields["p2pEnabled"]; !present {
-		if _, present = fields["p2p_enabled"]; !present {
-			decoded.P2PEnabled = true
-		}
-	}
+	// P2PEnabled has no shim: a missing field keeps the Go zero value (false),
+	// matching the off-by-default beta behavior. An explicit p2pEnabled value
+	// (true or false) is honored as written by json.Unmarshal above.
 	if _, present := fields["p2pChunkSizeMb"]; !present {
 		if _, present = fields["p2p_chunk_size_mb"]; !present {
 			decoded.P2PChunkSizeMB = defaultP2PChunkSizeMB
@@ -180,7 +185,7 @@ func DefaultConfig() RemoteStorageConfig {
 		JWanFSGatewayMode:           JWanFSGatewayModeAuto,
 		ProxyMode:                   ProxyModeInherit,
 		ProxyType:                   ProxyTypeHTTP,
-		P2PEnabled:                  true,
+		P2PEnabled:                  false,
 		P2PChunkSizeMB:              defaultP2PChunkSizeMB,
 	}
 }
@@ -235,6 +240,7 @@ func (c RemoteStorageConfig) Normalized() RemoteStorageConfig {
 		ProxyPassword:               c.ProxyPassword,
 		P2PEnabled:                  c.P2PEnabled,
 		P2PChunkSizeMB:              normalizeP2PChunkSizeMB(c.P2PChunkSizeMB),
+		Disabled:                    c.Disabled,
 	}
 }
 

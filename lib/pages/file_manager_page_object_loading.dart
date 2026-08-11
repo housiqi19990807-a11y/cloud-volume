@@ -82,7 +82,6 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
       }
       if (!mounted) return false;
       setState(() {
-        _failedBucketProfileName = null;
         final visibleKeys = pageItems.map((object) => object.key).toSet();
         _activeBucketEntry = bucketEntry;
         _objects = pageItems;
@@ -108,7 +107,6 @@ extension _FileManagerPageObjectLoading on _FileManagerPageState {
     } catch (e) {
       if (!mounted) return false;
       setState(() {
-        _failedBucketProfileName = bucketEntry.profileName;
         _error = describeBridgeError(e);
         _endLoading();
       });

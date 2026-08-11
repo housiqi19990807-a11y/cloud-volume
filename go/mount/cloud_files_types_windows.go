@@ -50,19 +50,27 @@ type cloudFilesCallbacks struct {
 }
 
 func cloudFilesLocalPathToVirtual(syncRoot, localPath string) string {
+	virtualPath, _ := cloudFilesLocalPathToVirtualChecked(syncRoot, localPath)
+	return virtualPath
+}
+
+func cloudFilesLocalPathToVirtualChecked(syncRoot, localPath string) (string, bool) {
 	root := filepath.Clean(strings.TrimSpace(syncRoot))
 	current := filepath.Clean(strings.TrimSpace(localPath))
 	if root == "" || current == "" {
-		return ""
+		return "", false
 	}
 	if current == root {
-		return ""
+		return "", true
 	}
 	relative, err := filepath.Rel(root, current)
 	if err != nil {
-		return ""
+		return "", false
 	}
-	return cleanVirtualPath(filepath.ToSlash(relative))
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return cleanVirtualPath(filepath.ToSlash(relative)), true
 }
 
 func cloudFilesVirtualPathToLocal(syncRoot, virtualPath string) string {
@@ -90,9 +98,19 @@ func cloudFilesPlaceholderInfo(info s3ops.ObjectInfo) cloudPlaceholderInfo {
 		RelativePath: strings.TrimSuffix(filepath.Base(filepath.Clean(info.Key)), "/"),
 		FileSize:     info.Size,
 		ModTime:      cloudFilesObjectModTime(info),
-		FileID:       info.Key,
+		FileID:       cloudFilesObjectIdentity(info),
 		IsDirectory:  info.IsDir,
 	}
+}
+
+// cloudFilesObjectIdentity includes the ETag when present so a same-size
+// overwrite in the same timestamp tick still dehydrates stale Explorer bytes.
+func cloudFilesObjectIdentity(info s3ops.ObjectInfo) string {
+	identity := info.Key
+	if etag := strings.TrimSpace(info.ETag); etag != "" {
+		identity += "\x1f" + etag
+	}
+	return identity
 }
 
 func isWindowsLocalOnlyPath(virtualPath string) bool {

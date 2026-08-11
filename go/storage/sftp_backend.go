@@ -26,6 +26,18 @@ func newSFTPBackend(cfg storageconfig.RemoteStorageConfig) Backend {
 	return sftpBackend{cfg: cfg}
 }
 
+// SupportsMountPrefetch avoids opening several speculative SSH connections
+// when Finder first displays a directory. Explicit navigation still lists it.
+func (b sftpBackend) SupportsMountPrefetch() bool {
+	return false
+}
+
+// SupportsMountRemotePolling prevents Finder's recursive metadata crawl from
+// turning into a second stream of repeated SFTP connections every few seconds.
+func (b sftpBackend) SupportsMountRemotePolling() bool {
+	return false
+}
+
 // sftpClient dials the configured SFTP endpoint and returns a live client.
 // The caller is responsible for closing both the sftp client and the underlying SSH connection.
 func (b sftpBackend) sftpClient(ctx context.Context) (*sftp.Client, *ssh.Client, error) {
@@ -40,10 +52,21 @@ func (b sftpBackend) sftpClient(ctx context.Context) (*sftp.Client, *ssh.Client,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         30 * time.Second,
 	}
-	sshClient, err := ssh.Dial("tcp", host, sshConfig)
+	dialer := &net.Dialer{Timeout: sshConfig.Timeout}
+	netConn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return nil, nil, fmt.Errorf("sftp ssh dial %s: %w", host, err)
 	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = netConn.SetDeadline(deadline)
+	}
+	context.AfterFunc(ctx, func() { _ = netConn.Close() })
+	clientConn, channels, requests, err := ssh.NewClientConn(netConn, host, sshConfig)
+	if err != nil {
+		_ = netConn.Close()
+		return nil, nil, fmt.Errorf("sftp ssh handshake %s: %w", host, err)
+	}
+	sshClient := ssh.NewClient(clientConn, channels, requests)
 	client, err := sftp.NewClient(sshClient)
 	if err != nil {
 		_ = sshClient.Close()

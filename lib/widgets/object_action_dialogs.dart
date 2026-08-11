@@ -1,10 +1,13 @@
 // Object action dialogs keep rename/delete prompts out of the main page file.
 
 import 'package:flutter/material.dart';
+import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/s3_objects.dart';
 import 'package:remote_storage/models/trash_item.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/services/app_modal.dart';
+import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/widgets/remote_directory_picker_dialog.dart';
 
 // DeleteDialogChoice carries the user's delete confirmation plus whether the
 // objects should bypass the trash and be removed permanently.
@@ -226,52 +229,38 @@ Future<String?> showRenameObjectDialog(
 Future<String?> showObjectTargetPathDialog(
   BuildContext context,
   ObjectInfo object, {
-  required bool move,
+  required RemoteStorageGateway api,
+  required FileManagerBucketEntry bucket,
+  required String initialPrefix,
 }) async {
-  final controller = TextEditingController(text: object.key);
-  try {
-    return await showAppModal<String?>(
-      context: context,
-      builder: (dialogContext) => ShadDialog(
-        title: Text(move ? '移动到' : '复制到'),
-        description: const Text('输入相对于当前存储桶根目录的目标路径。'),
-        child: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Text(
-                object.displayName,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 10),
-              ShadInput(controller: controller),
-              const SizedBox(height: 18),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ShadButton.outline(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('取消'),
-                  ),
-                  const SizedBox(width: 10),
-                  ShadButton(
-                    onPressed: () =>
-                        Navigator.of(dialogContext).pop(controller.text.trim()),
-                    child: Text(move ? '移动' : '复制'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  } finally {
-    controller.dispose();
+  // Restrict the picker to the active bucket because object copy/move APIs
+  // operate within one bucket. The selected folder supplies the destination;
+  // the source filename is retained automatically below.
+  final selected = await showRemoteDirectoryPicker(
+    context: context,
+    api: api,
+    buckets: <FileManagerBucketEntry>[bucket],
+    initial: RemoteDirectoryResult(
+      bucket: bucket.bucket.name,
+      prefix: initialPrefix,
+      profileName: bucket.profileName,
+      config: bucket.config,
+    ),
+  );
+  return selected?.prefix;
+}
+
+// objectTargetPathInDirectory converts the selected S3 directory prefix into a
+// complete destination key without asking the user to reconstruct a filename.
+String objectTargetPathInDirectory(String directoryPrefix, ObjectInfo object) {
+  final directory = directoryPrefix
+      .split('/')
+      .where((segment) => segment.trim().isNotEmpty)
+      .join('/');
+  if (directory.isEmpty) {
+    return object.displayName;
   }
+  return '$directory/${object.displayName}';
 }
 
 Future<DeleteDialogChoice> showDeleteObjectDialog(

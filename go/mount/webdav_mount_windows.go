@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -22,7 +21,7 @@ func mountWebDAVOnWindows(serverURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cmd := exec.Command("net", "use", drive, serverURL, "/persistent:no")
+	cmd := hiddenWindowsCommand("net", "use", drive, serverURL, "/persistent:no")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("mount bucket with net use: %w: %s", err, string(output))
@@ -35,7 +34,7 @@ func unmountWebDAVOnWindows(mountPath string) error {
 	if drive == "" {
 		return nil
 	}
-	cmd := exec.Command("net", "use", drive, "/delete", "/y")
+	cmd := hiddenWindowsCommand("net", "use", drive, "/delete", "/y")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if !isWindowsDriveReachable(drive + `\`) {
@@ -76,7 +75,7 @@ type webdavMountEntry struct {
 }
 
 func listManagedWindowsWebDAVMountEntries() ([]webdavMountEntry, error) {
-	cmd := exec.Command("net", "use")
+	cmd := hiddenWindowsCommand("net", "use")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("list mapped drives: %w: %s", err, string(output))
@@ -149,13 +148,13 @@ func webdavRemoteMatchesBucket(remote, mountName string) bool {
 }
 
 func ensureWindowsWebClientRunning() error {
-	query := exec.Command("sc.exe", "query", "WebClient")
+	query := hiddenWindowsCommand("sc.exe", "query", "WebClient")
 	output, err := query.CombinedOutput()
 	if err == nil && strings.Contains(strings.ToUpper(string(output)), "RUNNING") {
 		return nil
 	}
 
-	start := exec.Command("sc.exe", "start", "WebClient")
+	start := hiddenWindowsCommand("sc.exe", "start", "WebClient")
 	startOutput, startErr := start.CombinedOutput()
 	combined := strings.ToUpper(string(startOutput) + "\n" + string(output))
 	if startErr == nil ||

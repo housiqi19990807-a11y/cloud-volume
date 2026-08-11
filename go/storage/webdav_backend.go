@@ -195,37 +195,6 @@ func (b webDAVBackend) MoveObject(ctx context.Context, bucket, sourceKey, target
 	return b.copyMove(ctx, "MOVE", sourceKey, targetKey)
 }
 
-func (b webDAVBackend) UploadFile(ctx context.Context, bucket, key, localPath, _ string) error {
-	if err := b.ensureBucketWritable(bucket); err != nil {
-		return err
-	}
-	if err := b.ensureWritableDirectory(ctx, bucket, path.Dir(cleanRemotePath(key))); err != nil {
-		return err
-	}
-	file, err := os.Open(localPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	return b.put(ctx, key, file)
-}
-
-func (b webDAVBackend) UploadReader(
-	ctx context.Context,
-	bucket, key string,
-	body io.Reader,
-	_ int64,
-	_, _ string,
-) error {
-	if err := b.ensureBucketWritable(bucket); err != nil {
-		return err
-	}
-	if err := b.ensureWritableDirectory(ctx, bucket, path.Dir(cleanRemotePath(key))); err != nil {
-		return err
-	}
-	return b.put(ctx, key, body)
-}
-
 func (b webDAVBackend) propfind(ctx context.Context, key, depth string) ([]webDAVResponse, error) {
 	req, err := b.request(ctx, "PROPFIND", key, strings.NewReader(webDAVPropfindBody))
 	if err != nil {

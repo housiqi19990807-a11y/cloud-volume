@@ -4,14 +4,14 @@ part of 'file_manager_page.dart';
 
 // Bucket loading applies only the newest request and keeps source errors profile-aware.
 extension _FileManagerPageBucketLoading on _FileManagerPageState {
-  Future<bool> _loadBuckets() async {
+  Future<bool> _loadBuckets({bool force = false}) async {
     final generation = ++_bucketQuotaRefreshGeneration;
     _beginLoading(message: '加载存储桶...');
     try {
       // Fetch bucket entries, then resolve quotas inline so a single setState
       // renders the final list. A separate post-frame quota refresh would replace
       // _buckets and destroy FileListTile hover state (the "hover又坏了" bug).
-      final sourceResult = await _loadBucketEntries();
+      final sourceResult = await _loadBucketEntries(force: force);
       final baseEntries = _applyCachedBucketQuotas(sourceResult.entries);
       if (!mounted || generation != _bucketQuotaRefreshGeneration) {
         return false;
@@ -24,7 +24,6 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
         return false;
       }
       setState(() {
-        _failedBucketProfileName = null;
         _unavailableBucketSources = sourceResult.failures;
         _objectListingCache.clear();
         _buckets = entriesWithQuota;
@@ -60,7 +59,6 @@ extension _FileManagerPageBucketLoading on _FileManagerPageState {
         return false;
       }
       setState(() {
-        _failedBucketProfileName = null;
         _error = describeBridgeError(error);
         _endLoading();
       });

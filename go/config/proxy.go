@@ -6,6 +6,7 @@ package config
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,6 +14,18 @@ import (
 
 	"golang.org/x/net/proxy"
 )
+
+// proxyDialTimeout bounds how long a single TCP dial waits before failing.
+// Without it, a dropped (not refused) endpoint — firewall, powered-off
+// gateway, unroutable IP — makes the OS retry SYN packets for ~75s on macOS,
+// and only the per-request context can interrupt it. 3s lets an unreachable
+// endpoint fail fast so the negative cache can record it and the UI is not
+// blocked. Generous enough that a slow-but-reachable endpoint still connects.
+const proxyDialTimeout = 3 * time.Second
+
+// boundedDialer is the dialer applied to every proxy transport so unreachable
+// hosts fail fast instead of stalling on the OS TCP timeout.
+var boundedDialer = &net.Dialer{Timeout: proxyDialTimeout}
 
 func durationFromSeconds(s int) time.Duration {
 	return time.Duration(s) * time.Second
@@ -49,11 +62,14 @@ func ProxyTransport(cfg RemoteStorageConfig) http.RoundTripper {
 	mode := strings.TrimSpace(cfg.ProxyMode)
 	switch mode {
 	case ProxyModeDirect:
-		return &http.Transport{Proxy: nil}
+		return &http.Transport{Proxy: nil, DialContext: boundedDialer.DialContext}
 	case ProxyModeCustom:
 		return buildCustomProxyTransport(cfg)
 	default: // ProxyModeSystem or unknown
-		return &http.Transport{Proxy: http.ProxyFromEnvironment}
+		return &http.Transport{
+			Proxy:       http.ProxyFromEnvironment,
+			DialContext: boundedDialer.DialContext,
+		}
 	}
 }
 
@@ -62,12 +78,18 @@ func ProxyTransport(cfg RemoteStorageConfig) http.RoundTripper {
 func buildCustomProxyTransport(cfg RemoteStorageConfig) http.RoundTripper {
 	host := strings.TrimSpace(cfg.ProxyHost)
 	if host == "" {
-		return &http.Transport{Proxy: http.ProxyFromEnvironment}
+		return &http.Transport{
+			Proxy:       http.ProxyFromEnvironment,
+			DialContext: boundedDialer.DialContext,
+		}
 	}
 	port := strings.TrimSpace(cfg.ProxyPort)
 	rt, err := buildCustomTransport(cfg.ProxyType, host, port, cfg.ProxyUsername, cfg.ProxyPassword)
 	if err != nil || rt == nil {
-		return &http.Transport{Proxy: http.ProxyFromEnvironment}
+		return &http.Transport{
+			Proxy:       http.ProxyFromEnvironment,
+			DialContext: boundedDialer.DialContext,
+		}
 	}
 	return rt
 }

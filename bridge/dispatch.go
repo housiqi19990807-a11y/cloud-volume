@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	storageconfig "remote-storage/go/config"
 	bridgelog "remote-storage/go/logging"
@@ -196,6 +197,13 @@ type bucketArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`
 }
 
+// listBucketsArgs carries the optional force flag that lets an explicit user
+// refresh bypass the negative cache and retry a recently-failed account.
+type listBucketsArgs struct {
+	Config storageconfig.RemoteStorageConfig `json:"config"`
+	Force  bool                              `json:"force,omitempty"`
+}
+
 type objectListArgs struct {
 	Config storageconfig.RemoteStorageConfig `json:"config"`
 	Bucket string                            `json:"bucket"`
@@ -258,17 +266,33 @@ type transferTaskArgs struct {
 	TaskID string `json:"taskId"`
 }
 
+// bridgeListBucketsTimeout bounds the per-account bucket list call. S3 client
+// construction probes JWanFS gateway reachability and, for an unreachable
+// endpoint, can otherwise stall on the OS-level TCP timeout (~1-2 minutes).
+// This bound keeps one bad account from blocking the whole multi-account
+// load, which Flutter aggregates concurrently with per-account isolation.
+const bridgeListBucketsTimeout = 30 * time.Second
+
 func listBuckets(args json.RawMessage) (any, error) {
-	var input bucketArgs
+	var input listBucketsArgs
 	if err := decodeArgs(args, &input); err != nil {
 		return nil, err
 	}
 	bridgelog.Infof(
-		"[bridge/storage] list_buckets storage_type=%q profile=%q",
+		"[bridge/storage] list_buckets storage_type=%q profile=%q force=%t",
 		input.Config.StorageType,
 		input.Config.DisplayName,
+		input.Force,
 	)
-	return storageops.ForConfig(input.Config).ListBuckets(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), bridgeListBucketsTimeout)
+	defer cancel()
+	// Dedup concurrent callers and apply a short negative cache so one
+	// unreachable account fails fast (~8s) instead of stalling the multi-account
+	// load for 15-45s, and does not re-dial on every page reload. An explicit
+	// user refresh (force) bypasses the negative cache so a fixed account can be
+	// retried immediately.
+	backend := storageops.ForConfig(input.Config)
+	return storageops.ListBucketsDedup(ctx, input.Config, backend.ListBuckets, input.Force)
 }
 
 func listObjects(args json.RawMessage) (any, error) {

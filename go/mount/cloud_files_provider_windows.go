@@ -132,6 +132,11 @@ func (p *cloudFilesProvider) CreatePlaceholders(baseDir string, items []cloudPla
 	for _, item := range items {
 		localPath := filepath.Join(baseDir, filepath.FromSlash(item.RelativePath))
 		if _, err := os.Lstat(localPath); err == nil {
+			if item.IsDirectory {
+				if err := p.repairExistingDirectoryPlaceholder(localPath, item); err != nil {
+					return err
+				}
+			}
 			continue
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("stat placeholder target %q: %w", item.RelativePath, err)
@@ -141,19 +146,8 @@ func (p *cloudFilesProvider) CreatePlaceholders(baseDir string, items []cloudPla
 
 		wRelativePath, freeRelativePath := cloudFilesWideString(item.RelativePath)
 		createInfo.RelativeFileName = C.LPCWSTR(wRelativePath)
-		*(*C.LONGLONG)(unsafe.Pointer(&createInfo.FsMetadata.FileSize)) = C.LONGLONG(item.FileSize)
+		createInfo.FsMetadata = cloudFilesPlaceholderMetadata(item)
 		createInfo.Flags = C.CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC
-		fileTime := cloudFilesTimeToFileTime(item.ModTime)
-		createInfo.FsMetadata.BasicInfo.CreationTime = fileTime
-		createInfo.FsMetadata.BasicInfo.LastWriteTime = fileTime
-		createInfo.FsMetadata.BasicInfo.LastAccessTime = fileTime
-		createInfo.FsMetadata.BasicInfo.ChangeTime = fileTime
-		if item.IsDirectory {
-			createInfo.FsMetadata.BasicInfo.FileAttributes = C.FILE_ATTRIBUTE_DIRECTORY
-		} else {
-			createInfo.FsMetadata.BasicInfo.FileAttributes =
-				C.FILE_ATTRIBUTE_ARCHIVE | C.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
-		}
 
 		var identity *C.char
 		if item.FileID != "" {
@@ -178,6 +172,48 @@ func (p *cloudFilesProvider) CreatePlaceholders(baseDir string, items []cloudPla
 		}
 	}
 	return nil
+}
+
+// UpdatePlaceholder refreshes remote metadata for an existing Cloud Files entry.
+// Changed files are dehydrated so the next Explorer read fetches fresh content.
+func (p *cloudFilesProvider) UpdatePlaceholder(
+	localPath string,
+	item cloudPlaceholderInfo,
+) (bool, error) {
+	wPath, freePath := cloudFilesWideString(localPath)
+	defer freePath()
+
+	metadata := cloudFilesPlaceholderMetadata(item)
+	var identity *C.char
+	if item.FileID != "" {
+		identity = C.CString(item.FileID)
+		defer C.free(unsafe.Pointer(identity))
+	}
+	dehydrate := C.int(0)
+	if !item.IsDirectory {
+		dehydrate = 1
+	}
+	hr := C.rs_cf_update_placeholder(
+		wPath,
+		&metadata,
+		C.LPCVOID(unsafe.Pointer(identity)),
+		C.DWORD(len(item.FileID)),
+		dehydrate,
+		C.int(boolToInt(item.IsDirectory)),
+	)
+	if hr != 0 {
+		if uint32(hr) == cloudFilesNotACloudFile {
+			// A local-first write can temporarily replace a placeholder. Its pending
+			// writeback must win over a remote poll, so leave it untouched.
+			return false, nil
+		}
+		return false, fmt.Errorf(
+			"update placeholder %q: HRESULT 0x%08x",
+			localPath,
+			uint32(hr),
+		)
+	}
+	return true, nil
 }
 
 func (p *cloudFilesProvider) SetInSync(localPath string, inSync bool) error {
@@ -302,4 +338,21 @@ func cloudFilesTimeToFileTime(value time.Time) C.LARGE_INTEGER {
 	var result C.LARGE_INTEGER
 	*(*C.LONGLONG)(unsafe.Pointer(&result)) = C.LONGLONG(ticks)
 	return result
+}
+
+func cloudFilesPlaceholderMetadata(item cloudPlaceholderInfo) C.CF_FS_METADATA {
+	var metadata C.CF_FS_METADATA
+	*(*C.LONGLONG)(unsafe.Pointer(&metadata.FileSize)) = C.LONGLONG(item.FileSize)
+	fileTime := cloudFilesTimeToFileTime(item.ModTime)
+	metadata.BasicInfo.CreationTime = fileTime
+	metadata.BasicInfo.LastWriteTime = fileTime
+	metadata.BasicInfo.LastAccessTime = fileTime
+	metadata.BasicInfo.ChangeTime = fileTime
+	if item.IsDirectory {
+		metadata.BasicInfo.FileAttributes = C.FILE_ATTRIBUTE_DIRECTORY
+	} else {
+		metadata.BasicInfo.FileAttributes =
+			C.FILE_ATTRIBUTE_ARCHIVE | C.FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+	}
+	return metadata
 }

@@ -12,7 +12,12 @@ import (
 	storageconfig "remote-storage/go/config"
 )
 
-const bucketListTimeout = 15 * time.Second
+// bucketListTimeout bounds a single ListBuckets call. It is intentionally
+// shorter than the bridge list_buckets timeout so an unreachable endpoint
+// fails fast and the bridge's negative cache can record the failure before the
+// UI's per-account timeout fires. Combined with singleflight dedup, one bad
+// account surfaces in ~8s instead of stalling the load for 15-45s.
+const bucketListTimeout = 8 * time.Second
 
 // BucketInfo holds bucket metadata returned to the Flutter layer.
 type BucketInfo struct {
@@ -23,8 +28,11 @@ type BucketInfo struct {
 }
 
 // ListBuckets returns all buckets accessible by the configured credentials.
+// It uses a no-retry client so an unreachable endpoint fails fast (within the
+// 3s dial timeout) and reaches the bridge negative cache promptly, instead of
+// burning the whole bucketListTimeout on SDK retries.
 func ListBuckets(cfg storageconfig.RemoteStorageConfig) ([]BucketInfo, error) {
-	client := NewClient(cfg)
+	client := NewListBucketsClient(cfg)
 	ctx, cancel := context.WithTimeout(Ctx(), bucketListTimeout)
 	defer cancel()
 	startedAt := time.Now()
