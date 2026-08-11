@@ -55,6 +55,35 @@ func TestWindowsPathStateHydratingStillHidesChildren(t *testing.T) {
 	}
 }
 
+func TestMarkRenameSourceLeavesRenamedChildrenWritable(t *testing.T) {
+	t.Parallel()
+
+	oldDir := filepath.Join(`C:\sync-root`, `old`)
+	newDir := filepath.Join(`C:\sync-root`, `new`)
+	oldChild := filepath.Join(oldDir, `draft.txt`)
+	newChild := filepath.Join(newDir, `draft.txt`)
+	watcher := &windowsSyncWatcher{state: &windowsPathState{
+		ignored:      map[string]windowsIgnoredPath{},
+		hydrating:    map[string]bool{},
+		kinds:        map[string]bool{oldDir: true, oldChild: false},
+		files:        map[string]windowsObservedFile{},
+		placeholders: map[string]bool{},
+	}}
+
+	watcher.MarkRenameSource(oldDir, true)
+	watcher.Rebase(oldDir, newDir, true)
+
+	if !watcher.state.shouldIgnore(oldChild) {
+		t.Fatal("expected stale source events to be suppressed briefly")
+	}
+	if watcher.state.shouldIgnore(newChild) {
+		t.Fatal("expected renamed directory children to remain writable")
+	}
+	if len(watcher.state.hydrating) != 0 {
+		t.Fatalf("rename must not leave permanent hydration markers: %v", watcher.state.hydrating)
+	}
+}
+
 func TestWindowsPathStateProviderDeleteCoversDirectoryCallbacks(t *testing.T) {
 	t.Parallel()
 

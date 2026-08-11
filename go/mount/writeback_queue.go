@@ -71,6 +71,7 @@ func (q *writebackQueue) enqueue(virtualPath, localPath string, size int64) {
 		localPath:       localPath,
 		size:            size,
 		modTimeUnixNano: modTimeUnixNano,
+		generation:      q.generation,
 	}
 	q.armTimerLocked(entry, q.quietPeriodLocked())
 	q.entries[clean] = entry
@@ -108,26 +109,31 @@ func (q *writebackQueue) supersedeRunningLocked(virtualPath, localPath string) {
 
 func (q *writebackQueue) dispatch() {
 	defer q.wg.Done()
-	for entry := range q.queue {
-		if entry == nil {
-			continue
+	for {
+		select {
+		case <-q.stop:
+			return
+		case entry := <-q.queue:
+			if entry == nil {
+				continue
+			}
+			q.wg.Add(1)
+			err := q.pool.Submit(func() {
+				defer q.wg.Done()
+				q.flush(entry)
+			})
+			if err == nil {
+				continue
+			}
+			q.wg.Done()
+			log.Printf(
+				"[mount/writeback] pool-submit bucket=%q path=%q error=%v",
+				q.bucketName(),
+				entry.virtualPath,
+				err,
+			)
+			q.requeue(entry, writebackRetryBaseDelay)
 		}
-		q.wg.Add(1)
-		err := q.pool.Submit(func() {
-			defer q.wg.Done()
-			q.flush(entry)
-		})
-		if err == nil {
-			continue
-		}
-		q.wg.Done()
-		log.Printf(
-			"[mount/writeback] pool-submit bucket=%q path=%q error=%v",
-			q.bucketName(),
-			entry.virtualPath,
-			err,
-		)
-		q.requeue(entry, writebackRetryBaseDelay)
 	}
 }
 
@@ -155,6 +161,11 @@ func (q *writebackQueue) enqueueReady(virtualPath string) {
 		q.mu.Unlock()
 		return
 	}
+	if q.generationBlockedLocked(entry.generation) {
+		q.armTimerLocked(entry, writebackBarrierPollInterval)
+		q.mu.Unlock()
+		return
+	}
 	entry.queued = true
 	s3ops.SetTransferStatusDetail(entry.taskID, "upload_wait")
 	queue := q.queue
@@ -165,7 +176,10 @@ func (q *writebackQueue) enqueueReady(virtualPath string) {
 		entry.virtualPath,
 		entry.localPath,
 	)
-	queue <- entry
+	select {
+	case queue <- entry:
+	case <-q.stop:
+	}
 }
 
 func (q *writebackQueue) claim(entry *pendingWriteback) bool {
@@ -174,6 +188,11 @@ func (q *writebackQueue) claim(entry *pendingWriteback) bool {
 
 	current, ok := q.entries[entry.virtualPath]
 	if !ok || current.taskID != entry.taskID || !current.queued {
+		return false
+	}
+	if q.generationBlockedLocked(current.generation) {
+		current.queued = false
+		q.armTimerLocked(current, writebackBarrierPollInterval)
 		return false
 	}
 	current.queued = false
@@ -240,7 +259,8 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 	if access == nil {
 		return fmt.Errorf("missing writeback access")
 	}
-	info, err := os.Stat(entry.localPath)
+	localPath := q.resolveEntryLocalPath(entry)
+	info, err := os.Stat(localPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			access.cache.removeLocalFile(entry.virtualPath, false)
@@ -250,14 +270,14 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 				"[mount/writeback] flush-missing bucket=%q path=%q local_path=%q",
 				q.bucketName(),
 				entry.virtualPath,
-				entry.localPath,
+				localPath,
 			)
 			return nil
 		}
 		return err
 	}
 	if info.IsDir() {
-		return fmt.Errorf("writeback source became directory: %s", entry.localPath)
+		return fmt.Errorf("writeback source became directory: %s", localPath)
 	}
 	if q.shouldRefreshEntry(entry, info) {
 		return q.refreshEntryFromDisk(entry, info, q.quietPeriod())
@@ -266,7 +286,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err = access.backend.UploadFile(ctx, access.bucket, access.remoteKey(entry.virtualPath), entry.localPath, entry.taskID)
+	err = access.backend.UploadFile(ctx, access.bucket, access.remoteKey(entry.virtualPath), localPath, entry.taskID)
 	if err != nil {
 		return err
 	}
@@ -279,7 +299,7 @@ func (q *writebackQueue) flushNow(entry *pendingWriteback) error {
 			remoteInfo = s3ops.ObjectInfo{Key: entry.virtualPath, Size: info.Size(), LastModified: info.ModTime().Format("2006-01-02 15:04:05")}
 		} else {
 			remoteInfo.Key = entry.virtualPath
-			RememberPeerContent(access.config, access.bucket, entry.virtualPath, entry.localPath, remoteInfo)
+			RememberPeerContent(access.config, access.bucket, entry.virtualPath, localPath, remoteInfo)
 		}
 		access.cache.clearLocalFileMarker(entry.virtualPath)
 		access.cache.storeObject(entry.virtualPath, remoteInfo)
@@ -325,6 +345,7 @@ func (q *writebackQueue) refreshEntryFromDisk(
 		size:            info.Size(),
 		modTimeUnixNano: info.ModTime().UnixNano(),
 		retryCount:      0,
+		generation:      entry.generation,
 	}
 	delete(q.running, entry.taskID)
 	q.entries[entry.virtualPath] = refreshed
