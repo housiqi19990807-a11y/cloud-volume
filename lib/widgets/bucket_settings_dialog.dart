@@ -19,6 +19,9 @@ Future<RemoteStorageConfig?> showBucketSettingsDialog(
   final quotaController = TextEditingController(
     text: _quotaGigabytesText(current.customQuotaBytes),
   );
+  final volumeLabelController = TextEditingController(
+    text: current.winFspVolumeLabel,
+  );
   var readOnly = current.readOnly;
   var trashEnabled = current.isTrashEnabled;
   String? quotaError;
@@ -84,6 +87,28 @@ Future<RemoteStorageConfig?> showBucketSettingsDialog(
                       color: quotaError == null
                           ? theme.colorScheme.mutedForeground
                           : theme.colorScheme.destructive,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'WinFsp 盘符名称',
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.foreground,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ShadInput(
+                    controller: volumeLabelController,
+                    maxLength: 32,
+                    placeholder: const Text('默认：Cloud Volume <桶名>'),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '仅用于 Windows WinFsp 挂载；留空时使用默认名称。修改后重新挂载生效。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.mutedForeground,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -160,6 +185,8 @@ Future<RemoteStorageConfig?> showBucketSettingsDialog(
                             trashEnabled: trashEnabled,
                             trashDirectory: trimmed,
                             customQuotaBytes: customQuotaBytes,
+                            winFspVolumeLabel: volumeLabelController.text
+                                .trim(),
                           );
                           Navigator.of(
                             dialogContext,
@@ -179,6 +206,7 @@ Future<RemoteStorageConfig?> showBucketSettingsDialog(
   ).whenComplete(() {
     trashController.dispose();
     quotaController.dispose();
+    volumeLabelController.dispose();
   });
 }
 

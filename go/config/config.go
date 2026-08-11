@@ -103,6 +103,7 @@ type BucketSettings struct {
 	TrashEnabled     *bool  `json:"trashEnabled,omitempty" toml:"trash_enabled,omitempty"`
 	TrashDirectory   string `json:"trashDirectory" toml:"trash_directory"`
 	CustomQuotaBytes int64  `json:"customQuotaBytes,omitempty" toml:"custom_quota_bytes,omitempty"`
+	WinFspVolumeLabel string `json:"winFspVolumeLabel,omitempty" toml:"winfsp_volume_label,omitempty"`
 }
 
 // BucketViewSettings maps a visible provider bucket to its local label/root.

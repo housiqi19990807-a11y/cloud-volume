@@ -34,6 +34,7 @@ class BucketSettings {
     required this.trashEnabled,
     required this.trashDirectory,
     this.customQuotaBytes = 0,
+    this.winFspVolumeLabel = '',
   });
 
   factory BucketSettings.fromJson(Map<String, dynamic> json) {
@@ -49,6 +50,10 @@ class BucketSettings {
       customQuotaBytes: _bucketIntFromDynamic(
         json['customQuotaBytes'] ?? json['custom_quota_bytes'],
       ),
+      winFspVolumeLabel:
+          (json['winFspVolumeLabel'] ?? json['winfsp_volume_label'] ?? '')
+              .toString()
+              .trim(),
     );
   }
 
@@ -56,6 +61,7 @@ class BucketSettings {
   final bool? trashEnabled;
   final String trashDirectory;
   final int customQuotaBytes;
+  final String winFspVolumeLabel;
 
   bool get isTrashEnabled => trashEnabled == true;
 
@@ -70,6 +76,9 @@ class BucketSettings {
     if (customQuotaBytes > 0) {
       result['customQuotaBytes'] = customQuotaBytes;
     }
+    if (winFspVolumeLabel.trim().isNotEmpty) {
+      result['winFspVolumeLabel'] = winFspVolumeLabel.trim();
+    }
     return result;
   }
 
@@ -79,6 +88,7 @@ class BucketSettings {
     bool clearTrashEnabled = false,
     String? trashDirectory,
     int? customQuotaBytes,
+    String? winFspVolumeLabel,
   }) {
     return BucketSettings(
       readOnly: readOnly ?? this.readOnly,
@@ -87,6 +97,7 @@ class BucketSettings {
           : (trashEnabled ?? this.trashEnabled),
       trashDirectory: trashDirectory ?? this.trashDirectory,
       customQuotaBytes: customQuotaBytes ?? this.customQuotaBytes,
+      winFspVolumeLabel: winFspVolumeLabel ?? this.winFspVolumeLabel,
     );
   }
 }

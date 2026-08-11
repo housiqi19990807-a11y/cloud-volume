@@ -5,7 +5,11 @@
 // behaviour is validated manually through the app on an installed host.
 package mount
 
-import "testing"
+import (
+	"testing"
+
+	storageconfig "remote-storage/go/config"
+)
 
 func TestHasWinFspMountSuffix(t *testing.T) {
 	t.Parallel()
@@ -81,5 +85,21 @@ func TestValidateWinFspDriveLetter(t *testing.T) {
 				t.Fatalf("validateWinFspDriveLetter(%q) error = %v, wantErr %v", tc.drive, err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestWinFspVolumeLabelUsesBucketOverride(t *testing.T) {
+	t.Parallel()
+
+	cfg := storageconfig.RemoteStorageConfig{
+		BucketSettings: map[string]storageconfig.BucketSettings{
+			"archive": {WinFspVolumeLabel: "  Archive Drive  "},
+		},
+	}
+	if got := winFspVolumeLabel(cfg, "archive"); got != "Archive Drive" {
+		t.Fatalf("custom volume label = %q, want Archive Drive", got)
+	}
+	if got := winFspVolumeLabel(cfg, "photos"); got != "Cloud Volume photos" {
+		t.Fatalf("fallback volume label = %q, want Cloud Volume photos", got)
 	}
 }

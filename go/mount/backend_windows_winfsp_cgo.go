@@ -99,7 +99,7 @@ func (b *windowsWinFspBackend) Start(session *mountSession) error {
 	// FileSystemHost.Mount blocks until the file system is unmounted, so run
 	// it on its own goroutine and surface completion via doneCh.
 	mountPath := session.mountPath
-	volumeLabel := "Cloud Volume " + session.bucket
+	volumeLabel := winFspVolumeLabel(b.cfg, session.bucket)
 	go func() {
 		defer close(b.doneCh)
 		ok := host.Mount(mountPath, winFspMountOptions(volumeLabel))

@@ -403,8 +403,7 @@ class RemoteStorageConfig {
   int get effectiveMountRemotePollSeconds =>
       mountRemotePollSeconds > 0 ? mountRemotePollSeconds : 5;
 
-  int get effectiveP2PChunkSizeMb =>
-      p2pChunkSizeMb > 0 ? p2pChunkSizeMb : 4;
+  int get effectiveP2PChunkSizeMb => p2pChunkSizeMb > 0 ? p2pChunkSizeMb : 4;
 
   bool get supportsMounts => true;
 
@@ -421,6 +420,7 @@ class RemoteStorageConfig {
           ? normalizeTrashDirectoryValue(trashDirectoryName)
           : normalizeTrashDirectoryValue(resolved.trashDirectory),
       customQuotaBytes: resolved?.customQuotaBytes ?? 0,
+      winFspVolumeLabel: resolved?.winFspVolumeLabel ?? '',
     );
   }
 

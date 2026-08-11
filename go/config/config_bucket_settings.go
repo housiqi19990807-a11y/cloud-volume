@@ -34,6 +34,7 @@ func normalizeBucketSettings(settings map[string]BucketSettings) map[string]Buck
 		if setting.CustomQuotaBytes < 0 {
 			setting.CustomQuotaBytes = 0
 		}
+		setting.WinFspVolumeLabel = strings.TrimSpace(setting.WinFspVolumeLabel)
 		result[cleanBucket] = setting
 	}
 	return result
@@ -54,6 +55,7 @@ func (c RemoteStorageConfig) BucketSettingsFor(bucket string) BucketSettings {
 		}
 		setting.ReadOnly = override.ReadOnly
 		setting.CustomQuotaBytes = override.CustomQuotaBytes
+		setting.WinFspVolumeLabel = override.WinFspVolumeLabel
 	}
 	return setting
 }

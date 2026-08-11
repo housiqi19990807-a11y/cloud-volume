@@ -34,6 +34,7 @@ void main() {
     final legacy = BucketSettings.fromJson(const <String, dynamic>{});
     final configured = BucketSettings.fromJson(const <String, dynamic>{
       'custom_quota_bytes': 2 * _gibibyte,
+      'winfsp_volume_label': 'Archive',
     });
     final negative = BucketSettings.fromJson(const <String, dynamic>{
       'customQuotaBytes': -1,
@@ -41,7 +42,9 @@ void main() {
 
     expect(legacy.customQuotaBytes, 0);
     expect(configured.customQuotaBytes, 2 * _gibibyte);
+    expect(configured.winFspVolumeLabel, 'Archive');
     expect(configured.toJson()['customQuotaBytes'], 2 * _gibibyte);
+    expect(configured.toJson()['winFspVolumeLabel'], 'Archive');
     expect(negative.customQuotaBytes, 0);
     expect(negative.toJson().containsKey('customQuotaBytes'), isFalse);
     expect(formatBytes(1536 * _gibibyte), '1.5 TB');
