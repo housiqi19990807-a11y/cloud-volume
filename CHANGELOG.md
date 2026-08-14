@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 修复 Windows Cloud Files 重挂载后客户端能看到文件、但 Explorer 中部分目录为空：复用缓存里的目录现在会重新启用按需枚举；如果目录已退化为普通 NTFS 目录，则原地转换回云占位目录并保留现有内容。并发目录枚举会传递真实失败结果，不再把一次失败误记为“已完整加载”。
+- 修复 Windows Cloud Files 目录改名竞态：`go/mount/dir_sync_queue.go` 的 `rebaseAndFence` 现在把目录创建请求与远端改名统一排进同一个 fence；`bucket_access_writes.go` 在远端源已确认缺失时复用已改名的目标，绝不再向严格后端发送一次“源不存在”的 `MoveObject`。
+- 修复 Windows Cloud Files 跨目录移动在远端出现两份（旧目录与新目录各一份）的并发错误：跨客户端移动现在持久化为 `<sessionRoot>/mutations/queue-*.jsonl` 记录（`mutation_record.go`/`mutation_store.go`），重试由观察到的源/目标状态驱动（`mutation_reconcile.go`：缺失/存在 → 收尾，存在/缺失 → 移动，存在/存在 → 拷贝+硬删，缺失/缺失 → 状态冲突重试），崩溃后下一次启动能完整收敛。
+- 修复 Windows Cloud Files 闲置目录在 Linux 端写入新文件几小时后 Windows 还看不到：轮询器从“三分钟过期”改为“最多保留 12 个已观察目录、闲置则按两分钟刷新”，已经打开但闲置的目录继续按计划刷新。
 - 允许为每个桶自定义 WinFsp 挂载盘符名称（留空则使用默认值）。
 
 - Fixed mounting a bucket from a non-default account with a different Windows mount engine creating a duplicate `default` profile and duplicate bucket rows. WinFsp mounts now query the provider quota API and report its total/free values to Explorer, using the configured virtual capacity only when the provider does not expose quota data.

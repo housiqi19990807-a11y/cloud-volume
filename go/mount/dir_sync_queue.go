@@ -1,10 +1,10 @@
-// Directory sync queue coalesces placeholder directory writes so large local
-// tree copies do not launch one remote create goroutine per discovered folder.
+// Directory sync queue coalesces placeholder writes and fences them across renames.
 package mount
 
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
@@ -12,15 +12,29 @@ import (
 
 const dirSyncWorkerCount = 2
 
+type dirSyncEntry struct {
+	path     string
+	running  bool
+	canceled bool
+	done     chan struct{}
+	doneOnce sync.Once
+}
+
+type dirSyncBarrier struct {
+	entries       []*dirSyncEntry
+	rebasedCreate bool
+}
+
 type dirSyncQueue struct {
 	access *bucketAccess
 
-	mu      sync.Mutex
-	pending map[string]bool
-	closed  bool
-	queue   chan string
-	pool    *ants.Pool
-	wg      sync.WaitGroup
+	mu        sync.Mutex
+	entries   map[string]*dirSyncEntry
+	closed    bool
+	queue     chan *dirSyncEntry
+	pool      *ants.Pool
+	enqueueWG sync.WaitGroup
+	wg        sync.WaitGroup
 }
 
 func newDirSyncQueue(access *bucketAccess) *dirSyncQueue {
@@ -30,8 +44,8 @@ func newDirSyncQueue(access *bucketAccess) *dirSyncQueue {
 	}
 	q := &dirSyncQueue{
 		access:  access,
-		pending: map[string]bool{},
-		queue:   make(chan string, 512),
+		entries: map[string]*dirSyncEntry{},
+		queue:   make(chan *dirSyncEntry, 512),
 		pool:    pool,
 	}
 	q.wg.Add(1)
@@ -45,53 +59,186 @@ func (q *dirSyncQueue) enqueue(virtualPath string) {
 		return
 	}
 
+	entry := &dirSyncEntry{path: clean, done: make(chan struct{})}
 	q.mu.Lock()
-	if q.closed || q.pending[clean] {
+	if q.closed || q.entries[clean] != nil {
 		q.mu.Unlock()
 		return
 	}
-	q.pending[clean] = true
+	q.entries[clean] = entry
+	q.enqueueWG.Add(1)
 	queue := q.queue
 	q.mu.Unlock()
 
-	queue <- clean
+	queue <- entry
+	q.enqueueWG.Done()
+}
+
+// rebaseAndFence moves queued creates below oldPath to newPath. Running entries
+// retain their original path and are included in the returned barrier.
+func (q *dirSyncQueue) rebaseAndFence(oldPath, newPath string, isDir bool) *dirSyncBarrier {
+	oldClean := cleanVirtualPath(oldPath)
+	newClean := cleanVirtualPath(newPath)
+	barrier := &dirSyncBarrier{}
+	if oldClean == "" || newClean == "" {
+		return barrier
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	seen := make(map[*dirSyncEntry]bool)
+	for path, entry := range q.entries {
+		if entry == nil || !dirSyncPathMatches(path, oldClean, isDir) {
+			continue
+		}
+		target := rebaseDirSyncPath(path, oldClean, newClean)
+		if existing := q.entries[target]; existing != nil && existing != entry {
+			if entry.running && !seen[entry] {
+				barrier.entries = append(barrier.entries, entry)
+				seen[entry] = true
+			} else if !entry.running {
+				q.cancelLocked(entry)
+				barrier.rebasedCreate = true
+			}
+			if !seen[existing] {
+				barrier.entries = append(barrier.entries, existing)
+				seen[existing] = true
+			}
+			continue
+		}
+		if entry.running {
+			if !seen[entry] {
+				barrier.entries = append(barrier.entries, entry)
+				seen[entry] = true
+			}
+			continue
+		}
+		delete(q.entries, path)
+		entry.path = target
+		q.entries[target] = entry
+		barrier.rebasedCreate = true
+		if !seen[entry] {
+			barrier.entries = append(barrier.entries, entry)
+			seen[entry] = true
+		}
+	}
+	// A pre-existing target create must finish before the rename as well.
+	if target := q.entries[newClean]; target != nil && !seen[target] {
+		barrier.entries = append(barrier.entries, target)
+	}
+	return barrier
+}
+
+func dirSyncPathMatches(path, oldPath string, isDir bool) bool {
+	if path == oldPath {
+		return true
+	}
+	return isDir && strings.HasPrefix(path, oldPath+"/")
+}
+
+func rebaseDirSyncPath(path, oldPath, newPath string) string {
+	if path == oldPath {
+		return newPath
+	}
+	return newPath + strings.TrimPrefix(path, oldPath)
+}
+
+func (q *dirSyncQueue) wait(ctx context.Context, barrier *dirSyncBarrier) error {
+	if barrier == nil {
+		return nil
+	}
+	for _, entry := range barrier.entries {
+		if entry == nil || entry.done == nil {
+			continue
+		}
+		select {
+		case <-entry.done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 func (q *dirSyncQueue) dispatch() {
 	defer q.wg.Done()
-	for virtualPath := range q.queue {
-		path := virtualPath
+	for entry := range q.queue {
+		if entry == nil {
+			continue
+		}
+		q.mu.Lock()
+		if entry.canceled {
+			q.mu.Unlock()
+			q.finish(entry)
+			continue
+		}
+		entry.running = true
+		q.mu.Unlock()
+
 		q.wg.Add(1)
 		err := q.pool.Submit(func() {
 			defer q.wg.Done()
-			q.flush(path)
+			q.flush(entry)
 		})
 		if err == nil {
 			continue
 		}
 		q.wg.Done()
-		q.finish(path)
+		q.finish(entry)
 		log.Printf(
 			"[mount/dir-sync] bucket=%q path=%q pool-submit-error=%v",
 			q.access.bucket,
-			path,
+			entry.path,
 			err,
 		)
 	}
 }
 
-func (q *dirSyncQueue) flush(virtualPath string) {
+func (q *dirSyncQueue) flush(entry *dirSyncEntry) {
+	q.mu.Lock()
+	if entry.canceled {
+		q.mu.Unlock()
+		q.finish(entry)
+		return
+	}
+	virtualPath := entry.path
+	q.mu.Unlock()
+
 	ctx, cancel := context.WithTimeout(context.Background(), q.access.requestTimeout)
 	defer cancel()
 	if err := q.access.createRemoteDirectory(ctx, virtualPath); err != nil {
 		log.Printf("[mount/dir-sync] bucket=%q path=%q error=%v", q.access.bucket, virtualPath, err)
 	}
-	q.finish(virtualPath)
+	q.finish(entry)
 }
 
-func (q *dirSyncQueue) finish(virtualPath string) {
+func (q *dirSyncQueue) cancelLocked(entry *dirSyncEntry) {
+	if entry == nil || entry.canceled {
+		return
+	}
+	entry.canceled = true
+	for path, candidate := range q.entries {
+		if candidate == entry {
+			delete(q.entries, path)
+		}
+	}
+	if !entry.running {
+		entry.doneOnce.Do(func() { close(entry.done) })
+	}
+}
+
+func (q *dirSyncQueue) finish(entry *dirSyncEntry) {
+	if entry == nil {
+		return
+	}
 	q.mu.Lock()
-	delete(q.pending, virtualPath)
+	entry.running = false
+	for path, candidate := range q.entries {
+		if candidate == entry {
+			delete(q.entries, path)
+		}
+	}
+	entry.doneOnce.Do(func() { close(entry.done) })
 	q.mu.Unlock()
 }
 
@@ -102,9 +249,10 @@ func (q *dirSyncQueue) shutdown() {
 		return
 	}
 	q.closed = true
-	close(q.queue)
 	q.mu.Unlock()
 
+	q.enqueueWG.Wait()
+	close(q.queue)
 	q.wg.Wait()
 	q.pool.Release()
 }

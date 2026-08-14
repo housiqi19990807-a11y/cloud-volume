@@ -38,6 +38,7 @@ type writebackRecord struct {
 	ModTimeUnixNano int64  `json:"modTimeUnixNano"`
 	DueAtUnixNano   int64  `json:"dueAtUnixNano"`
 	RetryCount      int    `json:"retryCount"`
+	Generation      uint64 `json:"generation,omitempty"`
 }
 
 func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
@@ -55,13 +56,20 @@ func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
 	if err != nil {
 		return nil, err
 	}
+	mutations, err := openMutationStore(filepath.Join(access.sessionRoot, mutationStoreDirName))
+	if err != nil {
+		_ = store.close()
+		return nil, err
+	}
 	pool, err := ants.NewPool(access.config.WindowsWritebackConcurrency)
 	if err != nil {
+		_ = mutations.Close()
 		_ = store.close()
 		return nil, fmt.Errorf("create writeback worker pool: %w", err)
 	}
 	q := &writebackQueue{
 		store:       store,
+		mutations:   mutations,
 		storeKey:    storeDir,
 		entries:     map[string]*pendingWriteback{},
 		running:     map[string]*pendingWriteback{},
@@ -72,6 +80,10 @@ func acquireWritebackQueue(access *bucketAccess) (*writebackQueue, error) {
 	}
 	q.attach(access)
 	if err := q.restorePersistedEntries(); err != nil {
+		q.closeResources()
+		return nil, err
+	}
+	if err := q.restorePersistedMutations(); err != nil {
 		q.closeResources()
 		return nil, err
 	}
@@ -137,92 +149,6 @@ func (q *writebackQueue) currentAccess() *bucketAccess {
 	return q.access
 }
 
-func (q *writebackQueue) restorePersistedEntries() error {
-	records, err := q.store.list()
-	if err != nil {
-		return err
-	}
-	records = q.filterRestorableRecords(records)
-	if err := q.store.replaceWithMerged(records); err != nil {
-		return err
-	}
-	now := time.Now()
-	for _, record := range records {
-		entry := record.toPendingWriteback()
-		if entry.virtualPath == "" || entry.taskID == "" {
-			continue
-		}
-		q.entries[entry.virtualPath] = entry
-		s3opsQueueTransferForEntry(q.currentAccess(), entry)
-		delay := time.Until(entry.dueAt)
-		if entry.dueAt.IsZero() || delay < 0 {
-			delay = 0
-			entry.dueAt = now
-		}
-		q.armTimerLocked(entry, delay)
-	}
-	return nil
-}
-
-func (q *writebackQueue) filterRestorableRecords(
-	records []writebackRecord,
-) []writebackRecord {
-	access := q.currentAccess()
-	if access == nil {
-		return records
-	}
-	filtered := make([]writebackRecord, 0, len(records))
-	for _, record := range records {
-		if !q.canRestoreRecord(access, record) {
-			continue
-		}
-		filtered = append(filtered, record)
-	}
-	return filtered
-}
-
-func (q *writebackQueue) canRestoreRecord(
-	access *bucketAccess,
-	record writebackRecord,
-) bool {
-	localPath := filepath.Clean(record.LocalPath)
-	if localPath == "." || localPath == "" {
-		return false
-	}
-	sessionRoot := filepath.Clean(access.sessionRoot)
-	if !isPathWithin(localPath, sessionRoot) {
-		return false
-	}
-	info, err := os.Stat(localPath)
-	if err != nil || info.IsDir() {
-		return false
-	}
-	return true
-}
-
-func isPathWithin(path, root string) bool {
-	cleanPath := filepath.Clean(path)
-	cleanRoot := filepath.Clean(root)
-	if cleanPath == cleanRoot {
-		return true
-	}
-	return strings.HasPrefix(cleanPath, cleanRoot+string(os.PathSeparator))
-}
-
-func (q *writebackQueue) pendingPaths() []string {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	paths := make([]string, 0, len(q.entries)+len(q.running))
-	for path := range q.entries {
-		paths = append(paths, path)
-	}
-	for _, entry := range q.running {
-		paths = append(paths, entry.virtualPath)
-	}
-	return paths
-}
-
 func (q *writebackQueue) unregister() {
 	globalWritebackRegistry.mu.Lock()
 	defer globalWritebackRegistry.mu.Unlock()
@@ -232,6 +158,9 @@ func (q *writebackQueue) unregister() {
 func (q *writebackQueue) closeResources() {
 	if q.pool != nil {
 		q.pool.Release()
+	}
+	if q.mutations != nil {
+		_ = q.mutations.Close()
 	}
 	if q.store != nil {
 		_ = q.store.close()
@@ -255,6 +184,7 @@ func (s *writebackStore) upsert(entry *pendingWriteback) error {
 		ModTimeUnixNano: entry.modTimeUnixNano,
 		DueAtUnixNano:   entry.dueAt.UnixNano(),
 		RetryCount:      entry.retryCount,
+		Generation:      entry.generation,
 	}
 	return s.writeOwnRecords(records)
 }
@@ -398,5 +328,13 @@ func (r writebackRecord) toPendingWriteback() *pendingWriteback {
 		modTimeUnixNano: r.ModTimeUnixNano,
 		dueAt:           time.Unix(0, r.DueAtUnixNano),
 		retryCount:      r.RetryCount,
+		generation:      r.Generation,
 	}
 }
+
+// restorePersistedMutations rebuilds upload barriers and local source rebases
+// from persisted mutation records before either dispatcher starts. The
+// invariant preserved across restart: uploads captured before a move finish
+// before it, while uploads created after the move stay blocked until it
+// reaches a verified terminal state. The next queue generation must exceed
+// every restored generation so later work sorts after the fence.

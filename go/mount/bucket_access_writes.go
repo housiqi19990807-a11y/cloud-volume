@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -137,7 +138,11 @@ func (a *bucketAccess) renamePath(
 		a.cache.renameLocalFile(oldClean, newClean, isDir, a.cacheRoot)
 		a.cache.invalidatePath(oldClean)
 		a.cache.invalidatePath(newClean)
-		if !a.remotePathExists(ctx, oldClean, isDir) {
+		exists, err := a.probeRemotePath(ctx, oldClean, isDir)
+		if err != nil {
+			return err
+		}
+		if !exists {
 			return nil
 		}
 	}
@@ -170,7 +175,6 @@ func (a *bucketAccess) enqueueRenamePath(
 	oldLocalPath,
 	newLocalPath string,
 	isDir bool,
-	reportAttempt func(error),
 ) error {
 	oldClean := cleanVirtualPath(oldVirtualPath)
 	newClean := cleanVirtualPath(newVirtualPath)
@@ -189,33 +193,85 @@ func (a *bucketAccess) enqueueRenamePath(
 	if err := a.hiddenTrashError(newClean); err != nil {
 		return err
 	}
-	return a.writeback.enqueueRename(
-		oldClean,
-		newClean,
+	var dirBarrier *dirSyncBarrier
+	if a.dirSync != nil {
+		dirBarrier = a.dirSync.rebaseAndFence(oldClean, newClean, isDir)
+	}
+	// Capture a stable task ID for the persisted mutation record; retries
+	// across restarts reuse it so the transfer monitor stays consistent.
+	taskID := "mount-move-" + uuid.NewString()
+	return a.writeback.enqueueMutation(
+		mutationRecord{
+			Version:          mutationRecordVersion,
+			ID:               newMutationID(),
+			TaskID:           taskID,
+			Kind:             mutationKindRename,
+			OldVirtualPath:   oldClean,
+			NewVirtualPath:   newClean,
+			OldLocalPath:     oldLocalPath,
+			NewLocalPath:     newLocalPath,
+			IsDirectory:      isDir,
+			UploadGeneration: 0, // enqueueMutation assigns the barrier generation
+			UpdatedAtUnixNs:  time.Now().UnixNano(),
+		},
 		oldLocalPath,
 		newLocalPath,
-		isDir,
 		func() error {
+			if isDir && dirBarrier != nil && dirBarrier.rebasedCreate {
+				ctx, cancel := a.withTimeout(context.Background())
+				defer cancel()
+				exists, err := a.probeRemotePath(ctx, oldClean, true)
+				if err != nil {
+					return err
+				}
+				if !exists {
+					if err := a.createRemoteDirectory(ctx, newClean); err != nil {
+						return err
+					}
+					exists, err = a.probeRemotePath(ctx, newClean, true)
+					if err != nil {
+						return err
+					}
+					if !exists {
+						return fmt.Errorf(
+							"directory %q is absent after create",
+							newClean,
+						)
+					}
+					a.cache.renameLocalFile(oldClean, newClean, true, a.cacheRoot)
+					a.cache.invalidatePath(oldClean)
+					a.cache.invalidatePath(newClean)
+					return nil
+				}
+			}
 			return a.renamePath(context.Background(), oldClean, newClean, isDir)
 		},
-		reportAttempt,
+		dirBarrier,
 	)
 }
 
-func (a *bucketAccess) remoteFileExists(ctx context.Context, virtualPath string) bool {
-	_, err := a.backend.HeadObject(ctx, a.bucket, a.remoteKey(virtualPath))
-	return err == nil
-}
-
-func (a *bucketAccess) remotePathExists(ctx context.Context, virtualPath string, isDir bool) bool {
-	if !isDir {
-		return a.remoteFileExists(ctx, virtualPath)
+func (a *bucketAccess) probeRemotePath(
+	ctx context.Context,
+	virtualPath string,
+	isDir bool,
+) (bool, error) {
+	key := a.remoteKey(virtualPath)
+	if isDir {
+		key = a.remoteKeyForMutation(virtualPath, true)
 	}
-	if _, err := a.backend.HeadObject(ctx, a.bucket, a.remoteKeyForMutation(virtualPath, true)); err == nil {
-		return true
+	if _, err := a.backend.HeadObject(ctx, a.bucket, key); err == nil {
+		return true, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	if !isDir {
+		return false, nil
 	}
 	page, err := a.backend.ListObjectsPage(ctx, a.bucket, a.remotePrefix(virtualPath), "", 1)
-	return err == nil && len(page.Items) > 0
+	if err != nil {
+		return false, err
+	}
+	return len(page.Items) > 0, nil
 }
 
 func (a *bucketAccess) stagePathFor(virtualPath string) string {

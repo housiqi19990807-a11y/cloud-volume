@@ -72,6 +72,10 @@ func (s *mountSession) status() BucketMountStatus {
 	if s == nil {
 		return BucketMountStatus{}
 	}
+	lastError := s.lastError
+	if lastError == "" && s.access != nil && s.access.writeback != nil {
+		lastError = s.access.writeback.mutationLastError()
+	}
 	return BucketMountStatus{
 		Mounted:     s.mounted,
 		Bucket:      s.bucket,
@@ -79,7 +83,7 @@ func (s *mountSession) status() BucketMountStatus {
 		ServerURL:   s.serverURL,
 		Port:        s.port,
 		DriveLetter: s.driveLetter,
-		LastError:   s.lastError,
+		LastError:   lastError,
 	}
 }
 

@@ -359,7 +359,9 @@ func TestDrainWaitsForRunningEntries(t *testing.T) {
 		virtualPath: "archive/output.zip",
 		localPath:   filepath.Join(access.cacheRoot, "archive", "output.zip"),
 	}
+	access.writeback.mu.Lock()
 	access.writeback.running[entry.taskID] = entry
+	access.writeback.mu.Unlock()
 
 	done := make(chan error, 1)
 	go func() {
@@ -372,7 +374,9 @@ func TestDrainWaitsForRunningEntries(t *testing.T) {
 	case <-time.After(150 * time.Millisecond):
 	}
 
+	access.writeback.mu.Lock()
 	delete(access.writeback.running, entry.taskID)
+	access.writeback.mu.Unlock()
 
 	select {
 	case err := <-done:

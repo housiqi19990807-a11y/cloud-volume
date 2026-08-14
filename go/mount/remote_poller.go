@@ -21,6 +21,9 @@ const (
 // directoryActivityTracker records the small working set of directories the
 // user has actually opened. P0 never enumerates a whole bucket in the
 // background, which keeps idle mounts cheap even for large object stores.
+// The tracker is a bounded observed-directory set, not a three-minute cache:
+// entries are retained until the cap evicts the oldest one, so idle but
+// observed directories keep refreshing on the two-minute cadence.
 type directoryActivityTracker struct {
 	mu      sync.Mutex
 	dirs    map[string]time.Time
@@ -75,11 +78,7 @@ func (t *directoryActivityTracker) recent(now time.Time) []string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	prefixes := make([]string, 0, len(t.dirs))
-	for prefix, seenAt := range t.dirs {
-		if now.Sub(seenAt) > remotePollWarmWindow {
-			delete(t.dirs, prefix)
-			continue
-		}
+	for prefix := range t.dirs {
 		prefixes = append(prefixes, prefix)
 	}
 	sort.Strings(prefixes)
@@ -99,22 +98,23 @@ func (t *directoryActivityTracker) nextDelay(
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	mostRecent := time.Time{}
-	for prefix, seenAt := range t.dirs {
-		if now.Sub(seenAt) > remotePollWarmWindow {
-			delete(t.dirs, prefix)
-			continue
-		}
+	for _, seenAt := range t.dirs {
 		if seenAt.After(mostRecent) {
 			mostRecent = seenAt
 		}
 	}
-	if mostRecent.IsZero() {
+	// Cadence follows how recently the user touched any observed directory:
+	// active work polls fast, quiet-but-recent work backs off, and a fully
+	// idle mount settles to the slow two-minute refresh that still keeps
+	// cross-client changes (for example Linux uploads) visible in Windows.
+	switch {
+	case mostRecent.IsZero() || now.Sub(mostRecent) > remotePollWarmWindow:
 		return remotePollIdleDelay
-	}
-	if now.Sub(mostRecent) <= remotePollActiveWindow {
+	case now.Sub(mostRecent) <= remotePollActiveWindow:
 		return activeDelay
+	default:
+		return remotePollWarmDelay
 	}
-	return remotePollWarmDelay
 }
 
 func (t *directoryActivityTracker) changes() <-chan struct{} {
