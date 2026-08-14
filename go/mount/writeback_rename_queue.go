@@ -2,6 +2,7 @@
 package mount
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -25,6 +26,7 @@ type writebackSourceRebase struct {
 
 type queuedWritebackRename struct {
 	barrier       *writebackBarrier
+	dirBarrier    *dirSyncBarrier
 	oldVirtual    string
 	newVirtual    string
 	oldLocal      string
@@ -41,6 +43,7 @@ func (q *writebackQueue) enqueueRename(
 	newLocal string,
 	isDir bool,
 	run func() error,
+	dirBarrier *dirSyncBarrier,
 	reportAttempt func(error),
 ) error {
 	if q == nil || run == nil {
@@ -69,6 +72,7 @@ func (q *writebackQueue) enqueueRename(
 
 	op := &queuedWritebackRename{
 		barrier:       barrier,
+		dirBarrier:    dirBarrier,
 		oldVirtual:    cleanVirtualPath(oldVirtual),
 		newVirtual:    cleanVirtualPath(newVirtual),
 		oldLocal:      oldLocal,
@@ -111,6 +115,13 @@ func (q *writebackQueue) executeQueuedRename(op *queuedWritebackRename) {
 	if err := q.drainThroughGeneration(op.barrier.generation); err != nil {
 		q.finishRenameBarrier(op, err)
 		return
+	}
+	access := q.currentAccess()
+	if access != nil && access.dirSync != nil {
+		if err := access.dirSync.wait(context.Background(), op.dirBarrier); err != nil {
+			q.finishRenameBarrier(op, err)
+			return
+		}
 	}
 
 	for attempt := 0; ; attempt++ {

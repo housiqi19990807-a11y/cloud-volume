@@ -189,6 +189,10 @@ func (a *bucketAccess) enqueueRenamePath(
 	if err := a.hiddenTrashError(newClean); err != nil {
 		return err
 	}
+	var dirBarrier *dirSyncBarrier
+	if a.dirSync != nil {
+		dirBarrier = a.dirSync.rebaseAndFence(oldClean, newClean, isDir)
+	}
 	return a.writeback.enqueueRename(
 		oldClean,
 		newClean,
@@ -198,6 +202,7 @@ func (a *bucketAccess) enqueueRenamePath(
 		func() error {
 			return a.renamePath(context.Background(), oldClean, newClean, isDir)
 		},
+		dirBarrier,
 		reportAttempt,
 	)
 }
