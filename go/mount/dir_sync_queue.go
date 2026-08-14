@@ -27,12 +27,13 @@ type dirSyncBarrier struct {
 type dirSyncQueue struct {
 	access *bucketAccess
 
-	mu      sync.Mutex
-	entries map[string]*dirSyncEntry
-	closed  bool
-	queue   chan *dirSyncEntry
-	pool    *ants.Pool
-	wg      sync.WaitGroup
+	mu        sync.Mutex
+	entries   map[string]*dirSyncEntry
+	closed    bool
+	queue     chan *dirSyncEntry
+	pool      *ants.Pool
+	enqueueWG sync.WaitGroup
+	wg        sync.WaitGroup
 }
 
 func newDirSyncQueue(access *bucketAccess) *dirSyncQueue {
@@ -64,10 +65,12 @@ func (q *dirSyncQueue) enqueue(virtualPath string) {
 		return
 	}
 	q.entries[clean] = entry
-	// Keep the send under the queue lock so shutdown cannot close the channel
-	// between the closed check and enqueue.
-	q.queue <- entry
+	q.enqueueWG.Add(1)
+	queue := q.queue
 	q.mu.Unlock()
+
+	queue <- entry
+	q.enqueueWG.Done()
 }
 
 // rebaseAndFence moves queued creates below oldPath to newPath. Running entries
@@ -88,18 +91,23 @@ func (q *dirSyncQueue) rebaseAndFence(oldPath, newPath string, isDir bool) *dirS
 			continue
 		}
 		target := rebaseDirSyncPath(path, oldClean, newClean)
+		if existing := q.entries[target]; existing != nil && existing != entry {
+			if entry.running && !seen[entry] {
+				barrier.entries = append(barrier.entries, entry)
+				seen[entry] = true
+			} else if !entry.running {
+				q.cancelLocked(entry)
+			}
+			if !seen[existing] {
+				barrier.entries = append(barrier.entries, existing)
+				seen[existing] = true
+			}
+			continue
+		}
 		if entry.running {
 			if !seen[entry] {
 				barrier.entries = append(barrier.entries, entry)
 				seen[entry] = true
-			}
-			continue
-		}
-		if existing := q.entries[target]; existing != nil && existing != entry {
-			q.cancelLocked(entry)
-			if !seen[existing] {
-				barrier.entries = append(barrier.entries, existing)
-				seen[existing] = true
 			}
 			continue
 		}
@@ -238,9 +246,10 @@ func (q *dirSyncQueue) shutdown() {
 		return
 	}
 	q.closed = true
-	close(q.queue)
 	q.mu.Unlock()
 
+	q.enqueueWG.Wait()
+	close(q.queue)
 	q.wg.Wait()
 	q.pool.Release()
 }

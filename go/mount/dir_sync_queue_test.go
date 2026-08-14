@@ -3,6 +3,7 @@ package mount
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -15,9 +16,10 @@ type directorySyncTestBackend struct {
 	mu            sync.Mutex
 	events        []string
 	directories   map[string]bool
-	createStarted chan struct{}
+	createStarted chan string
 	renameStarted chan struct{}
 	releaseCreate chan struct{}
+	blockedPaths  map[string]chan struct{}
 	blockCreate   bool
 	renameOnce    sync.Once
 }
@@ -25,9 +27,10 @@ type directorySyncTestBackend struct {
 func newDirectorySyncTestBackend() *directorySyncTestBackend {
 	return &directorySyncTestBackend{
 		directories:   make(map[string]bool),
-		createStarted: make(chan struct{}, 1),
+		createStarted: make(chan string, 1024),
 		renameStarted: make(chan struct{}),
 		releaseCreate: make(chan struct{}),
+		blockedPaths:  make(map[string]chan struct{}),
 	}
 }
 
@@ -45,12 +48,19 @@ func (b *directorySyncTestBackend) CreateDirectory(
 	b.mu.Lock()
 	b.events = append(b.events, "create:"+path)
 	b.directories[path] = true
+	pathBlock := b.blockedPaths[path]
 	b.mu.Unlock()
 	select {
-	case b.createStarted <- struct{}{}:
+	case b.createStarted <- path:
 	default:
 	}
-	if b.blockCreate {
+	if pathBlock != nil {
+		select {
+		case <-pathBlock:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	} else if b.blockCreate {
 		select {
 		case <-b.releaseCreate:
 		case <-ctx.Done():
@@ -58,6 +68,14 @@ func (b *directorySyncTestBackend) CreateDirectory(
 		}
 	}
 	return nil
+}
+
+func (b *directorySyncTestBackend) blockPath(path string) chan struct{} {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	release := make(chan struct{})
+	b.blockedPaths[cleanVirtualPath(path)] = release
+	return release
 }
 
 func (b *directorySyncTestBackend) MoveObject(
@@ -133,16 +151,50 @@ func waitForDirectorySync(t *testing.T, check func() bool) {
 	t.Fatal("timed out waiting for directory sync")
 }
 
+func waitForDirectoryCreateStarts(
+	t *testing.T,
+	backend *directorySyncTestBackend,
+	want int,
+) {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for started := 0; started < want; started++ {
+		select {
+		case <-backend.createStarted:
+		case <-deadline:
+			t.Fatalf("only %d of %d directory creates started", started, want)
+		}
+	}
+}
+
+func waitForDirectoryEntryRunning(t *testing.T, q *dirSyncQueue, path string) {
+	t.Helper()
+	want := cleanVirtualPath(path)
+	waitForDirectorySync(t, func() bool {
+		q.mu.Lock()
+		defer q.mu.Unlock()
+		entry := q.entries[want]
+		return entry != nil && entry.running
+	})
+}
+
 func TestDirectoryCreateIsRebasedBeforeRename(t *testing.T) {
 	backend := newDirectorySyncTestBackend()
+	backend.blockCreate = true
 	access := newDirectorySyncTestAccess(t, backend)
 
+	access.dirSync.enqueue("worker-one")
+	access.dirSync.enqueue("worker-two")
+	waitForDirectoryCreateStarts(t, backend, 2)
+	access.dirSync.enqueue("dispatcher-wait")
+	waitForDirectoryEntryRunning(t, access.dirSync, "dispatcher-wait")
 	access.dirSync.enqueue("New Folder")
 	if err := access.enqueueRenamePath(
 		"New Folder", "Reports", "", "", true, nil,
 	); err != nil {
 		t.Fatalf("enqueue rename: %v", err)
 	}
+	close(backend.releaseCreate)
 
 	waitForDirectorySync(t, func() bool {
 		return backend.hasDirectory("Reports") && backend.hasEventPrefix("rename:New Folder:Reports")
@@ -153,12 +205,21 @@ func TestDirectoryCreateIsRebasedBeforeRename(t *testing.T) {
 	if len(backend.eventsSnapshot()) == 0 {
 		t.Fatal("expected remote directory mutation events")
 	}
+	if backend.hasEventPrefix("create:New Folder") {
+		t.Fatalf("queued create used the old path: %v", backend.eventsSnapshot())
+	}
 }
 
 func TestNestedDirectoryCreatesRebaseAsOneTree(t *testing.T) {
 	backend := newDirectorySyncTestBackend()
+	backend.blockCreate = true
 	access := newDirectorySyncTestAccess(t, backend)
 
+	access.dirSync.enqueue("worker-one")
+	access.dirSync.enqueue("worker-two")
+	waitForDirectoryCreateStarts(t, backend, 2)
+	access.dirSync.enqueue("dispatcher-wait")
+	waitForDirectoryEntryRunning(t, access.dirSync, "dispatcher-wait")
 	access.dirSync.enqueue("New Folder")
 	access.dirSync.enqueue("New Folder/sub")
 	if err := access.enqueueRenamePath(
@@ -166,6 +227,7 @@ func TestNestedDirectoryCreatesRebaseAsOneTree(t *testing.T) {
 	); err != nil {
 		t.Fatalf("enqueue rename: %v", err)
 	}
+	close(backend.releaseCreate)
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) && !(backend.hasDirectory("Reports") &&
@@ -178,6 +240,70 @@ func TestNestedDirectoryCreatesRebaseAsOneTree(t *testing.T) {
 	}
 	if backend.hasDirectory("New Folder") || backend.hasDirectory("New Folder/sub") {
 		t.Fatalf("old directory tree remains: %v", backend.eventsSnapshot())
+	}
+	if backend.hasEventPrefix("create:New Folder") {
+		t.Fatalf("queued tree used an old path: %v", backend.eventsSnapshot())
+	}
+}
+
+func TestDirectoryQueueBackpressureDoesNotBlockRebase(t *testing.T) {
+	queue := &dirSyncQueue{
+		entries: make(map[string]*dirSyncEntry),
+		queue:   make(chan *dirSyncEntry),
+	}
+	enqueueDone := make(chan struct{})
+	go func() {
+		queue.enqueue("overflow")
+		close(enqueueDone)
+	}()
+
+	lockAvailable := false
+	deadline := time.Now().Add(250 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if queue.mu.TryLock() {
+			entryQueued := queue.entries["overflow"] != nil
+			queue.mu.Unlock()
+			if entryQueued {
+				lockAvailable = true
+				break
+			}
+		}
+		runtime.Gosched()
+	}
+	go func() { <-queue.queue }()
+	<-enqueueDone
+	if !lockAvailable {
+		t.Fatal("directory queue held its mutex while backpressured")
+	}
+}
+
+func TestRunningDirectoryCollisionWaitsForExistingTarget(t *testing.T) {
+	backend := newDirectorySyncTestBackend()
+	releaseOld := backend.blockPath("New Folder/sub")
+	releaseTarget := backend.blockPath("Reports/sub")
+	access := newDirectorySyncTestAccess(t, backend)
+
+	access.dirSync.enqueue("New Folder/sub")
+	access.dirSync.enqueue("Reports/sub")
+	waitForDirectoryCreateStarts(t, backend, 2)
+	if err := access.enqueueRenamePath(
+		"New Folder", "Reports", "", "", true, nil,
+	); err != nil {
+		t.Fatalf("enqueue rename: %v", err)
+	}
+
+	close(releaseOld)
+	select {
+	case <-backend.renameStarted:
+		close(releaseTarget)
+		t.Fatal("rename started before the existing target create finished")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(releaseTarget)
+	select {
+	case <-backend.renameStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("rename did not start after both directory creates finished")
 	}
 }
 
