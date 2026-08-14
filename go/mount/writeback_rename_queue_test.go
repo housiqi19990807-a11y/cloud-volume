@@ -100,19 +100,12 @@ func TestQueuedRenameOrdersUploadsAcrossDirectoryBarrier(t *testing.T) {
 		t.Fatalf("rename local directory: %v", err)
 	}
 
-	renameDone := make(chan struct{})
-	var renameOnce sync.Once
 	if err := access.enqueueRenamePath(
 		"old",
 		"new",
 		oldDir,
 		newDir,
 		true,
-		func(err error) {
-			if err == nil {
-				renameOnce.Do(func() { close(renameDone) })
-			}
-		},
 	); err != nil {
 		t.Fatalf("enqueue directory rename: %v", err)
 	}
@@ -143,11 +136,6 @@ func TestQueuedRenameOrdersUploadsAcrossDirectoryBarrier(t *testing.T) {
 	}
 
 	backend.releaseUpload()
-	select {
-	case <-renameDone:
-	case <-time.After(3 * time.Second):
-		t.Fatal("queued rename did not finish")
-	}
 	waitForOrderedRenameEvents(t, backend, 3)
 	events = backend.snapshot()
 	wantRename := "rename:" + ensureDirSuffix("old") + ":" + ensureDirSuffix("new")

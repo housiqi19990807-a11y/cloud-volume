@@ -406,7 +406,6 @@ func (b *windowsCloudFilesBackend) handleRename(
 			oldPath,
 			newPath,
 			isDir,
-			nil,
 		); err != nil {
 			session.lastError = err.Error()
 		}

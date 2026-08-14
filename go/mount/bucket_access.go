@@ -200,6 +200,7 @@ type writebackQueue struct {
 	accessMu      sync.RWMutex
 	access        *bucketAccess
 	store         *writebackStore
+	mutations     *mutationStore
 	storeKey      string
 	mu            sync.Mutex
 	entries       map[string]*pendingWriteback
@@ -207,6 +208,7 @@ type writebackQueue struct {
 	generation    uint64
 	barriers      []*writebackBarrier
 	sourceRebases []writebackSourceRebase
+	mutationErr   string
 	closed        bool
 	draining      bool
 	drainErr      error

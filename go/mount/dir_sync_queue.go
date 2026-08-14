@@ -21,7 +21,8 @@ type dirSyncEntry struct {
 }
 
 type dirSyncBarrier struct {
-	entries []*dirSyncEntry
+	entries       []*dirSyncEntry
+	rebasedCreate bool
 }
 
 type dirSyncQueue struct {
@@ -97,6 +98,7 @@ func (q *dirSyncQueue) rebaseAndFence(oldPath, newPath string, isDir bool) *dirS
 				seen[entry] = true
 			} else if !entry.running {
 				q.cancelLocked(entry)
+				barrier.rebasedCreate = true
 			}
 			if !seen[existing] {
 				barrier.entries = append(barrier.entries, existing)
@@ -114,6 +116,7 @@ func (q *dirSyncQueue) rebaseAndFence(oldPath, newPath string, isDir bool) *dirS
 		delete(q.entries, path)
 		entry.path = target
 		q.entries[target] = entry
+		barrier.rebasedCreate = true
 		if !seen[entry] {
 			barrier.entries = append(barrier.entries, entry)
 			seen[entry] = true
