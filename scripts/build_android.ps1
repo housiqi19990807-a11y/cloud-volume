@@ -1,4 +1,4 @@
-# Builds the Android ARM64 release APK after packaging the Go FFI bridge.
+# Builds the Android APK after packaging the Go FFI bridge for both ARM64 and x86_64.
 param(
   [string]$FlutterRoot = $(if ($env:FLUTTER_ROOT) { $env:FLUTTER_ROOT } else { Join-Path $HOME 'dev\flutter' }),
   [switch]$Debug
@@ -13,15 +13,20 @@ if (-not (Test-Path -LiteralPath $flutter)) {
   throw "Flutter was not found: $flutter"
 }
 
-& (Join-Path $PSScriptRoot 'build_android_bridge.ps1')
+& (Join-Path $PSScriptRoot 'build_android_bridge.ps1') -Abi arm64-v8a
 if ($LASTEXITCODE -ne 0) {
-  throw "Android bridge build failed with exit code $LASTEXITCODE."
+  throw "Android arm64 bridge build failed with exit code $LASTEXITCODE."
+}
+
+& (Join-Path $PSScriptRoot 'build_android_bridge.ps1') -Abi x86_64
+if ($LASTEXITCODE -ne 0) {
+  throw "Android x86_64 bridge build failed with exit code $LASTEXITCODE."
 }
 
 Push-Location $repoRoot
 try {
   $mode = if ($Debug) { 'debug' } else { 'release' }
-  & $flutter build apk "--$mode" --target-platform android-arm64 --dart-define=APP_VERSION_LABEL=dev
+  & $flutter build apk "--$mode" --dart-define=APP_VERSION_LABEL=dev
   if ($LASTEXITCODE -ne 0) {
     throw "Android APK build failed with exit code $LASTEXITCODE."
   }

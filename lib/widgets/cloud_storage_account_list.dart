@@ -19,6 +19,7 @@ class CloudStorageAccountList extends StatelessWidget {
     super.key,
     required this.accounts,
     required this.isGrid,
+    this.mobileLayout = false,
     required this.busy,
     required this.onEdit,
     required this.onDelete,
@@ -31,6 +32,7 @@ class CloudStorageAccountList extends StatelessWidget {
 
   final List<ProfileInfo> accounts;
   final bool isGrid;
+  final bool mobileLayout;
   final bool busy;
   final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onDelete;
@@ -57,8 +59,31 @@ class CloudStorageAccountList extends StatelessWidget {
         ),
       );
     }
+    if (mobileLayout) return _buildMobileList(context);
     if (isGrid) return _buildGrid(context);
     return _buildTable(context);
+  }
+
+  Widget _buildMobileList(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 12),
+      itemCount: accounts.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final profile = accounts[index];
+        return _AccountCard(
+          profile: profile,
+          busy: busy,
+          onEdit: onEdit,
+          onDelete: onDelete,
+          onManageBuckets: onManageBuckets,
+          onToggleDisabled: onToggleDisabled,
+          status: status[profile.name] ?? AccountStatus.checking,
+          statusError: statusError[profile.name],
+          mobileLayout: true,
+        );
+      },
+    );
   }
 
   Widget _buildGrid(BuildContext context) {
@@ -207,6 +232,7 @@ class _AccountCard extends StatelessWidget {
     required this.onToggleDisabled,
     required this.status,
     required this.statusError,
+    this.mobileLayout = false,
   });
 
   final ProfileInfo profile;
@@ -217,12 +243,13 @@ class _AccountCard extends StatelessWidget {
   final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
   final AccountStatus status;
   final String? statusError;
+  final bool mobileLayout;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final title = profile.disabled
-        ? '${CloudStorageAccountList._profileTitle(profile)}（已禁用）'
+        ? '${CloudStorageAccountList._profileTitle(profile)}?????'
         : CloudStorageAccountList._profileTitle(profile);
     return ShadCard(
       padding: const EdgeInsets.all(14),
@@ -268,36 +295,92 @@ class _AccountCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const Spacer(),
-          Row(
-            children: [
-              ShadSwitch(
-                value: !profile.disabled,
-                onChanged: busy
-                    ? null
-                    : (enabled) => onToggleDisabled(profile, !enabled),
-              ),
-              const Spacer(),
-              _AccountActionButton(
-                label: '桶管理',
-                icon: LucideIcons.listFilter,
-                onPressed: busy ? null : () => onManageBuckets(profile),
-              ),
-              const SizedBox(width: 6),
-              _AccountActionButton(
-                label: '编辑',
-                icon: LucideIcons.pencil,
-                onPressed: busy ? null : () => onEdit(profile),
-              ),
-              const SizedBox(width: 6),
-              _AccountActionButton(
-                label: '退出',
-                icon: LucideIcons.logOut,
-                destructive: true,
-                onPressed: busy ? null : () => onDelete(profile),
-              ),
-            ],
-          ),
+          const SizedBox(height: 12),
+          if (mobileLayout)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    ShadSwitch(
+                      value: !profile.disabled,
+                      onChanged: busy
+                          ? null
+                          : (enabled) => onToggleDisabled(profile, !enabled),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        profile.disabled ? 'Disabled' : 'Enabled',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: theme.colorScheme.mutedForeground,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AccountActionButton(
+                        label: 'Buckets',
+                        icon: LucideIcons.listFilter,
+                        onPressed: busy ? null : () => onManageBuckets(profile),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _AccountActionButton(
+                        label: 'Edit',
+                        icon: LucideIcons.pencil,
+                        onPressed: busy ? null : () => onEdit(profile),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _AccountActionButton(
+                        label: 'Remove',
+                        icon: LucideIcons.logOut,
+                        destructive: true,
+                        onPressed: busy ? null : () => onDelete(profile),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                ShadSwitch(
+                  value: !profile.disabled,
+                  onChanged: busy
+                      ? null
+                      : (enabled) => onToggleDisabled(profile, !enabled),
+                ),
+                const Spacer(),
+                _AccountActionButton(
+                  label: 'Buckets',
+                  icon: LucideIcons.listFilter,
+                  onPressed: busy ? null : () => onManageBuckets(profile),
+                ),
+                const SizedBox(width: 6),
+                _AccountActionButton(
+                  label: 'Edit',
+                  icon: LucideIcons.pencil,
+                  onPressed: busy ? null : () => onEdit(profile),
+                ),
+                const SizedBox(width: 6),
+                _AccountActionButton(
+                  label: 'Remove',
+                  icon: LucideIcons.logOut,
+                  destructive: true,
+                  onPressed: busy ? null : () => onDelete(profile),
+                ),
+              ],
+            ),
         ],
       ),
     );
