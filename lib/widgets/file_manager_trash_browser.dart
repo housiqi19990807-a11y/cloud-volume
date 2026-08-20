@@ -146,7 +146,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
-          Container(
+          if (!compact) Container(
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
@@ -212,7 +212,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
                       color: theme.colorScheme.primary.withValues(alpha: 0.82),
                     ),
                     title: item.name,
-                    sizeLabel: item.originalKey,
+                    sizeLabel: compact ? item.sizeText : item.originalKey,
                     modifiedLabel: item.deletedAt,
                     onTap: () => onRestore(item),
                     showDivider: index != items.length - 1 || loadingMore,
