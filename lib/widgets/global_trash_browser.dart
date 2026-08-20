@@ -108,12 +108,12 @@ class GlobalTrashBrowser extends StatelessWidget {
                       size: 32,
                     ),
                     title: entry.item.name,
-                    subtitleLabel: entry.item.originalKey,
+                    subtitleLabel: compact ? entry.item.deletedAt : entry.item.originalKey,
                     sizeLabel: showBucketColumn ? entry.bucket : '',
                     sizeColumnWidthOverride: showBucketColumn
                         ? _bucketColumnWidth
                         : 0,
-                    modifiedLabel: busy ? '处理中...' : entry.item.deletedAt,
+                    modifiedLabel: compact ? '' : (busy ? '处理中...' : entry.item.deletedAt),
                     onTap: () => _toggleEntry(entry),
                     onDoubleTap: busy ? null : () => onRestore(entry),
                     onTitleTap: () => _toggleEntry(entry),
