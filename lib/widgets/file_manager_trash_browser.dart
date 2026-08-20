@@ -139,7 +139,10 @@ class FileManagerTrashBrowser extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
 
-    return ShadCard(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        return ShadCard(
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
@@ -161,7 +164,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
                 Expanded(child: Text('名称', style: headerTextStyle)),
                 const SizedBox(width: 12),
                 SizedBox(
-                  width: FileListTile.sizeColumnWidth,
+                  width: compact ? 0 : FileListTile.sizeColumnWidth,
                   child: Text(
                     '原路径',
                     textAlign: TextAlign.right,
@@ -170,7 +173,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 SizedBox(
-                  width: FileListTile.modifiedColumnWidth,
+                  width: compact ? 0 : FileListTile.modifiedColumnWidth,
                   child: Text(
                     '删除时间',
                     textAlign: TextAlign.right,
@@ -179,7 +182,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 SizedBox(
-                  width: TrashRowActions.actionColumnWidth,
+                  width: compact ? 0 : TrashRowActions.actionColumnWidth,
                   child: Text(
                     '操作',
                     textAlign: TextAlign.right,
@@ -219,6 +222,7 @@ class FileManagerTrashBrowser extends StatelessWidget {
                       onRestore: () => onRestore(item),
                       onDeletePermanently: () => onDeletePermanently(item),
                     ),
+                    compact: compact,
                   ),
                 );
               },
@@ -226,6 +230,8 @@ class FileManagerTrashBrowser extends StatelessWidget {
           ),
         ],
       ),
+        );
+      },
     );
   }
 

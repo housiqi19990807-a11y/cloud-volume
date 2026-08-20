@@ -239,7 +239,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
         .length;
     final totalCount = selectableObjects.length;
 
-    return ShadCard(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        return ShadCard(
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
@@ -250,6 +253,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
             partiallySelected: selectedCount > 0 && selectedCount < totalCount,
             onToggleSelectAll: onToggleSelectAll,
             showSyncStatus: showSyncStatus,
+            compact: compact,
           ),
           Expanded(
             child: ListView.builder(
@@ -278,6 +282,7 @@ class FileManagerObjectBrowser extends StatelessWidget {
                       showSelectionControl: _showsSelectionControl(object),
                       showDivider: index != objects.length - 1 || loadingMore,
                       deleting: _isDeleting(object),
+                      compact: compact,
                     ),
                   ),
                 );
@@ -286,6 +291,8 @@ class FileManagerObjectBrowser extends StatelessWidget {
           ),
         ],
       ),
+        );
+      },
     );
   }
 
