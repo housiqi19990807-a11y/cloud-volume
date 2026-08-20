@@ -1,6 +1,7 @@
 // 任务队列页：展示对象操作与挂载写回任务，并提供筛选、批量操作和时间线信息。
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -315,8 +316,7 @@ class _TransfersPageState extends State<TransfersPage> {
   }
 
   Widget _buildFilters() {
-    return Row(
-      children: [
+    final fields = <Widget>[
         Expanded(
           child: ShadInput(
             controller: _searchController,
@@ -345,8 +345,15 @@ class _TransfersPageState extends State<TransfersPage> {
           },
           width: 140,
         ),
-      ],
-    );
+      ];
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        return Column(children: [
+          ShadInput(controller: _searchController, placeholder: const Text('搜索文件名、路径、存储桶或目标路径')),
+          const SizedBox(height: 10),
+          Row(children: [Expanded(child: fields[2]), const SizedBox(width: 10), Expanded(child: fields[4])]),
+        ]);
+      }
+      return Row(children: fields);
   }
 
   Widget _buildList(

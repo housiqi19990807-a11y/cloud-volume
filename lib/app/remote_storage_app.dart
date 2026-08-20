@@ -1,6 +1,7 @@
 // Root widget: wires ShadApp + ThemeInitializer (with persistence) + transparent chrome.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:remote_storage/app/app_brand.dart';
 import 'package:remote_storage/pages/app_bootstrap_page.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
@@ -15,27 +16,32 @@ class RemoteStorageApp extends StatelessWidget {
   const RemoteStorageApp({
     super.key,
     this.apiFactory = defaultRemoteStorageApiFactory,
+    this.previewMode = false,
   });
 
   final RemoteStorageApiFactory apiFactory;
+  final bool previewMode;
 
   @override
   Widget build(BuildContext context) {
-    return ThemeInitializer(child: _ThemeAwareShell(apiFactory: apiFactory));
+    return ThemeInitializer(
+      child: _ThemeAwareShell(apiFactory: apiFactory, previewMode: previewMode),
+    );
   }
 }
 
 /// Inner shell that reads the current accent from ThemeController.
 class _ThemeAwareShell extends StatelessWidget {
-  const _ThemeAwareShell({required this.apiFactory});
+  const _ThemeAwareShell({required this.apiFactory, required this.previewMode});
 
   final RemoteStorageApiFactory apiFactory;
+  final bool previewMode;
 
   @override
   Widget build(BuildContext context) {
     final accent = ThemeController.of(context).accent;
-    return DesktopModalParentFocusRelay(
-      child: ShadApp(
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    final shell = ShadApp(
       title: appBrandName,
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
@@ -43,11 +49,14 @@ class _ThemeAwareShell extends StatelessWidget {
       home: Stack(
         children: [
           AppBootstrapPage(apiFactory: apiFactory),
-          const DesktopModalScrim(),
-          const DesktopWindowControls(),
+          if (!previewMode && !isAndroid) const DesktopModalScrim(),
+          if (!previewMode && !isAndroid) const DesktopWindowControls(),
         ],
       ),
-    ),
+    );
+    if (previewMode || isAndroid) return shell;
+    return DesktopModalParentFocusRelay(
+      child: shell,
     );
   }
 }

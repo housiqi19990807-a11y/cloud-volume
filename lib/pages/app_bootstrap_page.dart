@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -18,6 +19,7 @@ import 'package:remote_storage/services/app_exit_cleanup.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/utils/app_log.dart';
 import 'package:remote_storage/utils/bridge_error_text.dart';
+import 'package:remote_storage/utils/ui_preview_mode.dart';
 
 class AppBootstrapPage extends StatefulWidget {
   const AppBootstrapPage({super.key, required this.apiFactory});
@@ -38,8 +40,11 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
   @override
   void initState() {
     super.initState();
-    DesktopWindowMethodHost.ensureInstalled();
-    reconcileModalOverlayWithOpenChildren();
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    if (!uiPreviewMode && !isAndroid) {
+      DesktopWindowMethodHost.ensureInstalled();
+      reconcileModalOverlayWithOpenChildren();
+    }
     unawaited(_loadSession(showLoadingShell: true));
   }
 

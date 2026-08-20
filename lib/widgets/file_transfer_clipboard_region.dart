@@ -2,9 +2,11 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:remote_storage/services/desktop_file_transfer_service.dart';
+import 'package:remote_storage/utils/ui_preview_mode.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
 
@@ -42,6 +44,9 @@ class _FileTransferClipboardRegionState
 
   @override
   Widget build(BuildContext context) {
+    if (uiPreviewMode || defaultTargetPlatform == TargetPlatform.android) {
+      return widget.child;
+    }
     final theme = ShadTheme.of(context);
     return Focus(
       focusNode: _focusNode,
