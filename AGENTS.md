@@ -179,6 +179,34 @@ Windows development now has two scripts: one for new-machine dependency bootstra
 - `scripts/setup_windows_dev.ps1` does not run a full app build by default; pass `-ValidateProject` to call `scripts/run_windows.ps1 -Build` after dependency setup.
 - After setup writes user environment variables and `PATH`, open a new PowerShell window before using `scripts/run_windows.ps1` interactively.
 
+### Feature: Android Development Environment (Windows)
+
+The repository has a user-scoped Android toolchain bootstrap and an ARM64 APK build path. The mobile application reuses the Go object-storage backend through a packaged c-shared FFI library while hiding desktop-only workflows.
+
+#### Key files
+
+- `scripts/setup_android_dev.ps1` - Uses the repository-root `flutter_windows_3.47.0-stable.zip` by default (or `-FlutterArchive`), extracting with Windows `tar.exe` because Flutter 3.47 metadata directories are not handled reliably by `Expand-Archive`; it falls back to the online Flutter stable manifest only when the local archive is absent. It adds the Flutter checkout to Git `safe.directory`, persists `FLUTTER_ROOT`, then installs Eclipse Temurin JDK 17, Android command-line tools, platform-tools, API 36, Build Tools 36.0.0, and NDK 28.2.13676358 for the ARM64 Go bridge; unless skipped it also installs the Android 36 Google APIs x86_64 emulator image. It persists `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and adds Flutter, JDK, `cmdline-tools\latest\bin` (`sdkmanager`), platform-tools (`adb`), and emulator paths to user PATH; it then accepts SDK licences, directs Flutter to the SDK, runs `flutter doctor -v`, then runs `flutter pub get` and `flutter test` unless `-SkipValidation` is supplied. Installation roots can be overridden with `-FlutterRoot`, `-AndroidSdkRoot`, and `-JavaHome`; `-SkipEmulator` avoids the image download.
+- `scripts/setup_android_dev.bat` - Double-click launcher that invokes the PowerShell bootstrap from the repository root and pauses for interactive use unless `CLOUD_VOLUME_NO_PAUSE=1`.
+- `scripts/build_android_bridge.ps1` - Compiles `./bridge` for `GOOS=android`, `GOARCH=arm64` with the installed NDK and writes the packaged library to `android/app/src/main/jniLibs/arm64-v8a/libremote_storage_bridge.so`. The generated C header is removed after the build.
+- `scripts/build_android.ps1` - Builds the Android bridge first, then creates the ARM64 Flutter release APK at `build/app/outputs/flutter-apk/app-release.apk`.
+- `android/` - Flutter Android runner. Its wrapper uses the Tencent Gradle distribution mirror, and `settings.gradle.kts` / `build.gradle.kts` prefer Aliyun's Google, Gradle-plugin, and Central repositories before the official hosts.
+- `bridge/dispatch_mobile.go` / `bridge/dispatch.go` / `go/config/paths.go` - Android startup passes Flutter's application-support directory to the native bridge through `set_app_data_root`, so configuration and caches remain inside Android app storage rather than an invalid desktop home directory.
+- `go/config/paths_mobile_test.go` - Pins `SetAppDataRoot` override and empty-path rejection semantics.
+- `lib/bridge/remote_storage_bridge.dart` - On Android opens the packaged `libremote_storage_bridge.so` and initializes that app-data root before configuration calls.
+- `lib/app/app_entry_io.dart` / `lib/app/remote_storage_app.dart` / `lib/pages/app_bootstrap_page.dart` / `lib/services/remote_storage_api_desktop.dart` / `lib/services/remote_storage_gateway.dart` - Keep `desktop_multi_window`, `window_manager`, desktop chrome, mounts, external file opening, local directory sync, and WebDAV launch out of mobile startup and expose the remaining mobile capabilities.
+- `third_party/super_native_extensions` / `third_party/irondash_engine_context` / `lib/services/desktop_file_transfer_service_io.dart` / `lib/widgets/file_transfer_clipboard_region.dart` / `lib/pages/file_manager_page.dart` - Preserve the Git-restored native drag-and-drop and file URI clipboard implementation on desktop while removing only the Android plugin registrations. `FileManagerPage._buildFileTransferSurface` is the Android/iOS boundary: it returns the unwrapped content there, so mobile never creates `DropRegion` and continues to use picker-based upload.
+- `lib/services/file_access_service_io.dart` / `lib/services/file_access_service_downloads_io.dart` - Use `file_selector` on desktop to obtain a writable, user-renamable save path without buffering a download in Dart; Android continues to stream into its app temporary directory until a separate Storage Access Framework implementation lands.
+- `README.md` - Documents bootstrap, mobile capabilities, restrictions, and APK build command.
+
+#### Gotchas
+
+- Only `android-arm64` is packaged today. Add separate NDK bridge builds before publishing x86_64 emulator or 32-bit ARM APKs.
+- The Go bridge is a large static artifact and is intentionally ignored by Git. Run `scripts/build_android.ps1` on the build machine before every APK build.
+- `third_party/super_native_extensions` and `third_party/irondash_engine_context` are vendored desktop-only plugin forks. Their Android registrations are removed because CargoKit's Gradle scripts are incompatible with Gradle 9; do not restore those declarations until CargoKit supports this build. Desktop drag-and-drop and file URI clipboard support remain available, while Android uses `file_picker` for upload and does not create the native drop region.
+- The bootstrap still downloads JDK and Android SDK packages from Adoptium and Google Android services. A network that blocks those endpoints prevents installation; Flutter itself can be bootstrapped offline from the repository-root archive. The script makes no partial-install cleanup or destructive replacement of an existing directory.
+- Open a new PowerShell window after completion so the persisted user PATH entries become visible to interactive shells.
+- `sdkmanager.bat` requires `JAVA_HOME` (and its `bin` on `PATH`) even when the JDK files are present. If an interrupted bootstrap leaves the SDK files installed but `sdkmanager --version` says Java is missing, restore `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `FLUTTER_ROOT`, and the Flutter/JDK/platform-tools PATH entries before rerunning the setup script.
+
 ### Feature: Windows Crash Watchdog / Startup Reports
 
 Windows release bundles separate the public launcher from the Flutter process so failures before the first window exists are still observable.

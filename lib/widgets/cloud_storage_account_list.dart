@@ -35,10 +35,13 @@ class CloudStorageAccountList extends StatelessWidget {
   final ValueChanged<ProfileInfo> onEdit;
   final ValueChanged<ProfileInfo> onDelete;
   final ValueChanged<ProfileInfo> onManageBuckets;
+
   /// (profile, disabled) — disabled=true means the user turned the account OFF.
   final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
+
   /// Per-profile connection status (keyed by profile name) for the status column.
   final Map<String, AccountStatus> status;
+
   /// Optional human-readable error message for accounts in [AccountStatus.error].
   final Map<String, String> statusError;
   final void Function(int oldIndex, int newIndex)? onReorder;
@@ -101,7 +104,12 @@ class CloudStorageAccountList extends StatelessWidget {
                 ? ReorderableListView.builder(
                     buildDefaultDragHandles: false,
                     itemCount: accounts.length,
-                    onReorder: onReorder!,
+                    // onReorderItem reports the post-removal target. The
+                    // page callback retains the legacy insertion index.
+                    onReorderItem: (oldIndex, newIndex) => onReorder!(
+                      oldIndex,
+                      newIndex > oldIndex ? newIndex + 1 : newIndex,
+                    ),
                     proxyDecorator: (child, index, animation) {
                       return Material(
                         elevation: 1.5,
@@ -190,7 +198,7 @@ class CloudStorageAccountList extends StatelessWidget {
 }
 
 class _AccountCard extends StatelessWidget {
- const _AccountCard({
+  const _AccountCard({
     required this.profile,
     required this.busy,
     required this.onEdit,
@@ -199,16 +207,16 @@ class _AccountCard extends StatelessWidget {
     required this.onToggleDisabled,
     required this.status,
     required this.statusError,
- });
+  });
 
- final ProfileInfo profile;
- final bool busy;
- final ValueChanged<ProfileInfo> onEdit;
- final ValueChanged<ProfileInfo> onDelete;
- final ValueChanged<ProfileInfo> onManageBuckets;
- final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
- final AccountStatus status;
- final String? statusError;
+  final ProfileInfo profile;
+  final bool busy;
+  final ValueChanged<ProfileInfo> onEdit;
+  final ValueChanged<ProfileInfo> onDelete;
+  final ValueChanged<ProfileInfo> onManageBuckets;
+  final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
+  final AccountStatus status;
+  final String? statusError;
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +346,7 @@ class _AccountTableHeader extends StatelessWidget {
 }
 
 class _AccountActions extends StatelessWidget {
- const _AccountActions({
+  const _AccountActions({
     required this.profile,
     required this.busy,
     required this.onEdit,
@@ -347,19 +355,19 @@ class _AccountActions extends StatelessWidget {
     required this.onToggleDisabled,
     required this.status,
     required this.statusError,
- });
+  });
 
- final ProfileInfo profile;
- final bool busy;
- final ValueChanged<ProfileInfo> onEdit;
- final ValueChanged<ProfileInfo> onDelete;
- final ValueChanged<ProfileInfo> onManageBuckets;
- final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
- final AccountStatus status;
- final String? statusError;
+  final ProfileInfo profile;
+  final bool busy;
+  final ValueChanged<ProfileInfo> onEdit;
+  final ValueChanged<ProfileInfo> onDelete;
+  final ValueChanged<ProfileInfo> onManageBuckets;
+  final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
+  final AccountStatus status;
+  final String? statusError;
 
- @override
- Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       width: CloudStorageAccountList._actionColumnWidth,
       child: Row(
@@ -395,20 +403,20 @@ class _AccountActions extends StatelessWidget {
         ],
       ),
     );
- }
+  }
 }
 
 /// Status chip for the account-management status column. Shows a small dot +
 /// label. Uses mutedForeground colors so it never reads as a hover/theme change
 /// (per the hover visual rule, an idle column must look identical at hover).
 class _AccountStatusChip extends StatelessWidget {
- const _AccountStatusChip({required this.status, this.error});
+  const _AccountStatusChip({required this.status, this.error});
 
- final AccountStatus status;
- final String? error;
+  final AccountStatus status;
+  final String? error;
 
- @override
- Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final (label, color) = switch (status) {
       AccountStatus.ok => ('正常', const Color(0xFF16A34A)),
@@ -442,14 +450,14 @@ class _AccountStatusChip extends StatelessWidget {
               color: status == AccountStatus.checking
                   ? theme.colorScheme.mutedForeground
                   : (status == AccountStatus.ok
-                      ? theme.colorScheme.foreground
-                      : color),
+                        ? theme.colorScheme.foreground
+                        : color),
             ),
           ),
         ],
       ),
     );
- }
+  }
 }
 
 class _AccountActionButton extends StatefulWidget {

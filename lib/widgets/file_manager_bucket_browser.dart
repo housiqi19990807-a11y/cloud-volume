@@ -241,7 +241,9 @@ class FileManagerBucketBrowser extends StatelessWidget {
       return ReorderableListView.builder(
         buildDefaultDragHandles: false,
         itemCount: buckets.length,
-        onReorder: onReorder!,
+        // Keep the existing callback's pre-removal insertion-index contract.
+        onReorderItem: (oldIndex, newIndex) =>
+            onReorder!(oldIndex, newIndex > oldIndex ? newIndex + 1 : newIndex),
         proxyDecorator: (child, index, animation) {
           return Material(
             elevation: 1.5,

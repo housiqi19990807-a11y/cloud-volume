@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Android：新增 Android runner、ARM64 Go FFI bridge 构建与 `scripts/build_android.ps1` release APK 构建流程。配置、对象浏览、文件选择上传下载、分享和回收站可在移动端使用；本地挂载、目录同步、多窗口、外部应用打开、跨应用拖放及文件剪贴板等桌面专属功能仅在移动端按能力自动禁用，桌面端仍保留拖放、文件 URI 剪贴板与可改名的另存为。Android Gradle 与 Maven 依赖优先使用国内镜像。
+- Android 开发环境：新增 `scripts/setup_android_dev.ps1` 及双击启动器 `scripts/setup_android_dev.bat`。脚本优先使用仓库根目录的 `flutter_windows_3.47.0-stable.zip`（也可通过 `-FlutterArchive` 指定），没有本地归档时才回退到在线 Flutter stable release；随后以当前用户范围安装 JDK 17 与 Android SDK command-line tools，接受许可并安装 API 36、Build Tools、platform-tools 和可选模拟器镜像，并执行工具链与项目依赖/测试验证。`cmdline-tools\latest\bin` 现会写入 PATH，故 `sdkmanager` 可直接调用。
+
 - 修复 Windows Cloud Files 重挂载后客户端能看到文件、但 Explorer 中部分目录为空：复用缓存里的目录现在会重新启用按需枚举；如果目录已退化为普通 NTFS 目录，则原地转换回云占位目录并保留现有内容。并发目录枚举会传递真实失败结果，不再把一次失败误记为“已完整加载”。
 - 修复 Windows Cloud Files 目录改名竞态：`go/mount/dir_sync_queue.go` 的 `rebaseAndFence` 现在把目录创建请求与远端改名统一排进同一个 fence；`bucket_access_writes.go` 在远端源已确认缺失时复用已改名的目标，绝不再向严格后端发送一次“源不存在”的 `MoveObject`。
 - 修复 Windows Cloud Files 跨目录移动在远端出现两份（旧目录与新目录各一份）的并发错误：跨客户端移动现在持久化为 `<sessionRoot>/mutations/queue-*.jsonl` 记录（`mutation_record.go`/`mutation_store.go`），重试由观察到的源/目标状态驱动（`mutation_reconcile.go`：缺失/存在 → 收尾，存在/缺失 → 移动，存在/存在 → 拷贝+硬删，缺失/缺失 → 状态冲突重试），崩溃后下一次启动能完整收敛。
