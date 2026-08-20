@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/utils/display_name.dart';
 
 /// 文件管理页的 Finder 风格网格项。
 class FileGridItem extends StatelessWidget {
@@ -88,7 +89,7 @@ class FileGridItem extends StatelessWidget {
                                   behavior: HitTestBehavior.opaque,
                                   onTap: onTitleTap,
                                   child: Text(
-                                    title,
+                                    compactDisplayName(title),
                                     style: TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w500,

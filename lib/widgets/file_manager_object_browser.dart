@@ -167,10 +167,10 @@ class FileManagerObjectBrowser extends StatelessWidget {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = (constraints.maxWidth / 118).floor().clamp(
-          4,
-          10,
-        );
+        final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+        final crossAxisCount = isAndroid
+            ? (constraints.maxWidth / 150).floor().clamp(2, 4)
+            : (constraints.maxWidth / 118).floor().clamp(4, 10);
         return GridView.count(
           controller: scrollController,
           crossAxisCount: crossAxisCount,

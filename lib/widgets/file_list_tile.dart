@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:remote_storage/utils/display_name.dart';
 
 /// 文件管理页的列表项。
 class FileListTile extends StatefulWidget {
@@ -145,7 +146,7 @@ class _FileListTileState extends State<FileListTile> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          widget.title,
+                          compactDisplayName(widget.title),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
