@@ -142,7 +142,8 @@ class FileManagerTrashBrowser extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 600;
+        final compact = Theme.of(context).platform == TargetPlatform.android ||
+            constraints.maxWidth < 600;
         return ShadCard(
       padding: const EdgeInsets.all(4),
       child: Column(
