@@ -565,7 +565,10 @@ class _TransfersPageState extends State<TransfersPage> {
 }
 
 String _joinSubtitleParts(List<String> parts) {
-  return parts.where((part) => part.trim().isNotEmpty).join('  ·  ');
+  final visible = parts.where((part) => part.trim().isNotEmpty).toList();
+  if (visible.length <= 1) return visible.isEmpty ? '' : visible.single;
+  final timestamp = visible.removeLast();
+  return '${visible.join('  ')}\n$timestamp';
 }
 
 enum _TransferStatusFilter {
