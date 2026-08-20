@@ -6,6 +6,7 @@ import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
 import 'package:remote_storage/widgets/file_grid_item.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/trash_row_actions.dart';
+import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
@@ -146,7 +147,17 @@ class FileManagerTrashBrowser extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
-          if (!compact) Container(
+          if (compact)
+            Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(children: [
+                ListSelectionControl(selected: false, onTap: () {}),
+                const SizedBox(width: 10),
+                const Text('全选'),
+              ]),
+            )
+          else Container(
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
@@ -216,7 +227,12 @@ class FileManagerTrashBrowser extends StatelessWidget {
                     modifiedLabel: item.deletedAt,
                     onTap: () => onRestore(item),
                     showDivider: index != items.length - 1 || loadingMore,
-                    trailing: TrashRowActions(
+                    trailing: compact
+                        ? Row(mainAxisSize: MainAxisSize.min, children: [
+                            ShadIconButton.ghost(icon: Icon(LucideIcons.rotateCcw, size: 18, color: theme.colorScheme.primary), onPressed: () => onRestore(item)),
+                            ShadIconButton.ghost(icon: Icon(LucideIcons.trash2, size: 18, color: theme.colorScheme.mutedForeground), onPressed: () => onDeletePermanently(item)),
+                          ])
+                        : TrashRowActions(
                       deletedLabel: item.deletedAt,
                       busy: false,
                       onRestore: () => onRestore(item),
