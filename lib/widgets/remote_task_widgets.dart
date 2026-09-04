@@ -11,7 +11,7 @@ import 'package:remote_storage/models/remote_task.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
-import 'package:remote_storage/utils/display_name.dart';
+import 'package:remote_storage/widgets/fitting_file_name_text.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:remote_storage/widgets/remote_task_details.dart';
 import 'package:remote_storage/widgets/remote_task_style_helpers.dart';
@@ -234,20 +234,29 @@ class _TaskText extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Android 窄行走 compactDisplayName（头+尾+扩展名，中段省略），
-        // 14 字符预算适配窄行；桌面行宽足够，保持完整名称。
-        Text(
-          touch
-              ? compactDisplayName(remoteTaskEntryName(task), maxLength: 14)
-              : remoteTaskEntryName(task),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: touch ? 14 : 13,
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.foreground,
-          ),
-        ),
+        // Android 走 FittingFileNameText：放得下原样（像素感知快路径），
+        // 放不下退到 compactDisplayName 的 14 字符预算（任务行最窄）；
+        // 桌面行宽足够，保持完整名称。
+        touch
+            ? FittingFileNameText(
+                name: remoteTaskEntryName(task),
+                truncationMaxLength: 14,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.foreground,
+                ),
+              )
+            : Text(
+                remoteTaskEntryName(task),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.foreground,
+                ),
+              ),
         if (subtitle.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(

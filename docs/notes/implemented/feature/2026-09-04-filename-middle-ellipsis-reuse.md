@@ -30,3 +30,7 @@ Status: implemented
 - `test/display_name_test.dart` 6 例：短名直通、头尾+扩展名、无扩展名、极小预算退化、空串/单字符/纯扩展名/超长扩展名极端输入。
 - `remote_directory_picker_dialog_test`（放得下不提前缩短契约）16 例、`file_manager_object_browser_mobile_test`、`transfers_page_batch_actions_test`、`remote_task_display_test` 全绿。
 - 真机（Xiaomi 13 Pro）验证：对象列表 `9478a939...c67.png` 头尾+扩展名保留；三页文件列表字号一致（用户确认）。
+
+## 后续修订（同日晚些）
+
+真机随即命中上述"已知限制"：`default_blurred.png`（19 字符）在宽紧凑行完全放得下，却因超过 18 字符门槛被提前截断。最终架构改为两层：新组件 `FittingFileNameText` 做**像素感知快路径**（TextPainter 实测该行可用宽度，放得下原样渲染），放不下才退到 `compactDisplayName` 字符预算（宽行 18 / 任务行 14）。放弃的是"像素感知的截断算法"（逐字符测宽重构字符串），保留的是"像素感知的是否截断判断"——后者只需一次整串测量，无 flex/贪心/二分的组合复杂度。目录选择器"宽行显示完整名"的既有测试在新架构下自然通过（快路径放行）。网格卡片仍走纯字符预算（窄卡片，暂未接入快路径）。
