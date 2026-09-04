@@ -10,3 +10,6 @@
   - 问题 4（系统组件，非应用 bug）：上传时系统文件选择器（documentsui）「下载内容」网格视图的文件夹/文件名渲染为空白（白底卡片仅剩图标；uiautomator 辅助功能树同样抓不到任何文本节点，确认是系统组件渲染缺陷而非对比度问题）。规避：点选择器右上角列表视图切换图标，文件名即正常显示。云卷侧仅调起系统 SAF picker，无法修复；若上传体验要彻底解决需评估自带文件选择器。
   - 复测备注：系统分享面板点「取消」会连带关闭应用内预览弹层；预览复测用的测试文件 `preview_test.md` 已遗留在桶 `20134-share` 与本机 `Download/`，下批清理。
 - [ ] 为文件管理以外的 Android 页面补齐专门的小屏布局优化。逐页盘点账号、任务、回收站、设置及其他可进入的业务页面，参考文件管理的模式：复用既有数据与业务状态、独立维护移动端 chrome；以稳定的标题/当前位置/内容层级、48dp 触控行、紧凑列表、顶部单一动作入口配合底部抽屉、安全区及系统 Back 导航为基线，不直接压缩桌面工具栏和布局。
+  - 2026-09-04 进度：账号/任务/回收站/设置四页已完成基线对齐（SafeArea+16dp、23sp 标题+副标题、48dp 触控、账号卡动作中文化、设置详情 Back 链接入 `MobileSettingsNavigation`），共享 chrome 抽取到 `lib/widgets/mobile_page_chrome.dart`；widget 回归测试点已埋（`test/mobile_page_chrome_test.dart` + widget_test 4 个 android 用例）。分享管理与同步任务页 Android 无底栏入口，暂不适配（已记入 mobile_ui.md）。
+  - 待统一真机测试：设置详情 Back 收起（handlePopRoute 在 widget 测试环境不可驱动）、各页长内容滚动与横屏安全区、账号编辑/删除抽屉流、任务批量动作真实数据流。
+  - 既有遗留:本机经 pub.flutter-io.cn 镜像跑全量 widget_test 时,pubspec 级别的锁重解析会把 file_picker_platform_interface 3.0.1→3.3.0 等传递依赖升级,导致 9 个文件管理域用例行为漂移失败(CI 走 pub.dev + HEAD 锁不受影响);待统一升级 file_picker 锁版本时一并消化。

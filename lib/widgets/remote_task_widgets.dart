@@ -5,6 +5,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_task.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
@@ -123,6 +124,10 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
                       child: ListSelectionControl(
                         selected: widget.selected,
                         onTap: widget.onToggleSelected,
+                        touchTargetSize:
+                            defaultTargetPlatform == TargetPlatform.android
+                            ? 48
+                            : 18,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -310,12 +315,14 @@ class _TaskRightSide extends StatelessWidget {
   }
 
   Widget _iconAction(String message, IconData icon, VoidCallback onPressed) {
+    // Touch rows need the full 48dp target; desktop keeps the compact 28dp.
+    final touch = defaultTargetPlatform == TargetPlatform.android;
     return AppTooltip(
       message: message,
       child: ShadIconButton.ghost(
         icon: Icon(icon, size: 15),
-        width: 28,
-        height: 28,
+        width: touch ? 48 : 28,
+        height: touch ? 48 : 28,
         iconSize: 15,
         onPressed: acting ? null : onPressed,
       ),

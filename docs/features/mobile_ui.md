@@ -52,3 +52,6 @@
 - 全局 hover、loading 与列表交互色：[ui_rules](ui_rules.md)。
 - Android 底部抽屉、安全区、IME、滚动与模态动画：[app_modal](app_modal.md)。
 - Android 运行、模拟器、APK 与移动端能力边界：[android_dev](android_dev.md)。
+- 顶层 tab 页共享 chrome：[mobile_page_chrome](../../../lib/widgets/mobile_page_chrome.dart) 提供 `MobilePageHeader`（稳定大标题 + 副标题 + 单一 48dp 动作入口）与 `showMobileActionSheet`（48dp 底部动作抽屉，文件管理同款实现）。账号/任务/回收站/设置页已按 2026-09-04 批次对齐该基线：SafeArea(bottom:false) + 16dp 边距、23sp 标题 + 13sp 副标题、触控目标 ≥48dp（含账号卡片动作、任务行内图标与选择控件、回收站 compact trailing、设置底部导航上移/下移钮）；设置页详情↔索引的系统 Back 链由 `MobileSettingsNavigation`（shell 持有）承接，先于 tab 历史消费。分享管理页与同步任务页在 Android 无底栏入口（不在 `kMobileBottomBarPool`），未做小屏适配；进入底栏池前必须先补。
+
+**Known P2/P3 (review 2026-09-04):** P2 任务行最坏组合（spinner+状态徽标+取消+展开，行内动作 Android 48dp 化后固定宽约 343px）在 320dp 屏扣 16dp 边距会溢出约 23px，360dp 无碍——真机统一测试时验证，必要时行内动作收进溢出菜单。P2 账号卡三按钮 320dp 下「桶管理」13sp 标签可用宽不足可能折行，可缩短标签或 maxLines 取舍。P3 回收站用例名 "swap-title on select" 未真正驱动选中态（名实不符）；任务页「已选 N 项」切换同样缺 widget 断言。P3 账号卡 deleteProfile 动作沿用「退出」文案（与既有 toast 一致），破坏性语义弱化待产品定夺。
