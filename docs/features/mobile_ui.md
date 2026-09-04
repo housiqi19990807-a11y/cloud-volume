@@ -18,6 +18,8 @@
 - 页面有多个随位置变化的操作时，不在搜索框下另占一条横向操作栏；用右上角带语义名称的 48dp 图标入口，经 `showAppModal` 打开底部抽屉列出可用动作。没有可用动作时隐藏入口，抽屉行仍保持 48dp 命中区。
 - 手指没有持续 hover。移动端不可把桌面 hover、右键或 tooltip 当作发现机制；Android 上的 `AppTooltip` 必须降级为 `Semantics(label: message, child: child)`，绝不构造 `ShadTooltip`。Shad 的触摸 tooltip 会把 tap 当作 hover 切换，系统 Back 或 route 切换不会补发 leave，提示及背景洗色会残留。图标按钮必须有可读的 `Semantics` 标签，复杂动作放进命名清楚的菜单或抽屉。
 - 文字遵循主题字体与动态字号；正文优先不小于 16sp，紧凑说明不低于 12sp。单行位置/名称可省略号截断，但不能溢出或把关键操作挤出屏幕。
+- **文件名截断契约**：移动端文件列表（对象/回收站/任务行、网格卡片）的长文件名统一走 `compactDisplayName`（头+尾+扩展名，中段 `...` 省略；实现 `lib/utils/display_name.dart`）。列表行（宽度门 compact 表面）用默认 18 字符预算——放得下的名字不许被提前缩短；任务行最窄（右侧动作挤占后标题区仅 ~110dp）传 `maxLength: 14`。桌面宽列表保持完整文件名（桌面窄窗宽度门表面走同一截断）。已知限制：预算按 UTF-16 字符数而非显示宽度，纯 CJK 长名在任务行仍可能被外层尾省略截掉扩展名（像素感知方案已评估并放弃，见决策记录）。回归见 `test/display_name_test.dart` 与目录选择器测试。
+- **列表行字号基线**：移动端文件类列表行（对象/回收站/任务）标题 14sp、副标题/元信息 12sp，跨页一致（`RemoteTaskRow` 经 `defaultTargetPlatform` 分支对齐 `FileListTile` compact 的 14/12）；桌面维持 13/11 密集节奏。状态徽标 chip 等 10.5sp 小字属行内 chrome，不在此基线内。
 
 ## 导航与页面状态
 

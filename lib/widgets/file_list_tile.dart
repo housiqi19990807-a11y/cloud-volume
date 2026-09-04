@@ -3,8 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:remote_storage/utils/display_name.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 /// 文件管理页的列表项。
 class FileListTile extends StatefulWidget {
@@ -154,9 +154,12 @@ class _FileListTileState extends State<FileListTile> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // 名称截断仅用于紧凑（Android 窄屏/窄窗宽度门）
+                        // 行；桌面宽列表保持完整文件名。紧凑行复用
+                        // compactDisplayName（头+尾+扩展名，中段省略），
+                        // 默认 18 字符预算——紧凑行标题区约 250dp，放得下
+                        // 的名字不许被提前缩短（回归见目录选择器测试）。
                         Text(
-                          // 名称截断仅用于紧凑（Android 窄屏）行；桌面端
-                          // 列表保持完整文件名。
                           widget.compact
                               ? compactDisplayName(widget.title)
                               : widget.title,

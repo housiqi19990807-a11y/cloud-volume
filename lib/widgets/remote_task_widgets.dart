@@ -11,6 +11,7 @@ import 'package:remote_storage/models/remote_task.dart';
 import 'package:remote_storage/theme/list_interaction_colors.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
+import 'package:remote_storage/utils/display_name.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:remote_storage/widgets/remote_task_details.dart';
 import 'package:remote_storage/widgets/remote_task_style_helpers.dart';
@@ -226,16 +227,23 @@ class _TaskText extends StatelessWidget {
     // Title shows only the entry name (icon chip carries the op type); the
     // verb, full path, and bucket are detail-panel lines.
     final subtitle = remoteTaskSubtitle(task);
+    // Android 对齐移动列表基线（紧凑标题 14sp / 副标题 12sp，与文件管理、
+    // 回收站的 compact 行一致）；桌面保持 13/11 的密集节奏。
+    final touch = defaultTargetPlatform == TargetPlatform.android;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Android 窄行走 compactDisplayName（头+尾+扩展名，中段省略），
+        // 14 字符预算适配窄行；桌面行宽足够，保持完整名称。
         Text(
-          remoteTaskEntryName(task),
+          touch
+              ? compactDisplayName(remoteTaskEntryName(task), maxLength: 14)
+              : remoteTaskEntryName(task),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: touch ? 14 : 13,
             fontWeight: FontWeight.w600,
             color: theme.colorScheme.foreground,
           ),
@@ -247,7 +255,7 @@ class _TaskText extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: touch ? 12 : 11,
               color: theme.colorScheme.mutedForeground,
             ),
           ),
