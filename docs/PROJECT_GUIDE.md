@@ -4,6 +4,10 @@
 
 ---
 
+## 2026-09-09 项目对外介绍口径探索(跨域)
+
+面向 AI 工程协作场景介绍云卷时，最具区分度的主线是「把多种远端存储统一成接近本地磁盘的跨平台体验」，而不是普通网盘 CRUD。可复用的工程例证是：一项能力通常横跨 Go 后端、FFI/JSON 桥接、Dart 模型与 Flutter 多端 UI；挂载和文件管理页共享 bbolt inode 视图，mutation 由 journal 驱动并遵守 chunk 落盘、失败恢复与远端副作用防重放契约；实现再由针对性测试、全量 Go/Flutter 检查和 P0/P1 子代理评审收口。对外表述应把 AI 定位为代码库探索、跨层实现、测试与文档评审的长期协作者，人负责产品边界、架构取舍和最终验收，避免宣称 AI 独立完成项目或虚构用户量、性能数据。产品范围见根 [README](../README.md)，核心契约见 [mount_metadata_core](features/mount_metadata_core.md)、[remote_tasks](features/remote_tasks.md)、[storage_backends](features/storage_backends.md) 与 [file_sync_p2p](features/file_sync_p2p.md)。
+
 ## 2026-09-02 Android 文件操作与回收站入口分离(app_shell 域)
 
 用户确认回收站不应成为文件页普通 `+` 抽屉的首项。`mobile_file_manager_presentation.dart` 的桶/目录动作因此只保留新建目录与上传；`SidebarItem.trash` 的底栏目的地继续承载全局回收站。桶回收站已打开时的返回文件与清空操作不变。`test/widget_test.dart` 明确锁定普通 `+` 抽屉既没有「回收站」也没有「打开回收站」、独立入口仍可显示并清空回收站，以及桶行 `…` 仍可打开桶级回收站；P0/P1 复审通过，提出的入口区分 P2 已同批补齐。现行呈现契约见 [app_shell](features/app_shell.md)。
