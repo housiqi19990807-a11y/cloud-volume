@@ -24,4 +24,4 @@ Cloud Files 的 `FETCH_PLACEHOLDERS` 回调先用 `CfCreatePlaceholders` 在磁�
 
 ## Testing
 
-Windows 专用 gate/transfer-plan 测试覆盖非空、空、并发和 TTL 描述符传递；云机 C ABI 回归在全新 sync root 上覆盖首次根/嵌套枚举、读取、写回和任务投影。
+Windows 专用 gate/transfer-plan 测试覆盖非空、空、并发和 TTL 描述符传递；云机 C ABI 回归（真实 CfAPI + MinIO、新 GUID root、DLL SHA256 F1654121…B6328D）验证根/嵌套三方一致（文件系统 == list_object_page == mock S3）、`tree→deep→b.txt` 全物化且内容一致、写后立即 rename 无 sharing violation、任务队列 15s 内收敛且远端无双写。云机 flag 实验排除 MARK_IN_SYNC 根因后确认：无 Explorer 参与时占位目录不会触发 FETCH_PLACEHOLDERS，`PopulatePlaceholders` 递归 `populateChildDirectories` 投影每层子目录是必要修复。
