@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 修复 S3 挂载写回的小文件上传：带任务 ID 的请求体保留可回绕能力，并在签名阶段使用预计算 SHA-256，避免 `request stream is not seekable`；签名预读不再把任务进度提前累计到两倍。
+- 修复 Windows WinFsp bridge 的编译入口：移除未使用 import，`make bridge-windows` 正确向 cgo 传入 vendored WinFsp 头目录。Cloud Files 挂载写入的 metadata chunk 与保护 manifest 目录现在用可写 Windows 句柄执行 `FlushFileBuffers`，不再因只读目录同步返回 `Access is denied` 而无法进入任务队列；写入源句柄还允许 Explorer 在 journal admission 期间重命名，避免 `ERROR_SHARING_VIOLATION`。
+- 修复 Windows Cloud Files 的嵌套目录在资源管理器中显示为空：`FETCH_PLACEHOLDERS` 现在把实际子项经 CFAPI callback transfer 返回，而不是预创建后回复零项；并发/短时重复枚举复用同一描述符，每条原生创建结果都经完整性检查。
+- 修复 Windows Cloud Files metadata 挂载对刚写入普通文件的改名丢失：watcher 会把 Windows fsnotify 的 `Rename/Remove(old)+Create(new)` 序列按同目录唯一 size/mtime 指纹配对成一次持久 rename journal，并去重晚到的 CFAPI completion callback；legacy 挂载保持创建/上传语义。
 - Android 文件预览支持最高 8 MiB 的 Markdown 内嵌渲染；「下载到缓存」复用已校验的应用缓存，「外部应用打开」会以受限 `content://` URI 交给系统应用选择器；Android 预览不提供系统另存为。预览操作按钮保持 48dp 触控区并随屏宽换行，横屏或键盘压缩时仍可滚动到动作。
 - Android 文件管理把搜索框下方的新建目录和上传操作收进右上角 `+`：点击后在底部抽屉显示当前可用的操作列表；全局回收站保持独立导航入口，桶回收站页面仍提供返回文件与清空回收站。
 - 修复 Android 文件管理二级页返回按钮的「返回」提示/hover 残留：`AppTooltip` 在 Android 只提供辅助功能名称，不再创建会把触摸点击当作 hover 切换的 `ShadTooltip`；桌面端提示保持不变。

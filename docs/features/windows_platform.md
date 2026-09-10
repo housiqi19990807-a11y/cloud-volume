@@ -51,6 +51,10 @@ Windows 宿主移除原生标题栏用自绘 chrome,同时在 OS 支持处向 DW
 - `lib/widgets/windows_settings_sections.dart` / `lib/models/remote_storage_config.dart` — 设置暴露两个 Cloud Files 变体与 legacy 纯 WebDAV 映射盘回退;新/默认配置选 `cloud_files_cached` 并禁用可选「此电脑」命名空间条目。
 - 容量解析见 [account_management](account_management.md) 桶自定义配额节与下文 WinFsp。
 - `go/mount/cloud_files_hydrator_windows.go` / `cloud_files_hydrator_placeholders_windows.go` / `cloud_files_provider_windows.go` / `cloud_files_provider_directories_windows.go` / `cloud_files_windows.c` / `cloud_files_windows.h` — 占位符 fetch 把回调路径映射回已校验虚拟前缀、列该远端目录、创建占位符;合并调用方收到 leader 的真实错误。已有保留缓存条目时,目录占位符以 `CF_UPDATE_FLAG_ENABLE_ON_DEMAND_POPULATION` 更新;普通 NTFS 目录以 `CfConvertToPlaceholder` + `CF_CONVERT_FLAG_ENABLE_ON_DEMAND_POPULATION` 转换,Explorer 请求其子项而不是当永久空目录。**不要**在 `CreatePlaceholders` 里简单跳过已存在目录:注销后保留目录可能丢失占位/按需态,必须原地修复使子项保持懒加载且本地文件不被丢弃。回归锚点:`cloud_files_hydrator_placeholders_windows_test.go`、`cloud_files_types_windows_test.go`;原生保留目录转换仍需 Explorer 重挂检查。
+- `cloud_files_provider_transfer_windows.go` / `cloud_files_callbacks_windows.go` — 每个 `FETCH_PLACEHOLDERS` callback 都以自己的 callback info 经 `CfExecute(TRANSFER_PLACEHOLDERS)` 交付 metadata 的实际子项；单批完整快照传 `TotalCount == Count == len(items)`、`STOP_ON_ERROR | DISABLE_ON_DEMAND_POPULATION`。C heap create-info 数组及 UTF-16/identity 缓冲只活到同步调用返回，随后要求 `EntriesProcessed` 全量且每条结果成功才记录 projection。TTL/inflight 只缓存不可变描述符，等待者和缓存命中仍各自 transfer，绝不能回复零数组。初始 root 由 `CfCreatePlaceholders` 投影，注册时禁用 root 按需枚举以避免同名双创建；嵌套目录保持 callback 驱动。设计理由见 [callback transfer 决策记录](../notes/implemented/bug-fix/2026-09-10-cloud-files-callback-placeholder-transfer.md)。
+- `cloud_files_watcher_windows.go` / `cloud_files_watcher_state_windows.go` / `backend_windows_cloud_files_cgo.go` — metadata 挂载中，Windows 对普通 NTFS 文件的 `Rename(old)+Create(new)`（或 `Remove(old)+Create(new)`）fsnotify 序列会按目录内唯一 size/mtime 指纹配对，直接进入同一 `enqueueRenamePath` 持久 rename journal；短暂的 pending rename 记录可被随后 Remove 事件保留，CFAPI 晚到的 completion callback 经 `fallbackRenameHandled` 去重，不会把同一 Desired rename journal 化两次。legacy（无 metadata write path）挂载保持旧行为：旧事件只取消 pending 上传，新路径按新文件入队。回归锚点 `cloud_files_watcher_windows_test.go`。
+- `go/mount/metadata/chunk_store_directory_sync_windows.go` — Cloud Files 写入进入 metadata journal 前，chunk 与保护 manifest 的父目录以 `GENERIC_WRITE | FILE_FLAG_BACKUP_SEMANTICS` 打开并 `FlushFileBuffers`。Windows 的只读目录句柄会拒绝该调用，不能把目录同步错误吞掉或改为 no-op。
+- `go/mount/metadata_write.go` / `metadata_write_source_windows.go` — stage 写源以 `GENERIC_READ` 和 `FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE` 打开，保留 Go 的普通/UNC 长路径规范化与 `FILE_FLAG_BACKUP_SEMANTICS`。同一 `writebackMu` 从打开、`Stat` 持有到 `Service.WritePath` 返回，Cloud Files 的物理 rename 可在读期间完成，其 completion callback 则在旧路径 write 已 journal 化后才执行 Desired rename；不得恢复默认 `os.Open` 的无 delete share。
 - `go/mount/windows_hidden_command_windows.go` — 挂载生命周期用到的每个控制台工具(`subst`、`net use`、`sc`、PowerShell)经 `hiddenWindowsCommand`(`HideWindow` + `CREATE_NO_WINDOW`),防止挂载/卸载/清理/确认退出时的控制台闪现。回归锚点 `windows_hidden_command_windows_test.go`。
 
 **Gotchas:**
@@ -59,6 +63,8 @@ Windows 宿主移除原生标题栏用自绘 chrome,同时在 OS 支持处向 DW
 - 盘符 `ShadSelect` 设 `ensureSelectedVisible: false`:包默认对选中项 `Scrollable.ensureVisible`,popover 打开时会把周围应用模态滚到最后一行。
 - 移除必须查询当前 `subst` 目标,拒绝删目标与会话路径不同的盘。每桶过期清理在删 sync root 前跑;全量清理只移除目标是 `~/Cloud Volume` 直接子项的映射。
 - 被占用的 Cloud Files 缓存不是活跃挂载:provider 断开/注销后 `Stop` 保持桶未挂载,缓存移除问题经 `BucketMountStatus.lastError` 返回;`cleanupManagedWindowsCloudFilesForBucket` 保留删不掉的稳定 root 供下次挂载注册复用。`CleanupStaleWindowsProcesses` 只终止本地构建 runner 目录下的过期 `cloud-volume.exe`/`cloud-volume-app.exe` 进程,有意不终止占用打开文件的 Explorer、Office 等用户应用。
+
+**Known P3 (review 2026-09-10):** callback 当前按单个完整快照传目录。若未来为超大目录拆批，必须在所有批保持同一 total、累计检查已处理项且仅末批携带 `DISABLE_ON_DEMAND_POPULATION`；可同时补充 `EntriesProcessed`/条目 HRESULT 和 CorrelationVector 的诊断日志。
 
 ## Cloud Files 外部删除投影与持久 mutation journal
 

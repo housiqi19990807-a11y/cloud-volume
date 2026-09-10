@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-09-10 Windows Cloud Files 原生回归修复批次(windows_platform / storage_backends 域)
+
+修复干净 `origin/main` 在 Windows 云机上的四层回归阻断并完成真实回归:WinFsp bridge 构建入口(未使用 import、Make 变量域 `WINFSP_INC`)、Cloud Files 写入的 Windows 目录同步与 rename 句柄共享、`FETCH_PLACEHOLDERS` 零项回复导致的嵌套目录空列表,以及带 task ID 小文件上传的 SigV4 可回绕请求体。云机最新 Release 已重新构建,并用真实 C-ABI harness + mock S3 验证根/嵌套枚举、写后立即改名、RemoteTask 投影与远端一致性;过程决策见当日三条 [Agent Note](notes/implemented/bug-fix/)。早前"Windows 基线编译阻断"的结论已被本批次取代,当前正典构建可通过。
+
+## 2026-09-10 Windows 云主机原生回归阻断(windows_platform 域)
+
+在 Windows 云主机从干净 `origin/main` worktree（`87cec76e`）执行正典 `scripts/run_windows.ps1 -Build` 时，脚本已正确选中 x64 UCRT64 工具链和 vendored WinFsp 头，但 Go bridge 因 `go/mount/winfsp_fs_windows.go` 导入未使用的 `s3ops "remote-storage/go/s3"` 而失败。该未修改基线无法产出 Windows 应用，故不能把旧二进制或 mock 挂载结果当作当前版本的 Explorer/文件列表/RemoteTask 回归证据；需先由用户授权在隔离 worktree 临时修正或在主线修复后再跑 MinIO 三方一致性闭环。
+
+同轮 `flutter analyze` 报两项 `onReorder` deprecated info；`flutter test` 结束于 `+199 -30`，主要触发 Flutter 对带背景 `DecoratedBox` 包裹 `ListTile` 的断言，延续既有 Flutter 工具链兼容问题。裸 `go test ./...` 另因未设置 WinFsp `CPATH` 失败并暴露 Windows 临时 bbolt 文件锁清理问题，不能替代正典脚本的构建结果。远程测试 worktree 的 `flutter pub get` 只变更其隔离副本的 `pubspec.lock`，没有修改用户 checkout。
+
 ## 2026-09-09 项目对外介绍口径探索(跨域)
 
 面向 AI 工程协作场景介绍云卷时，最具区分度的主线是「把多种远端存储统一成接近本地磁盘的跨平台体验」，而不是普通网盘 CRUD。可复用的工程例证是：一项能力通常横跨 Go 后端、FFI/JSON 桥接、Dart 模型与 Flutter 多端 UI；挂载和文件管理页共享 bbolt inode 视图，mutation 由 journal 驱动并遵守 chunk 落盘、失败恢复与远端副作用防重放契约；实现再由针对性测试、全量 Go/Flutter 检查和 P0/P1 子代理评审收口。对外表述应把 AI 定位为代码库探索、跨层实现、测试与文档评审的长期协作者，人负责产品边界、架构取舍和最终验收，避免宣称 AI 独立完成项目或虚构用户量、性能数据。产品范围见根 [README](../README.md)，核心契约见 [mount_metadata_core](features/mount_metadata_core.md)、[remote_tasks](features/remote_tasks.md)、[storage_backends](features/storage_backends.md) 与 [file_sync_p2p](features/file_sync_p2p.md)。
