@@ -66,6 +66,8 @@ Windows 宿主移除原生标题栏用自绘 chrome,同时在 OS 支持处向 DW
 
 **Known P3 (review 2026-09-10, 云机回归补充):** 本地写入(已非占位符)文件的挂载内删除不回写远端:CfAPI 不对其发送 delete completion 回调,fsnotify REMOVE 的 `handleRemovedSource` 只取消 pending 上传并 Forget 状态,不调 `deletePath`;远端对象残留。对照 WinFsp 的 `Unlink` 显式调 `fs.access.deletePath`。需另开任务修复(涉及误删防护,勿并入 rename 变更集)。
 
+**Known P2/P3 (review 2026-09-10, 独立复核):** rename 去重标记复用 3s 事件 TTL,极端延迟的晚到 CFAPI completion 理论上可穿透并误移旧名新建文件——建议独立 30–60s TTL 或回调先 `StatPath(old)`;watcher 事件循环内同步 bbolt journal 提交,千级批量改名可能溢出 fsnotify 通道(退化为新上传+旧 key 残留);`writebackMu` 跨完整读取+落盘,大文件写入期间全局串行化挂载操作(正确性换简单性的既有取舍)。P3:rename 配对仅限同目录,跨目录移动退化为上传+旧 key 残留(与删除回写缺口同根,可同任务处理)。
+
 **Known P3 (review 2026-09-10):** callback 当前按单个完整快照传目录。若未来为超大目录拆批，必须在所有批保持同一 total、累计检查已处理项且仅末批携带 `DISABLE_ON_DEMAND_POPULATION`；可同时补充 `EntriesProcessed`/条目 HRESULT 和 CorrelationVector 的诊断日志。
 
 ## Cloud Files 外部删除投影与持久 mutation journal
