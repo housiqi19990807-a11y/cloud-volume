@@ -135,30 +135,35 @@ class _TransfersPageState extends State<TransfersPage> {
   }
 
   Widget _buildEmptyState(ShadThemeData theme, String title, String message) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          LucideIcons.arrowLeftRight,
+          size: 28,
+          color: theme.colorScheme.mutedForeground,
+        ),
+        const SizedBox(height: 10),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 5),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+      ],
+    );
+    // Android 对齐文件管理空态：内容直接落在页面背景上，不套带边框的卡。
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return Center(child: content);
+    }
     return Center(
       child: ShadCard(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.arrowLeftRight,
-              size: 28,
-              color: theme.colorScheme.mutedForeground,
-            ),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 5),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.colorScheme.mutedForeground,
-              ),
-            ),
-          ],
-        ),
+        child: content,
       ),
     );
   }

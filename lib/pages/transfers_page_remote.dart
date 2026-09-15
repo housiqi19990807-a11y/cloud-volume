@@ -29,71 +29,72 @@ extension _TransfersPageRemote on _TransfersPageState {
         visible.every((task) => _selectedTaskIds.contains(task.id));
     final partial = selectedVisible > 0 && !allSelected;
     final sections = _groupRemoteTasks(visible);
-    return ShadCard(
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        children: [
-          _RemoteListHeader(
-            totalCount: store.total,
-            visibleCount: visible.length,
-            speedSummary: remoteTaskSpeedSummary(visible),
-            allSelected: allSelected,
-            partial: partial,
-            onToggleAll: () => _toggleRemoteVisibleSelection(visible),
-          ),
-          Expanded(
-            // Standard body-loading view while the first history page reads.
-            child: store.tasks.isEmpty && store.isLoadingInitialHistory
-                ? const _RemoteInitialLoading()
-                : ListView(
-                    children: [
-                      for (final section in sections) ...[
-                        // Android 行内已有状态徽章，分组标题只占竖向空间，不显示。
-                        if (!_androidCompactQueueHeader)
-                          _RemoteSectionHeader(
-                            label: section.label,
-                            count: section.tasks.length,
-                          ),
-                        for (final task in section.tasks)
-                          RemoteTaskRow(
-                            key: ValueKey<String>(task.id),
-                            task: task,
-                            selected: _selectedTaskIds.contains(task.id),
-                            onToggleSelected: () => _toggleTaskSelection(task.id),
-                            onCancel: task.cancelable
-                                ? () => _cancelRemoteTask(store, task)
-                                : null,
-                            onRetry: task.retryable
-                                ? () => _retryRemoteTask(store, task)
-                                : null,
-                            onTrigger: task.triggerable
-                                ? () => _triggerRemoteTask(store, task)
-                                : null,
-                            onExpanded: (expanded) {
-                              if (expanded) {
-                                unawaited(store.loadDetails(task.id));
-                              }
-                            },
-                            showDivider: true,
-                          ),
-                      ],
-                      // History continuation lives at the end of the list, so
-                      // it appears only once the user reaches the last row.
-                      if (showHistoryPager)
-                        _RemoteHistoryPager(
-                          loaded: store.loadedHistoryCount,
-                          total: store.historyTotal,
-                          remaining: store.remainingHistoryCount,
-                          initialLoading: store.isLoadingInitialHistory,
-                          loading: store.isLoadingMoreHistory,
-                          onLoadNext: () => unawaited(store.loadMore()),
+    final listBody = Column(
+      children: [
+        _RemoteListHeader(
+          totalCount: store.total,
+          visibleCount: visible.length,
+          speedSummary: remoteTaskSpeedSummary(visible),
+          allSelected: allSelected,
+          partial: partial,
+          onToggleAll: () => _toggleRemoteVisibleSelection(visible),
+        ),
+        Expanded(
+          // Standard body-loading view while the first history page reads.
+          child: store.tasks.isEmpty && store.isLoadingInitialHistory
+              ? const _RemoteInitialLoading()
+              : ListView(
+                  children: [
+                    for (final section in sections) ...[
+                      // Android 行内已有状态徽章，分组标题只占竖向空间，不显示。
+                      if (!_androidCompactQueueHeader)
+                        _RemoteSectionHeader(
+                          label: section.label,
+                          count: section.tasks.length,
+                        ),
+                      for (final task in section.tasks)
+                        RemoteTaskRow(
+                          key: ValueKey<String>(task.id),
+                          task: task,
+                          selected: _selectedTaskIds.contains(task.id),
+                          onToggleSelected: () => _toggleTaskSelection(task.id),
+                          onCancel: task.cancelable
+                              ? () => _cancelRemoteTask(store, task)
+                              : null,
+                          onRetry: task.retryable
+                              ? () => _retryRemoteTask(store, task)
+                              : null,
+                          onTrigger: task.triggerable
+                              ? () => _triggerRemoteTask(store, task)
+                              : null,
+                          onExpanded: (expanded) {
+                            if (expanded) {
+                              unawaited(store.loadDetails(task.id));
+                            }
+                          },
+                          showDivider: true,
                         ),
                     ],
-                  ),
-          ),
-        ],
-      ),
+                    // History continuation lives at the end of the list, so
+                    // it appears only once the user reaches the last row.
+                    if (showHistoryPager)
+                      _RemoteHistoryPager(
+                        loaded: store.loadedHistoryCount,
+                        total: store.historyTotal,
+                        remaining: store.remainingHistoryCount,
+                        initialLoading: store.isLoadingInitialHistory,
+                        loading: store.isLoadingMoreHistory,
+                        onLoadNext: () => unawaited(store.loadMore()),
+                      ),
+                  ],
+                ),
+        ),
+      ],
     );
+    // Android 对齐文件管理移动基线：任务列表直接落在页面背景上，
+    // 不再套带边框的卡片容器；桌面保持原卡片外观。
+    if (_androidCompactQueueHeader) return listBody;
+    return ShadCard(padding: const EdgeInsets.all(4), child: listBody);
   }
 
   // Queue-tab row switches the list between status queues; each tab is a

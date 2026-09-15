@@ -28,10 +28,13 @@ import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/pages/app_bootstrap_page.dart';
+import 'package:remote_storage/pages/cloud_storage_page.dart';
 import 'package:remote_storage/pages/file_manager_page.dart';
 import 'package:remote_storage/pages/global_trash_page.dart';
 import 'package:remote_storage/pages/main_layout_page.dart';
 import 'package:remote_storage/pages/mobile_file_manager_page.dart';
+import 'package:remote_storage/pages/settings_page.dart';
+import 'package:remote_storage/pages/transfers_page.dart';
 import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/state/remote_task_store.dart';
@@ -3617,6 +3620,14 @@ void main() {
           )
           .first;
       expect(tester.getSize(buttonZone).height, greaterThanOrEqualTo(48));
+      // 无边框基线：Android 账号页不再出现带边框的卡片容器。
+      expect(
+        find.descendant(
+          of: find.byType(CloudStoragePage),
+          matching: find.byType(ShadCard),
+        ),
+        findsNothing,
+      );
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -3652,6 +3663,14 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('管理应用与连接偏好。'), findsOneWidget);
+      // 无边框基线：Android 设置索引不再套带边框的分组卡片。
+      expect(
+        find.descendant(
+          of: find.byType(SettingsPage),
+          matching: find.byType(ShadCard),
+        ),
+        findsNothing,
+      );
 
       // 进入一个设置详情页（「外观」标签唯一），返回入口语义与 48dp 尺寸保持。
       // IndexedStack 常驻各页，find.text 全树搜索会同时命中索引与详情的
@@ -3659,6 +3678,14 @@ void main() {
       await tester.tap(find.text('外观'));
       await tester.pumpAndSettle();
       expect(find.text('外观'), findsWidgets);
+      // 无边框基线：Android 设置详情分区是无边框的标题+内容块。
+      expect(
+        find.descendant(
+          of: find.byType(SettingsPage),
+          matching: find.byType(ShadCard),
+        ),
+        findsNothing,
+      );
       final back = find.bySemanticsLabel('返回设置');
       expect(back, findsOneWidget);
       expect(tester.getSize(back).height, greaterThanOrEqualTo(48));
@@ -3700,6 +3727,14 @@ void main() {
 
       expect(find.text('任务队列'), findsOneWidget);
       expect(find.text('查看传输与同步任务的进度。'), findsOneWidget);
+      // 无边框基线：Android 任务列表与空态不套带边框的卡片容器。
+      expect(
+        find.descendant(
+          of: find.byType(TransfersPage),
+          matching: find.byType(ShadCard),
+        ),
+        findsNothing,
+      );
       final syncButton = find.text('立即同步');
       expect(syncButton, findsOneWidget);
       final buttonRect = tester.getRect(
@@ -3741,6 +3776,14 @@ void main() {
       // 页面标题与底栏标签同名：副标题唯一，标题断言放宽为至少存在。
       expect(find.text('回收站'), findsWidgets);
       expect(find.text('浏览与恢复已删除的远端文件。'), findsOneWidget);
+      // 无边框基线：Android 回收站列表不套带边框的卡片容器。
+      expect(
+        find.descendant(
+          of: find.byType(GlobalTrashPage),
+          matching: find.byType(ShadCard),
+        ),
+        findsNothing,
+      );
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

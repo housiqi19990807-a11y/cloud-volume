@@ -144,110 +144,114 @@ class FileManagerTrashBrowser extends StatelessWidget {
       builder: (context, constraints) {
         final compact = Theme.of(context).platform == TargetPlatform.android ||
             constraints.maxWidth < 600;
-        return ShadCard(
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        children: [
-          if (compact)
-            Container(
+        final listBody = Column(
+          children: [
+            if (compact)
+              Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(children: [
+                  ListSelectionControl(selected: false, onTap: () {}),
+                  const SizedBox(width: 10),
+                  const Text('全选'),
+                ]),
+              )
+            else Container(
               height: 38,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(children: [
-                ListSelectionControl(selected: false, onTap: () {}),
-                const SizedBox(width: 10),
-                const Text('全选'),
-              ]),
-            )
-          else Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: theme.colorScheme.border.withValues(alpha: 0.75),
-                  width: 0.8,
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: theme.colorScheme.border.withValues(alpha: 0.75),
+                    width: 0.8,
+                  ),
                 ),
               ),
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 32),
-                const SizedBox(width: 12),
-                Expanded(child: Text('名称', style: headerTextStyle)),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: compact ? 0 : FileListTile.sizeColumnWidth,
-                  child: Text(
-                    '原路径',
-                    textAlign: TextAlign.right,
-                    style: headerTextStyle,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  width: compact ? 0 : FileListTile.modifiedColumnWidth,
-                  child: Text(
-                    '删除时间',
-                    textAlign: TextAlign.right,
-                    style: headerTextStyle,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  width: compact ? 0 : TrashRowActions.actionColumnWidth,
-                  child: Text(
-                    '操作',
-                    textAlign: TextAlign.right,
-                    style: headerTextStyle,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              controller: scrollController,
-              itemCount: items.length + (loadingMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= items.length) {
-                  return _buildListLoadingRow(context);
-                }
-                final item = items[index];
-                return _wrapWithContextMenu(
-                  item,
-                  FileListTile(
-                    leading: Icon(
-                      item.isDir
-                          ? LucideIcons.folderArchive
-                          : LucideIcons.fileX2,
-                      size: 20,
-                      color: theme.colorScheme.primary.withValues(alpha: 0.82),
+              child: Row(
+                children: [
+                  const SizedBox(width: 32),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('名称', style: headerTextStyle)),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: compact ? 0 : FileListTile.sizeColumnWidth,
+                    child: Text(
+                      '原路径',
+                      textAlign: TextAlign.right,
+                      style: headerTextStyle,
                     ),
-                    title: item.name,
-                    sizeLabel: compact ? item.sizeText : item.originalKey,
-                    modifiedLabel: item.deletedAt,
-                    onTap: () => onRestore(item),
-                    showDivider: index != items.length - 1 || loadingMore,
-                    trailing: compact
-                        ? Row(mainAxisSize: MainAxisSize.min, children: [
-                            ShadIconButton.ghost(icon: Icon(LucideIcons.rotateCcw, size: 18, color: theme.colorScheme.primary), onPressed: () => onRestore(item)),
-                            ShadIconButton.ghost(icon: Icon(LucideIcons.trash2, size: 18, color: theme.colorScheme.mutedForeground), onPressed: () => onDeletePermanently(item)),
-                          ])
-                        : TrashRowActions(
-                      deletedLabel: item.deletedAt,
-                      busy: false,
-                      onRestore: () => onRestore(item),
-                      onDeletePermanently: () => onDeletePermanently(item),
-                    ),
-                    compact: compact,
                   ),
-                );
-              },
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: compact ? 0 : FileListTile.modifiedColumnWidth,
+                    child: Text(
+                      '删除时间',
+                      textAlign: TextAlign.right,
+                      style: headerTextStyle,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  SizedBox(
+                    width: compact ? 0 : TrashRowActions.actionColumnWidth,
+                    child: Text(
+                      '操作',
+                      textAlign: TextAlign.right,
+                      style: headerTextStyle,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: items.length + (loadingMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= items.length) {
+                    return _buildListLoadingRow(context);
+                  }
+                  final item = items[index];
+                  return _wrapWithContextMenu(
+                    item,
+                    FileListTile(
+                      leading: Icon(
+                        item.isDir
+                            ? LucideIcons.folderArchive
+                            : LucideIcons.fileX2,
+                        size: 20,
+                        color: theme.colorScheme.primary.withValues(alpha: 0.82),
+                      ),
+                      title: item.name,
+                      sizeLabel: compact ? item.sizeText : item.originalKey,
+                      modifiedLabel: item.deletedAt,
+                      onTap: () => onRestore(item),
+                      showDivider: index != items.length - 1 || loadingMore,
+                      trailing: compact
+                          ? Row(mainAxisSize: MainAxisSize.min, children: [
+                              ShadIconButton.ghost(icon: Icon(LucideIcons.rotateCcw, size: 18, color: theme.colorScheme.primary), onPressed: () => onRestore(item)),
+                              ShadIconButton.ghost(icon: Icon(LucideIcons.trash2, size: 18, color: theme.colorScheme.mutedForeground), onPressed: () => onDeletePermanently(item)),
+                            ])
+                          : TrashRowActions(
+                        deletedLabel: item.deletedAt,
+                        busy: false,
+                        onRestore: () => onRestore(item),
+                        onDeletePermanently: () => onDeletePermanently(item),
+                      ),
+                      compact: compact,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         );
+        // Android 对齐文件管理移动基线（桶/对象列表同款）：回收站列表直接
+        // 落在页面背景上，不再套带边框的卡片容器；桌面（含窄窗口）保持
+        // 原卡片外观。
+        if (Theme.of(context).platform == TargetPlatform.android) {
+          return listBody;
+        }
+        return ShadCard(padding: const EdgeInsets.all(4), child: listBody);
       },
     );
   }

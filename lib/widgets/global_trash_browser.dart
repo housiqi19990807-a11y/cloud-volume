@@ -68,119 +68,120 @@ class GlobalTrashBrowser extends StatelessWidget {
     final partiallySelected =
         selectedCount > 0 && selectedCount < selectableEntries.length;
 
-    return ShadCard(
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        children: [
-          if (compact)
-            Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(children: [
-                _HeaderSelectionIndicator(allSelected: allSelected, partiallySelected: partiallySelected, onTap: onToggleSelectAll),
-                const SizedBox(width: 10),
-                const Text('全选'),
-              ]),
-            )
-          else _GlobalTrashHeader(
-            theme: theme,
-            showBucketColumn: showBucketColumn,
-            allSelected: allSelected,
-            partiallySelected: partiallySelected,
-            onToggleSelectAll: onToggleSelectAll,
-          ),
-          Expanded(
-            child: ListView.builder(
-              controller: scrollController,
-              itemCount: entries.length + (loadingMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= entries.length) {
-                  return _buildLoadingRow(theme);
-                }
-                final entry = entries[index];
-                final busy = busyIds.contains(entry.id);
-                return _wrapWithContextMenu(
-                  entry,
-                  FileListTile(
-                    leading: LocalCloudPanFileIcon(
-                      name: entry.item.name,
-                      isDirectory: entry.item.isDir,
-                      size: 32,
-                    ),
-                    title: entry.item.name,
-                    subtitleLabel: compact ? entry.item.deletedAt : entry.item.originalKey,
-                    sizeLabel: showBucketColumn ? entry.bucket : '',
-                    sizeColumnWidthOverride: showBucketColumn
-                        ? _bucketColumnWidth
-                        : 0,
-                    modifiedLabel: compact ? '' : (busy ? '处理中...' : entry.item.deletedAt),
-                    onTap: () => _toggleEntry(entry),
-                    onDoubleTap: busy ? null : () => onRestore(entry),
-                    onTitleTap: () => _toggleEntry(entry),
-                    onSelectionTap: busy
-                        ? null
-                        : () => onToggleSelection(entry),
-                    isSelected: selectedIds.contains(entry.id),
-                    showSelectionControl: true,
-                    showDivider: index != entries.length - 1 || loadingMore,
-                    deleting: busy,
-                    trailing: compact
-                        ? Row(mainAxisSize: MainAxisSize.min, children: [
-                            // Android compact rows: 48dp touch targets so the
-                            // restore / permanent-delete icons stay tappable.
-                            SizedBox(
-                              width: 48,
-                              height: 48,
-                              child: Center(
-                                child: ShadIconButton.ghost(
-                                  icon: Icon(
-                                    LucideIcons.rotateCcw,
-                                    size: 18,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                  width: 48,
-                                  height: 48,
-                                  onPressed: busy
-                                      ? null
-                                      : () => onRestore(entry),
-                                ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 48,
-                              height: 48,
-                              child: Center(
-                                child: ShadIconButton.ghost(
-                                  icon: Icon(
-                                    LucideIcons.trash2,
-                                    size: 18,
-                                    color: theme.colorScheme.mutedForeground,
-                                  ),
-                                  width: 48,
-                                  height: 48,
-                                  onPressed: busy
-                                      ? null
-                                      : () => onDeletePermanently(entry),
-                                ),
-                              ),
-                            ),
-                          ])
-                        : TrashRowActions(
-                            deletedLabel: entry.item.deletedAt,
-                            busy: busy,
-                            onRestore: () => onRestore(entry),
-                            onDeletePermanently: () =>
-                                onDeletePermanently(entry),
-                          ),
-                    compact: compact,
+    final listBody = Column(
+      children: [
+        if (compact)
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              _HeaderSelectionIndicator(allSelected: allSelected, partiallySelected: partiallySelected, onTap: onToggleSelectAll),
+              const SizedBox(width: 10),
+              const Text('全选'),
+            ]),
+          )
+        else _GlobalTrashHeader(
+          theme: theme,
+          showBucketColumn: showBucketColumn,
+          allSelected: allSelected,
+          partiallySelected: partiallySelected,
+          onToggleSelectAll: onToggleSelectAll,
+        ),
+        Expanded(
+          child: ListView.builder(
+            controller: scrollController,
+            itemCount: entries.length + (loadingMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index >= entries.length) {
+                return _buildLoadingRow(theme);
+              }
+              final entry = entries[index];
+              final busy = busyIds.contains(entry.id);
+              return _wrapWithContextMenu(
+                entry,
+                FileListTile(
+                  leading: LocalCloudPanFileIcon(
+                    name: entry.item.name,
+                    isDirectory: entry.item.isDir,
+                    size: 32,
                   ),
-                );
-              },
-            ),
+                  title: entry.item.name,
+                  subtitleLabel: compact ? entry.item.deletedAt : entry.item.originalKey,
+                  sizeLabel: showBucketColumn ? entry.bucket : '',
+                  sizeColumnWidthOverride: showBucketColumn
+                      ? _bucketColumnWidth
+                      : 0,
+                  modifiedLabel: compact ? '' : (busy ? '处理中...' : entry.item.deletedAt),
+                  onTap: () => _toggleEntry(entry),
+                  onDoubleTap: busy ? null : () => onRestore(entry),
+                  onTitleTap: () => _toggleEntry(entry),
+                  onSelectionTap: busy
+                      ? null
+                      : () => onToggleSelection(entry),
+                  isSelected: selectedIds.contains(entry.id),
+                  showSelectionControl: true,
+                  showDivider: index != entries.length - 1 || loadingMore,
+                  deleting: busy,
+                  trailing: compact
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          // Android compact rows: 48dp touch targets so the
+                          // restore / permanent-delete icons stay tappable.
+                          SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: ShadIconButton.ghost(
+                                icon: Icon(
+                                  LucideIcons.rotateCcw,
+                                  size: 18,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                width: 48,
+                                height: 48,
+                                onPressed: busy
+                                    ? null
+                                    : () => onRestore(entry),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Center(
+                              child: ShadIconButton.ghost(
+                                icon: Icon(
+                                  LucideIcons.trash2,
+                                  size: 18,
+                                  color: theme.colorScheme.mutedForeground,
+                                ),
+                                width: 48,
+                                height: 48,
+                                onPressed: busy
+                                    ? null
+                                    : () => onDeletePermanently(entry),
+                              ),
+                            ),
+                          ),
+                        ])
+                      : TrashRowActions(
+                          deletedLabel: entry.item.deletedAt,
+                          busy: busy,
+                          onRestore: () => onRestore(entry),
+                          onDeletePermanently: () =>
+                              onDeletePermanently(entry),
+                        ),
+                  compact: compact,
+                ),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
+    // Android 对齐文件管理移动基线：回收站列表直接落在页面背景上，
+    // 不再套带边框的卡片容器；桌面保持原卡片外观。
+    if (compact) return listBody;
+    return ShadCard(padding: const EdgeInsets.all(4), child: listBody);
   }
 
   Widget _wrapWithContextMenu(GlobalTrashBrowserEntry entry, Widget child) {

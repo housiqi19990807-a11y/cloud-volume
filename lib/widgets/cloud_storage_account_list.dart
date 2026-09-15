@@ -70,7 +70,20 @@ class CloudStorageAccountList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 12),
       itemCount: accounts.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      // 账号块之间的发丝线与 FileListTile 行分隔同规格（border 0.55/0.6），
+      // 无边框块因此仍保持清晰的列表节奏。
+      separatorBuilder: (context, index) => Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: ShadTheme.of(
+                context,
+              ).colorScheme.border.withValues(alpha: 0.55),
+              width: 0.6,
+            ),
+          ),
+        ),
+      ),
       itemBuilder: (context, index) {
         final profile = accounts[index];
         return _AccountCard(

@@ -20,6 +20,7 @@
 - 文字遵循主题字体与动态字号；正文优先不小于 16sp，紧凑说明不低于 12sp。单行位置/名称可省略号截断，但不能溢出或把关键操作挤出屏幕。
 - **文件名截断契约**：移动端文件列表的文件名展示统一走 `FittingFileNameText`（`lib/widgets/fitting_file_name_text.dart`）——**像素感知快路径**：名字宽度（TextPainter 实测，按该行自己的可用宽度）放得下就原样显示（19 字符的 `default_blurred.png` 在宽行完整显示）；放不下才退到 `compactDisplayName`（头+尾+扩展名，中段 `...`；`lib/utils/display_name.dart`）的字符预算截断——宽紧凑行（对象/回收站/目录选择器，约 250–300dp）默认 18，任务行（最窄，约 110dp）传 14。桌面宽列表保持完整文件名（桌面窄窗宽度门表面走同一链路）。辅助技术始终拿到完整名（Semantics label）。已知限制：字符预算按 UTF-16 码元，纯 CJK 长名退到截断后仍可能被外层尾省略截掉扩展名。回归见 `test/fitting_file_name_text_test.dart`、`test/display_name_test.dart` 与目录选择器测试。
 - **列表行字号基线**：移动端文件类列表行（对象/回收站/任务）标题 14sp、副标题/元信息 12sp，跨页一致（`RemoteTaskRow` 经 `defaultTargetPlatform` 分支对齐 `FileListTile` compact 的 14/12）；桌面维持 13/11 密集节奏。状态徽标 chip 等 10.5sp 小字属行内 chrome，不在此基线内。
+- **无边框基线（binding）**：Android 页面内容不套箱形卡片容器——列表、账号块、设置索引分组/详情分区与空态直接落在页面背景上（参照文件管理页的桶/对象移动列表），行/块间用发丝分隔线保持节奏（账号块分隔与 `FileListTile` 行分隔同规格：`colorScheme.border` alpha 0.55、0.6px；表头下沿等既有分隔仍为 0.7/0.6，不强制统一）；`ShadCard` 等带边框容器是桌面专属（含桌面窄窗 compact 分支，那里的卡片保留）。改动移动列表容器时按平台分支返回裸 `Column`/`Padding`，桌面路径保持原卡片外观。回归：`test/mobile_borderless_lists_test.dart` 与 `test/widget_test.dart` 四个 Android 页面级 `ShadCard` findsNothing 断言。
 
 ## 导航与页面状态
 
@@ -54,8 +55,10 @@
 - 全局 hover、loading 与列表交互色：[ui_rules](ui_rules.md)。
 - Android 底部抽屉、安全区、IME、滚动与模态动画：[app_modal](app_modal.md)。
 - Android 运行、模拟器、APK 与移动端能力边界：[android_dev](android_dev.md)。
-- 顶层 tab 页共享 chrome：[mobile_page_chrome](../../../lib/widgets/mobile_page_chrome.dart) 提供 `MobilePageHeader`（稳定大标题 + 副标题 + 单一 48dp 动作入口）与 `showMobileActionSheet`（48dp 底部动作抽屉，文件管理同款实现）。账号/任务/回收站/设置页已按 2026-09-04 批次对齐该基线：SafeArea(bottom:false) + 16dp 边距、23sp 标题 + 13sp 副标题、触控目标 ≥48dp（含账号卡片动作、任务行内图标与选择控件、回收站 compact trailing、设置底部导航上移/下移钮）；设置页详情↔索引的系统 Back 链由 `MobileSettingsNavigation`（shell 持有）承接，先于 tab 历史消费。分享管理页与同步任务页在 Android 无底栏入口（不在 `kMobileBottomBarPool`），未做小屏适配；进入底栏池前必须先补。
+- 顶层 tab 页共享 chrome：[mobile_page_chrome](../../../lib/widgets/mobile_page_chrome.dart) 提供 `MobilePageHeader`（稳定大标题 + 副标题 + 单一 48dp 动作入口）与 `showMobileActionSheet`（48dp 底部动作抽屉，文件管理同款实现）。账号/任务/回收站/设置页已按 2026-09-04 批次对齐该基线：SafeArea(bottom:false) + 16dp 边距、23sp 标题 + 13sp 副标题、触控目标 ≥48dp（含账号卡片动作、任务行内图标与选择控件、回收站 compact trailing、设置底部导航上移/下移钮）；设置页详情↔索引的系统 Back 链由 `MobileSettingsNavigation`（shell 持有）承接，先于 tab 历史消费。分享管理页与同步任务页在 Android 无底栏入口（不在 `kMobileBottomBarPool`），未做小屏适配；进入底栏池前必须先补。2026-09-15 批次把五个底栏页（文件/账号/任务/回收站/设置）及文件管理页内桶回收站视图统一到无边框基线（见上），决策见 [Agent Note](../notes/implemented/architecture/2026-09-15-mobile-borderless-baseline.md)。
 
 **Known P2/P3 (review 2026-09-04):** P2 任务行最坏组合（spinner+状态徽标+取消+展开，行内动作 Android 48dp 化后固定宽约 343px）在 320dp 屏扣 16dp 边距会溢出约 23px，360dp 无碍——真机统一测试时验证，必要时行内动作收进溢出菜单。P2 账号卡三按钮 320dp 下「桶管理」13sp 标签可用宽不足可能折行，可缩短标签或 maxLines 取舍。P3 回收站用例名 "swap-title on select" 未真正驱动选中态（名实不符）；任务页「已选 N 项」切换同样缺 widget 断言。P3 账号卡 deleteProfile 动作沿用「退出」文案（与既有 toast 一致），破坏性语义弱化待产品定夺。
 
 **Known P2/P3 (review 2026-09-04 像素门控批次):** P2 `FittingFileNameText` 的可见截断串即读屏听到的内容（无独立完整名 semanticsLabel）——`semanticsLabel`/`Semantics` 包装会改变 render-object 形状，破坏既有 find.text 辅助函数的 `RenderParagraph` 强转；待读屏全名需求出现时再连同测试辅助函数一起演进。P2 网格卡片（file_grid_item）仍走纯字符预算 compactDisplayName，未接像素快路径（窄卡片收益低）。P3 系统 boldText/letterSpacing 覆盖未并入测宽（二阶偏差，默认设置无影响）。
+
+**Known P2/P3 (review 2026-09-15 无边框批次):** P3 设置移动索引的分隔用 `Divider(height: 1)`（shadcn dividerTheme，border 全 alpha、1px），与基线发丝线（0.55/0.6）规格不一——保留现状，下次动设置索引时统一。P3 本批新增平台判断风格混用（`defaultTargetPlatform` vs `Theme.of(context).platform`，运行时与测试行为等价，后者沿用所在文件既有惯例）。P3 `mobile_borderless_lists_test.dart` 的内联 `ScrollController()` 不显式 dispose（与 `file_manager_object_browser_mobile_test.dart` 既有模式一致，树拆除时自动 detach）。P3 `transfers_page_remote.dart` 距 500 行上限余 5 行（拆分计划见 [remote_tasks](remote_tasks.md)）。
