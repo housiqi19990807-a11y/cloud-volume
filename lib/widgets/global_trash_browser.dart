@@ -5,6 +5,7 @@ import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
+import 'package:remote_storage/widgets/mobile_page_chrome.dart';
 import 'package:remote_storage/widgets/trash_row_actions.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -39,6 +40,10 @@ class GlobalTrashBrowser extends StatelessWidget {
     required this.onToggleSelectAll,
     required this.onRestore,
     required this.onDeletePermanently,
+    this.onBatchRestore,
+    this.onBatchDelete,
+    this.batchSelectedCount = 0,
+    this.onClearSelection,
   });
 
   final List<GlobalTrashBrowserEntry> entries;
@@ -51,6 +56,15 @@ class GlobalTrashBrowser extends StatelessWidget {
   final VoidCallback onToggleSelectAll;
   final ValueChanged<GlobalTrashBrowserEntry> onRestore;
   final ValueChanged<GlobalTrashBrowserEntry> onDeletePermanently;
+
+  /// Android 行 `…` 抽屉的批量动作(当前选择的恢复/彻底删除);为空时
+  /// 抽屉只列单行动作。桌面不使用。
+  final VoidCallback? onBatchRestore;
+  final VoidCallback? onBatchDelete;
+  final int batchSelectedCount;
+
+  /// 清空当前选择(批量抽屉的「取消选择」,文件管理契约)。
+  final VoidCallback? onClearSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -70,17 +84,10 @@ class GlobalTrashBrowser extends StatelessWidget {
 
     final listBody = Column(
       children: [
-        if (compact)
-          Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: [
-              _HeaderSelectionIndicator(allSelected: allSelected, partiallySelected: partiallySelected, onTap: onToggleSelectAll),
-              const SizedBox(width: 10),
-              const Text('全选'),
-            ]),
-          )
-        else _GlobalTrashHeader(
+        // Android 无列表头(与文件管理页一致,列表上缘紧贴筛选区);
+        // 桌面保留表头与全选。
+        if (!compact)
+          _GlobalTrashHeader(
           theme: theme,
           showBucketColumn: showBucketColumn,
           allSelected: allSelected,
@@ -128,46 +135,17 @@ class GlobalTrashBrowser extends StatelessWidget {
                   showDivider: index != entries.length - 1 || loadingMore,
                   deleting: busy,
                   trailing: compact
-                      ? Row(mainAxisSize: MainAxisSize.min, children: [
-                          // Android compact rows: 48dp touch targets so the
-                          // restore / permanent-delete icons stay tappable.
-                          SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: Center(
-                              child: ShadIconButton.ghost(
-                                icon: Icon(
-                                  LucideIcons.rotateCcw,
-                                  size: 18,
-                                  color: theme.colorScheme.primary,
-                                ),
-                                width: 48,
-                                height: 48,
-                                onPressed: busy
-                                    ? null
-                                    : () => onRestore(entry),
-                              ),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: Center(
-                              child: ShadIconButton.ghost(
-                                icon: Icon(
-                                  LucideIcons.trash2,
-                                  size: 18,
-                                  color: theme.colorScheme.mutedForeground,
-                                ),
-                                width: 48,
-                                height: 48,
-                                onPressed: busy
-                                    ? null
-                                    : () => onDeletePermanently(entry),
-                              ),
-                            ),
-                          ),
-                        ])
+                      ? _RowOverflowButton(
+                          entry: entry,
+                          busy: busy,
+                          rowSelected: selectedIds.contains(entry.id),
+                          batchSelectedCount: batchSelectedCount,
+                          onRestore: onRestore,
+                          onDeletePermanently: onDeletePermanently,
+                          onBatchRestore: onBatchRestore,
+                          onBatchDelete: onBatchDelete,
+                          onClearSelection: onClearSelection,
+                        )
                       : TrashRowActions(
                           deletedLabel: entry.item.deletedAt,
                           busy: busy,
@@ -346,5 +324,106 @@ class _HeaderSelectionIndicator extends StatelessWidget {
             : null,
       ),
     );
+  }
+}
+
+/// Android 行尾 `…` 入口:打开底部动作抽屉——无选中时为该行的
+/// 恢复/彻底删除,有选中时为当前选择的批量动作(文件管理抽屉契约)。
+class _RowOverflowButton extends StatelessWidget {
+  const _RowOverflowButton({
+    required this.entry,
+    required this.busy,
+    required this.rowSelected,
+    required this.batchSelectedCount,
+    required this.onRestore,
+    required this.onDeletePermanently,
+    required this.onBatchRestore,
+    required this.onBatchDelete,
+    required this.onClearSelection,
+  });
+
+  final GlobalTrashBrowserEntry entry;
+  final bool busy;
+  final bool rowSelected;
+  final int batchSelectedCount;
+  final ValueChanged<GlobalTrashBrowserEntry> onRestore;
+  final ValueChanged<GlobalTrashBrowserEntry> onDeletePermanently;
+  final VoidCallback? onBatchRestore;
+  final VoidCallback? onBatchDelete;
+  final VoidCallback? onClearSelection;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Semantics(
+      label: '${entry.item.name} 的更多操作',
+      child: ShadIconButton.ghost(
+        width: 48,
+        height: 48,
+        iconSize: 18,
+        icon: Icon(
+          LucideIcons.ellipsisVertical,
+          color: theme.colorScheme.mutedForeground,
+        ),
+        onPressed: busy
+            ? null
+            : () async {
+                await showMobileActionSheet(
+                  context,
+                  title: _showsBatch()
+                      ? '已选 $batchSelectedCount 个文件'
+                      : entry.item.name,
+                  actions: _actions(),
+                );
+              },
+      ),
+    );
+  }
+
+  bool _showsBatch() =>
+      rowSelected &&
+      batchSelectedCount > 1 &&
+      onBatchRestore != null &&
+      onBatchDelete != null &&
+      onClearSelection != null;
+
+  List<MobilePageAction> _actions() {
+    // 批量抽屉按文件管理正典触发:当前行已选中且选中数 >1(单个选中的
+    // 批量等价于该行自身动作);含「取消选择」。
+    if (rowSelected &&
+        batchSelectedCount > 1 &&
+        onBatchRestore != null &&
+        onBatchDelete != null &&
+        onClearSelection != null) {
+      return [
+        MobilePageAction(
+          label: '取消选择',
+          icon: LucideIcons.x,
+          onPressed: onClearSelection!,
+        ),
+        MobilePageAction(
+          label: '恢复 $batchSelectedCount 项',
+          icon: LucideIcons.rotateCcw,
+          onPressed: onBatchRestore!,
+        ),
+        MobilePageAction(
+          label: '彻底删除 $batchSelectedCount 项',
+          icon: LucideIcons.trash2,
+          onPressed: onBatchDelete!,
+        ),
+      ];
+    }
+    return [
+      MobilePageAction(
+        label: '恢复',
+        icon: LucideIcons.rotateCcw,
+        onPressed: () => onRestore(entry),
+      ),
+      MobilePageAction(
+        label: '彻底删除',
+        icon: LucideIcons.trash2,
+        onPressed: () => onDeletePermanently(entry),
+      ),
+    ];
   }
 }

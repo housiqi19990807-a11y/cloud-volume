@@ -49,7 +49,6 @@ import 'package:remote_storage/widgets/file_manager_trash_browser.dart';
 import 'package:remote_storage/widgets/file_manager_error_view.dart';
 import 'package:remote_storage/widgets/mobile_navigation_bar.dart';
 import 'package:remote_storage/widgets/mobile_page_chrome.dart';
-import 'package:remote_storage/widgets/mobile_selection_action_bar.dart';
 
 void main() {
   setUp(() {
@@ -895,6 +894,16 @@ void main() {
                 size: 24,
                 objectCount: 0,
               ),
+              TrashItem(
+                id: 'clear-action-item-2',
+                name: '已删目录',
+                originalKey: 'docs/已删目录',
+                trashKey: '.trash/clear-action-item-2',
+                deletedAt: '2026-09-02',
+                isDir: true,
+                size: 0,
+                objectCount: 3,
+              ),
             ],
             nextToken: '',
           ),
@@ -925,24 +934,45 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('已删文件.txt'), findsOneWidget);
 
-      // 选中条目：底部动作条出现并承载计数与批量动作，右上角抽屉入口隐藏。
-      // （行点击曾因桌面右键包装与 onDoubleTap 双触发而失效，这里钉住。）
-      await tester.tap(find.byType(FileListTile));
+      // 行动作收进行尾 `…` 抽屉（文件管理契约）：无选中/单个选中时为
+      // 单行 恢复/彻底删除。（行点击曾因 onDoubleTap 双触发而失效，钉住。）
+      final rowOverflow = find.descendant(
+        of: find.byType(FileListTile),
+        matching: find.byIcon(LucideIcons.ellipsisVertical),
+      );
+      await tester.tap(rowOverflow.first);
       await tester.pumpAndSettle();
-      final selectionBar = find.byType(MobileSelectionActionBar);
-      expect(selectionBar, findsOneWidget);
-      expect(find.text('已选中 1 个文件'), findsOneWidget);
+      expect(find.byType(AppShadDialog), findsOneWidget);
       expect(find.text('恢复'), findsOneWidget);
       expect(find.text('彻底删除'), findsOneWidget);
-      expect(find.bySemanticsLabel('回收站操作'), findsNothing);
-      // 条上「取消」清空选择，动作条收起、抽屉入口恢复。
-      await tester.tap(find.descendant(
-        of: selectionBar,
-        matching: find.text('取消'),
-      ));
+      expect(await tester.binding.handlePopRoute(), isTrue);
       await tester.pumpAndSettle();
-      expect(find.byType(MobileSelectionActionBar), findsNothing);
+
+      // 单个选中：批量等价于行自身动作，抽屉保持行级。
+      await tester.tap(find.byType(FileListTile).first);
+      await tester.pumpAndSettle();
+      await tester.tap(rowOverflow.first);
+      await tester.pumpAndSettle();
+      expect(find.text('恢复'), findsOneWidget);
+      expect(find.text('已选 1 个文件'), findsNothing);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+
+      // 两行选中后，选中行的 `…` 变为批量抽屉（取消选择/恢复/彻底删除），
+      // 页面级入口保持可见。
+      await tester.tap(find.byType(FileListTile).last);
+      await tester.pumpAndSettle();
+      await tester.tap(rowOverflow.first);
+      await tester.pumpAndSettle();
+      expect(find.text('已选 2 个文件'), findsOneWidget);
+      expect(find.text('取消选择'), findsOneWidget);
+      expect(find.text('恢复 2 项'), findsOneWidget);
+      expect(find.text('彻底删除 2 项'), findsOneWidget);
       expect(find.bySemanticsLabel('回收站操作'), findsOneWidget);
+      // 「取消选择」清空选择并关闭抽屉。
+      await tester.tap(find.text('取消选择'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppShadDialog), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

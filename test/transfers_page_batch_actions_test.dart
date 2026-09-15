@@ -24,7 +24,6 @@ import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/remote_task_store.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
-import 'package:remote_storage/widgets/mobile_selection_action_bar.dart';
 import 'package:remote_storage/widgets/remote_task_widgets.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
@@ -111,11 +110,10 @@ void main() {
     }
   });
 
-  // Android 选中态：标题槽保持稳定，计数/取消/全选与批量动作由底部
-  // 动作条承载；右上角抽屉入口在选中态隐藏。
-  testWidgets('android selection bar keeps the title and owns batch actions', (
-    tester,
-  ) async {
+  // Android 选中态：标题常显，行级/批量动作收进每行 `…` 抽屉（文件
+  // 管理契约：批量抽屉仅对本行已选中且选中数 >1 的情况出现，含「取消
+  // 选择」）；页面级入口（立即同步等）在选中态保持可见。
+  testWidgets('android row overflow owns selection actions', (tester) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -123,17 +121,26 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
       final api = _TransfersPageFakeApi();
-      api.tasks.add(
-        const RemoteTask(
-          id: 'sync:test:cancelable-upload',
+      api.tasks.addAll(const <RemoteTask>[
+        RemoteTask(
+          id: 'sync:test:cancelable-one',
           kind: RemoteTaskKind.upload,
           status: RemoteTaskStatus.waiting,
           source: RemoteTaskSource.metadata,
           bucket: 'bucket-a',
-          targetPath: 'cancelable.txt',
+          targetPath: 'one.txt',
           cancelable: true,
         ),
-      );
+        RemoteTask(
+          id: 'sync:test:cancelable-two',
+          kind: RemoteTaskKind.upload,
+          status: RemoteTaskStatus.waiting,
+          source: RemoteTaskSource.metadata,
+          bucket: 'bucket-a',
+          targetPath: 'two.txt',
+          cancelable: true,
+        ),
+      ]);
 
       await tester.pumpWidget(
         ShadApp(
@@ -148,31 +155,50 @@ void main() {
       await tester.pump();
 
       expect(find.text('任务队列'), findsOneWidget);
-      // 未选中：metadata 等待任务使「任务操作」入口存在（抽屉里是
-      // 立即同步）。
-      expect(find.bySemanticsLabel('任务操作'), findsOneWidget);
-      expect(find.byType(MobileSelectionActionBar), findsNothing);
+      // 未选中：行 `…` 打开单行动作；页面级入口存在（立即同步，同为
+      // ellipsis 图标，用行作用域区分）。
+      final overflow = find.descendant(
+        of: find.byType(RemoteTaskRow),
+        matching: find.byIcon(LucideIcons.ellipsisVertical),
+      );
+      expect(overflow, findsNWidgets(2));
+      await tester.tap(overflow.first);
+      await tester.pumpAndSettle();
+      expect(find.byType(AppShadDialog), findsOneWidget);
+      expect(find.text('取消任务'), findsOneWidget);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+
+      // 单个选中：批量等价于行自身动作，仍为行级抽屉。
       await tester.tap(find.byType(ListSelectionControl).first);
       await tester.pumpAndSettle();
-
-      // 标题不再切换；底部动作条出现并承载计数与批量动作，入口隐藏。
-      expect(find.text('任务队列'), findsOneWidget);
-      expect(find.text('已选中 1 个任务'), findsOneWidget);
-      final bar = find.byType(MobileSelectionActionBar);
-      expect(bar, findsOneWidget);
-      expect(find.text('取消任务'), findsOneWidget);
-      expect(find.text('全选'), findsOneWidget);
-      expect(find.bySemanticsLabel('任务操作'), findsNothing);
-      expect(find.text('取消 1'), findsNothing);
-
-      // 条上「取消」清空选择，动作条随之收起、入口恢复。
-      await tester.tap(find.descendant(
-        of: bar,
-        matching: find.text('取消'),
-      ));
+      await tester.tap(overflow.first);
       await tester.pumpAndSettle();
-      expect(find.byType(MobileSelectionActionBar), findsNothing);
+      expect(find.text('取消任务'), findsOneWidget);
+      expect(find.text('已选 1 个任务'), findsNothing);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+
+      // 两个选中且本行在选中集：批量抽屉（取消选择/取消任务 2），
+      // 标题常显、页面入口保持可见。
+      await tester.tap(find.byType(ListSelectionControl).last);
+      await tester.pumpAndSettle();
+      expect(find.text('任务队列'), findsOneWidget);
+      await tester.tap(overflow.first);
+      await tester.pumpAndSettle();
+      expect(find.text('已选 2 个任务'), findsOneWidget);
+      expect(find.text('取消选择'), findsOneWidget);
+      expect(find.text('取消任务 2'), findsOneWidget);
       expect(find.bySemanticsLabel('任务操作'), findsOneWidget);
+
+      // 「取消选择」清空选择，抽屉关闭后回到行级动作。
+      await tester.tap(find.text('取消选择'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppShadDialog), findsNothing);
+      await tester.tap(overflow.first);
+      await tester.pumpAndSettle();
+      expect(find.text('取消任务'), findsOneWidget);
+      expect(find.text('取消任务 2'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
       RemoteTaskStore.instance.resetForTest();
     } finally {
@@ -399,8 +425,13 @@ void main() {
 
     await tester.tap(find.byType(ListSelectionControl).first);
     await tester.pumpAndSettle();
-    // 选中后批量动作在底部动作条上（标题保持稳定）。
-    expect(find.text('已选中 1 个任务'), findsOneWidget);
+    // 单个选中走行级动作（批量需 >1），行 `…` 抽屉提供「清理历史」
+    //（页面入口同图标，用行作用域区分）。
+    await tester.tap(find.descendant(
+      of: find.byType(RemoteTaskRow),
+      matching: find.byIcon(LucideIcons.ellipsisVertical),
+    ));
+    await tester.pumpAndSettle();
     expect(find.text('清理历史'), findsOneWidget);
     await tester.tap(find.text('清理历史'));
     // 门控未完成：批处理运行中，右上角入口以 spinner 出现提示进度。
@@ -688,6 +719,11 @@ void main() {
   testWidgets('small history queues render their complete count on entry', (
     tester,
   ) async {
+    // 「共 N 项」头部现仅桌面渲染(Android 与文件管理页一致无列表头)，
+    // 这里钉住桌面表面。try/finally 复位,避免 macOS 覆盖泄漏到后续
+    // 依赖默认 android 平台的门控用例。
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
     final api = _TransfersPageFakeApi()
       ..respectActiveOnly = true
       ..paginateHistory = true;
@@ -723,6 +759,9 @@ void main() {
     expect(find.textContaining('加载下一页'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     RemoteTaskStore.instance.resetForTest();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('activating tasks does not animate the sidebar during build', (

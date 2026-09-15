@@ -1,7 +1,8 @@
 part of 'transfers_page.dart';
 
-// Android 手机窄屏的紧凑头部：隐藏队列标签行（状态下拉已覆盖同样筛选），
-// 批量动作收进右上角单一入口打开的底部抽屉。桌面端保持完整队列头部不变。
+// Android 手机窄屏的紧凑头部：隐藏队列标签行与列表头（状态下拉已覆盖
+// 同样筛选，列表与搜索框紧贴），页面级动作收进右上角入口的底部抽屉，
+// 行级/批量动作在每行 `…` 抽屉里。桌面端保持完整队列头部不变。
 bool get _androidCompactQueueHeader =>
     defaultTargetPlatform == TargetPlatform.android;
 
@@ -22,21 +23,22 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
     final historyTotal = store.queue.reported
         ? store.queue.history
         : store.tasks.where(isRemoteTaskHistory).length;
-    // Android 对齐文件管理基线：队列级批量动作收进右上角单一 48dp 入口
-    // 打开的共享底部抽屉（仅未选中态）；批处理运行中入口图标变为 spinner
-    // 保留可见反馈，没有可用动作时整个入口隐藏。选中态由底部动作条承载。
+    // Android 对齐文件管理基线:页面级动作(立即同步/清理全部历史)收进
+    // 右上角单一 48dp 入口打开的共享底部抽屉,选中态不隐藏(行级/批量
+    // 动作在每行 `…` 抽屉里);批处理运行中入口图标变 spinner,没有
+    // 可用动作时入口整体隐藏。桌面保持内联按钮。
     Widget? androidActionsEntry;
     if (_androidCompactQueueHeader) {
       final sheetActions = _runningBatchAction
           ? const <MobilePageAction>[]
           : <MobilePageAction>[
-              if (_selectedTaskIds.isEmpty && syncable > 0)
+              if (syncable > 0)
                 MobilePageAction(
                   label: '立即同步 $syncable',
                   icon: LucideIcons.play,
                   onPressed: () => unawaited(_triggerAllRemoteTasks(store)),
                 ),
-              if (_selectedTaskIds.isEmpty && historyTotal > 0)
+              if (historyTotal > 0)
                 MobilePageAction(
                   label: '清理全部历史 $historyTotal',
                   icon: LucideIcons.trash2,
@@ -180,7 +182,8 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
             ],
           ],
         ),
-        const SizedBox(height: 16),
+        // 头部后间距对齐文件管理移动呈现(14dp),桌面保持 16。
+        SizedBox(height: _androidCompactQueueHeader ? 14 : 16),
         // Android 窄屏不显示队列标签行：状态下拉已提供同样的筛选能力，
         // 这一行只会占用竖向空间。
         if (!_androidCompactQueueHeader) ...[
@@ -188,56 +191,10 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
           const SizedBox(height: 12),
         ],
         _buildRemoteFilters(),
-        const SizedBox(height: 16),
+        // 与文件管理页一致:搜索框与列表紧贴(12dp)。
+        SizedBox(height: _androidCompactQueueHeader ? 12 : 16),
         Expanded(
           child: _buildRemoteList(theme, store, visible, selectedVisible),
-        ),
-        // Android 选中态：底部动作条承载「取消/计数/全选 + 批量动作」，
-        // 列表随条出现收缩；批处理运行中右上角入口以 spinner 提示进度，
-        // 条上动作同步禁用。搜索把所选全部过滤掉时条隐藏（与回收站一致）。
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.bottomCenter,
-          child: _androidCompactQueueHeader && selected.isNotEmpty
-              ? MobileSelectionActionBar(
-                  selectedCount: selected.length,
-                  countLabel: '任务',
-                  onCancelSelection: () =>
-                      _remoteSetState(_selectedTaskIds.clear),
-                  onSelectAll: () => _toggleRemoteVisibleSelection(visible),
-                  actions: [
-                    if (triggerable > 0)
-                      MobileSelectionAction(
-                        label: '立即执行',
-                        icon: LucideIcons.play,
-                        enabled: !_runningBatchAction,
-                        onPressed: () => unawaited(
-                          _triggerSelectedRemote(store, selected),
-                        ),
-                      ),
-                    if (cancelable > 0)
-                      MobileSelectionAction(
-                        label: '取消任务',
-                        icon: LucideIcons.circleX,
-                        enabled: !_runningBatchAction,
-                        onPressed: () => unawaited(
-                          _cancelSelectedRemote(store, selected),
-                        ),
-                      ),
-                    if (clearable > 0)
-                      MobileSelectionAction(
-                        label: '清理历史',
-                        icon: LucideIcons.trash2,
-                        destructive: true,
-                        enabled: !_runningBatchAction,
-                        onPressed: () => unawaited(
-                          _clearSelectedRemoteHistory(store, selected),
-                        ),
-                      ),
-                  ],
-                )
-              : const SizedBox(width: double.infinity),
         ),
       ],
     );

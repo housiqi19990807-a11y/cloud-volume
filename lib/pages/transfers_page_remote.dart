@@ -31,14 +31,17 @@ extension _TransfersPageRemote on _TransfersPageState {
     final sections = _groupRemoteTasks(visible);
     final listBody = Column(
       children: [
-        _RemoteListHeader(
-          totalCount: store.total,
-          visibleCount: visible.length,
-          speedSummary: remoteTaskSpeedSummary(visible),
-          allSelected: allSelected,
-          partial: partial,
-          onToggleAll: () => _toggleRemoteVisibleSelection(visible),
-        ),
+        // Android 无列表头(与文件管理页一致,搜索框下紧贴列表);桌面
+        // 保留 共 N 项/全选/速度 头部。
+        if (!_androidCompactQueueHeader)
+          _RemoteListHeader(
+            totalCount: store.total,
+            visibleCount: visible.length,
+            speedSummary: remoteTaskSpeedSummary(visible),
+            allSelected: allSelected,
+            partial: partial,
+            onToggleAll: () => _toggleRemoteVisibleSelection(visible),
+          ),
         Expanded(
           // Standard body-loading view while the first history page reads.
           child: store.tasks.isEmpty && store.isLoadingInitialHistory
@@ -52,28 +55,30 @@ extension _TransfersPageRemote on _TransfersPageState {
                           label: section.label,
                           count: section.tasks.length,
                         ),
-                      for (final task in section.tasks)
-                        RemoteTaskRow(
-                          key: ValueKey<String>(task.id),
-                          task: task,
-                          selected: _selectedTaskIds.contains(task.id),
-                          onToggleSelected: () => _toggleTaskSelection(task.id),
-                          onCancel: task.cancelable
-                              ? () => _cancelRemoteTask(store, task)
-                              : null,
-                          onRetry: task.retryable
-                              ? () => _retryRemoteTask(store, task)
-                              : null,
-                          onTrigger: task.triggerable
-                              ? () => _triggerRemoteTask(store, task)
-                              : null,
-                          onExpanded: (expanded) {
-                            if (expanded) {
-                              unawaited(store.loadDetails(task.id));
-                            }
-                          },
-                          showDivider: true,
-                        ),
+                        for (final task in section.tasks)
+                          RemoteTaskRow(
+                            key: ValueKey<String>(task.id),
+                            task: task,
+                            selected: _selectedTaskIds.contains(task.id),
+                            onToggleSelected: () => _toggleTaskSelection(task.id),
+                            onCancel: task.cancelable
+                                ? () => _cancelRemoteTask(store, task)
+                                : null,
+                            onRetry: task.retryable
+                                ? () => _retryRemoteTask(store, task)
+                                : null,
+                            onTrigger: task.triggerable
+                                ? () => _triggerRemoteTask(store, task)
+                                : null,
+                            onExpanded: (expanded) {
+                              if (expanded) {
+                                unawaited(store.loadDetails(task.id));
+                              }
+                            },
+                            showDivider: true,
+                            mobileOverflow: () =>
+                                _taskRowOverflowActions(store, task, visible),
+                          ),
                     ],
                     // History continuation lives at the end of the list, so
                     // it appears only once the user reaches the last row.
@@ -97,46 +102,6 @@ extension _TransfersPageRemote on _TransfersPageState {
     return ShadCard(padding: const EdgeInsets.all(4), child: listBody);
   }
 
-  // Queue-tab row switches the list between status queues; each tab is a
-  // dedicated StatefulWidget per the hover binding rule.
-  Widget _buildRemoteQueueTabs(ShadThemeData theme, RemoteTaskStore store) {
-    final tasks = store.tasks;
-    final serverQueue = store.queue;
-    final hasServerCounts = serverQueue.reported;
-    int count(_RemoteTaskStatusFilter filter) {
-      // Prefer server-reported unpaged counts; loaded rows are only a
-      // fallback for older binaries that omit the queue field.
-      if (hasServerCounts) {
-        return switch (filter) {
-          _RemoteTaskStatusFilter.all => serverQueue.total,
-          _RemoteTaskStatusFilter.active => serverQueue.active,
-          _RemoteTaskStatusFilter.waiting => serverQueue.waiting,
-          _RemoteTaskStatusFilter.failed => serverQueue.failed,
-          _RemoteTaskStatusFilter.history => serverQueue.history,
-        };
-      }
-      return tasks
-          .where(
-            (task) =>
-                filter == _RemoteTaskStatusFilter.all || filter.matches(task),
-          )
-          .length;
-    }
-
-    return Row(
-      children: [
-        for (final filter in _RemoteTaskStatusFilter.values) ...[
-          _RemoteQueueTab(
-            label: filter.label,
-            count: count(filter),
-            selected: filter == _remoteStatusFilter,
-            onTap: () => _remoteSetState(() => _remoteStatusFilter = filter),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ],
-    );
-  }
 }
 
 class _RemoteTaskSection {

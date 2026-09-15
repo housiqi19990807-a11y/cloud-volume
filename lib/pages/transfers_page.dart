@@ -12,7 +12,6 @@ import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:remote_storage/widgets/mobile_page_chrome.dart';
-import 'package:remote_storage/widgets/mobile_selection_action_bar.dart';
 import 'package:remote_storage/widgets/remote_task_style_helpers.dart';
 import 'package:remote_storage/widgets/remote_task_widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -21,6 +20,7 @@ part 'transfers_page_remote.dart';
 part 'transfers_page_remote_actions.dart';
 part 'transfers_page_remote_filters.dart';
 part 'transfers_page_remote_header.dart';
+part 'transfers_page_remote_overflow.dart';
 
 // Queue actions can process a large durable journal, so keep the active
 // request visible in its button instead of looking like a disabled no-op.

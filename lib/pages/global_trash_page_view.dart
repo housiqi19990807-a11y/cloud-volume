@@ -31,25 +31,23 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
     final filteredEntries = _filteredEntries;
     final selectedFilteredCount = _selectedFilteredCount;
     final isAndroid = defaultTargetPlatform == TargetPlatform.android;
-    // Android 对齐文件管理基线：未选中态的刷新/清空动作收进右上角单一
-    // 48dp 入口打开的底部抽屉；选中态由底部动作条承载计数与批量动作，
-    // 条存在时入口整体隐藏。加载中没有可用动作时入口同样隐藏。
+    // Android 对齐文件管理基线：页面级动作(刷新/清空)收进右上角单一
+    // 48dp 入口打开的底部抽屉,选中态不隐藏(行级/批量动作在每行 `…`
+    // 抽屉里);加载中没有可用动作时入口隐藏。
     final androidSheetActions = _loading
         ? const <MobilePageAction>[]
         : <MobilePageAction>[
-            if (selectedFilteredCount == 0) ...[
+            MobilePageAction(
+              label: '刷新',
+              icon: LucideIcons.refreshCw,
+              onPressed: () => unawaited(_loadInitialBucket()),
+            ),
+            if (_activeBucket != null && _entries.isNotEmpty)
               MobilePageAction(
-                label: '刷新',
-                icon: LucideIcons.refreshCw,
-                onPressed: () => unawaited(_loadInitialBucket()),
+                label: '清空回收站',
+                icon: LucideIcons.trash,
+                onPressed: () => unawaited(_clearActiveBucketTrash()),
               ),
-              if (_activeBucket != null && _entries.isNotEmpty)
-                MobilePageAction(
-                  label: '清空回收站',
-                  icon: LucideIcons.trash,
-                  onPressed: () => unawaited(_clearActiveBucketTrash()),
-                ),
-            ],
           ];
     Widget? androidActionsEntry;
     if (isAndroid && androidSheetActions.isNotEmpty) {
@@ -134,7 +132,8 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
             ],
           ],
         ),
-        const SizedBox(height: 16),
+        // 头部后间距对齐文件管理移动呈现(14dp),桌面保持 16。
+        SizedBox(height: isAndroid ? 14 : 16),
         GlobalTrashFilters(
           searchController: _searchController,
           bucketFilter: _activeBucket ?? '',
@@ -146,36 +145,9 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
             unawaited(_switchBucket(value));
           },
         ),
-        const SizedBox(height: 16),
+        // 与文件管理页一致:搜索框与列表紧贴(12dp)。
+        SizedBox(height: isAndroid ? 12 : 16),
         Expanded(child: _buildBody(theme, filteredEntries)),
-        // Android 选中态：底部动作条承载「取消/计数/全选 + 批量动作」，
-        // 列表随条出现收缩。
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.bottomCenter,
-          child: isAndroid && selectedFilteredCount > 0
-              ? MobileSelectionActionBar(
-                  selectedCount: selectedFilteredCount,
-                  countLabel: '文件',
-                  onCancelSelection: () => setState(_selectedIds.clear),
-                  onSelectAll: _toggleSelectAllFiltered,
-                  actions: [
-                    MobileSelectionAction(
-                      label: '恢复',
-                      icon: LucideIcons.rotateCcw,
-                      onPressed: () => unawaited(_restoreSelected()),
-                    ),
-                    MobileSelectionAction(
-                      label: '彻底删除',
-                      icon: LucideIcons.trash2,
-                      destructive: true,
-                      onPressed: () => unawaited(_deleteSelected()),
-                    ),
-                  ],
-                )
-              : const SizedBox(width: double.infinity),
-        ),
       ],
     );
 
@@ -253,6 +225,11 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
       onToggleSelectAll: _toggleSelectAllFiltered,
       onRestore: (entry) => unawaited(_restoreEntry(entry)),
       onDeletePermanently: (entry) => unawaited(_deleteEntry(entry)),
+      // Android 行 `…` 抽屉的批量动作(当前过滤后仍可见的选择)。
+      onBatchRestore: () => unawaited(_restoreSelected()),
+      onBatchDelete: () => unawaited(_deleteSelected()),
+      batchSelectedCount: _selectedFilteredCount,
+      onClearSelection: () => setState(_selectedIds.clear),
     );
   }
 }

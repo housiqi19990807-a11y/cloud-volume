@@ -13,9 +13,21 @@ import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
 import 'package:remote_storage/widgets/fitting_file_name_text.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
+import 'package:remote_storage/widgets/mobile_page_chrome.dart';
 import 'package:remote_storage/widgets/remote_task_details.dart';
 import 'package:remote_storage/widgets/remote_task_style_helpers.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+
+/// Payload for the Android row `…` overflow drawer: a sheet title plus its
+/// action rows (row actions when nothing is selected, batch actions for the
+/// current selection otherwise — the file-manager drawer contract).
+class RemoteTaskOverflow {
+  const RemoteTaskOverflow({required this.title, required this.actions});
+
+  final String title;
+  final List<MobilePageAction> actions;
+}
+
 
 class RemoteTaskStatusBadge extends StatelessWidget {
   const RemoteTaskStatusBadge({super.key, required this.task});
@@ -57,6 +69,7 @@ class RemoteTaskRow extends StatefulWidget {
     this.onTrigger,
     this.onExpanded,
     this.showDivider = true,
+    this.mobileOverflow,
   });
 
   final RemoteTask task;
@@ -67,6 +80,10 @@ class RemoteTaskRow extends StatefulWidget {
   final Future<void> Function()? onTrigger;
   final ValueChanged<bool>? onExpanded;
   final bool showDivider;
+
+  /// Android-only: builder for the row's trailing `…` overflow drawer (file
+  /// manager pattern). Null on desktop, which keeps inline icon actions.
+  final RemoteTaskOverflow? Function()? mobileOverflow;
 
   @override
   State<RemoteTaskRow> createState() => _RemoteTaskRowState();
@@ -151,6 +168,7 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
                           : () => _run(widget.onTrigger!),
                       onExpand: _toggleExpanded,
                       expanded: _expanded,
+                      mobileOverflow: widget.mobileOverflow,
                     ),
                   ],
                 ),
@@ -285,6 +303,7 @@ class _TaskRightSide extends StatelessWidget {
     required this.onTrigger,
     required this.onExpand,
     required this.expanded,
+    this.mobileOverflow,
   });
 
   final RemoteTask task;
@@ -295,10 +314,16 @@ class _TaskRightSide extends StatelessWidget {
   final VoidCallback? onTrigger;
   final VoidCallback onExpand;
   final bool expanded;
+  final RemoteTaskOverflow? Function()? mobileOverflow;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    // Android 对齐文件管理行:动作收进尾部 `…` 的底部抽屉(有选中时为
+    // 批量动作),行内只留状态徽标、spinner 与明细展开;桌面保持内联图标。
+    final overflow = defaultTargetPlatform == TargetPlatform.android
+        ? mobileOverflow
+        : null;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -312,12 +337,16 @@ class _TaskRightSide extends StatelessWidget {
         ],
         RemoteTaskStatusBadge(task: task),
         const SizedBox(width: 8),
-        if (onCancel != null)
-          _iconAction('取消任务', LucideIcons.circleX, onCancel!),
-        if (onRetry != null)
-          _iconAction('重试任务', LucideIcons.refreshCw, onRetry!),
-        if (onTrigger != null)
-          _iconAction('立即执行', LucideIcons.play, onTrigger!),
+        if (overflow != null) ...[
+          _OverflowMenuButton(task: task, buildOverflow: overflow),
+        ] else ...[
+          if (onCancel != null)
+            _iconAction('取消任务', LucideIcons.circleX, onCancel!),
+          if (onRetry != null)
+            _iconAction('重试任务', LucideIcons.refreshCw, onRetry!),
+          if (onTrigger != null)
+            _iconAction('立即执行', LucideIcons.play, onTrigger!),
+        ],
         _iconAction(
           expanded ? '收起明细' : '查看明细',
           expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
@@ -342,6 +371,43 @@ class _TaskRightSide extends StatelessWidget {
         height: touch ? 48 : 28,
         iconSize: 15,
         onPressed: acting ? null : onPressed,
+      ),
+    );
+  }
+}
+
+/// Trailing `…` entry opening the Android row action drawer (48dp target,
+/// same shape as file-manager object rows).
+class _OverflowMenuButton extends StatelessWidget {
+  const _OverflowMenuButton({required this.task, required this.buildOverflow});
+
+  final RemoteTask task;
+  final RemoteTaskOverflow? Function() buildOverflow;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return AppTooltip(
+      // 与文件管理/回收站行一致,语义标签带上条目名,读屏可区分行 `…`
+      // 与页面级入口。
+      message: '${remoteTaskEntryName(task)} 的更多操作',
+      child: ShadIconButton.ghost(
+        width: 48,
+        height: 48,
+        iconSize: 18,
+        icon: Icon(
+          LucideIcons.ellipsisVertical,
+          color: theme.colorScheme.mutedForeground,
+        ),
+        onPressed: () async {
+          final overflow = buildOverflow();
+          if (overflow == null || overflow.actions.isEmpty) return;
+          await showMobileActionSheet(
+            context,
+            title: overflow.title,
+            actions: overflow.actions,
+          );
+        },
       ),
     );
   }
