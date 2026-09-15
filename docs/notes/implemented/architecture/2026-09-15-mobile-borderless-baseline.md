@@ -35,4 +35,4 @@ Status: implemented
 ## Verification
 
 - 新增 `test/mobile_borderless_lists_test.dart`:两个回收站浏览器与账号列表在 Android `findsNothing` ShadCard、桌面(macOS 覆盖)`findsOneWidget` 双向钉住;`test/widget_test.dart` 四个既有 Android 页面用例补 SettingsPage/CloudStoragePage/TransfersPage/GlobalTrashPage 子树级 findsNothing 断言(索引与详情各一处)。
-- 括号平衡静态自检通过;本机无 Flutter SDK,`flutter analyze`/`flutter test` 待有 SDK 的环境执行(Windows 开发机或安装 `~/dev/flutter` 后)。
+- 2026-09-15 当日在本机构建完整 Android 工具链后复验(macOS 镜像引导变体,记录见 [android_dev Gotchas](../../../features/android_dev.md)):`flutter analyze` 干净(仅 2 条既有 deprecation info),`flutter test` 全量 247 项全部通过(含上述新用例),`flutter build apk --release --split-per-abi` 产出含 arm64 Go 桥的 release APK(`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`)。
