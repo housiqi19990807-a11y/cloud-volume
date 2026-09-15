@@ -22,9 +22,9 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
     final historyTotal = store.queue.reported
         ? store.queue.history
         : store.tasks.where(isRemoteTaskHistory).length;
-    // Android 对齐文件管理基线：队列级/选中级批量动作不再内联在头部，
-    // 收进右上角单一 48dp 入口打开的共享底部抽屉；批处理运行中入口图标
-    // 变为 spinner 保留可见反馈，没有可用动作时整个入口隐藏。
+    // Android 对齐文件管理基线：队列级批量动作收进右上角单一 48dp 入口
+    // 打开的共享底部抽屉（仅未选中态）；批处理运行中入口图标变为 spinner
+    // 保留可见反馈，没有可用动作时整个入口隐藏。选中态由底部动作条承载。
     Widget? androidActionsEntry;
     if (_androidCompactQueueHeader) {
       final sheetActions = _runningBatchAction
@@ -41,14 +41,6 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
                   label: '清理全部历史 $historyTotal',
                   icon: LucideIcons.trash2,
                   onPressed: () => unawaited(_clearRemoteHistory(store)),
-                ),
-              if (_selectedTaskIds.isNotEmpty && clearable > 0)
-                MobilePageAction(
-                  label: '清理历史 $clearable',
-                  icon: LucideIcons.trash2,
-                  onPressed: () => unawaited(
-                    _clearSelectedRemoteHistory(store, selected),
-                  ),
                 ),
             ];
       if (_runningBatchAction || sheetActions.isNotEmpty) {
@@ -86,45 +78,37 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
               : CrossAxisAlignment.start,
           children: [
             // 桌面端保持上游行为：标题始终显示、22 号、无副标题。Android
-            // 窄屏在选中任务后把标题槽换成「已选 N 项」，为批量操作按钮
-            // 腾出宽度；无选中时按移动基线显示 23 号标题 + 副标题。
+            // 按移动基线显示 23 号标题 + 副标题，选中态不再切换标题槽——
+            // 计数与批量动作由底部动作条承载，标题层级保持稳定。
             Expanded(
-              child: _selectedTaskIds.isEmpty || !_androidCompactQueueHeader
-                  ? _androidCompactQueueHeader
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '任务队列',
-                                style: theme.textTheme.h3.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 23,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '查看传输与同步任务的进度。',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: theme.colorScheme.mutedForeground,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(
-                            '任务队列',
-                            style: theme.textTheme.h3.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 22,
-                            ),
-                          )
+              child: _androidCompactQueueHeader
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '任务队列',
+                          style: theme.textTheme.h3.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 23,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '查看传输与同步任务的进度。',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.colorScheme.mutedForeground,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    )
                   : Text(
-                      '已选 ${_selectedTaskIds.length} 项',
+                      '任务队列',
                       style: theme.textTheme.h3.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 22,
                       ),
                     ),
             ),
@@ -207,6 +191,53 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
         const SizedBox(height: 16),
         Expanded(
           child: _buildRemoteList(theme, store, visible, selectedVisible),
+        ),
+        // Android 选中态：底部动作条承载「取消/计数/全选 + 批量动作」，
+        // 列表随条出现收缩；批处理运行中右上角入口以 spinner 提示进度，
+        // 条上动作同步禁用。搜索把所选全部过滤掉时条隐藏（与回收站一致）。
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.bottomCenter,
+          child: _androidCompactQueueHeader && selected.isNotEmpty
+              ? MobileSelectionActionBar(
+                  selectedCount: selected.length,
+                  countLabel: '任务',
+                  onCancelSelection: () =>
+                      _remoteSetState(_selectedTaskIds.clear),
+                  onSelectAll: () => _toggleRemoteVisibleSelection(visible),
+                  actions: [
+                    if (triggerable > 0)
+                      MobileSelectionAction(
+                        label: '立即执行',
+                        icon: LucideIcons.play,
+                        enabled: !_runningBatchAction,
+                        onPressed: () => unawaited(
+                          _triggerSelectedRemote(store, selected),
+                        ),
+                      ),
+                    if (cancelable > 0)
+                      MobileSelectionAction(
+                        label: '取消任务',
+                        icon: LucideIcons.circleX,
+                        enabled: !_runningBatchAction,
+                        onPressed: () => unawaited(
+                          _cancelSelectedRemote(store, selected),
+                        ),
+                      ),
+                    if (clearable > 0)
+                      MobileSelectionAction(
+                        label: '清理历史',
+                        icon: LucideIcons.trash2,
+                        destructive: true,
+                        enabled: !_runningBatchAction,
+                        onPressed: () => unawaited(
+                          _clearSelectedRemoteHistory(store, selected),
+                        ),
+                      ),
+                  ],
+                )
+              : const SizedBox(width: double.infinity),
         ),
       ],
     );

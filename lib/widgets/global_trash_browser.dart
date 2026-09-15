@@ -113,7 +113,12 @@ class GlobalTrashBrowser extends StatelessWidget {
                       : 0,
                   modifiedLabel: compact ? '' : (busy ? '处理中...' : entry.item.deletedAt),
                   onTap: () => _toggleEntry(entry),
-                  onDoubleTap: busy ? null : () => onRestore(entry),
+                  // 双击恢复是桌面 affordance;移动端保留它会让单/双击
+                  // 识别器并存,行点击被嵌套 tap 双触发(选中又取消),置空
+                  // 与对象移动行一致,恢复走行尾图标与底部动作条。
+                  onDoubleTap: busy || compact
+                      ? null
+                      : () => onRestore(entry),
                   onTitleTap: () => _toggleEntry(entry),
                   onSelectionTap: busy
                       ? null

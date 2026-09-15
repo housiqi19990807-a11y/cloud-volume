@@ -40,6 +40,7 @@ import 'package:remote_storage/state/transfer_queue.dart';
 import 'package:remote_storage/state/remote_task_store.dart';
 import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/state/sync_profile_notifier.dart';
+import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/file_manager_breadcrumb_bar.dart';
 import 'package:remote_storage/widgets/file_manager_action_bar.dart';
 import 'package:remote_storage/widgets/file_manager_bucket_browser.dart';
@@ -48,6 +49,7 @@ import 'package:remote_storage/widgets/file_manager_trash_browser.dart';
 import 'package:remote_storage/widgets/file_manager_error_view.dart';
 import 'package:remote_storage/widgets/mobile_navigation_bar.dart';
 import 'package:remote_storage/widgets/mobile_page_chrome.dart';
+import 'package:remote_storage/widgets/mobile_selection_action_bar.dart';
 
 void main() {
   setUp(() {
@@ -922,6 +924,25 @@ void main() {
       await tester.tap(find.widgetWithText(ShadButton, '取消'));
       await tester.pumpAndSettle();
       expect(find.text('已删文件.txt'), findsOneWidget);
+
+      // 选中条目：底部动作条出现并承载计数与批量动作，右上角抽屉入口隐藏。
+      // （行点击曾因桌面右键包装与 onDoubleTap 双触发而失效，这里钉住。）
+      await tester.tap(find.byType(FileListTile));
+      await tester.pumpAndSettle();
+      final selectionBar = find.byType(MobileSelectionActionBar);
+      expect(selectionBar, findsOneWidget);
+      expect(find.text('已选中 1 个文件'), findsOneWidget);
+      expect(find.text('恢复'), findsOneWidget);
+      expect(find.text('彻底删除'), findsOneWidget);
+      expect(find.bySemanticsLabel('回收站操作'), findsNothing);
+      // 条上「取消」清空选择，动作条收起、抽屉入口恢复。
+      await tester.tap(find.descendant(
+        of: selectionBar,
+        matching: find.text('取消'),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byType(MobileSelectionActionBar), findsNothing);
+      expect(find.bySemanticsLabel('回收站操作'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -3754,9 +3775,7 @@ void main() {
     }
   });
 
-  testWidgets('android trash page keeps subtitle and swap-title on select', (
-    tester,
-  ) async {
+  testWidgets('android trash page keeps subtitle', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
       SharedPreferences.setMockInitialValues({});

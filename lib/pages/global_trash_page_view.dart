@@ -31,14 +31,12 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
     final filteredEntries = _filteredEntries;
     final selectedFilteredCount = _selectedFilteredCount;
     final isAndroid = defaultTargetPlatform == TargetPlatform.android;
-    // Android 对齐文件管理基线：头部批量/清空/刷新动作收进右上角单一
-    // 48dp 入口打开的底部抽屉；「已选 N 项」由标题槽承载，不再重复为
-    // 头部 chip。加载中没有可用动作时入口整体隐藏。
+    // Android 对齐文件管理基线：未选中态的刷新/清空动作收进右上角单一
+    // 48dp 入口打开的底部抽屉；选中态由底部动作条承载计数与批量动作，
+    // 条存在时入口整体隐藏。加载中没有可用动作时入口同样隐藏。
     final androidSheetActions = _loading
         ? const <MobilePageAction>[]
         : <MobilePageAction>[
-            // 与桌面一致按「过滤后仍可见的选中数」门控：搜索把所选条目
-            // 全部排除时批量动作无目标，回到未选中动作集而不是死点。
             if (selectedFilteredCount == 0) ...[
               MobilePageAction(
                 label: '刷新',
@@ -51,18 +49,6 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
                   icon: LucideIcons.trash,
                   onPressed: () => unawaited(_clearActiveBucketTrash()),
                 ),
-            ],
-            if (selectedFilteredCount > 0) ...[
-              MobilePageAction(
-                label: '批量恢复',
-                icon: LucideIcons.rotateCcw,
-                onPressed: () => unawaited(_restoreSelected()),
-              ),
-              MobilePageAction(
-                label: '批量彻底删除',
-                icon: LucideIcons.trash2,
-                onPressed: () => unawaited(_deleteSelected()),
-              ),
             ],
           ];
     Widget? androidActionsEntry;
@@ -94,44 +80,33 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 桌面端保持上游行为：标题始终显示。Android 窄屏在选中条目后
-            // 把标题槽换成「已选 N 项」单行，而不是整块消失——标题位置
-            // 仍然稳定，当前位置语义不丢。
+            // 桌面端保持上游行为：标题始终显示。Android 选中态不再切换
+            // 标题槽——计数与批量动作由底部动作条承载，标题层级保持稳定。
             Expanded(
-              child: isAndroid && _selectedIds.isNotEmpty
-                  ? Text(
-                      '已选 $selectedFilteredCount 项',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '回收站',
+                    style: theme.textTheme.h3.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: isAndroid ? 23 : 22,
+                    ),
+                  ),
+                  if (isAndroid) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      '浏览与恢复已删除的远端文件。',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.h3.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                      style: TextStyle(
+                        color: theme.colorScheme.mutedForeground,
+                        fontSize: 13,
                       ),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '回收站',
-                          style: theme.textTheme.h3.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: isAndroid ? 23 : 22,
-                          ),
-                        ),
-                        if (isAndroid) ...[
-                          const SizedBox(height: 3),
-                          Text(
-                            '浏览与恢复已删除的远端文件。',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: theme.colorScheme.mutedForeground,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ],
                     ),
+                  ],
+                ],
+              ),
             ),
             if (androidActionsEntry != null) ...[
               const SizedBox(width: 8),
@@ -173,6 +148,34 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
         ),
         const SizedBox(height: 16),
         Expanded(child: _buildBody(theme, filteredEntries)),
+        // Android 选中态：底部动作条承载「取消/计数/全选 + 批量动作」，
+        // 列表随条出现收缩。
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.bottomCenter,
+          child: isAndroid && selectedFilteredCount > 0
+              ? MobileSelectionActionBar(
+                  selectedCount: selectedFilteredCount,
+                  countLabel: '文件',
+                  onCancelSelection: () => setState(_selectedIds.clear),
+                  onSelectAll: _toggleSelectAllFiltered,
+                  actions: [
+                    MobileSelectionAction(
+                      label: '恢复',
+                      icon: LucideIcons.rotateCcw,
+                      onPressed: () => unawaited(_restoreSelected()),
+                    ),
+                    MobileSelectionAction(
+                      label: '彻底删除',
+                      icon: LucideIcons.trash2,
+                      destructive: true,
+                      onPressed: () => unawaited(_deleteSelected()),
+                    ),
+                  ],
+                )
+              : const SizedBox(width: double.infinity),
+        ),
       ],
     );
 

@@ -16,6 +16,7 @@ import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/global_trash_browser.dart';
 import 'package:remote_storage/widgets/global_trash_controls.dart';
 import 'package:remote_storage/widgets/mobile_page_chrome.dart';
+import 'package:remote_storage/widgets/mobile_selection_action_bar.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 

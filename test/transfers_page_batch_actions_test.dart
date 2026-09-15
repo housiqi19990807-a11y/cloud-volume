@@ -24,6 +24,7 @@ import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/remote_task_store.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
+import 'package:remote_storage/widgets/mobile_selection_action_bar.dart';
 import 'package:remote_storage/widgets/remote_task_widgets.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
@@ -110,9 +111,9 @@ void main() {
     }
   });
 
-  // Android 紧凑头部：选中任务后标题槽换成「已选 N 项」，头部批量取消按钮
-  // 隐藏（取消由行内小图标承担）。
-  testWidgets('android compact header swaps title and hides batch cancel', (
+  // Android 选中态：标题槽保持稳定，计数/取消/全选与批量动作由底部
+  // 动作条承载；右上角抽屉入口在选中态隐藏。
+  testWidgets('android selection bar keeps the title and owns batch actions', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 900);
@@ -127,6 +128,7 @@ void main() {
           id: 'sync:test:cancelable-upload',
           kind: RemoteTaskKind.upload,
           status: RemoteTaskStatus.waiting,
+          source: RemoteTaskSource.metadata,
           bucket: 'bucket-a',
           targetPath: 'cancelable.txt',
           cancelable: true,
@@ -146,12 +148,31 @@ void main() {
       await tester.pump();
 
       expect(find.text('任务队列'), findsOneWidget);
+      // 未选中：metadata 等待任务使「任务操作」入口存在（抽屉里是
+      // 立即同步）。
+      expect(find.bySemanticsLabel('任务操作'), findsOneWidget);
+      expect(find.byType(MobileSelectionActionBar), findsNothing);
       await tester.tap(find.byType(ListSelectionControl).first);
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(find.text('已选 1 项'), findsOneWidget);
-      expect(find.text('任务队列'), findsNothing);
+      // 标题不再切换；底部动作条出现并承载计数与批量动作，入口隐藏。
+      expect(find.text('任务队列'), findsOneWidget);
+      expect(find.text('已选中 1 个任务'), findsOneWidget);
+      final bar = find.byType(MobileSelectionActionBar);
+      expect(bar, findsOneWidget);
+      expect(find.text('取消任务'), findsOneWidget);
+      expect(find.text('全选'), findsOneWidget);
+      expect(find.bySemanticsLabel('任务操作'), findsNothing);
       expect(find.text('取消 1'), findsNothing);
+
+      // 条上「取消」清空选择，动作条随之收起、入口恢复。
+      await tester.tap(find.descendant(
+        of: bar,
+        matching: find.text('取消'),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byType(MobileSelectionActionBar), findsNothing);
+      expect(find.bySemanticsLabel('任务操作'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       RemoteTaskStore.instance.resetForTest();
     } finally {
@@ -377,18 +398,14 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.byType(ListSelectionControl).first);
-    await tester.pump();
-    expect(find.text('已选 1 项'), findsOneWidget);
-    // 选中后的批量动作同样只在抽屉里出现；门控未完成时入口 spinner
-    // 持续动画，用有界 pump 等抽屉退场。
-    await tester.tap(find.bySemanticsLabel('任务操作'));
     await tester.pumpAndSettle();
-    expect(find.text('清理历史 1'), findsOneWidget);
-    await tester.tap(find.text('清理历史 1'));
+    // 选中后批量动作在底部动作条上（标题保持稳定）。
+    expect(find.text('已选中 1 个任务'), findsOneWidget);
+    expect(find.text('清理历史'), findsOneWidget);
+    await tester.tap(find.text('清理历史'));
+    // 门控未完成：批处理运行中，右上角入口以 spinner 出现提示进度。
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 350));
 
-    // 批处理运行中：入口 spinner 取代旧内联按钮的「正在清理历史 1…」文案。
     expect(find.byType(AppLoadingIndicator), findsOneWidget);
     expect(find.text('正在清理历史 1…'), findsNothing);
     expect(find.text('正在清理全部历史 1…'), findsNothing);
