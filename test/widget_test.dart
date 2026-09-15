@@ -911,6 +911,9 @@ void main() {
       expect(find.byType(GlobalTrashPage), findsOneWidget);
       expect(find.text('已删文件.txt'), findsOneWidget);
       expect(find.byIcon(LucideIcons.plus), findsNothing);
+      // 头部动作收进抽屉：先打开右上角入口，再触发「清空回收站」。
+      await tester.tap(find.bySemanticsLabel('回收站操作'));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ShadButton, '清空回收站'));
       await tester.pumpAndSettle();
       expect(find.text('将彻底删除「手机文件」回收站中的所有项目，之后无法恢复。'), findsOneWidget);
@@ -3707,7 +3710,7 @@ void main() {
     }
   });
 
-  testWidgets('android transfers page keeps subtitle and 48dp bulk action', (
+  testWidgets('android transfers page keeps subtitle and hides empty entry', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
@@ -3735,15 +3738,11 @@ void main() {
         ),
         findsNothing,
       );
-      final syncButton = find.text('立即同步');
-      expect(syncButton, findsOneWidget);
-      final buttonRect = tester.getRect(
-        find.ancestor(
-          of: syncButton,
-          matching: find.byType(ShadButton),
-        ).first,
-      );
-      expect(buttonRect.height, greaterThanOrEqualTo(48));
+      // 动作收进抽屉：空队列没有可用动作时右上角入口整体隐藏，
+      // 「立即同步」不再作为内联按钮出现；有任务时的抽屉行为由
+      // transfers_page_batch_actions_test 的 android 用例钉住。
+      expect(find.text('立即同步'), findsNothing);
+      expect(find.bySemanticsLabel('任务操作'), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -3784,6 +3783,17 @@ void main() {
         ),
         findsNothing,
       );
+      // 动作收进抽屉：右上角单一 48dp 入口打开底部动作抽屉。
+      final trashEntry = find.bySemanticsLabel('回收站操作');
+      expect(trashEntry, findsOneWidget);
+      expect(tester.getSize(trashEntry).height, greaterThanOrEqualTo(48));
+      await tester.tap(trashEntry);
+      await tester.pumpAndSettle();
+      expect(find.byType(AppShadDialog), findsOneWidget);
+      expect(find.text('刷新'), findsOneWidget);
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await tester.pumpAndSettle();
+      expect(find.byType(AppShadDialog), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

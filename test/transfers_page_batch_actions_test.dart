@@ -20,6 +20,7 @@ import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/models/transfer_job.dart';
 import 'package:remote_storage/models/sync_profile.dart';
 import 'package:remote_storage/pages/transfers_page.dart';
+import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/remote_task_store.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
@@ -158,6 +159,117 @@ void main() {
     }
   });
 
+  // Android 头部动作收进右上角单一入口打开的底部抽屉（文件管理基线）；
+  // 桌面内联按钮行为由上面的 macOS 用例钉住。
+  testWidgets('android queue actions collapse into the header sheet', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      final api = _TransfersPageFakeApi();
+      api.tasks.add(
+        const RemoteTask(
+          id: 'sync:test:bulk-waiting',
+          kind: RemoteTaskKind.upload,
+          status: RemoteTaskStatus.waiting,
+          source: RemoteTaskSource.metadata,
+          bucket: 'bucket-a',
+          targetPath: 'bulk-waiting.txt',
+        ),
+      );
+
+      await tester.pumpWidget(
+        ShadApp(
+          home: Material(
+            child: TransfersPage(
+              api: api,
+              config: RemoteStorageConfig.empty(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 队列级动作不再内联在头部；入口 48dp，抽屉列出「立即同步 N」。
+      expect(find.text('立即同步'), findsNothing);
+      final entry = find.bySemanticsLabel('任务操作');
+      expect(entry, findsOneWidget);
+      expect(tester.getSize(entry).height, greaterThanOrEqualTo(48));
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(find.byType(AppShadDialog), findsOneWidget);
+      expect(find.text('立即同步 1'), findsOneWidget);
+      await tester.tap(find.text('立即同步 1'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppShadDialog), findsNothing);
+      expect(api.triggerAllCalls, 1);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+      RemoteTaskStore.instance.resetForTest();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  // 桌面内联按钮保留按钮内 loading 文案（Android 收进抽屉后此分支只在
+  // 桌面渲染，这里补回正向覆盖）。
+  testWidgets('desktop immediate sync keeps the inline loading label', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      final triggered = Completer<void>();
+      final api = _TransfersPageFakeApi()..triggerAllGate = triggered.future;
+      api.tasks.add(
+        const RemoteTask(
+          id: 'sync:test:desktop-waiting',
+          kind: RemoteTaskKind.upload,
+          status: RemoteTaskStatus.waiting,
+          source: RemoteTaskSource.metadata,
+          targetPath: 'desktop-waiting.txt',
+        ),
+      );
+
+      await tester.pumpWidget(
+        ShadApp(
+          home: Material(
+            child: TransfersPage(
+              api: api,
+              config: RemoteStorageConfig.empty(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('立即同步 1'));
+      await tester.pump();
+
+      expect(find.text('正在同步…'), findsOneWidget);
+      expect(find.byType(AppLoadingIndicator), findsOneWidget);
+      // Android 头部抽屉入口在桌面不渲染。
+      expect(find.bySemanticsLabel('任务操作'), findsNothing);
+
+      triggered.complete();
+      await tester.pump();
+      await tester.pump();
+
+      expect(api.triggerAllCalls, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+      RemoteTaskStore.instance.resetForTest();
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('immediate sync uses one durable queue action with loading', (
     tester,
   ) async {
@@ -211,11 +323,20 @@ void main() {
     );
     await tester.pump();
 
+    // Android：队列动作收进右上角入口打开的底部抽屉。
+    expect(find.text('立即同步 3'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('任务操作'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('立即同步 3'));
+    // 门控未完成时入口 spinner 持续动画，只能用有界 pump 等抽屉退场。
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
 
-    expect(find.text('正在同步…'), findsOneWidget);
+    // 批处理运行中：抽屉已关闭，头部入口变为 spinner（内联按钮的
+    // 「正在同步…」文案随按钮一起消失）。
+    expect(find.byType(AppShadDialog), findsNothing);
     expect(find.byType(AppLoadingIndicator), findsOneWidget);
+    expect(find.text('正在同步…'), findsNothing);
 
     triggered.complete();
     await tester.pump();
@@ -257,11 +378,19 @@ void main() {
 
     await tester.tap(find.byType(ListSelectionControl).first);
     await tester.pump();
+    expect(find.text('已选 1 项'), findsOneWidget);
+    // 选中后的批量动作同样只在抽屉里出现；门控未完成时入口 spinner
+    // 持续动画，用有界 pump 等抽屉退场。
+    await tester.tap(find.bySemanticsLabel('任务操作'));
+    await tester.pumpAndSettle();
     expect(find.text('清理历史 1'), findsOneWidget);
     await tester.tap(find.text('清理历史 1'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
 
-    expect(find.text('正在清理历史 1…'), findsOneWidget);
+    // 批处理运行中：入口 spinner 取代旧内联按钮的「正在清理历史 1…」文案。
+    expect(find.byType(AppLoadingIndicator), findsOneWidget);
+    expect(find.text('正在清理历史 1…'), findsNothing);
     expect(find.text('正在清理全部历史 1…'), findsNothing);
 
     cleanup.complete();
@@ -312,9 +441,11 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    // 无需选中：队列级动作从右上角抽屉触发。
+    await tester.tap(find.bySemanticsLabel('任务操作'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('清理全部历史 2'));
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(
       api.clearedTaskIds,
@@ -363,11 +494,16 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    // 清理期间头部入口保持 spinner，直到清理结束；spinner 持续动画，
+    // 用有界 pump 等抽屉退场。
+    await tester.tap(find.bySemanticsLabel('任务操作'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('清理全部历史 1'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
 
-    expect(find.text('正在清理全部历史 1…'), findsOneWidget);
     expect(find.byType(AppLoadingIndicator), findsOneWidget);
+    expect(find.text('正在清理全部历史 1…'), findsNothing);
 
     cleanup.complete();
     await tester.pump();

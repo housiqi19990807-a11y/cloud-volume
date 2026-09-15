@@ -31,6 +31,62 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
     final filteredEntries = _filteredEntries;
     final selectedFilteredCount = _selectedFilteredCount;
     final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    // Android 对齐文件管理基线：头部批量/清空/刷新动作收进右上角单一
+    // 48dp 入口打开的底部抽屉；「已选 N 项」由标题槽承载，不再重复为
+    // 头部 chip。加载中没有可用动作时入口整体隐藏。
+    final androidSheetActions = _loading
+        ? const <MobilePageAction>[]
+        : <MobilePageAction>[
+            // 与桌面一致按「过滤后仍可见的选中数」门控：搜索把所选条目
+            // 全部排除时批量动作无目标，回到未选中动作集而不是死点。
+            if (selectedFilteredCount == 0) ...[
+              MobilePageAction(
+                label: '刷新',
+                icon: LucideIcons.refreshCw,
+                onPressed: () => unawaited(_loadInitialBucket()),
+              ),
+              if (_activeBucket != null && _entries.isNotEmpty)
+                MobilePageAction(
+                  label: '清空回收站',
+                  icon: LucideIcons.trash,
+                  onPressed: () => unawaited(_clearActiveBucketTrash()),
+                ),
+            ],
+            if (selectedFilteredCount > 0) ...[
+              MobilePageAction(
+                label: '批量恢复',
+                icon: LucideIcons.rotateCcw,
+                onPressed: () => unawaited(_restoreSelected()),
+              ),
+              MobilePageAction(
+                label: '批量彻底删除',
+                icon: LucideIcons.trash2,
+                onPressed: () => unawaited(_deleteSelected()),
+              ),
+            ],
+          ];
+    Widget? androidActionsEntry;
+    if (isAndroid && androidSheetActions.isNotEmpty) {
+      androidActionsEntry = Semantics(
+        label: '回收站操作',
+        child: ShadIconButton.ghost(
+          width: 48,
+          height: 48,
+          iconSize: 22,
+          icon: Icon(
+            LucideIcons.ellipsisVertical,
+            color: theme.colorScheme.primary,
+          ),
+          onPressed: () => unawaited(
+            showMobileActionSheet(
+              context,
+              title: '回收站操作',
+              actions: androidSheetActions,
+            ),
+          ),
+        ),
+      );
+    }
 
     final page = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,24 +133,30 @@ extension _GlobalTrashPageView on _GlobalTrashPageState {
                       ],
                     ),
             ),
-            const SizedBox(width: 16),
-            // 操作区按内容宽度布局，上限 360px（与 PageHeaderActions 阈值相等）。
-            // Expanded 标题吃掉剩余空间，操作区贴右；窄窗口时操作区拿到的宽度
-            // < 360，内层 LayoutBuilder 触发折叠成「…」菜单。
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: GlobalTrashHeaderActions(
-                selectedCount: selectedFilteredCount,
-                loading: _loading,
-                onRefresh: () => unawaited(_loadInitialBucket()),
-                onRestoreSelected: () => unawaited(_restoreSelected()),
-                onDeleteSelected: () => unawaited(_deleteSelected()),
-                onClearTrash:
-                    _activeBucket == null || _entries.isEmpty || _loading
-                    ? null
-                    : () => unawaited(_clearActiveBucketTrash()),
+            if (androidActionsEntry != null) ...[
+              const SizedBox(width: 8),
+              androidActionsEntry,
+            ],
+            // 桌面操作区按内容宽度布局，上限 360px（与 PageHeaderActions
+            // 阈值相等）。Expanded 标题吃掉剩余空间，操作区贴右；窄窗口时
+            // 操作区拿到的宽度 < 360，内层 LayoutBuilder 触发折叠成「…」菜单。
+            if (!isAndroid) ...[
+              const SizedBox(width: 16),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: GlobalTrashHeaderActions(
+                  selectedCount: selectedFilteredCount,
+                  loading: _loading,
+                  onRefresh: () => unawaited(_loadInitialBucket()),
+                  onRestoreSelected: () => unawaited(_restoreSelected()),
+                  onDeleteSelected: () => unawaited(_deleteSelected()),
+                  onClearTrash:
+                      _activeBucket == null || _entries.isEmpty || _loading
+                      ? null
+                      : () => unawaited(_clearActiveBucketTrash()),
+                ),
               ),
-            ),
+            ],
           ],
         ),
         const SizedBox(height: 16),

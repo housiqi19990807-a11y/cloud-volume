@@ -1,8 +1,7 @@
 part of 'transfers_page.dart';
 
 // Android 手机窄屏的紧凑头部：隐藏队列标签行（状态下拉已覆盖同样筛选），
-// 并在选中任务时隐藏队列级按钮、只保留选中级操作，避免按钮行超宽被裁切。
-// 桌面端保持完整队列头部不变。
+// 批量动作收进右上角单一入口打开的底部抽屉。桌面端保持完整队列头部不变。
 bool get _androidCompactQueueHeader =>
     defaultTargetPlatform == TargetPlatform.android;
 
@@ -23,6 +22,61 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
     final historyTotal = store.queue.reported
         ? store.queue.history
         : store.tasks.where(isRemoteTaskHistory).length;
+    // Android 对齐文件管理基线：队列级/选中级批量动作不再内联在头部，
+    // 收进右上角单一 48dp 入口打开的共享底部抽屉；批处理运行中入口图标
+    // 变为 spinner 保留可见反馈，没有可用动作时整个入口隐藏。
+    Widget? androidActionsEntry;
+    if (_androidCompactQueueHeader) {
+      final sheetActions = _runningBatchAction
+          ? const <MobilePageAction>[]
+          : <MobilePageAction>[
+              if (_selectedTaskIds.isEmpty && syncable > 0)
+                MobilePageAction(
+                  label: '立即同步 $syncable',
+                  icon: LucideIcons.play,
+                  onPressed: () => unawaited(_triggerAllRemoteTasks(store)),
+                ),
+              if (_selectedTaskIds.isEmpty && historyTotal > 0)
+                MobilePageAction(
+                  label: '清理全部历史 $historyTotal',
+                  icon: LucideIcons.trash2,
+                  onPressed: () => unawaited(_clearRemoteHistory(store)),
+                ),
+              if (_selectedTaskIds.isNotEmpty && clearable > 0)
+                MobilePageAction(
+                  label: '清理历史 $clearable',
+                  icon: LucideIcons.trash2,
+                  onPressed: () => unawaited(
+                    _clearSelectedRemoteHistory(store, selected),
+                  ),
+                ),
+            ];
+      if (_runningBatchAction || sheetActions.isNotEmpty) {
+        androidActionsEntry = Semantics(
+          label: '任务操作',
+          child: ShadIconButton.ghost(
+            width: 48,
+            height: 48,
+            iconSize: 22,
+            icon: _runningBatchAction
+                ? const AppLoadingIndicator(size: 22, strokeWidth: 2.4)
+                : Icon(
+                    LucideIcons.ellipsisVertical,
+                    color: theme.colorScheme.primary,
+                  ),
+            onPressed: _runningBatchAction || sheetActions.isEmpty
+                ? null
+                : () => unawaited(
+                    showMobileActionSheet(
+                      context,
+                      title: '任务操作',
+                      actions: sheetActions,
+                    ),
+                  ),
+          ),
+        );
+      }
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -74,13 +128,15 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
                       ),
                     ),
             ),
-            const SizedBox(width: 10),
-            // Android 窄屏：选中任务后隐藏队列级按钮，只保留选中级操作，
-            // 避免一行按钮超出屏幕宽度被裁切；按钮在 Android 保持 48dp
-            // 触控高，桌面维持 sm 原高。
-            if (!_androidCompactQueueHeader || _selectedTaskIds.isEmpty)
-              _queueActionButton(
-                height: _androidCompactQueueHeader ? 48 : null,
+            if (androidActionsEntry != null) ...[
+              const SizedBox(width: 8),
+              androidActionsEntry,
+            ],
+            // 桌面端保持完整队列头部：内联 outline 按钮与原间距不变。
+            if (!_androidCompactQueueHeader) ...[
+              const SizedBox(width: 10),
+              ShadButton.outline(
+                size: ShadButtonSize.sm,
                 onPressed: _runningBatchAction || syncable == 0
                     ? null
                     : () => unawaited(_triggerAllRemoteTasks(store)),
@@ -90,10 +146,7 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
                   loadingLabel: '正在同步…',
                 ),
               ),
-            if (_selectedTaskIds.isNotEmpty) ...[
-              // Android 窄屏：立即执行/取消在每行的小图标里已有，选中后
-              // 头部只保留「清理历史」，避免按钮行超出屏幕宽度。
-              if (!_androidCompactQueueHeader) ...[
+              if (_selectedTaskIds.isNotEmpty) ...[
                 const SizedBox(width: 10),
                 ShadButton.outline(
                   size: ShadButtonSize.sm,
@@ -111,36 +164,35 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
                       : () => unawaited(_cancelSelectedRemote(store, selected)),
                   child: Text(cancelable == 0 ? '取消' : '取消 $cancelable'),
                 ),
+                if (clearable > 0) ...[
+                  const SizedBox(width: 6),
+                  ShadButton.outline(
+                    size: ShadButtonSize.sm,
+                    onPressed: _runningBatchAction
+                        ? null
+                        : () => unawaited(
+                            _clearSelectedRemoteHistory(store, selected),
+                          ),
+                    child: _batchActionButtonChild(
+                      _batchAction == _RemoteBatchAction.clearSelectedHistory,
+                      '清理历史 $clearable',
+                    ),
+                  ),
+                ],
               ],
-              if (clearable > 0) ...[
-                const SizedBox(width: 6),
-                _queueActionButton(
-                  height: _androidCompactQueueHeader ? 48 : null,
+              if (historyTotal > 0) ...[
+                const SizedBox(width: 10),
+                ShadButton.outline(
+                  size: ShadButtonSize.sm,
                   onPressed: _runningBatchAction
                       ? null
-                      : () => unawaited(
-                          _clearSelectedRemoteHistory(store, selected),
-                        ),
+                      : () => unawaited(_clearRemoteHistory(store)),
                   child: _batchActionButtonChild(
-                    _batchAction == _RemoteBatchAction.clearSelectedHistory,
-                    '清理历史 $clearable',
+                    _batchAction == _RemoteBatchAction.clearAllHistory,
+                    '清理全部历史 $historyTotal',
                   ),
                 ),
               ],
-            ],
-            if (historyTotal > 0 &&
-                (!_androidCompactQueueHeader || _selectedTaskIds.isEmpty)) ...[
-              const SizedBox(width: 10),
-              _queueActionButton(
-                height: _androidCompactQueueHeader ? 48 : null,
-                onPressed: _runningBatchAction
-                    ? null
-                    : () => unawaited(_clearRemoteHistory(store)),
-                child: _batchActionButtonChild(
-                  _batchAction == _RemoteBatchAction.clearAllHistory,
-                  '清理全部历史 $historyTotal',
-                ),
-              ),
             ],
           ],
         ),
@@ -157,27 +209,6 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
           child: _buildRemoteList(theme, store, visible, selectedVisible),
         ),
       ],
-    );
-  }
-
-  /// Queue-level outline button: Android keeps a 48dp touch height inside a
-  /// centered hit box; desktop keeps the original sm sizing.
-  Widget _queueActionButton({
-    double? height,
-    VoidCallback? onPressed,
-    required Widget child,
-  }) {
-    final android = _androidCompactQueueHeader;
-    final button = ShadButton.outline(
-      size: ShadButtonSize.sm,
-      height: height,
-      onPressed: onPressed,
-      child: child,
-    );
-    if (!android) return button;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 48),
-      child: Center(child: button),
     );
   }
 }
