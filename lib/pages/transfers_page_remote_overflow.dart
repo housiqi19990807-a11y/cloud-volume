@@ -13,7 +13,12 @@ extension _TransfersPageRemoteOverflow on _TransfersPageState {
     List<RemoteTask> visible,
   ) {
     if (_runningBatchAction) {
-      return const RemoteTaskOverflow(title: '', actions: []);
+      // 批处理运行中:行 `…` 整体禁用(不打开只剩明细的空抽屉)。
+      return const RemoteTaskOverflow(
+        title: '',
+        actions: [],
+        enabled: false,
+      );
     }
     final selected = visible
         .where((item) => _selectedTaskIds.contains(item.id))

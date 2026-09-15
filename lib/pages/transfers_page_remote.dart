@@ -48,37 +48,59 @@ extension _TransfersPageRemote on _TransfersPageState {
               ? const _RemoteInitialLoading()
               : ListView(
                   children: [
-                    for (final section in sections) ...[
+                    for (var s = 0; s < sections.length; s++) ...[
                       // Android 行内已有状态徽章，分组标题只占竖向空间，不显示。
                       if (!_androidCompactQueueHeader)
                         _RemoteSectionHeader(
-                          label: section.label,
-                          count: section.tasks.length,
+                          label: sections[s].label,
+                          count: sections[s].tasks.length,
                         ),
-                        for (final task in section.tasks)
-                          RemoteTaskRow(
-                            key: ValueKey<String>(task.id),
-                            task: task,
-                            selected: _selectedTaskIds.contains(task.id),
-                            onToggleSelected: () => _toggleTaskSelection(task.id),
-                            onCancel: task.cancelable
-                                ? () => _cancelRemoteTask(store, task)
-                                : null,
-                            onRetry: task.retryable
-                                ? () => _retryRemoteTask(store, task)
-                                : null,
-                            onTrigger: task.triggerable
-                                ? () => _triggerRemoteTask(store, task)
-                                : null,
-                            onExpanded: (expanded) {
-                              if (expanded) {
-                                unawaited(store.loadDetails(task.id));
-                              }
-                            },
-                            showDivider: true,
-                            mobileOverflow: () =>
-                                _taskRowOverflowActions(store, task, visible),
+                      for (var i = 0; i < sections[s].tasks.length; i++)
+                        RemoteTaskRow(
+                          key: ValueKey<String>(sections[s].tasks[i].id),
+                          task: sections[s].tasks[i],
+                          selected: _selectedTaskIds.contains(
+                            sections[s].tasks[i].id,
                           ),
+                          onToggleSelected: () =>
+                              _toggleTaskSelection(sections[s].tasks[i].id),
+                          onCancel: sections[s].tasks[i].cancelable
+                              ? () => _cancelRemoteTask(
+                                  store,
+                                  sections[s].tasks[i],
+                                )
+                              : null,
+                          onRetry: sections[s].tasks[i].retryable
+                              ? () => _retryRemoteTask(
+                                  store,
+                                  sections[s].tasks[i],
+                                )
+                              : null,
+                          onTrigger: sections[s].tasks[i].triggerable
+                              ? () => _triggerRemoteTask(
+                                  store,
+                                  sections[s].tasks[i],
+                                )
+                              : null,
+                          onExpanded: (expanded) {
+                            if (expanded) {
+                              unawaited(
+                                store.loadDetails(sections[s].tasks[i].id),
+                              );
+                            }
+                          },
+                          // 与 FileListTile 列表同款:末行不画分隔线,除非
+                          // 后面还有历史分页行。
+                          showDivider:
+                              s < sections.length - 1 ||
+                              i < sections[s].tasks.length - 1 ||
+                              showHistoryPager,
+                          mobileOverflow: () => _taskRowOverflowActions(
+                            store,
+                            sections[s].tasks[i],
+                            visible,
+                          ),
+                        ),
                     ],
                     // History continuation lives at the end of the list, so
                     // it appears only once the user reaches the last row.

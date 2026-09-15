@@ -1,7 +1,8 @@
 // Unified task rows render effective remote operations with optional raw detail.
 // Layout contract: the title text column starts at 80px from the row edge
 // (12 padding + 18 checkbox + 10 gap + 28 kind chip + 12 gap); the expanded
-// detail block and row divider inset to the same value so all rows align.
+// detail block insets to the same value so it aligns with the title. The row
+// divider is the full-width FileListTile hairline (0.55/0.6).
 
 import 'dart:async';
 
@@ -22,10 +23,18 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 /// action rows (row actions when nothing is selected, batch actions for the
 /// current selection otherwise — the file-manager drawer contract).
 class RemoteTaskOverflow {
-  const RemoteTaskOverflow({required this.title, required this.actions});
+  const RemoteTaskOverflow({
+    required this.title,
+    required this.actions,
+    this.enabled = true,
+  });
 
   final String title;
   final List<MobilePageAction> actions;
+
+  /// False while a batch action runs: the row `…` disables instead of
+  /// opening a drawer with no actionable rows.
+  final bool enabled;
 }
 
 
@@ -123,10 +132,21 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
         onTapCancel: () => setState(() => _pressed = false),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          color: colors.rowBackground(
-            selected: widget.selected,
-            hovered: _hovered,
-            pressed: _pressed,
+          // 行分隔线与 FileListTile(文件/回收站行)同规格:全宽底部发丝线。
+          decoration: BoxDecoration(
+            color: colors.rowBackground(
+              selected: widget.selected,
+              hovered: _hovered,
+              pressed: _pressed,
+            ),
+            border: widget.showDivider
+                ? Border(
+                    bottom: BorderSide(
+                      color: theme.colorScheme.border.withValues(alpha: 0.55),
+                      width: 0.6,
+                    ),
+                  )
+                : null,
           ),
           child: Column(
             children: [
@@ -174,17 +194,6 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
                 ),
               ),
               if (_expanded) RemoteTaskDetails(task: task),
-              if (widget.showDivider)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: remoteTaskContentIndent,
-                    right: 12,
-                  ),
-                  child: Divider(
-                    height: 1,
-                    color: theme.colorScheme.border.withValues(alpha: 0.45),
-                  ),
-                ),
             ],
           ),
         ),
@@ -203,6 +212,7 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
   }
 
   void _toggleExpanded() {
+    if (!mounted) return;
     setState(() => _expanded = !_expanded);
     widget.onExpanded?.call(_expanded);
   }
@@ -261,7 +271,7 @@ class _TaskText extends StatelessWidget {
                 truncationMaxLength: 14,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: theme.colorScheme.foreground,
                 ),
               )
@@ -271,7 +281,7 @@ class _TaskText extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: theme.colorScheme.foreground,
                 ),
               ),
@@ -338,7 +348,14 @@ class _TaskRightSide extends StatelessWidget {
         RemoteTaskStatusBadge(task: task),
         const SizedBox(width: 8),
         if (overflow != null) ...[
-          _OverflowMenuButton(task: task, buildOverflow: overflow),
+          // Android 与文件/回收站行同款:行尾仅一个 `…`;明细展开作为
+          // 抽屉首项,由按钮在打开时按最新展开态拼装。
+          _OverflowMenuButton(
+            task: task,
+            buildOverflow: overflow,
+            expanded: expanded,
+            onToggleDetails: onExpand,
+          ),
         ] else ...[
           if (onCancel != null)
             _iconAction('取消任务', LucideIcons.circleX, onCancel!),
@@ -346,12 +363,12 @@ class _TaskRightSide extends StatelessWidget {
             _iconAction('重试任务', LucideIcons.refreshCw, onRetry!),
           if (onTrigger != null)
             _iconAction('立即执行', LucideIcons.play, onTrigger!),
+          _iconAction(
+            expanded ? '收起明细' : '查看明细',
+            expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+            onExpand,
+          ),
         ],
-        _iconAction(
-          expanded ? '收起明细' : '查看明细',
-          expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-          onExpand,
-        ),
         if (acting) ...[
           const SizedBox(width: 8),
           const AppLoadingIndicator(size: 14, strokeWidth: 1.6),
@@ -379,10 +396,17 @@ class _TaskRightSide extends StatelessWidget {
 /// Trailing `…` entry opening the Android row action drawer (48dp target,
 /// same shape as file-manager object rows).
 class _OverflowMenuButton extends StatelessWidget {
-  const _OverflowMenuButton({required this.task, required this.buildOverflow});
+  const _OverflowMenuButton({
+    required this.task,
+    required this.buildOverflow,
+    required this.expanded,
+    required this.onToggleDetails,
+  });
 
   final RemoteTask task;
   final RemoteTaskOverflow? Function() buildOverflow;
+  final bool expanded;
+  final VoidCallback onToggleDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -401,11 +425,21 @@ class _OverflowMenuButton extends StatelessWidget {
         ),
         onPressed: () async {
           final overflow = buildOverflow();
-          if (overflow == null || overflow.actions.isEmpty) return;
+          if (overflow == null || !overflow.enabled) return;
           await showMobileActionSheet(
             context,
             title: overflow.title,
-            actions: overflow.actions,
+            actions: [
+              // 明细展开是抽屉首项(替代行内 chevron)。
+              MobilePageAction(
+                label: expanded ? '收起明细' : '查看明细',
+                icon: expanded
+                    ? LucideIcons.chevronUp
+                    : LucideIcons.chevronDown,
+                onPressed: onToggleDetails,
+              ),
+              ...overflow.actions,
+            ],
           );
         },
       ),

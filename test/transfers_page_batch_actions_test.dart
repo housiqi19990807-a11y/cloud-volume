@@ -24,6 +24,7 @@ import 'package:remote_storage/services/app_modal.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
 import 'package:remote_storage/state/remote_task_store.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
+import 'package:remote_storage/widgets/remote_task_details.dart';
 import 'package:remote_storage/widgets/remote_task_widgets.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:remote_storage/widgets/sidebar_transfer_status.dart';
@@ -162,12 +163,28 @@ void main() {
         matching: find.byIcon(LucideIcons.ellipsisVertical),
       );
       expect(overflow, findsNWidgets(2));
+      // 与文件/回收站行同款:行尾单一 `…`,行内无明细 chevron。
+      expect(
+        find.descendant(
+          of: find.byType(RemoteTaskRow),
+          matching: find.byIcon(LucideIcons.chevronDown),
+        ),
+        findsNothing,
+      );
       await tester.tap(overflow.first);
       await tester.pumpAndSettle();
       expect(find.byType(AppShadDialog), findsOneWidget);
       expect(find.text('取消任务'), findsOneWidget);
-      expect(await tester.binding.handlePopRoute(), isTrue);
+      // 明细展开是抽屉首项。
+      expect(find.text('查看明细'), findsOneWidget);
+      await tester.tap(find.text('查看明细'));
       await tester.pumpAndSettle();
+      expect(find.byType(RemoteTaskDetails), findsOneWidget);
+      await tester.tap(overflow.first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('收起明细'));
+      await tester.pumpAndSettle();
+      expect(find.byType(RemoteTaskDetails), findsNothing);
 
       // 单个选中：批量等价于行自身动作，仍为行级抽屉。
       await tester.tap(find.byType(ListSelectionControl).first);
@@ -189,6 +206,9 @@ void main() {
       expect(find.text('已选 2 个任务'), findsOneWidget);
       expect(find.text('取消选择'), findsOneWidget);
       expect(find.text('取消任务 2'), findsOneWidget);
+      // 批量抽屉同样以明细展开为首项(选中态行点击是切换选择,明细无
+      // 其他入口)。
+      expect(find.text('查看明细'), findsOneWidget);
       expect(find.bySemanticsLabel('任务操作'), findsOneWidget);
 
       // 「取消选择」清空选择，抽屉关闭后回到行级动作。
