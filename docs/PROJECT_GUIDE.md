@@ -4,6 +4,10 @@
 
 ---
 
+## 2026-09-16 Windows Cloud Files watcher 与全量回归收口(windows_platform / testing 域)
+
+针对已落档的普通本地文件删除残留、rename 去重窗口过短与 watcher 同步 journal 风险，本机实现会话 FIFO mutation admission，并用真实 NTFS fsnotify 覆盖上传后删除及 128 文件批量改名。扩大到 `go test ./...` 后继续修复了三类独立红项：共享 `config.db` 测试未在 `TempDir` 清理前关闭 bbolt 句柄、metadata 测试绕过 `Service.Close` 遗留保护定时器与数据库锁、递归占位符测试用 Go 嵌入误当动态方法覆盖。Flutter 3.44 的 `onReorder` 弃用提示通过局部兼容豁免处理，保留 README 声明的 Flutter 3.41 最低版本语义，并把触及的既有超限账号列表拆为主列表与表格支撑 part。首轮 P0/P1 评审发现异步 rename 在 worker 成功前 Rebase 会吞掉 admission 失败后的唯一 Create fallback；修复改为成功后 Rebase，文件失败路径从已移动 target 补写并删除旧 Desired，新增 watcher-only/callback-first 强制失败回归，复核无 P0/P1。现行 Windows 机制见 [windows_platform](features/windows_platform.md)，配置测试生命周期见 [settings](features/settings.md)，设计取舍见 [Agent Note](notes/implemented/bug-fix/2026-09-10-cloud-files-watcher-mutation-journal.md)。
+
 ## 2026-09-10 Windows Cloud Files 原生回归修复批次(windows_platform / storage_backends 域)
 
 修复干净 `origin/main` 在 Windows 云机上的四层回归阻断并完成真实回归:WinFsp bridge 构建入口(未使用 import、Make 变量域 `WINFSP_INC`)、Cloud Files 写入的 Windows 目录同步与 rename 句柄共享、`FETCH_PLACEHOLDERS` 零项回复导致的嵌套目录空列表,以及带 task ID 小文件上传的 SigV4 可回绕请求体。云机最新 Release 已重新构建,并用真实 C-ABI harness + mock S3 验证根/嵌套枚举、写后立即改名、RemoteTask 投影与远端一致性;过程决策见当日三条 [Agent Note](notes/implemented/bug-fix/)。早前"Windows 基线编译阻断"的结论已被本批次取代,当前正典构建可通过。

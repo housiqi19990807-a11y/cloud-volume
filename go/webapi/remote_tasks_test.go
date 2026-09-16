@@ -77,8 +77,7 @@ func TestWebRuntimeTaskWireCarriesLocalAndMultipartDetails(t *testing.T) {
 }
 
 func TestWebMountReadSnapshotUsesActiveProfileScope(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", t.TempDir())
+	useWebAPITestRoot(t)
 	config := storageconfig.DefaultConfig()
 	config.ProfileID = "profile-mounted-read"
 	if err := storageconfig.SaveProfile("default", config); err != nil {

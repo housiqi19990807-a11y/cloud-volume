@@ -15,6 +15,7 @@ import (
 const (
 	windowsCFProviderID               = "{5C3F6D4D-FAE6-4A0D-9E49-5A3E5EDC7E71}"
 	windowsCFEventIgnoreTTL           = 3 * time.Second
+	windowsCFRenameDedupeTTL          = time.Minute
 	windowsCFDirectoryHarvestInterval = time.Second
 	windowsCFDirectoryHarvestWindow   = 20 * time.Second
 	windowsCFPlaceholderChunk         = 4 * 1024 * 1024

@@ -137,7 +137,7 @@
 - UI:账号列表 `CloudStorageAccountList` 列表模式 `ReorderableListView` + `CloudStoragePage._reorderAccounts`(乐观本地顺序);桶列表 `FileManagerBucketBrowser` 列表模式重排 + `file_manager_page_bucket_view.dart` 的 `_reorderBuckets`;加载路径应用 `listBucketOrder`(回退:profile 顺序再桶名)。网格/搜索/回收站首页不启用拖拽重排(框选拖拽 `file_manager_drag_selection.dart` 与重排无关)。**注意 Flutter 3.41.6 工具链约束(见 [remote_tasks](remote_tasks.md) Transfer Queue gotchas):保持经典 `onReorder` 回调。**
 - Bootstrap 软刷新:`lib/pages/app_bootstrap_page.dart` 保持 `_session` 挂载并原地重载 bootstrap 状态;重排不触发全屏 loading shell。
 - 保存 profile 把新名字追加进 `profile_order`;删除 profile 剥离该 profile 及其 `profile::` 桶 id;reset 清两条 order。
-- 重排模式正典:`ReorderableListView.builder` + `ReorderableDragStartListener`(自定义握把;无默认尾把手),在 `lib/widgets/cloud_storage_account_list.dart` 与 `lib/widgets/file_manager_bucket_browser.dart`。
+- 重排模式正典:`ReorderableListView.builder` + `ReorderableDragStartListener`(自定义握把;无默认尾把手),在 `lib/widgets/cloud_storage_account_list.dart` 与 `lib/widgets/file_manager_bucket_browser.dart`；账号表头、状态、动作与拖拽支撑组件拆在 `cloud_storage_account_list_support.dart`，两个手写文件均保持 500 行内。
 
 ## 桶自定义配额与远端配额发现
 

@@ -99,7 +99,7 @@ Dart 的 `HttpClient.findProxyFromEnvironment` 只读 `http_proxy`/`https_proxy`
 应用可把当前账号配置保存为加密远端快照,误改配置后从设置页还原;备份目标不属于普通账号列表时也可独立保存。
 
 - `go/config/config_backup.go` — bbolt `meta` 保存 `ConfigBackupSettings`;目标可引用 profile 或保存独立 `RemoteStorageConfig`。`ExportConfigBackup`/`RestoreConfigBackup` 只处理 profiles、活跃账号、全局代理、显示顺序,刻意不打包本地缓存;还原保留备份目标设置。
-- `go/config/config_db_shared.go` / `config_db_shared_test.go` — 所有运行时配置读写经同一进程级 `config.db` bbolt 句柄取得 lease；Android 私有数据根目录切换等待未完成 lease 后再关闭旧句柄，同一路径重设不打断现有调用。回归覆盖共享句柄、根目录切换、重复还原、并发轮询读取与 `tx.Check()` 完整性检查。
+- `go/config/config_db_shared.go` / `config_db_shared_test.go` — 所有运行时配置读写经同一进程级 `config.db` bbolt 句柄取得 lease；Android 私有数据根目录切换等待未完成 lease 后再关闭旧句柄，同一路径重设不打断现有调用。Windows 测试切换临时 app-data root 时，cleanup 必须先把共享句柄切到独立 release root，再让 `t.TempDir` 删除原目录，否则 bbolt 文件锁会使全量测试失败。回归覆盖共享句柄、根目录切换、重复还原、并发轮询读取与 `tx.Check()` 完整性检查。
 - `go/configbackup/backups.go` — 解析目标,用用户自设备份密码派生 AES-GCM 密钥(`cloud-volume/config-backup/v2` + password 的 SHA-256),上传/列举/下载 `*.cloud-volume-config.json.enc` 快照。恢复前校验前缀、后缀、最大 32 MiB,再验证解密标签并导入。空密码走明文 JSON;加密但无密码返回 `此备份已加密,请先设置加密密码`,密码错误包装为 `无法解密配置备份:...`。
 - `bridge/dispatch_config_backup.go` — 加载/保存目标、立即备份、列快照、还原;`restore_config_backup_with_target` 成功后把 inline target(含密码)固化为本地备份设置并默认开启自动备份。普通 profile/代理/排序变动以及后台百度网盘 OAuth token 刷新都会进入同一个 2 秒合并窗口异步自动备份,远端失败不阻塞本地保存;若刷新发生在备份上传期间,队列会在当前轮次结束后补传一份包含新 token 的快照。
 - `lib/models/config_backup.dart` / gateway — Flutter 模型/API;Web 明确不支持本地配置备份。

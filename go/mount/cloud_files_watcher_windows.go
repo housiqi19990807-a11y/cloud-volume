@@ -4,7 +4,6 @@
 package mount
 
 import (
-	"context"
 	"io/fs"
 	"log"
 	"os"
@@ -23,6 +22,7 @@ type windowsPathState struct {
 	kinds            map[string]bool
 	files            map[string]windowsObservedFile
 	placeholders     map[string]bool
+	projected        map[string]bool
 	providerDeletes  map[string]windowsProviderDelete
 	pendingRenames   map[string]windowsPendingRename
 	completedRenames map[string]time.Time
@@ -56,6 +56,7 @@ type windowsSyncWatcher struct {
 	activeHarvests map[string]time.Time
 	closeOnce      sync.Once
 	renameMu       sync.Mutex
+	mutations      *windowsWatcherMutationQueue
 }
 
 func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatcher, error) {
@@ -73,6 +74,7 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 			kinds:            map[string]bool{},
 			files:            map[string]windowsObservedFile{},
 			placeholders:     map[string]bool{},
+			projected:        map[string]bool{},
 			providerDeletes:  map[string]windowsProviderDelete{},
 			pendingRenames:   map[string]windowsPendingRename{},
 			completedRenames: map[string]time.Time{},
@@ -82,16 +84,19 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 		watchPending:   map[string]bool{},
 		watchWanted:    map[string]bool{},
 		activeHarvests: map[string]time.Time{},
+		mutations:      newWindowsWatcherMutationQueue(),
 	}, nil
 }
 
 func (w *windowsSyncWatcher) Start() error {
+	w.mutations.start()
 	w.wg.Add(1)
 	go w.run()
 	if err := w.rescanDirectories(); err != nil {
 		w.signalStop()
 		_ = w.closeRaw()
 		w.wg.Wait()
+		w.mutations.stopAndDrain()
 		return err
 	}
 	return nil
@@ -101,6 +106,7 @@ func (w *windowsSyncWatcher) Close() error {
 	w.signalStop()
 	closeErr := w.closeRaw()
 	w.wg.Wait()
+	w.mutations.stopAndDrain()
 	return closeErr
 }
 
@@ -223,6 +229,16 @@ func (w *windowsSyncWatcher) handleRemovedSource(localPath, virtualPath string) 
 	if w.state.hasPendingFileRename(localPath) {
 		return
 	}
+	isDir := w.IsDir(localPath)
+	// Projected placeholders have a reliable CFAPI completion callback. Only
+	// ordinary local entries need the fsnotify fallback, otherwise both paths
+	// could journal the same deletion.
+	if w.state.isProjected(localPath) {
+		return
+	}
+	if w.access.usesMetadataWritePath() {
+		w.enqueueDeletePath(virtualPath, isDir, nil)
+	}
 	w.Forget(localPath)
 }
 
@@ -233,9 +249,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 		w.state.remember(localPath, true)
 		w.state.clearPlaceholdersUnder(localPath)
 		w.addWatch(localPath)
-		if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
-			log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
-		}
+		w.enqueueCreateDirectory(virtualPath)
 		w.harvestDirectoryTree(filepath.Dir(localPath))
 		w.harvestDirectoryTree(localPath)
 		return
@@ -300,26 +314,11 @@ func (w *windowsSyncWatcher) completePendingFileRename(
 		w.state.forget(oldLocalPath)
 		return false
 	}
-	if err := w.access.enqueueRenamePath(
-		oldVirtualPath,
-		newVirtualPath,
-		oldLocalPath,
-		newLocalPath,
-		false,
-	); err != nil {
-		// The normal create path below can still preserve data if the source no
-		// longer belongs to the metadata view for an unrelated reason.
-		w.state.forget(oldLocalPath)
-		log.Printf(
-			"[mount/cloud-files] watcher-rename-pair old=%q new=%q error=%v",
-			oldVirtualPath,
-			newVirtualPath,
-			err,
-		)
+	w.state.markFallbackRenameHandled(oldLocalPath, newLocalPath)
+	if !w.enqueueRenamePath(oldVirtualPath, newVirtualPath, oldLocalPath, newLocalPath, false, nil) {
+		w.state.clearFallbackRenameHandled(oldLocalPath, newLocalPath)
 		return false
 	}
-	w.state.markFallbackRenameHandled(oldLocalPath, newLocalPath)
-	w.Rebase(oldLocalPath, newLocalPath, false)
 	log.Printf(
 		"[mount/cloud-files] watcher-rename-pair old=%q new=%q",
 		oldVirtualPath,
@@ -361,8 +360,10 @@ func (w *windowsSyncWatcher) scheduleUpload(
 		localPath,
 		info.Size(),
 	)
-	if err := w.access.stageLocalWrite(clean, localPath, info.Size()); err != nil {
-		log.Printf("[mount/cloud-files] stage metadata write %q: %v", clean, err)
+	if w.access.usesMetadataWritePath() {
+		return w.enqueueLocalWrite(clean, localPath)
+	} else if err := w.access.stageLocalWrite(clean, localPath, info.Size()); err != nil {
+		log.Printf("[mount/cloud-files] stage local write %q: %v", clean, err)
 		return false
 	}
 	return true
@@ -479,9 +480,7 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, er
 		if entry.IsDir() {
 			w.addWatch(current)
 			directoryCount++
-			if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
-				log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
-			}
+			w.enqueueCreateDirectory(virtualPath)
 			return nil
 		}
 

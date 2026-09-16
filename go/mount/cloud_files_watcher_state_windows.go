@@ -225,7 +225,7 @@ func (s *windowsPathState) markFallbackRenameHandled(oldPath, newPath string) {
 	if s.completedRenames == nil {
 		s.completedRenames = map[string]time.Time{}
 	}
-	s.completedRenames[windowsRenamePairKey(oldPath, newPath)] = time.Now().Add(windowsCFEventIgnoreTTL)
+	s.completedRenames[windowsRenamePairKey(oldPath, newPath)] = time.Now().Add(windowsCFRenameDedupeTTL)
 }
 
 // fallbackRenameHandled stops a late CFAPI completion callback from applying
@@ -238,6 +238,12 @@ func (s *windowsPathState) fallbackRenameHandled(oldPath, newPath string) bool {
 	return ok
 }
 
+func (s *windowsPathState) clearFallbackRenameHandled(oldPath, newPath string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.completedRenames, windowsRenamePairKey(oldPath, newPath))
+}
+
 func windowsRenamePairKey(oldPath, newPath string) string {
 	return filepath.Clean(oldPath) + "\x00" + filepath.Clean(newPath)
 }
@@ -245,7 +251,23 @@ func windowsRenamePairKey(oldPath, newPath string) string {
 func (s *windowsPathState) markPlaceholder(localPath string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.placeholders[filepath.Clean(localPath)] = true
+	clean := filepath.Clean(localPath)
+	if s.placeholders == nil {
+		s.placeholders = map[string]bool{}
+	}
+	if s.projected == nil {
+		s.projected = map[string]bool{}
+	}
+	s.placeholders[clean] = true
+	s.projected[clean] = true
+}
+
+// isProjected stays true after hydration: hydrated CFAPI entries still emit
+// completion callbacks and must not also use the fsnotify delete fallback.
+func (s *windowsPathState) isProjected(localPath string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.projected[filepath.Clean(localPath)]
 }
 
 func (s *windowsPathState) shouldQueueFile(
@@ -303,6 +325,11 @@ func (s *windowsPathState) forgetLocked(clean string) {
 	for current := range s.placeholders {
 		if pathCoversLocalPath(clean, current, true) {
 			delete(s.placeholders, current)
+		}
+	}
+	for current := range s.projected {
+		if pathCoversLocalPath(clean, current, true) {
+			delete(s.projected, current)
 		}
 	}
 	for current := range s.pendingRenames {
@@ -381,6 +408,14 @@ func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
 			delete(s.placeholders, current)
 		}
 	}
+	projectedUpdates := map[string]bool{}
+	for current := range s.projected {
+		if pathCoversLocalPath(oldClean, current, true) {
+			replacement := strings.Replace(current, oldClean, newClean, 1)
+			projectedUpdates[replacement] = true
+			delete(s.projected, current)
+		}
+	}
 	if len(updates) == 0 {
 		updates[newClean] = isDir
 	}
@@ -392,6 +427,9 @@ func (s *windowsPathState) rebase(oldPath, newPath string, isDir bool) {
 	}
 	for current := range placeholderUpdates {
 		s.placeholders[current] = true
+	}
+	for current := range projectedUpdates {
+		s.projected[current] = true
 	}
 	for current := range hydratingUpdates {
 		s.hydrating[current] = true

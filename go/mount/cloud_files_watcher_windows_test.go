@@ -298,6 +298,9 @@ func TestMarkHydratedIgnoresImmediateSystemWritebackEvent(t *testing.T) {
 	if state.shouldQueueFile(filePath, info.Size(), info.ModTime(), false) {
 		t.Fatal("expected hydrated file metadata to be remembered without queueing upload")
 	}
+	if !state.isProjected(filePath) {
+		t.Fatal("hydration must retain CFAPI projection ownership")
+	}
 }
 
 func TestIngestDirectoryTreeQueuesExistingNestedFiles(t *testing.T) {

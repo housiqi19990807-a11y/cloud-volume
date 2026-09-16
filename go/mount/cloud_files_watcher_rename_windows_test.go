@@ -27,6 +27,7 @@ func TestWindowsHandleEventPrefersRenameOverRemove(t *testing.T) {
 		placeholders: map[string]bool{},
 	}
 	access := newTestBucketAccess(t)
+	attachMetadataWriteService(t, access, newMetadataMountWriteBackend())
 	watcher := &windowsSyncWatcher{root: root, access: access, state: state}
 
 	watcher.handleEvent(fsnotify.Event{Name: oldPath, Op: fsnotify.Remove | fsnotify.Rename})

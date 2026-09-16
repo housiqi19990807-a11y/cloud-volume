@@ -143,12 +143,13 @@ func (h *cloudFilesHydrator) PopulatePlaceholders(localPath string) (resultErr e
 	if resultErr != nil {
 		return resultErr
 	}
-	return h.populateChildDirectories(cleanLocalPath, placeholders)
+	return h.populateChildDirectories(cleanLocalPath, placeholders, h.PopulatePlaceholders)
 }
 
 func (h *cloudFilesHydrator) populateChildDirectories(
 	basePath string,
 	placeholders []cloudPlaceholderInfo,
+	populate func(string) error,
 ) error {
 	// Non-interactive mounts (tests, service contexts) may never trigger
 	// FETCH_PLACEHOLDERS on child directories, so seed every descendant level
@@ -158,7 +159,7 @@ func (h *cloudFilesHydrator) populateChildDirectories(
 			continue
 		}
 		childPath := filepath.Join(basePath, filepath.FromSlash(child.RelativePath))
-		if err := h.PopulatePlaceholders(childPath); err != nil {
+		if err := populate(childPath); err != nil {
 			return err
 		}
 	}

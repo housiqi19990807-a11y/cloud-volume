@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 修复 Windows Cloud Files 挂载内已上传普通文件删除后远端残留：watcher 的普通删除会写入 metadata journal，水合/未水合占位符仍由 CFAPI completion 独占并防止回调顺序导致重复删除；write/mkdir/delete/rename 改由会话 FIFO 后台 admission，批量改名不再用同步 bbolt 提交阻塞 fsnotify，晚到 rename completion 使用独立一分钟去重窗口，文件 rename admission 失败会从物理新路径补写而不丢 mutation。
 - 修复 S3 挂载写回的小文件上传：带任务 ID 的请求体保留可回绕能力，并在签名阶段使用预计算 SHA-256，避免 `request stream is not seekable`；签名预读不再把任务进度提前累计到两倍。
 - 修复 Windows WinFsp bridge 的编译入口：移除未使用 import，`make bridge-windows` 正确向 cgo 传入 vendored WinFsp 头目录。Cloud Files 挂载写入的 metadata chunk 与保护 manifest 目录现在用可写 Windows 句柄执行 `FlushFileBuffers`，不再因只读目录同步返回 `Access is denied` 而无法进入任务队列；写入源句柄还允许 Explorer 在 journal admission 期间重命名，避免 `ERROR_SHARING_VIOLATION`。
 - 修复 Windows Cloud Files 的嵌套目录在资源管理器中显示为空：`FETCH_PLACEHOLDERS` 现在把实际子项经 CFAPI callback transfer 返回，而不是预创建后回复零项；并发/短时重复枚举复用同一描述符，每条原生创建结果都经完整性检查。

@@ -8,63 +8,32 @@ import (
 	"testing"
 )
 
-// recordingHydrator is a minimal cloudFilesHydrator double: it records which
-// directories the eager recursive projection visited, so tests can pin both
-// full-tree seeding and fail-fast behavior without a live CFAPI connection.
-type recordingHydrator struct {
-	cloudFilesHydrator
-	visits      map[string]int
-	items       map[string][]cloudPlaceholderInfo
-	failingPath string
-}
-
-func (h *recordingHydrator) listDirectoryPlaceholders(
-	localPath string,
-) ([]cloudPlaceholderInfo, error) {
-	cleanPath := filepath.Clean(localPath)
-	h.visits[cleanPath]++
-	if cleanPath == h.failingPath {
-		return nil, errors.New("remote listing failed")
-	}
-	return h.items[cleanPath], nil
-}
-
-// projectPlaceholders is stubbed because eager projection only decides what
-// to seed here; placeholder creation itself is covered by provider tests.
-func (h *recordingHydrator) projectPlaceholders(
-	string,
-	[]cloudPlaceholderInfo,
-) error {
-	return nil
-}
-
 // TestPopulateChildDirectoriesSeedsEveryDirectoryLevel pins the eager
 // recursive projection that keeps headless mounts usable: without it,
 // tree/deep stays invisible unless a shell happens to enumerate tree.
 func TestPopulateChildDirectoriesSeedsEveryDirectoryLevel(t *testing.T) {
 	visited := map[string]int{}
-	hydrator := &recordingHydrator{
-		cloudFilesHydrator: cloudFilesHydrator{
-			placeholderInflight:  map[string]*cloudFilesPlaceholderFetch{},
-			placeholderFetched:   map[string]cloudFilesPlaceholderCache{},
-			projectedDirectories: map[string]map[string]cloudPlaceholderInfo{},
+	hydrator := &cloudFilesHydrator{}
+	items := map[string][]cloudPlaceholderInfo{
+		`C:\root`: {
+			{RelativePath: "tree", IsDirectory: true},
+			{RelativePath: "seed.txt", FileSize: 4},
 		},
-		visits: visited,
-		items: map[string][]cloudPlaceholderInfo{
-			`C:\root`: {
-				{RelativePath: "tree", IsDirectory: true},
-				{RelativePath: "seed.txt", FileSize: 4},
-			},
-			`C:\root\tree`: {
-				{RelativePath: "deep", IsDirectory: true},
-			},
-			`C:\root\tree\deep`: {
-				{RelativePath: "b.txt", FileSize: 6},
-			},
+		`C:\root\tree`: {
+			{RelativePath: "deep", IsDirectory: true},
+		},
+		`C:\root\tree\deep`: {
+			{RelativePath: "b.txt", FileSize: 6},
 		},
 	}
+	var populate func(string) error
+	populate = func(localPath string) error {
+		cleanPath := filepath.Clean(localPath)
+		visited[cleanPath]++
+		return hydrator.populateChildDirectories(cleanPath, items[cleanPath], populate)
+	}
 
-	err := hydrator.PopulatePlaceholders(`C:\root`)
+	err := populate(`C:\root`)
 	if err != nil {
 		t.Fatalf("PopulatePlaceholders returned error: %v", err)
 	}
@@ -84,24 +53,25 @@ func TestPopulateChildDirectoriesSeedsEveryDirectoryLevel(t *testing.T) {
 // surfaced to the mount caller instead of leaving a silently partial tree.
 func TestPopulateChildDirectoriesStopsOnError(t *testing.T) {
 	visited := map[string]int{}
-	hydrator := &recordingHydrator{
-		cloudFilesHydrator: cloudFilesHydrator{
-			placeholderInflight:  map[string]*cloudFilesPlaceholderFetch{},
-			placeholderFetched:   map[string]cloudFilesPlaceholderCache{},
-			projectedDirectories: map[string]map[string]cloudPlaceholderInfo{},
+	hydrator := &cloudFilesHydrator{}
+	items := map[string][]cloudPlaceholderInfo{
+		`C:\root`: {
+			{RelativePath: "broken", IsDirectory: true},
+			{RelativePath: "ok", IsDirectory: true},
 		},
-		visits: visited,
-		items: map[string][]cloudPlaceholderInfo{
-			`C:\root`: {
-				{RelativePath: "broken", IsDirectory: true},
-				{RelativePath: "ok", IsDirectory: true},
-			},
-			`C:\root\broken`: nil,
-		},
-		failingPath: `C:\root\broken`,
+		`C:\root\broken`: nil,
+	}
+	var populate func(string) error
+	populate = func(localPath string) error {
+		cleanPath := filepath.Clean(localPath)
+		visited[cleanPath]++
+		if cleanPath == `C:\root\broken` {
+			return errors.New("remote listing failed")
+		}
+		return hydrator.populateChildDirectories(cleanPath, items[cleanPath], populate)
 	}
 
-	err := hydrator.PopulatePlaceholders(`C:\root`)
+	err := populate(`C:\root`)
 	if err == nil {
 		t.Fatal("PopulatePlaceholders must fail when a child directory cannot be listed")
 	}
