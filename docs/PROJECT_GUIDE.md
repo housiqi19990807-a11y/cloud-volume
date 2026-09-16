@@ -6,7 +6,7 @@
 
 ## 2026-09-16 Web/full CLI 发布构建阻断(file_actions / release workflow 域)
 
-`v1.2.6` 的 release workflow 中，macOS、Linux 桌面和 lite CLI 均成功，`web-linux-amd64/arm64` 与所有 `cli-full` 在 Flutter Web 编译阶段失败。失败原因是共享的 `FileTransferClipboardRegion` 调用 `DesktopFileTransferService.localFilePathsFromDrop`,而条件导入的 Web 实现没有该方法；Web 实现本来就不能把浏览器拖放内容转换为宿主机本地路径。为保持跨平台服务方法面一致，在 Web fallback 增加同签名空实现，浏览器继续使用独立文件选择器上传路径。`flutter build web --release --wasm-dry-run --pwa-strategy=none` 与 `scripts/build_cli_packages.sh --variant full` 已在修复后通过；Wasm dry-run 的 `dart:ffi` 仅为现有兼容性提示，不是失败根因。现行跨平台文件传输契约见 [file_actions](features/file_actions.md)，取舍见 [Agent Note](notes/implemented/bug-fix/2026-09-16-web-file-transfer-platform-contract.md)。
+`v1.2.6` 的 release workflow 中，macOS、Linux 桌面和 lite CLI 均成功，`web-linux-amd64/arm64` 与所有 `cli-full` 在 Flutter Web 编译阶段失败。失败原因是共享的 `FileTransferClipboardRegion` 调用 `DesktopFileTransferService.localFilePathsFromDrop`,而条件导入的 Web 实现没有该方法；Web 实现本来就不能把浏览器拖放内容转换为宿主机本地路径。为保持跨平台服务方法面一致，在 Web fallback 增加同签名空实现，浏览器继续使用独立文件选择器上传路径。`flutter build web --release --wasm-dry-run --pwa-strategy=none` 与 `scripts/build_cli_packages.sh --variant full` 已在修复后通过；Wasm dry-run 的 `dart:ffi` 仅为现有兼容性提示，不是失败根因。提交 `23b35de5` 经独立 P0/P1 只读评审 `APPROVE`，无阻断；评审提出的 Web 拖拽提示与独立契约测试 P2/P3 已按范围记录在正典。现行跨平台文件传输契约见 [file_actions](features/file_actions.md)，取舍见 [Agent Note](notes/implemented/bug-fix/2026-09-16-web-file-transfer-platform-contract.md)。
 
 ## 2026-09-16 Windows Cloud Files watcher 与全量回归收口(windows_platform / testing 域)
 

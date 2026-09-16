@@ -22,6 +22,8 @@ Android 对象动作抽屉与执行层共用当前目录可写性：`file_manage
 
 **Known P2/P3 (review 2026-09-02):** P2 Android 原生文件交接目前由 Kotlin 编译与 Dart 状态/布局回归覆盖，尚无 Robolectric 或设备级回归验证 `FileProvider` URI grant、`ACTION_VIEW` chooser 和无可用应用的错误分支；后续在 Android 测试依赖稳定后补原生宿主 fixture，不能以 Dart widget 测试替代该边界。
 
+**Known P2/P3 (review 2026-09-16):** P2 条件导入的跨平台方法面目前由发布 Web/full CLI 编译回归覆盖，尚无独立测试直接锁定 Web fallback 的拖放空列表契约；P3 Web `DropRegion` 可能显示「松开以上传」提示，但浏览器无法提供宿主本地路径，释放后会安全空操作。后续若要支持 Web 拖放，应接入浏览器文件字节读取路径并同步调整提示与测试；本次保留浏览器文件选择器上传，不扩展该范围。
+
 **Gotchas:** Cloud Files 刷新代码只在 `windows && cgo` 构建;macOS/Linux Go 测试验证共享行为但不能执行 Windows CFAPI 调用。改动水合文件、同大小仅 ETag 覆盖、远端删除、占用缓存重挂后,经 Windows 主机的 `scripts/run_windows.ps1` 验证。
 
 ## 本地文件粘贴 / 拖拽上传
@@ -34,7 +36,7 @@ Android 对象动作抽屉与执行层共用当前目录可写性：`file_manage
 - `macos/Runner/ClipboardShortcutPlugin.swift` — `ClipboardShortcutPlugin`(注册 method channel `cloud_volume/clipboard_shortcut`)+ `ClipboardShortcutCoordinator`(单例,持有 plugin 实例供 window 调用)。
 - `macos/Runner/MainFlutterWindow.swift` — `performKeyEquivalent` override:Cmd+V → `handlePaste()`、Cmd+C → `handleCopy()`,其余交 `super`;`awakeFromNib` 注册 plugin。
 - `lib/services/clipboard_shortcut_channel.dart` — `ClipboardShortcutChannel` 单例:`start(onPaste, onCopy)` 设置 `MethodChannel` handler;`isSupported` 仅 macOS 非 Web。
-- `lib/widgets/file_transfer_clipboard_region.dart` — `Shortcuts`+`Actions`+`DropRegion` 包装层(拖拽实际生效;粘贴的 `Shortcuts` 在 macOS 被 channel 旁路)。
+- `lib/widgets/file_transfer_clipboard_region.dart` — `Shortcuts`+`Actions`+`DropRegion` 包装层(原生桌面拖拽实际生效;粘贴的 `Shortcuts` 在 macOS 被 channel 旁路;Web 由 fallback 判定为无本地路径)。
 - `lib/services/desktop_file_transfer_service_io.dart` — `localFilePathsFromClipboard`(读 `SystemClipboard` 的 `Formats.fileUri`)、`localFilePathsFromDrop`、`writeLocalFilesToClipboard`、`localUploadEntries`。
 - `lib/services/desktop_file_transfer_service_web.dart` — 与 IO 实现保持相同的拖拽/剪贴板方法面；浏览器无法暴露本地路径时返回空列表，Web 上传继续走浏览器文件选择器。
 - `lib/pages/file_manager_page_transfer_inputs.dart` — `_uploadLocalPaths`(入口,含 `_ensureCurrentDirectoryWritable` 兜底)、`_copySelectedObjectsToClipboard`、`_handleNativePaste`/`_handleNativeCopy`(channel 回调入口)。
