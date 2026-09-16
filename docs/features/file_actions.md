@@ -36,6 +36,7 @@ Android 对象动作抽屉与执行层共用当前目录可写性：`file_manage
 - `lib/services/clipboard_shortcut_channel.dart` — `ClipboardShortcutChannel` 单例:`start(onPaste, onCopy)` 设置 `MethodChannel` handler;`isSupported` 仅 macOS 非 Web。
 - `lib/widgets/file_transfer_clipboard_region.dart` — `Shortcuts`+`Actions`+`DropRegion` 包装层(拖拽实际生效;粘贴的 `Shortcuts` 在 macOS 被 channel 旁路)。
 - `lib/services/desktop_file_transfer_service_io.dart` — `localFilePathsFromClipboard`(读 `SystemClipboard` 的 `Formats.fileUri`)、`localFilePathsFromDrop`、`writeLocalFilesToClipboard`、`localUploadEntries`。
+- `lib/services/desktop_file_transfer_service_web.dart` — 与 IO 实现保持相同的拖拽/剪贴板方法面；浏览器无法暴露本地路径时返回空列表，Web 上传继续走浏览器文件选择器。
 - `lib/pages/file_manager_page_transfer_inputs.dart` — `_uploadLocalPaths`(入口,含 `_ensureCurrentDirectoryWritable` 兜底)、`_copySelectedObjectsToClipboard`、`_handleNativePaste`/`_handleNativeCopy`(channel 回调入口)。
 - `lib/pages/file_manager_page_access.dart` — `_currentDirectoryWritable` / `_ensureCurrentDirectoryWritable` / `_refreshDirectoryAccess`(WebDAV 目录 PROPFIND 可写性检查)。
 

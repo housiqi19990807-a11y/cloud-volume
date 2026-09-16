@@ -4,6 +4,10 @@
 
 ---
 
+## 2026-09-16 Web/full CLI 发布构建阻断(file_actions / release workflow 域)
+
+`v1.2.6` 的 release workflow 中，macOS、Linux 桌面和 lite CLI 均成功，`web-linux-amd64/arm64` 与所有 `cli-full` 在 Flutter Web 编译阶段失败。失败原因是共享的 `FileTransferClipboardRegion` 调用 `DesktopFileTransferService.localFilePathsFromDrop`,而条件导入的 Web 实现没有该方法；Web 实现本来就不能把浏览器拖放内容转换为宿主机本地路径。为保持跨平台服务方法面一致，在 Web fallback 增加同签名空实现，浏览器继续使用独立文件选择器上传路径。`flutter build web --release --wasm-dry-run --pwa-strategy=none` 与 `scripts/build_cli_packages.sh --variant full` 已在修复后通过；Wasm dry-run 的 `dart:ffi` 仅为现有兼容性提示，不是失败根因。现行跨平台文件传输契约见 [file_actions](features/file_actions.md)，取舍见 [Agent Note](notes/implemented/bug-fix/2026-09-16-web-file-transfer-platform-contract.md)。
+
 ## 2026-09-16 Windows Cloud Files watcher 与全量回归收口(windows_platform / testing 域)
 
 针对已落档的普通本地文件删除残留、rename 去重窗口过短与 watcher 同步 journal 风险，本机实现会话 FIFO mutation admission，并用真实 NTFS fsnotify 覆盖上传后删除及 128 文件批量改名。扩大到 `go test ./...` 后继续修复了三类独立红项：共享 `config.db` 测试未在 `TempDir` 清理前关闭 bbolt 句柄、metadata 测试绕过 `Service.Close` 遗留保护定时器与数据库锁、递归占位符测试用 Go 嵌入误当动态方法覆盖。Flutter 3.44 的 `onReorder` 弃用提示通过局部兼容豁免处理，保留 README 声明的 Flutter 3.41 最低版本语义，并把触及的既有超限账号列表拆为主列表与表格支撑 part。首轮 P0/P1 评审发现异步 rename 在 worker 成功前 Rebase 会吞掉 admission 失败后的唯一 Create fallback；修复改为成功后 Rebase，文件失败路径从已移动 target 补写并删除旧 Desired，新增 watcher-only/callback-first 强制失败回归，复核无 P0/P1。现行 Windows 机制见 [windows_platform](features/windows_platform.md)，配置测试生命周期见 [settings](features/settings.md)，设计取舍见 [Agent Note](notes/implemented/bug-fix/2026-09-10-cloud-files-watcher-mutation-journal.md)。
