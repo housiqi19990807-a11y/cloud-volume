@@ -1,6 +1,6 @@
 # Android Dev — 开发环境、模拟器调测与 APK 构建(macOS 与 Windows)
 
-仓库有 macOS 与 Windows 两套用户级 Android 工具链引导。macOS 侧提供模拟器调测回路(`make android-setup` → `make android-run`);Windows 侧出 ARM64 release APK。移动端通过打包的 c-shared FFI 库复用 Go 对象存储后端,同时隐藏桌面专属工作流。文件管理共享桌面运行时但独立维护 Android 呈现：固定紧凑列表、常驻搜索，以及桶和桶内对象行尾 `…` 底部抽屉；对象也可长按打开动作抽屉，隐藏网格/列表切换与挂载/卸载/打开挂载目录；进入桶/目录/回收站后二级顶栏提供返回按钮(加载和错误状态同样有效)。`ShadApp` 首页 route 内的根 `AnnotatedRegion<SystemUiOverlayStyle>` 在浅色主题下强制状态栏和导航栏使用深色图标，避免透明 edge-to-edge 系统栏吞掉时间、信号和电量；放在应用外层会被 route overlay 命中结果覆盖。
+仓库有 macOS 与 Windows 两套用户级 Android 工具链引导。macOS 侧提供模拟器调测回路(`make android-setup` → `make android-run`);Windows 侧出 ARM64 release APK。移动端通过打包的 c-shared FFI 库复用 Go 对象存储后端,同时隐藏桌面专属工作流。文件管理共享桌面运行时但独立维护 Android 呈现：固定紧凑列表、常驻搜索,桶/对象/回收站行遵循两态选择模型(浏览态行尾选择圆点、选中态头部变形 + 底部动作条,见 mobile_ui),桶行保留行尾 `…` 底部抽屉;隐藏网格/列表切换与挂载/卸载/打开挂载目录;进入桶/目录/回收站后二级顶栏提供返回按钮(加载和错误状态同样有效)。`ShadApp` 首页 route 内的根 `AnnotatedRegion<SystemUiOverlayStyle>` 在浅色主题下强制状态栏和导航栏使用深色图标，避免透明 edge-to-edge 系统栏吞掉时间、信号和电量；放在应用外层会被 route overlay 命中结果覆盖。
 
 ## 关键文件
 

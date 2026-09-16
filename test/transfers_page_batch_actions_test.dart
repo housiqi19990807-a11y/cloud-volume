@@ -111,10 +111,10 @@ void main() {
     }
   });
 
-  // Android 选中态：标题常显，行级/批量动作收进每行 `…` 抽屉（文件
-  // 管理契约：批量抽屉仅对本行已选中且选中数 >1 的情况出现，含「取消
-  // 选择」）；页面级入口（立即同步等）在选中态保持可见。
-  testWidgets('android row overflow owns selection actions', (tester) async {
+  // Android 两态选择模型：浏览态行尾选择圆点、行点击展开明细；选中态
+  // 头部变形（取消/已选中 N 个任务/全选）+ 底部动作条承载单行/批量动作
+  // （页面级入口仅浏览态可见）。
+  testWidgets('android two-state selection owns task actions', (tester) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -156,14 +156,20 @@ void main() {
       await tester.pump();
 
       expect(find.text('任务队列'), findsOneWidget);
-      // 未选中：行 `…` 打开单行动作；页面级入口存在（立即同步，同为
-      // ellipsis 图标，用行作用域区分）。
-      final overflow = find.descendant(
+      // 浏览态：行尾是选择圆点（与页面级入口的 ellipsis 区分开），行内
+      // 无明细 chevron、无行 `…`。
+      final dots = find.descendant(
         of: find.byType(RemoteTaskRow),
-        matching: find.byIcon(LucideIcons.ellipsisVertical),
+        matching: find.bySemanticsLabel('选择'),
       );
-      expect(overflow, findsNWidgets(2));
-      // 与文件/回收站行同款:行尾单一 `…`,行内无明细 chevron。
+      expect(dots, findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byType(RemoteTaskRow),
+          matching: find.byIcon(LucideIcons.ellipsisVertical),
+        ),
+        findsNothing,
+      );
       expect(
         find.descendant(
           of: find.byType(RemoteTaskRow),
@@ -171,54 +177,67 @@ void main() {
         ),
         findsNothing,
       );
-      await tester.tap(overflow.first);
+      // 浏览态行点击=进入选中（任务无浏览态主操作；明细经「详情」动作
+      // 打开，不再行内展开）。
+      await tester.tap(find.byType(RemoteTaskRow).first);
       await tester.pumpAndSettle();
-      expect(find.byType(AppShadDialog), findsOneWidget);
-      expect(find.text('取消任务'), findsOneWidget);
-      // 明细展开是抽屉首项。
-      expect(find.text('查看明细'), findsOneWidget);
-      await tester.tap(find.text('查看明细'));
-      await tester.pumpAndSettle();
-      expect(find.byType(RemoteTaskDetails), findsOneWidget);
-      await tester.tap(overflow.first);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('收起明细'));
-      await tester.pumpAndSettle();
+      expect(find.text('已选中 1 个任务'), findsOneWidget);
       expect(find.byType(RemoteTaskDetails), findsNothing);
 
-      // 单个选中：批量等价于行自身动作，仍为行级抽屉。
-      await tester.tap(find.byType(ListSelectionControl).first);
+      // 单选动作条首项「详情」打开任务详情 sheet。
+      await tester.tap(find.text('详情'));
       await tester.pumpAndSettle();
-      await tester.tap(overflow.first);
-      await tester.pumpAndSettle();
-      expect(find.text('取消任务'), findsOneWidget);
-      expect(find.text('已选 1 个任务'), findsNothing);
+      expect(find.text('任务详情'), findsOneWidget);
+      expect(find.text('操作'), findsOneWidget);
+      expect(find.text('状态'), findsOneWidget);
+      expect(find.text('完整路径'), findsOneWidget);
       expect(await tester.binding.handlePopRoute(), isTrue);
       await tester.pumpAndSettle();
+      expect(find.text('任务详情'), findsNothing);
 
-      // 两个选中且本行在选中集：批量抽屉（取消选择/取消任务 2），
-      // 标题常显、页面入口保持可见。
-      await tester.tap(find.byType(ListSelectionControl).last);
-      await tester.pumpAndSettle();
-      expect(find.text('任务队列'), findsOneWidget);
-      await tester.tap(overflow.first);
-      await tester.pumpAndSettle();
-      expect(find.text('已选 2 个任务'), findsOneWidget);
-      expect(find.text('取消选择'), findsOneWidget);
-      expect(find.text('取消任务 2'), findsOneWidget);
-      // 批量抽屉同样以明细展开为首项(选中态行点击是切换选择,明细无
-      // 其他入口)。
-      expect(find.text('查看明细'), findsOneWidget);
-      expect(find.bySemanticsLabel('任务操作'), findsOneWidget);
-
-      // 「取消选择」清空选择，抽屉关闭后回到行级动作。
-      await tester.tap(find.text('取消选择'));
-      await tester.pumpAndSettle();
-      expect(find.byType(AppShadDialog), findsNothing);
-      await tester.tap(overflow.first);
-      await tester.pumpAndSettle();
+      // 选中态头部变形 + 底部动作条提供该行动作;页面级入口隐藏。
+      expect(find.text('取消'), findsOneWidget);
+      expect(find.text('全选'), findsOneWidget);
       expect(find.text('取消任务'), findsOneWidget);
-      expect(find.text('取消任务 2'), findsNothing);
+      expect(find.bySemanticsLabel('任务操作'), findsNothing);
+      // 选中态行尾只剩状态徽标:无下拉明细按钮,也无内联取消/重试图标
+      // (动作全在底部动作条;桌面才保留内联图标)。
+      expect(
+        find.descendant(
+          of: find.byType(RemoteTaskRow),
+          matching: find.byIcon(LucideIcons.chevronDown),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(RemoteTaskRow),
+          matching: find.byIcon(LucideIcons.circleX),
+        ),
+        findsNothing,
+      );
+
+      // 第二个选中（选中态行点击切换选中）：批量动作条（标签保持短
+      // 动词，计数在头部;批量不提供详情）。
+      await tester.tap(find.byType(RemoteTaskRow).last);
+      await tester.pumpAndSettle();
+      expect(find.text('已选中 2 个任务'), findsOneWidget);
+      expect(find.text('取消任务'), findsOneWidget);
+      expect(find.text('详情'), findsNothing);
+      await tester.tap(find.text('取消任务'));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        api.canceledTaskIds,
+        containsAll(['sync:test:cancelable-one', 'sync:test:cancelable-two']),
+      );
+
+      // 「取消」退出选中态，回到浏览态标题。
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(find.text('已选中 2 个任务'), findsNothing);
+      expect(find.text('任务队列'), findsOneWidget);
+      expect(find.bySemanticsLabel('任务操作'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       RemoteTaskStore.instance.resetForTest();
     } finally {
@@ -443,18 +462,17 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byType(ListSelectionControl).first);
-    await tester.pumpAndSettle();
-    // 单个选中走行级动作（批量需 >1），行 `…` 抽屉提供「清理历史」
-    //（页面入口同图标，用行作用域区分）。
-    await tester.tap(find.descendant(
+    // 两态模型：单个选中走底部动作条「清理历史」（浏览态页面入口不
+    // 作用于选中集）。
+    final dots = find.descendant(
       of: find.byType(RemoteTaskRow),
-      matching: find.byIcon(LucideIcons.ellipsisVertical),
-    ));
+      matching: find.bySemanticsLabel('选择'),
+    );
+    await tester.tap(dots.first);
     await tester.pumpAndSettle();
-    expect(find.text('清理历史'), findsOneWidget);
+    expect(find.text('已选中 1 个任务'), findsOneWidget);
     await tester.tap(find.text('清理历史'));
-    // 门控未完成：批处理运行中，右上角入口以 spinner 出现提示进度。
+    // 门控未完成：批处理运行中，底部动作条以 spinner 提示进度。
     await tester.pump();
 
     expect(find.byType(AppLoadingIndicator), findsOneWidget);

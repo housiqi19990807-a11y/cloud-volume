@@ -1,8 +1,11 @@
 // Unified task rows render effective remote operations with optional raw detail.
-// Layout contract: the title text column starts at 80px from the row edge
-// (12 padding + 18 checkbox + 10 gap + 28 kind chip + 12 gap); the expanded
-// detail block insets to the same value so it aligns with the title. The row
-// divider is the full-width FileListTile hairline (0.55/0.6).
+// Layout contract: the title text column starts at 80px from the row edge in
+// selection mode / desktop (12 padding + 18 checkbox + 10 gap + 28 kind chip +
+// 12 gap); the expanded detail block insets to the same value so it aligns with
+// the title. Android browse rows drop the checkbox column (two-state selection
+// model, title starts at 52px) but never expand inline — task details open from
+// the selection bar's 详情 action instead (任务详情 sheet). The row divider is
+// the full-width FileListTile hairline (0.55/0.6).
 
 import 'dart:async';
 
@@ -14,29 +17,10 @@ import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_tooltip.dart';
 import 'package:remote_storage/widgets/fitting_file_name_text.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
-import 'package:remote_storage/widgets/mobile_page_chrome.dart';
+import 'package:remote_storage/widgets/mobile_selection_chrome.dart';
 import 'package:remote_storage/widgets/remote_task_details.dart';
 import 'package:remote_storage/widgets/remote_task_style_helpers.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-
-/// Payload for the Android row `…` overflow drawer: a sheet title plus its
-/// action rows (row actions when nothing is selected, batch actions for the
-/// current selection otherwise — the file-manager drawer contract).
-class RemoteTaskOverflow {
-  const RemoteTaskOverflow({
-    required this.title,
-    required this.actions,
-    this.enabled = true,
-  });
-
-  final String title;
-  final List<MobilePageAction> actions;
-
-  /// False while a batch action runs: the row `…` disables instead of
-  /// opening a drawer with no actionable rows.
-  final bool enabled;
-}
-
 
 class RemoteTaskStatusBadge extends StatelessWidget {
   const RemoteTaskStatusBadge({super.key, required this.task});
@@ -78,7 +62,7 @@ class RemoteTaskRow extends StatefulWidget {
     this.onTrigger,
     this.onExpanded,
     this.showDivider = true,
-    this.mobileOverflow,
+    this.selectionMode = false,
   });
 
   final RemoteTask task;
@@ -90,9 +74,10 @@ class RemoteTaskRow extends StatefulWidget {
   final ValueChanged<bool>? onExpanded;
   final bool showDivider;
 
-  /// Android-only: builder for the row's trailing `…` overflow drawer (file
-  /// manager pattern). Null on desktop, which keeps inline icon actions.
-  final RemoteTaskOverflow? Function()? mobileOverflow;
+  /// Android 两态选择模型:选中态(页面存在选择)行首显示勾选控件、行点击
+  /// 切换选中;浏览态行尾显示选择圆点、行点击展开/收起明细。桌面忽略此
+  /// 参数(行首常驻控件 + 行点击切换选中 + 内联图标动作)。
+  final bool selectionMode;
 
   @override
   State<RemoteTaskRow> createState() => _RemoteTaskRowState();
@@ -116,6 +101,8 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
         task.status == RemoteTaskStatus.verifying ||
         task.status == RemoteTaskStatus.cancelRequested ||
         task.status == RemoteTaskStatus.reconciling;
+    final android = defaultTargetPlatform == TargetPlatform.android;
+    final browseMode = android && !widget.selectionMode;
 
     return MouseRegion(
       cursor: _hovered ? SystemMouseCursors.click : SystemMouseCursors.basic,
@@ -126,6 +113,8 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
       }),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        // 行点击在所有状态都是切换选中(两态模型;任务无浏览态主操作,
+        // 明细经选中态动作条的「详情」打开)。
         onTap: widget.onToggleSelected,
         onTapDown: (_) => setState(() => _pressed = true),
         onTapUp: (_) => setState(() => _pressed = false),
@@ -157,18 +146,17 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
                 ),
                 child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 5),
-                      child: ListSelectionControl(
-                        selected: widget.selected,
-                        onTap: widget.onToggleSelected,
-                        touchTargetSize:
-                            defaultTargetPlatform == TargetPlatform.android
-                            ? 48
-                            : 18,
+                    if (!browseMode) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: ListSelectionControl(
+                          selected: widget.selected,
+                          onTap: widget.onToggleSelected,
+                          touchTargetSize: android ? 48 : 18,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
+                      const SizedBox(width: 10),
+                    ],
                     _KindIconChip(kind: task.kind),
                     const SizedBox(width: 12),
                     Expanded(child: _TaskText(task: task)),
@@ -177,6 +165,8 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
                       task: task,
                       showsSpinner: showsSpinner,
                       acting: _acting,
+                      browseMode: browseMode,
+                      onSelect: widget.onToggleSelected,
                       onCancel: widget.onCancel == null
                           ? null
                           : () => _run(widget.onCancel!),
@@ -188,7 +178,6 @@ class _RemoteTaskRowState extends State<RemoteTaskRow> {
                           : () => _run(widget.onTrigger!),
                       onExpand: _toggleExpanded,
                       expanded: _expanded,
-                      mobileOverflow: widget.mobileOverflow,
                     ),
                   ],
                 ),
@@ -302,38 +291,40 @@ class _TaskText extends StatelessWidget {
   }
 }
 
-/// Right-side controls: activity spinner, status badge, then ghost actions.
+/// Right-side controls: activity spinner, status badge, then either the
+/// browse-mode select dot (Android) or the desktop inline icon actions.
 class _TaskRightSide extends StatelessWidget {
   const _TaskRightSide({
     required this.task,
     required this.showsSpinner,
     required this.acting,
+    required this.browseMode,
+    required this.onSelect,
     required this.onCancel,
     required this.onRetry,
     required this.onTrigger,
     required this.onExpand,
     required this.expanded,
-    this.mobileOverflow,
   });
 
   final RemoteTask task;
   final bool showsSpinner;
   final bool acting;
+
+  /// Android browse state: trailing is the select dot (two-state model);
+  /// desktop keeps inline icons + details chevron.
+  final bool browseMode;
+  final VoidCallback onSelect;
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
   final VoidCallback? onTrigger;
   final VoidCallback onExpand;
   final bool expanded;
-  final RemoteTaskOverflow? Function()? mobileOverflow;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    // Android 对齐文件管理行:动作收进尾部 `…` 的底部抽屉(有选中时为
-    // 批量动作),行内只留状态徽标、spinner 与明细展开;桌面保持内联图标。
-    final overflow = defaultTargetPlatform == TargetPlatform.android
-        ? mobileOverflow
-        : null;
+    final android = defaultTargetPlatform == TargetPlatform.android;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -347,15 +338,10 @@ class _TaskRightSide extends StatelessWidget {
         ],
         RemoteTaskStatusBadge(task: task),
         const SizedBox(width: 8),
-        if (overflow != null) ...[
-          // Android 与文件/回收站行同款:行尾仅一个 `…`;明细展开作为
-          // 抽屉首项,由按钮在打开时按最新展开态拼装。
-          _OverflowMenuButton(
-            task: task,
-            buildOverflow: overflow,
-            expanded: expanded,
-            onToggleDetails: onExpand,
-          ),
+        if (android) ...[
+          // Android:浏览态行尾是选择圆点;选中态动作在底部动作条,行尾
+          // 只剩状态徽标与 spinner(明细经「详情」动作打开)。
+          if (browseMode) MobileRowSelectDot(onTap: onSelect),
         ] else ...[
           if (onCancel != null)
             _iconAction('取消任务', LucideIcons.circleX, onCancel!),
@@ -388,60 +374,6 @@ class _TaskRightSide extends StatelessWidget {
         height: touch ? 48 : 28,
         iconSize: 15,
         onPressed: acting ? null : onPressed,
-      ),
-    );
-  }
-}
-
-/// Trailing `…` entry opening the Android row action drawer (48dp target,
-/// same shape as file-manager object rows).
-class _OverflowMenuButton extends StatelessWidget {
-  const _OverflowMenuButton({
-    required this.task,
-    required this.buildOverflow,
-    required this.expanded,
-    required this.onToggleDetails,
-  });
-
-  final RemoteTask task;
-  final RemoteTaskOverflow? Function() buildOverflow;
-  final bool expanded;
-  final VoidCallback onToggleDetails;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return AppTooltip(
-      // 与文件管理/回收站行一致,语义标签带上条目名,读屏可区分行 `…`
-      // 与页面级入口。
-      message: '${remoteTaskEntryName(task)} 的更多操作',
-      child: ShadIconButton.ghost(
-        width: 48,
-        height: 48,
-        iconSize: 18,
-        icon: Icon(
-          LucideIcons.ellipsisVertical,
-          color: theme.colorScheme.mutedForeground,
-        ),
-        onPressed: () async {
-          final overflow = buildOverflow();
-          if (overflow == null || !overflow.enabled) return;
-          await showMobileActionSheet(
-            context,
-            title: overflow.title,
-            actions: [
-              // 明细展开是抽屉首项(替代行内 chevron)。
-              MobilePageAction(
-                label: expanded ? '收起明细' : '查看明细',
-                icon: expanded
-                    ? LucideIcons.chevronUp
-                    : LucideIcons.chevronDown,
-                onPressed: onToggleDetails,
-              ),
-              ...overflow.actions,
-            ],
-          );
-        },
       ),
     );
   }

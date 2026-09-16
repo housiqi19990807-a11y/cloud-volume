@@ -8,14 +8,17 @@ import 'package:remote_storage/models/bootstrap_state.dart';
 import 'package:remote_storage/models/file_manager_bucket_entry.dart';
 import 'package:remote_storage/models/paged_listings.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
+import 'package:remote_storage/models/sidebar_item.dart';
 import 'package:remote_storage/services/bucket_source_service.dart';
 import 'package:remote_storage/services/remote_storage_api.dart';
+import 'package:remote_storage/state/mobile_selection_activity.dart';
 import 'package:remote_storage/state/object_listing_notifier.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/global_trash_browser.dart';
 import 'package:remote_storage/widgets/global_trash_controls.dart';
 import 'package:remote_storage/widgets/mobile_page_chrome.dart';
+import 'package:remote_storage/widgets/mobile_selection_chrome.dart';
 import 'package:remote_storage/widgets/object_action_dialogs.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -78,6 +81,8 @@ class _GlobalTrashPageState extends State<GlobalTrashPage> {
 
   @override
   void dispose() {
+    // 选中态报告随之撤销,避免隐藏/卸载后 shell 仍认为本 tab 在选中态。
+    MobileSelectionActivity.instance.report(SidebarItem.trash, false);
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();

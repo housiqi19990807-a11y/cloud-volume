@@ -18,10 +18,30 @@ extension _MobileFileManagerPresentation on _FileManagerPageState {
         ],
       ),
     );
-    return SafeArea(bottom: false, child: content);
+    // 向 shell 报告选中态(两态模型):选中时底部导航栏让位给动作条。
+    MobileSelectionActivity.instance.report(
+      SidebarItem.fileManager,
+      _mobileSelectionActive,
+    );
+    // 选中态底部动作条全宽贴底(百度式):移出页边距列,自带底部安全区。
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          Expanded(child: content),
+          _buildMobileSelectionBar(),
+        ],
+      ),
+    );
   }
 
   Widget _buildMobileHeader(ShadThemeData theme) {
+    // 两态选择模型:选中态头部整体变形(取消/已选中 N 个/全选),返回钮与
+    // 页面动作入口让位——退出选中用「取消」,系统 Back 也会先清空选择。
+    final selectionHeader = _buildMobileSelectionHeader();
+    if (selectionHeader != null) {
+      return selectionHeader;
+    }
     final bucket = _presentationBucketEntry;
     final subtitle = bucket == null
         ? (_isTrashHome ? '选择一个存储桶' : '浏览和管理远程存储中的文件。')
@@ -136,6 +156,8 @@ extension _MobileFileManagerPresentation on _FileManagerPageState {
 
   List<MobilePageAction> get _mobileActions {
     final actions = <MobilePageAction>[];
+    // 回收站视图的页面级入口(返回文件/清空回收站)按用户裁决恢复;
+    // 文件视图提供 新建目录/上传。
     if (_showTrash) {
       if (_activeBucket != null && !_loading) {
         actions.add(

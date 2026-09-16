@@ -316,25 +316,28 @@ class _SettingsPageState extends State<SettingsPage> {
             padding: const EdgeInsets.only(left: 4, top: 14, bottom: 6),
             child: Text(group.header, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: theme.colorScheme.mutedForeground)),
           ),
-          // 移动索引对齐文件管理列表基线：分组直接以行+分隔线呈现，不再
-          // 套带边框的卡片容器。
-          Column(
-            children: [
-              for (var i = 0; i < group.tabs.length; i++) ...[
-                // A transparent Material guarantees ListTile ink renders over
-                // whatever ancestor the shell page provides.
-                Material(
-                  type: MaterialType.transparency,
-                  child: ListTile(
-                    dense: true,
-                    title: Text(_tabLabel(group.tabs[i])),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _selectMobileTab(group.tabs[i]),
+          // 移动索引分组恢复带边框卡片(用户裁决;无边框基线仅适用于
+          // 文件/回收站/任务列表页)。
+          ShadCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (var i = 0; i < group.tabs.length; i++) ...[
+                  // ShadCard's DecoratedBox hides ListTile ink; a transparent
+                  // Material restores the visible press feedback on touch.
+                  Material(
+                    type: MaterialType.transparency,
+                    child: ListTile(
+                      dense: true,
+                      title: Text(_tabLabel(group.tabs[i])),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _selectMobileTab(group.tabs[i]),
+                    ),
                   ),
-                ),
-                if (i != group.tabs.length - 1) const Divider(height: 1),
+                  if (i != group.tabs.length - 1) const Divider(height: 1),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ],
@@ -342,28 +345,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildCard(ShadThemeData theme, String title, Widget child) {
-    // Android 详情对齐文件管理基线：分区是无边框的标题+内容块，带边框的
-    // 卡片容器只保留给桌面双栏布局。
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: theme.colorScheme.foreground,
-              ),
-            ),
-            const SizedBox(height: 8),
-            child,
-          ],
-        ),
-      );
-    }
+    // 详情分区恢复带边框卡片(用户裁决;无边框基线仅适用于文件/回收站/
+    // 任务列表页),移动与桌面同款。
     return SizedBox(
       width: double.infinity,
       child: ShadCard(

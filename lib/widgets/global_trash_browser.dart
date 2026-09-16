@@ -5,7 +5,7 @@ import 'package:remote_storage/models/trash_item.dart';
 import 'package:remote_storage/widgets/desktop_context_menu_region.dart';
 import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:remote_storage/widgets/local_cloudpan_file_icon.dart';
-import 'package:remote_storage/widgets/mobile_page_chrome.dart';
+import 'package:remote_storage/widgets/mobile_selection_chrome.dart';
 import 'package:remote_storage/widgets/trash_row_actions.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -40,10 +40,6 @@ class GlobalTrashBrowser extends StatelessWidget {
     required this.onToggleSelectAll,
     required this.onRestore,
     required this.onDeletePermanently,
-    this.onBatchRestore,
-    this.onBatchDelete,
-    this.batchSelectedCount = 0,
-    this.onClearSelection,
   });
 
   final List<GlobalTrashBrowserEntry> entries;
@@ -56,15 +52,6 @@ class GlobalTrashBrowser extends StatelessWidget {
   final VoidCallback onToggleSelectAll;
   final ValueChanged<GlobalTrashBrowserEntry> onRestore;
   final ValueChanged<GlobalTrashBrowserEntry> onDeletePermanently;
-
-  /// Android 行 `…` 抽屉的批量动作(当前选择的恢复/彻底删除);为空时
-  /// 抽屉只列单行动作。桌面不使用。
-  final VoidCallback? onBatchRestore;
-  final VoidCallback? onBatchDelete;
-  final int batchSelectedCount;
-
-  /// 清空当前选择(批量抽屉的「取消选择」,文件管理契约)。
-  final VoidCallback? onClearSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +91,11 @@ class GlobalTrashBrowser extends StatelessWidget {
               }
               final entry = entries[index];
               final busy = busyIds.contains(entry.id);
+              // 两态选择模型(Android):浏览态行尾是选择圆点、无行首控件;
+              // 进入选中态后行首出现勾选控件、圆点隐藏,行点击在两种状态
+              // 下都切换选中(回收站行没有浏览态主操作)。桌面保持行首控件
+              // + 行尾 TrashRowActions 的表格形态。
+              final selectionActive = selectedIds.isNotEmpty;
               return _wrapWithContextMenu(
                 entry,
                 FileListTile(
@@ -122,7 +114,7 @@ class GlobalTrashBrowser extends StatelessWidget {
                   onTap: () => _toggleEntry(entry),
                   // 双击恢复是桌面 affordance;移动端保留它会让单/双击
                   // 识别器并存,行点击被嵌套 tap 双触发(选中又取消),置空
-                  // 与对象移动行一致,恢复走行尾图标与底部动作条。
+                  // 与对象移动行一致,恢复走选中态底部动作条。
                   onDoubleTap: busy || compact
                       ? null
                       : () => onRestore(entry),
@@ -131,21 +123,17 @@ class GlobalTrashBrowser extends StatelessWidget {
                       ? null
                       : () => onToggleSelection(entry),
                   isSelected: selectedIds.contains(entry.id),
-                  showSelectionControl: true,
+                  showSelectionControl: !compact || selectionActive,
                   showDivider: index != entries.length - 1 || loadingMore,
                   deleting: busy,
                   trailing: compact
-                      ? _RowOverflowButton(
-                          entry: entry,
-                          busy: busy,
-                          rowSelected: selectedIds.contains(entry.id),
-                          batchSelectedCount: batchSelectedCount,
-                          onRestore: onRestore,
-                          onDeletePermanently: onDeletePermanently,
-                          onBatchRestore: onBatchRestore,
-                          onBatchDelete: onBatchDelete,
-                          onClearSelection: onClearSelection,
-                        )
+                      ? (selectionActive
+                            ? null
+                            : MobileRowSelectDot(
+                                onTap: busy
+                                    ? null
+                                    : () => onToggleSelection(entry),
+                              ))
                       : TrashRowActions(
                           deletedLabel: entry.item.deletedAt,
                           busy: busy,
@@ -324,106 +312,5 @@ class _HeaderSelectionIndicator extends StatelessWidget {
             : null,
       ),
     );
-  }
-}
-
-/// Android 行尾 `…` 入口:打开底部动作抽屉——无选中时为该行的
-/// 恢复/彻底删除,有选中时为当前选择的批量动作(文件管理抽屉契约)。
-class _RowOverflowButton extends StatelessWidget {
-  const _RowOverflowButton({
-    required this.entry,
-    required this.busy,
-    required this.rowSelected,
-    required this.batchSelectedCount,
-    required this.onRestore,
-    required this.onDeletePermanently,
-    required this.onBatchRestore,
-    required this.onBatchDelete,
-    required this.onClearSelection,
-  });
-
-  final GlobalTrashBrowserEntry entry;
-  final bool busy;
-  final bool rowSelected;
-  final int batchSelectedCount;
-  final ValueChanged<GlobalTrashBrowserEntry> onRestore;
-  final ValueChanged<GlobalTrashBrowserEntry> onDeletePermanently;
-  final VoidCallback? onBatchRestore;
-  final VoidCallback? onBatchDelete;
-  final VoidCallback? onClearSelection;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return Semantics(
-      label: '${entry.item.name} 的更多操作',
-      child: ShadIconButton.ghost(
-        width: 48,
-        height: 48,
-        iconSize: 18,
-        icon: Icon(
-          LucideIcons.ellipsisVertical,
-          color: theme.colorScheme.mutedForeground,
-        ),
-        onPressed: busy
-            ? null
-            : () async {
-                await showMobileActionSheet(
-                  context,
-                  title: _showsBatch()
-                      ? '已选 $batchSelectedCount 个文件'
-                      : entry.item.name,
-                  actions: _actions(),
-                );
-              },
-      ),
-    );
-  }
-
-  bool _showsBatch() =>
-      rowSelected &&
-      batchSelectedCount > 1 &&
-      onBatchRestore != null &&
-      onBatchDelete != null &&
-      onClearSelection != null;
-
-  List<MobilePageAction> _actions() {
-    // 批量抽屉按文件管理正典触发:当前行已选中且选中数 >1(单个选中的
-    // 批量等价于该行自身动作);含「取消选择」。
-    if (rowSelected &&
-        batchSelectedCount > 1 &&
-        onBatchRestore != null &&
-        onBatchDelete != null &&
-        onClearSelection != null) {
-      return [
-        MobilePageAction(
-          label: '取消选择',
-          icon: LucideIcons.x,
-          onPressed: onClearSelection!,
-        ),
-        MobilePageAction(
-          label: '恢复 $batchSelectedCount 项',
-          icon: LucideIcons.rotateCcw,
-          onPressed: onBatchRestore!,
-        ),
-        MobilePageAction(
-          label: '彻底删除 $batchSelectedCount 项',
-          icon: LucideIcons.trash2,
-          onPressed: onBatchDelete!,
-        ),
-      ];
-    }
-    return [
-      MobilePageAction(
-        label: '恢复',
-        icon: LucideIcons.rotateCcw,
-        onPressed: () => onRestore(entry),
-      ),
-      MobilePageAction(
-        label: '彻底删除',
-        icon: LucideIcons.trash2,
-        onPressed: () => onDeletePermanently(entry),
-      ),
-    ];
   }
 }

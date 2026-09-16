@@ -28,6 +28,8 @@ extension _TransfersPageRemote on _TransfersPageState {
         visible.isNotEmpty &&
         visible.every((task) => _selectedTaskIds.contains(task.id));
     final partial = selectedVisible > 0 && !allSelected;
+    // Android 两态选择模型:过滤后仍可见的选择决定选中态(与回收站一致)。
+    final selectionActive = _androidCompactQueueHeader && selectedVisible > 0;
     final sections = _groupRemoteTasks(visible);
     final listBody = Column(
       children: [
@@ -95,11 +97,7 @@ extension _TransfersPageRemote on _TransfersPageState {
                               s < sections.length - 1 ||
                               i < sections[s].tasks.length - 1 ||
                               showHistoryPager,
-                          mobileOverflow: () => _taskRowOverflowActions(
-                            store,
-                            sections[s].tasks[i],
-                            visible,
-                          ),
+                          selectionMode: selectionActive,
                         ),
                     ],
                     // History continuation lives at the end of the list, so

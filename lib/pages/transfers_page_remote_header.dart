@@ -23,6 +23,13 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
     final historyTotal = store.queue.reported
         ? store.queue.history
         : store.tasks.where(isRemoteTaskHistory).length;
+    // 向 shell 报告选中态(两态模型):当前可见选择非空时底部导航栏让位
+    // 给选中态动作条(由 transfers_page.dart 的全宽槽渲染)。报告仅在值
+    // 变化时经微任务通知,可安全地在 build 里调用。
+    MobileSelectionActivity.instance.report(
+      SidebarItem.transfers,
+      _androidCompactQueueHeader && selectedVisible > 0,
+    );
     // Android 对齐文件管理基线:页面级动作(立即同步/清理全部历史)收进
     // 右上角单一 48dp 入口打开的共享底部抽屉,选中态不隐藏(行级/批量
     // 动作在每行 `…` 抽屉里);批处理运行中入口图标变 spinner,没有
@@ -74,50 +81,64 @@ extension _TransfersPageRemoteHeader on _TransfersPageState {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: _androidCompactQueueHeader
-              ? CrossAxisAlignment.center
-              : CrossAxisAlignment.start,
-          children: [
-            // 桌面端保持上游行为：标题始终显示、22 号、无副标题。Android
-            // 按移动基线显示 23 号标题 + 副标题，选中态不再切换标题槽——
-            // 计数与批量动作由底部动作条承载，标题层级保持稳定。
-            Expanded(
-              child: _androidCompactQueueHeader
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '任务队列',
-                          style: theme.textTheme.h3.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 23,
+        // Android 两态选择模型:选中态头部变形为 取消/已选中 N 个任务/
+        // 全选,批量动作在底部动作条;浏览态保持大标题 + 右上角页面动作
+        // 入口。桌面保持完整队列头部不变。
+        if (_androidCompactQueueHeader && selectedVisible > 0)
+          MobileSelectionHeader(
+            count: selectedVisible,
+            noun: '任务',
+            allSelected:
+                visible.isNotEmpty &&
+                visible.every((task) => _selectedTaskIds.contains(task.id)),
+            onCancel: () => _remoteSetState(_selectedTaskIds.clear),
+            onToggleSelectAll: () => _toggleRemoteVisibleSelection(visible),
+          )
+        else
+          Row(
+            crossAxisAlignment: _androidCompactQueueHeader
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
+            children: [
+              // 桌面端保持上游行为：标题始终显示、22 号、无副标题。Android
+              // 按移动基线显示 23 号标题 + 副标题，选中态头部整体变形——
+              // 计数与批量动作由选中态头部/底部动作条承载。
+              Expanded(
+                child: _androidCompactQueueHeader
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '任务队列',
+                            style: theme.textTheme.h3.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 23,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '查看传输与同步任务的进度。',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: theme.colorScheme.mutedForeground,
-                            fontSize: 13,
+                          const SizedBox(height: 3),
+                          Text(
+                            '查看传输与同步任务的进度。',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: theme.colorScheme.mutedForeground,
+                              fontSize: 13,
+                            ),
                           ),
+                        ],
+                      )
+                    : Text(
+                        '任务队列',
+                        style: theme.textTheme.h3.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 22,
                         ),
-                      ],
-                    )
-                  : Text(
-                      '任务队列',
-                      style: theme.textTheme.h3.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 22,
                       ),
-                    ),
-            ),
-            if (androidActionsEntry != null) ...[
-              const SizedBox(width: 8),
-              androidActionsEntry,
-            ],
+              ),
+              if (androidActionsEntry != null) ...[
+                const SizedBox(width: 8),
+                androidActionsEntry,
+              ],
             // 桌面端保持完整队列头部：内联 outline 按钮与原间距不变。
             if (!_androidCompactQueueHeader) ...[
               const SizedBox(width: 10),

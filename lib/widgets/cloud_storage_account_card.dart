@@ -168,11 +168,8 @@ class _AccountCard extends StatelessWidget {
           ),
         ],
       );
-    // 移动端对齐文件管理列表基线：账号块直接落在页面背景上，行间分隔线
-    // 由 _buildMobileList 提供；带边框的卡片容器只保留给桌面网格/表格。
-    if (mobileLayout) {
-      return Padding(padding: const EdgeInsets.all(14), child: content);
-    }
+    // 账号块保持带边框卡片(用户裁决恢复;无边框基线仅适用于文件/回收站/
+    // 任务列表页)。
     return ShadCard(padding: const EdgeInsets.all(14), child: content);
   }
 }

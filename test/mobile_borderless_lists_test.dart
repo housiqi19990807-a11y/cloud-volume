@@ -153,7 +153,7 @@ void main() {
     }
   });
 
-  testWidgets('account mobile list drops card borders, desktop table keeps one', (
+  testWidgets('account mobile list keeps its card, desktop table keeps one', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(900, 900);
@@ -182,7 +182,8 @@ void main() {
       );
       await tester.pump();
       expect(find.text('测试账号'), findsOneWidget);
-      expect(find.byType(ShadCard), findsNothing);
+      // 账号块卡片已按用户裁决恢复（无边框基线仅适用于文件/回收站/任务）。
+      expect(find.byType(ShadCard), findsOneWidget);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

@@ -922,57 +922,85 @@ void main() {
       expect(find.byType(GlobalTrashPage), findsOneWidget);
       expect(find.text('已删文件.txt'), findsOneWidget);
       expect(find.byIcon(LucideIcons.plus), findsNothing);
-      // 头部动作收进抽屉：先打开右上角入口，再触发「清空回收站」。
+      // 页面级入口（刷新/清空回收站）保持右上角单一入口打开底部抽屉。
       await tester.tap(find.bySemanticsLabel('回收站操作'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ShadButton, '清空回收站'));
       await tester.pumpAndSettle();
       expect(find.text('将彻底删除「手机文件」回收站中的所有项目，之后无法恢复。'), findsOneWidget);
-      expect(find.widgetWithText(ShadButton, '取消'), findsOneWidget);
-
-      await tester.tap(find.widgetWithText(ShadButton, '取消'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppShadDialog),
+          matching: find.widgetWithText(ShadButton, '取消'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('已删文件.txt'), findsOneWidget);
 
-      // 行动作收进行尾 `…` 抽屉（文件管理契约）：无选中/单个选中时为
-      // 单行 恢复/彻底删除。（行点击曾因 onDoubleTap 双触发而失效，钉住。）
-      final rowOverflow = find.descendant(
+      // 两态选择模型：浏览态行尾选择圆点，无行 `…` 抽屉。（行点击曾因
+      // onDoubleTap 双触发而失效，钉住浏览态行点击=进入选中。）
+      final selectDots = find.descendant(
         of: find.byType(FileListTile),
-        matching: find.byIcon(LucideIcons.ellipsisVertical),
+        matching: find.bySemanticsLabel('选择'),
       );
-      await tester.tap(rowOverflow.first);
-      await tester.pumpAndSettle();
-      expect(find.byType(AppShadDialog), findsOneWidget);
-      expect(find.text('恢复'), findsOneWidget);
-      expect(find.text('彻底删除'), findsOneWidget);
-      expect(await tester.binding.handlePopRoute(), isTrue);
-      await tester.pumpAndSettle();
+      expect(selectDots, findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byType(FileListTile),
+          matching: find.byIcon(LucideIcons.ellipsisVertical),
+        ),
+        findsNothing,
+      );
 
-      // 单个选中：批量等价于行自身动作，抽屉保持行级。
+      // 行点击进入选中态：头部变形（取消/已选中 N 个文件/全选）+ 底部
+      // 动作条（详情/恢复/彻底删除）,底部导航栏整体让位（两态模型）。
       await tester.tap(find.byType(FileListTile).first);
       await tester.pumpAndSettle();
-      await tester.tap(rowOverflow.first);
-      await tester.pumpAndSettle();
+      expect(find.text('已选中 1 个文件'), findsOneWidget);
+      expect(find.text('浏览与恢复已删除的远端文件。'), findsNothing);
+      expect(find.text('取消'), findsOneWidget);
+      expect(find.text('全选'), findsOneWidget);
       expect(find.text('恢复'), findsOneWidget);
-      expect(find.text('已选 1 个文件'), findsNothing);
+      expect(find.text('彻底删除'), findsOneWidget);
+      expect(find.byType(MobileNavigationBar<SidebarItem>), findsNothing);
+
+      // 单选首项「详情」打开文件详情 sheet：展示系统已有的元信息。
+      await tester.tap(find.text('详情'));
+      await tester.pumpAndSettle();
+      expect(find.text('文件详情'), findsOneWidget);
+      expect(find.text('名称'), findsOneWidget);
+      expect(find.text('删除时间'), findsOneWidget);
+      expect(find.text('原路径'), findsOneWidget);
       expect(await tester.binding.handlePopRoute(), isTrue);
       await tester.pumpAndSettle();
 
-      // 两行选中后，选中行的 `…` 变为批量抽屉（取消选择/恢复/彻底删除），
-      // 页面级入口保持可见。
-      await tester.tap(find.byType(FileListTile).last);
+      // 全选：剩余行进入选中集，按钮切换为「取消全选」。
+      await tester.tap(find.text('全选'));
       await tester.pumpAndSettle();
-      await tester.tap(rowOverflow.first);
+      expect(find.text('已选中 2 个文件'), findsOneWidget);
+      expect(find.text('取消全选'), findsOneWidget);
+
+      // 批量「彻底删除」走确认弹窗——它是旧「清空回收站」入口的等价
+      // 路径；这里取消退出，不真正删除。
+      await tester.tap(find.text('彻底删除'));
       await tester.pumpAndSettle();
-      expect(find.text('已选 2 个文件'), findsOneWidget);
-      expect(find.text('取消选择'), findsOneWidget);
-      expect(find.text('恢复 2 项'), findsOneWidget);
-      expect(find.text('彻底删除 2 项'), findsOneWidget);
+      expect(find.text('批量彻底删除'), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppShadDialog),
+          matching: find.widgetWithText(ShadButton, '取消'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 「取消」退出选中态，回到浏览态大标题,底部导航栏与页面级入口
+      // 恢复显示。
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(find.text('已选中 2 个文件'), findsNothing);
+      expect(find.text('浏览与恢复已删除的远端文件。'), findsOneWidget);
+      expect(find.byType(MobileNavigationBar<SidebarItem>), findsOneWidget);
       expect(find.bySemanticsLabel('回收站操作'), findsOneWidget);
-      // 「取消选择」清空选择并关闭抽屉。
-      await tester.tap(find.text('取消选择'));
-      await tester.pumpAndSettle();
-      expect(find.byType(AppShadDialog), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -1458,10 +1486,11 @@ void main() {
         final objectRow = find.byKey(
           const ValueKey<String>('file-object-待下载目录/'),
         );
+        // 两态模型：圆点进入选中态，底部动作条触发「下载」。
         await tester.tap(
           find.descendant(
             of: objectRow,
-            matching: find.byIcon(LucideIcons.ellipsisVertical),
+            matching: find.bySemanticsLabel('选择'),
           ),
         );
         await tester.pumpAndSettle();
@@ -1957,7 +1986,11 @@ void main() {
 
       final pendingRestore = Completer<void>();
       api.nextRestoreTrashItem = pendingRestore;
-      await tester.tap(find.byIcon(LucideIcons.rotateCcw));
+      // 两态模型：行点击进入选中态，底部动作条触发「恢复」。
+      await tester.tap(find.byType(FileListTile).first);
+      await tester.pumpAndSettle();
+      expect(find.text('已选中 1 个文件'), findsOneWidget);
+      await tester.tap(find.text('恢复'));
       await tester.pump();
       expect(api.nextRestoreTrashItem, isNull);
 
@@ -2100,6 +2133,8 @@ void main() {
       await tester.pumpAndSettle();
       await _openMobileBucketTrash(tester);
       expect(find.text('返回文件'), findsNothing);
+      // 回收站视图的页面级入口（返回文件/清空回收站）保持右上角单一入口；
+      // 首次 Back 收起动作抽屉，再次 Back 才离开桶回收站。
       expect(find.byIcon(LucideIcons.plus), findsOneWidget);
       await _openMobileFileActions(tester);
       expect(find.widgetWithText(ShadButton, '返回文件'), findsOneWidget);
@@ -2723,14 +2758,17 @@ void main() {
         await tester.pumpAndSettle();
 
         final objectRow = find.byKey(const ValueKey('file-object-待删除.txt'));
+        // 两态模型：圆点进入选中态；动作条两排全量展示,删除在第二排直接
+        // 可点(无「更多」)。
         await tester.tap(
           find.descendant(
             of: objectRow,
-            matching: find.byIcon(LucideIcons.ellipsisVertical),
+            matching: find.bySemanticsLabel('选择'),
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(ShadButton, '删除'));
+        expect(find.text('重命名'), findsOneWidget);
+        await tester.tap(find.text('删除'));
         await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(ShadButton, '删除'));
         await tester.pump();
@@ -3182,6 +3220,7 @@ void main() {
         await tester.ensureVisible(objectRow);
         await tester.longPress(objectRow);
         // Page two deliberately remains pending, so do not settle its spinner.
+        // 两态模型：长按进入选中态；动作条两排全量展示,重命名直接可点。
         await tester.pump(const Duration(milliseconds: 320));
         await tester.tap(find.text('重命名'));
         await tester.pump(const Duration(milliseconds: 320));
@@ -3328,7 +3367,12 @@ void main() {
 
       final refreshedPage = Completer<TrashListPage>();
       api.nextTrashPage = refreshedPage;
-      await tester.tap(find.byIcon(LucideIcons.rotateCcw).first);
+      // 两态模型：行点击进入选中态，底部动作条触发「恢复」。
+      await tester.ensureVisible(find.byType(FileListTile).first);
+      await tester.pump();
+      await tester.tap(find.byType(FileListTile).first);
+      await tester.pump();
+      await tester.tap(find.text('恢复'));
       await tester.pump();
       expect(api.nextTrashPage, isNull);
 
@@ -3420,6 +3464,8 @@ void main() {
       await tester.pumpAndSettle();
       await _openMobileBucketTrash(tester);
       expect(find.text('返回文件'), findsNothing);
+      // 回收站视图的页面级入口（返回文件/清空回收站）保持右上角单一入口。
+      expect(find.byIcon(LucideIcons.plus), findsOneWidget);
       await _openMobileFileActions(tester);
       expect(find.widgetWithText(ShadButton, '返回文件'), findsOneWidget);
 
@@ -3674,13 +3720,14 @@ void main() {
           )
           .first;
       expect(tester.getSize(buttonZone).height, greaterThanOrEqualTo(48));
-      // 无边框基线：Android 账号页不再出现带边框的卡片容器。
+      // 账号页卡片容器已按用户裁决恢复（无边框基线仅适用于文件/回收站/
+      // 任务列表页）。
       expect(
         find.descendant(
           of: find.byType(CloudStoragePage),
           matching: find.byType(ShadCard),
         ),
-        findsNothing,
+        findsWidgets,
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -3717,13 +3764,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('管理应用与连接偏好。'), findsOneWidget);
-      // 无边框基线：Android 设置索引不再套带边框的分组卡片。
+      // 设置索引分组卡片已按用户裁决恢复。
       expect(
         find.descendant(
           of: find.byType(SettingsPage),
           matching: find.byType(ShadCard),
         ),
-        findsNothing,
+        findsWidgets,
       );
 
       // 进入一个设置详情页（「外观」标签唯一），返回入口语义与 48dp 尺寸保持。
@@ -3732,13 +3779,13 @@ void main() {
       await tester.tap(find.text('外观'));
       await tester.pumpAndSettle();
       expect(find.text('外观'), findsWidgets);
-      // 无边框基线：Android 设置详情分区是无边框的标题+内容块。
+      // 设置详情分区卡片已按用户裁决恢复。
       expect(
         find.descendant(
           of: find.byType(SettingsPage),
           matching: find.byType(ShadCard),
         ),
-        findsNothing,
+        findsWidgets,
       );
       final back = find.bySemanticsLabel('返回设置');
       expect(back, findsOneWidget);
@@ -3832,7 +3879,7 @@ void main() {
         ),
         findsNothing,
       );
-      // 动作收进抽屉：右上角单一 48dp 入口打开底部动作抽屉。
+      // 页面级入口（刷新/清空回收站）保持右上角单一入口打开底部抽屉。
       final trashEntry = find.bySemanticsLabel('回收站操作');
       expect(trashEntry, findsOneWidget);
       expect(tester.getSize(trashEntry).height, greaterThanOrEqualTo(48));

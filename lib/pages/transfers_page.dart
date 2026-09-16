@@ -6,12 +6,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_storage/models/remote_storage_config.dart';
 import 'package:remote_storage/models/remote_task.dart';
+import 'package:remote_storage/models/remote_task_display.dart';
+import 'package:remote_storage/models/sidebar_item.dart';
 import 'package:remote_storage/services/remote_storage_gateway.dart';
+import 'package:remote_storage/state/mobile_selection_activity.dart';
 import 'package:remote_storage/state/remote_task_store.dart';
 import 'package:remote_storage/widgets/app_loading_indicator.dart';
 import 'package:remote_storage/widgets/app_toast.dart';
 import 'package:remote_storage/widgets/list_selection_controls.dart';
 import 'package:remote_storage/widgets/mobile_page_chrome.dart';
+import 'package:remote_storage/widgets/mobile_selection_chrome.dart';
 import 'package:remote_storage/widgets/remote_task_style_helpers.dart';
 import 'package:remote_storage/widgets/remote_task_widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -78,6 +82,8 @@ class _TransfersPageState extends State<TransfersPage> {
 
   @override
   void dispose() {
+    // 选中态报告随之撤销,避免隐藏/卸载后 shell 仍认为本 tab 在选中态。
+    MobileSelectionActivity.instance.report(SidebarItem.transfers, false);
     RemoteTaskStore.instance.removeListener(_syncSelectionWithTasks);
     _searchController
       ..removeListener(_onSearchChanged)
@@ -178,11 +184,20 @@ class _TransfersPageState extends State<TransfersPage> {
       builder: (context, _) => _buildRemoteQueueBody(theme, RemoteTaskStore.instance),
     );
     if (defaultTargetPlatform == TargetPlatform.android) {
+      // 选中态动作条全宽贴底(百度式):移出页边距列,自带底部安全区;
+      // 选中态下底部导航栏由 shell 隐藏。
       return SafeArea(
         bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-          child: body,
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                child: body,
+              ),
+            ),
+            _buildAndroidSelectionBarSlot(),
+          ],
         ),
       );
     }
