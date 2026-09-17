@@ -7,6 +7,7 @@ import 'package:remote_storage/widgets/file_list_tile.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 part 'cloud_storage_account_card.dart';
+part 'cloud_storage_account_list_support.dart';
 
 /// Connection-probe status for one account, shown in the account-management
 /// status column. Defined here (next to the widget that renders it) and
@@ -70,7 +71,6 @@ class CloudStorageAccountList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 12),
       itemCount: accounts.length,
-      // 卡片式账号块之间的常规间距(卡片容器已按用户裁决恢复)。
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final profile = accounts[index];
@@ -132,8 +132,8 @@ class CloudStorageAccountList extends StatelessWidget {
                 ? ReorderableListView.builder(
                     buildDefaultDragHandles: false,
                     itemCount: accounts.length,
-                    // Classic onReorder API keeps this building on Flutter
-                    // 3.41; onReorderItem exists only on 3.47+.
+                    // Flutter 3.41 needs this until the minimum SDK is raised.
+                    // ignore: deprecated_member_use
                     onReorder: onReorder!,
                     proxyDecorator: (child, index, animation) {
                       return Material(
@@ -221,68 +221,3 @@ class CloudStorageAccountList extends StatelessWidget {
     return profile.storageType.label;
   }
 }
-
-class _AccountActions extends StatelessWidget {
-  const _AccountActions({
-    required this.profile,
-    required this.busy,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onManageBuckets,
-    required this.onToggleDisabled,
-    required this.status,
-    required this.statusError,
-  });
-
-  final ProfileInfo profile;
-  final bool busy;
-  final ValueChanged<ProfileInfo> onEdit;
-  final ValueChanged<ProfileInfo> onDelete;
-  final ValueChanged<ProfileInfo> onManageBuckets;
-  final void Function(ProfileInfo profile, bool disabled) onToggleDisabled;
-  final AccountStatus status;
-  final String? statusError;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: CloudStorageAccountList._actionColumnWidth,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          _AccountStatusChip(status: status, error: statusError),
-          const SizedBox(width: 10),
-          ShadSwitch(
-            value: !profile.disabled,
-            onChanged: busy
-                ? null
-                : (enabled) => onToggleDisabled(profile, !enabled),
-          ),
-          const SizedBox(width: 10),
-          _AccountActionButton(
-            label: '桶管理',
-            icon: LucideIcons.listFilter,
-            onPressed: busy ? null : () => onManageBuckets(profile),
-          ),
-          const SizedBox(width: 6),
-          _AccountActionButton(
-            label: '编辑',
-            icon: LucideIcons.pencil,
-            onPressed: busy ? null : () => onEdit(profile),
-          ),
-          const SizedBox(width: 6),
-          _AccountActionButton(
-            label: '退出',
-            icon: LucideIcons.logOut,
-            destructive: true,
-            onPressed: busy ? null : () => onDelete(profile),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Status chip for the account-management status column. Shows a small dot +
-/// label. Uses mutedForeground colors so it never reads as a hover/theme change
-/// (per the hover visual rule, an idle column must look identical at hover).

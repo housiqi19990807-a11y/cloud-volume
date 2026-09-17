@@ -3,7 +3,9 @@ package mount
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -21,11 +23,24 @@ func (a *bucketAccess) stageMetadataWrite(virtualPath, localPath string, _ int64
 	if service == nil {
 		return fmt.Errorf("metadata write path is unavailable")
 	}
-	file, err := os.Open(localPath)
+	file, err := openMetadataWriteSource(localPath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+	return a.stageMetadataWriteFromOpenSource(virtualPath, localPath, file)
+}
+
+// stageMetadataWriteFromOpenSource lets the Windows watcher capture a source
+// handle before a following Explorer rename moves its directory entry.
+func (a *bucketAccess) stageMetadataWriteFromOpenSource(virtualPath, localPath string, file *os.File) error {
+	service := a.metadataService()
+	if service == nil {
+		return fmt.Errorf("metadata write path is unavailable")
+	}
+	// Serialize sampling and admission with an externally completed rename.
+	a.writebackMu.Lock()
+	defer a.writebackMu.Unlock()
 	info, err := file.Stat()
 	if err != nil {
 		return err
@@ -36,12 +51,20 @@ func (a *bucketAccess) stageMetadataWrite(virtualPath, localPath string, _ int64
 
 	// Cache markers must change in the same mount-local order as Desired paths.
 	// The metadata facade has its own durable path order across all adapters.
-	a.writebackMu.Lock()
-	defer a.writebackMu.Unlock()
-	inode, ref, err := service.WritePath(context.Background(), cleanVirtualPath(virtualPath), file, info.Size(), metadata.WriteOptions{
-		Origin: "mount",
-		MTime:  info.ModTime().Format("2006-01-02 15:04:05"),
-	})
+	var inode uint64
+	var ref metadata.ContentRef
+	for attempt := 0; ; attempt++ {
+		if _, err = file.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		inode, ref, err = service.WritePath(context.Background(), cleanVirtualPath(virtualPath), file, info.Size(), metadata.WriteOptions{
+			Origin: "mount",
+			MTime:  info.ModTime().Format("2006-01-02 15:04:05"),
+		})
+		if !errors.Is(err, metadata.ErrStaleCursor) || attempt == 7 {
+			break
+		}
+	}
 	if err != nil {
 		return err
 	}

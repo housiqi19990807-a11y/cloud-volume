@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-09-16 Web/full CLI 发布构建阻断(file_actions / release workflow 域)
+
+`v1.2.6` 的 release workflow 中，macOS、Linux 桌面和 lite CLI 均成功，`web-linux-amd64/arm64` 与所有 `cli-full` 在 Flutter Web 编译阶段失败。失败原因是共享的 `FileTransferClipboardRegion` 调用 `DesktopFileTransferService.localFilePathsFromDrop`,而条件导入的 Web 实现没有该方法；Web 实现本来就不能把浏览器拖放内容转换为宿主机本地路径。为保持跨平台服务方法面一致，在 Web fallback 增加同签名空实现，浏览器继续使用独立文件选择器上传路径。`flutter build web --release --wasm-dry-run --pwa-strategy=none` 与 `scripts/build_cli_packages.sh --variant full` 已在修复后通过；Wasm dry-run 的 `dart:ffi` 仅为现有兼容性提示，不是失败根因。提交 `23b35de5` 经独立 P0/P1 只读评审 `APPROVE`，无阻断；评审提出的 Web 拖拽提示与独立契约测试 P2/P3 已按范围记录在正典。现行跨平台文件传输契约见 [file_actions](features/file_actions.md)，取舍见 [Agent Note](notes/implemented/bug-fix/2026-09-16-web-file-transfer-platform-contract.md)。
+
+## 2026-09-16 Windows Cloud Files watcher 与全量回归收口(windows_platform / testing 域)
+
+针对已落档的普通本地文件删除残留、rename 去重窗口过短与 watcher 同步 journal 风险，本机实现会话 FIFO mutation admission，并用真实 NTFS fsnotify 覆盖上传后删除及 128 文件批量改名。扩大到 `go test ./...` 后继续修复了三类独立红项：共享 `config.db` 测试未在 `TempDir` 清理前关闭 bbolt 句柄、metadata 测试绕过 `Service.Close` 遗留保护定时器与数据库锁、递归占位符测试用 Go 嵌入误当动态方法覆盖。Flutter 3.44 的 `onReorder` 弃用提示通过局部兼容豁免处理，保留 README 声明的 Flutter 3.41 最低版本语义，并把触及的既有超限账号列表拆为主列表与表格支撑 part。首轮 P0/P1 评审发现异步 rename 在 worker 成功前 Rebase 会吞掉 admission 失败后的唯一 Create fallback；修复改为成功后 Rebase，文件失败路径从已移动 target 补写并删除旧 Desired，新增 watcher-only/callback-first 强制失败回归，复核无 P0/P1。现行 Windows 机制见 [windows_platform](features/windows_platform.md)，配置测试生命周期见 [settings](features/settings.md)，设计取舍见 [Agent Note](notes/implemented/bug-fix/2026-09-10-cloud-files-watcher-mutation-journal.md)。
+
+## 2026-09-10 Windows Cloud Files 原生回归修复批次(windows_platform / storage_backends 域)
+
+修复干净 `origin/main` 在 Windows 云机上的四层回归阻断并完成真实回归:WinFsp bridge 构建入口(未使用 import、Make 变量域 `WINFSP_INC`)、Cloud Files 写入的 Windows 目录同步与 rename 句柄共享、`FETCH_PLACEHOLDERS` 零项回复导致的嵌套目录空列表,以及带 task ID 小文件上传的 SigV4 可回绕请求体。云机最新 Release 已重新构建,并用真实 C-ABI harness + mock S3 验证根/嵌套枚举、写后立即改名、RemoteTask 投影与远端一致性;过程决策见当日三条 [Agent Note](notes/implemented/bug-fix/)。早前"Windows 基线编译阻断"的结论已被本批次取代,当前正典构建可通过。
+
+## 2026-09-10 Windows 云主机原生回归阻断(windows_platform 域)
+
+在 Windows 云主机从干净 `origin/main` worktree（`87cec76e`）执行正典 `scripts/run_windows.ps1 -Build` 时，脚本已正确选中 x64 UCRT64 工具链和 vendored WinFsp 头，但 Go bridge 因 `go/mount/winfsp_fs_windows.go` 导入未使用的 `s3ops "remote-storage/go/s3"` 而失败。该未修改基线无法产出 Windows 应用，故不能把旧二进制或 mock 挂载结果当作当前版本的 Explorer/文件列表/RemoteTask 回归证据；需先由用户授权在隔离 worktree 临时修正或在主线修复后再跑 MinIO 三方一致性闭环。
+
+同轮 `flutter analyze` 报两项 `onReorder` deprecated info；`flutter test` 结束于 `+199 -30`，主要触发 Flutter 对带背景 `DecoratedBox` 包裹 `ListTile` 的断言，延续既有 Flutter 工具链兼容问题。裸 `go test ./...` 另因未设置 WinFsp `CPATH` 失败并暴露 Windows 临时 bbolt 文件锁清理问题，不能替代正典脚本的构建结果。远程测试 worktree 的 `flutter pub get` 只变更其隔离副本的 `pubspec.lock`，没有修改用户 checkout。
+
+## 2026-09-09 项目对外介绍口径探索(跨域)
+
+面向 AI 工程协作场景介绍云卷时，最具区分度的主线是「把多种远端存储统一成接近本地磁盘的跨平台体验」，而不是普通网盘 CRUD。可复用的工程例证是：一项能力通常横跨 Go 后端、FFI/JSON 桥接、Dart 模型与 Flutter 多端 UI；挂载和文件管理页共享 bbolt inode 视图，mutation 由 journal 驱动并遵守 chunk 落盘、失败恢复与远端副作用防重放契约；实现再由针对性测试、全量 Go/Flutter 检查和 P0/P1 子代理评审收口。对外表述应把 AI 定位为代码库探索、跨层实现、测试与文档评审的长期协作者，人负责产品边界、架构取舍和最终验收，避免宣称 AI 独立完成项目或虚构用户量、性能数据。产品范围见根 [README](../README.md)，核心契约见 [mount_metadata_core](features/mount_metadata_core.md)、[remote_tasks](features/remote_tasks.md)、[storage_backends](features/storage_backends.md) 与 [file_sync_p2p](features/file_sync_p2p.md)。
+
 ## 2026-09-02 Android 文件操作与回收站入口分离(app_shell 域)
 
 用户确认回收站不应成为文件页普通 `+` 抽屉的首项。`mobile_file_manager_presentation.dart` 的桶/目录动作因此只保留新建目录与上传；`SidebarItem.trash` 的底栏目的地继续承载全局回收站。桶回收站已打开时的返回文件与清空操作不变。`test/widget_test.dart` 明确锁定普通 `+` 抽屉既没有「回收站」也没有「打开回收站」、独立入口仍可显示并清空回收站，以及桶行 `…` 仍可打开桶级回收站；P0/P1 复审通过，提出的入口区分 P2 已同批补齐。现行呈现契约见 [app_shell](features/app_shell.md)。

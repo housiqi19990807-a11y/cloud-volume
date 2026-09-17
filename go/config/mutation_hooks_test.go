@@ -1,17 +1,13 @@
 package config
 
 import (
-	"runtime"
 	"sync/atomic"
 	"testing"
 )
 
 func TestSaveProfileNotifiesMutationHookAfterSuccess(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	if runtime.GOOS == "windows" {
-		t.Setenv("USERPROFILE", home)
-	}
+	setTestHome(t, home)
 
 	var calls atomic.Int32
 	SetProfileMutationHook(func() { calls.Add(1) })
@@ -27,10 +23,7 @@ func TestSaveProfileNotifiesMutationHookAfterSuccess(t *testing.T) {
 
 func TestSaveProfileDoesNotNotifyMutationHookOnFailure(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	if runtime.GOOS == "windows" {
-		t.Setenv("USERPROFILE", home)
-	}
+	setTestHome(t, home)
 
 	var calls atomic.Int32
 	SetProfileMutationHook(func() { calls.Add(1) })

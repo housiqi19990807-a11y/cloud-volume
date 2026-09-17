@@ -295,6 +295,7 @@ func TestChunkRootSurvivesCacheDirectorySettingChange(t *testing.T) {
 	oldCacheRoot := t.TempDir()
 	newCacheRoot := t.TempDir()
 	manager := NewManager(filepath.Join(t.TempDir(), "runtime"))
+	t.Cleanup(manager.RemoveAllForTest)
 	config := fakeConfig("chunk-profile")
 	config.CacheDirectory = oldCacheRoot
 	handle, err := manager.AcquireWithBackend(config, "bucket", newFakeBackend())

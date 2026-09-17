@@ -4,7 +4,6 @@
 package mount
 
 import (
-	"context"
 	"io/fs"
 	"log"
 	"os"
@@ -17,13 +16,16 @@ import (
 )
 
 type windowsPathState struct {
-	mu              sync.Mutex
-	ignored         map[string]windowsIgnoredPath
-	hydrating       map[string]bool
-	kinds           map[string]bool
-	files           map[string]windowsObservedFile
-	placeholders    map[string]bool
-	providerDeletes map[string]windowsProviderDelete
+	mu               sync.Mutex
+	ignored          map[string]windowsIgnoredPath
+	hydrating        map[string]bool
+	kinds            map[string]bool
+	files            map[string]windowsObservedFile
+	placeholders     map[string]bool
+	projected        map[string]bool
+	providerDeletes  map[string]windowsProviderDelete
+	pendingRenames   map[string]windowsPendingRename
+	completedRenames map[string]time.Time
 }
 
 type windowsIgnoredPath struct {
@@ -53,6 +55,8 @@ type windowsSyncWatcher struct {
 	harvestMu      sync.Mutex
 	activeHarvests map[string]time.Time
 	closeOnce      sync.Once
+	renameMu       sync.Mutex
+	mutations      *windowsWatcherMutationQueue
 }
 
 func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatcher, error) {
@@ -65,28 +69,34 @@ func newWindowsSyncWatcher(root string, access *bucketAccess) (*windowsSyncWatch
 		access: access,
 		raw:    rawWatcher,
 		state: &windowsPathState{
-			ignored:         map[string]windowsIgnoredPath{},
-			hydrating:       map[string]bool{},
-			kinds:           map[string]bool{},
-			files:           map[string]windowsObservedFile{},
-			placeholders:    map[string]bool{},
-			providerDeletes: map[string]windowsProviderDelete{},
+			ignored:          map[string]windowsIgnoredPath{},
+			hydrating:        map[string]bool{},
+			kinds:            map[string]bool{},
+			files:            map[string]windowsObservedFile{},
+			placeholders:     map[string]bool{},
+			projected:        map[string]bool{},
+			providerDeletes:  map[string]windowsProviderDelete{},
+			pendingRenames:   map[string]windowsPendingRename{},
+			completedRenames: map[string]time.Time{},
 		},
 		done:           make(chan struct{}),
 		watched:        map[string]bool{},
 		watchPending:   map[string]bool{},
 		watchWanted:    map[string]bool{},
 		activeHarvests: map[string]time.Time{},
+		mutations:      newWindowsWatcherMutationQueue(),
 	}, nil
 }
 
 func (w *windowsSyncWatcher) Start() error {
+	w.mutations.start()
 	w.wg.Add(1)
 	go w.run()
 	if err := w.rescanDirectories(); err != nil {
 		w.signalStop()
 		_ = w.closeRaw()
 		w.wg.Wait()
+		w.mutations.stopAndDrain()
 		return err
 	}
 	return nil
@@ -96,6 +106,7 @@ func (w *windowsSyncWatcher) Close() error {
 	w.signalStop()
 	closeErr := w.closeRaw()
 	w.wg.Wait()
+	w.mutations.stopAndDrain()
 	return closeErr
 }
 
@@ -201,10 +212,34 @@ func (w *windowsSyncWatcher) handleEvent(event fsnotify.Event) {
 	if event.Has(fsnotify.Write) {
 		w.handleWrite(localPath, virtualPath)
 	}
-	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-		w.cancelPendingUpload(localPath, virtualPath)
-		w.Forget(localPath)
+	// Windows sometimes reports the old name as one Remove|Rename event;
+	// pair the rename first so a source delete cannot discard the candidate.
+	if event.Has(fsnotify.Rename) {
+		w.handleRenameSource(localPath, virtualPath)
+	} else if event.Has(fsnotify.Remove) {
+		w.handleRemovedSource(localPath, virtualPath)
 	}
+}
+
+// handleRemovedSource drops a normal-source delete without discarding a
+// pending rename: Windows can also report the old name as Remove immediately
+// before the destination Create, not only as Rename.
+func (w *windowsSyncWatcher) handleRemovedSource(localPath, virtualPath string) {
+	w.cancelPendingUpload(localPath, virtualPath)
+	if w.state.hasPendingFileRename(localPath) {
+		return
+	}
+	isDir := w.IsDir(localPath)
+	// Projected placeholders have a reliable CFAPI completion callback. Only
+	// ordinary local entries need the fsnotify fallback, otherwise both paths
+	// could journal the same deletion.
+	if w.state.isProjected(localPath) {
+		return
+	}
+	if w.access.usesMetadataWritePath() {
+		w.enqueueDeletePath(virtualPath, isDir, nil)
+	}
+	w.Forget(localPath)
 }
 
 func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
@@ -214,9 +249,7 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 		w.state.remember(localPath, true)
 		w.state.clearPlaceholdersUnder(localPath)
 		w.addWatch(localPath)
-		if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
-			log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
-		}
+		w.enqueueCreateDirectory(virtualPath)
 		w.harvestDirectoryTree(filepath.Dir(localPath))
 		w.harvestDirectoryTree(localPath)
 		return
@@ -225,9 +258,73 @@ func (w *windowsSyncWatcher) handleCreate(localPath, virtualPath string) {
 		w.harvestDirectoryTree(filepath.Dir(localPath))
 		return
 	}
+	if w.completePendingFileRename(localPath, virtualPath, info) {
+		return
+	}
 	w.state.remember(localPath, false)
 	w.scheduleUpload(localPath, virtualPath, false)
 	w.harvestDirectoryTree(filepath.Dir(localPath))
+}
+
+// handleRenameSource retains a recently staged normal file long enough to
+// pair Windows' Rename(old) + Create(new) fsnotify sequence. CFAPI does not
+// reliably notify a provider about a normal local file before it is projected.
+func (w *windowsSyncWatcher) handleRenameSource(localPath, virtualPath string) {
+	w.cancelPendingUpload(localPath, virtualPath)
+	if w.access.usesMetadataWritePath() && w.state.beginPendingFileRename(localPath) {
+		w.MarkRenameSource(localPath, false)
+		log.Printf(
+			"[mount/cloud-files] watcher-rename-source path=%q virtual=%q",
+			localPath,
+			virtualPath,
+		)
+		return
+	}
+	w.Forget(localPath)
+}
+
+// completePendingFileRename folds the fsnotify destination into the same
+// durable metadata rename used by the Cloud Files completion callback.
+func (w *windowsSyncWatcher) completePendingFileRename(
+	newLocalPath, newVirtualPath string,
+	info os.FileInfo,
+) bool {
+	if !w.access.usesMetadataWritePath() || info.IsDir() {
+		return false
+	}
+	w.renameMu.Lock()
+	defer w.renameMu.Unlock()
+
+	oldLocalPath, ok := w.state.claimPendingFileRename(
+		newLocalPath,
+		info.Size(),
+		info.ModTime(),
+	)
+	if !ok {
+		return false
+	}
+	if w.state.fallbackRenameHandled(oldLocalPath, newLocalPath) {
+		// The CFAPI completion callback won the race and already admitted the
+		// durable rename; consuming the stale pair here would re-upload the file.
+		w.state.forget(oldLocalPath)
+		return true
+	}
+	oldVirtualPath := cloudFilesLocalPathToVirtual(w.root, oldLocalPath)
+	if oldVirtualPath == "" || oldVirtualPath == newVirtualPath {
+		w.state.forget(oldLocalPath)
+		return false
+	}
+	w.state.markFallbackRenameHandled(oldLocalPath, newLocalPath)
+	if !w.enqueueRenamePath(oldVirtualPath, newVirtualPath, oldLocalPath, newLocalPath, false, nil) {
+		w.state.clearFallbackRenameHandled(oldLocalPath, newLocalPath)
+		return false
+	}
+	log.Printf(
+		"[mount/cloud-files] watcher-rename-pair old=%q new=%q",
+		oldVirtualPath,
+		newVirtualPath,
+	)
+	return true
 }
 
 func (w *windowsSyncWatcher) handleWrite(localPath, virtualPath string) {
@@ -263,8 +360,10 @@ func (w *windowsSyncWatcher) scheduleUpload(
 		localPath,
 		info.Size(),
 	)
-	if err := w.access.stageLocalWrite(clean, localPath, info.Size()); err != nil {
-		log.Printf("[mount/cloud-files] stage metadata write %q: %v", clean, err)
+	if w.access.usesMetadataWritePath() {
+		return w.enqueueLocalWrite(clean, localPath)
+	} else if err := w.access.stageLocalWrite(clean, localPath, info.Size()); err != nil {
+		log.Printf("[mount/cloud-files] stage local write %q: %v", clean, err)
 		return false
 	}
 	return true
@@ -381,9 +480,7 @@ func (w *windowsSyncWatcher) ingestDirectoryTree(localRoot string) (int, int, er
 		if entry.IsDir() {
 			w.addWatch(current)
 			directoryCount++
-			if err := w.access.createDirectory(context.Background(), virtualPath); err != nil {
-				log.Printf("[mount/cloud-files] create directory %q: %v", virtualPath, err)
-			}
+			w.enqueueCreateDirectory(virtualPath)
 			return nil
 		}
 

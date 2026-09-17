@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -30,10 +29,15 @@ func TestBaiduPanQuotaLoggedOutErrorRefreshesToken(t *testing.T) {
 
 func TestPersistBaiduPanStateUpdatesNonActiveProfile(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	if runtime.GOOS == "windows" {
-		t.Setenv("USERPROFILE", home)
+	releaseRoot := t.TempDir()
+	if err := storageconfig.SetAppDataRoot(home); err != nil {
+		t.Fatalf("set test app data root: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := storageconfig.SetAppDataRoot(releaseRoot); err != nil {
+			t.Errorf("release test config db: %v", err)
+		}
+	})
 	s3Config := storageconfig.DefaultConfig()
 	s3Config.Endpoint = "https://s3.example.com"
 	s3Config.AccessKeyID = "s3-access"

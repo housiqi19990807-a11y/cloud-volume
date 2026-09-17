@@ -11,9 +11,9 @@ import (
 )
 
 func TestConfigDBReusesOneHandleAndWaitsForRootSwitch(t *testing.T) {
-	restoreAppDataRoot(t)
 	rootOne := t.TempDir()
 	rootTwo := t.TempDir()
+	restoreAppDataRoot(t)
 	if err := SetAppDataRoot(rootOne); err != nil {
 		t.Fatalf("SetAppDataRoot(%q): %v", rootOne, err)
 	}
@@ -67,8 +67,8 @@ func TestConfigDBReusesOneHandleAndWaitsForRootSwitch(t *testing.T) {
 }
 
 func TestSetAppDataRootSamePathDoesNotInterruptActiveConfigLease(t *testing.T) {
-	restoreAppDataRoot(t)
 	root := t.TempDir()
+	restoreAppDataRoot(t)
 	if err := SetAppDataRoot(root); err != nil {
 		t.Fatalf("SetAppDataRoot(%q): %v", root, err)
 	}

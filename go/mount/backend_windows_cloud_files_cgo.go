@@ -4,7 +4,6 @@
 package mount
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -108,7 +107,7 @@ func (b *windowsCloudFilesBackend) Start(session *mountSession) error {
 		_ = watcher.Close()
 		return err
 	}
-	if err := hydrator.OnFetchPlaceholders(session.mountPath); err != nil {
+	if err := hydrator.PopulatePlaceholders(session.mountPath); err != nil {
 		_ = watcher.Close()
 		_ = provider.Disconnect()
 		_ = provider.Deregister()
@@ -384,10 +383,11 @@ func (b *windowsCloudFilesBackend) handleDelete(
 			return
 		}
 		isDir := watcher.IsDir(localPath)
+		// The CFAPI completion can arrive before the matching fsnotify Remove.
+		// Suppress that trailing watcher event so the deletion is journaled once.
+		watcher.state.ignore(localPath, windowsCFEventIgnoreTTL, isDir)
 		watcher.Forget(localPath)
-		if err := session.access.deletePath(context.Background(), virtualPath, isDir); err != nil {
-			session.lastError = err.Error()
-		}
+		watcher.enqueueDeletePath(virtualPath, isDir, func(err error) { session.lastError = err.Error() })
 	}
 }
 
@@ -399,6 +399,31 @@ func (b *windowsCloudFilesBackend) handleRename(
 		if session.readOnly {
 			return
 		}
+		// A normal local file can arrive as fsnotify Rename(old)+Create(new)
+		// before (or without) a CFAPI completion. Serialize both paths so the
+		// metadata rename is admitted exactly once.
+		watcher.renameMu.Lock()
+		if watcher.state.fallbackRenameHandled(oldPath, newPath) {
+			oldVirtual := cloudFilesLocalPathToVirtual(session.mountPath, oldPath)
+			newVirtual := cloudFilesLocalPathToVirtual(session.mountPath, newPath)
+			isDir := watcher.IsDir(newPath)
+			watcher.renameMu.Unlock()
+			watcher.enqueueRenameFallbackIfNeeded(
+				oldVirtual,
+				newVirtual,
+				oldPath,
+				newPath,
+				isDir,
+				func(err error) { session.lastError = err.Error() },
+			)
+			log.Printf(
+				"[mount/cloud-files] rename-completion paired or queued old=%q new=%q",
+				oldPath,
+				newPath,
+			)
+			return
+		}
+		defer watcher.renameMu.Unlock()
 		oldVirtual := cloudFilesLocalPathToVirtual(session.mountPath, oldPath)
 		newVirtual := cloudFilesLocalPathToVirtual(session.mountPath, newPath)
 		if isWindowsLocalOnlyPath(oldVirtual) || isWindowsLocalOnlyPath(newVirtual) {
@@ -406,16 +431,24 @@ func (b *windowsCloudFilesBackend) handleRename(
 		}
 		isDir := watcher.IsDir(newPath)
 		watcher.MarkRenameSource(oldPath, isDir)
-		watcher.Rebase(oldPath, newPath, isDir)
-		if err := session.access.enqueueRenamePath(
+		watcher.state.markFallbackRenameHandled(oldPath, newPath)
+		if !watcher.enqueueRenamePath(
 			oldVirtual,
 			newVirtual,
 			oldPath,
 			newPath,
 			isDir,
-		); err != nil {
-			session.lastError = err.Error()
+			func(err error) { session.lastError = err.Error() },
+		) {
+			watcher.state.clearFallbackRenameHandled(oldPath, newPath)
+			return
 		}
+		// The fsnotify Rename(old)+Create(new) pair can still race this callback;
+		log.Printf(
+			"[mount/cloud-files] rename-completion old=%q new=%q",
+			oldVirtual,
+			newVirtual,
+		)
 	}
 }
 

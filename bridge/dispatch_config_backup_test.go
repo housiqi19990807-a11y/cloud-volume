@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -60,10 +59,15 @@ func TestAutomaticConfigBackupRerunsAfterWriteDuringUpload(t *testing.T) {
 func prepareAutomaticConfigBackupTest(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	if runtime.GOOS == "windows" {
-		t.Setenv("USERPROFILE", home)
+	releaseRoot := t.TempDir()
+	if err := storageconfig.SetAppDataRoot(home); err != nil {
+		t.Fatalf("set test app data root: %v", err)
 	}
+	t.Cleanup(func() {
+		if err := storageconfig.SetAppDataRoot(releaseRoot); err != nil {
+			t.Errorf("release test config db: %v", err)
+		}
+	})
 	if err := storageconfig.SaveConfigBackupSettings(
 		storageconfig.ConfigBackupSettings{Enabled: true},
 	); err != nil {

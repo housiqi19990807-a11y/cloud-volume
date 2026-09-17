@@ -2,6 +2,11 @@
 
 新增存储后端(任何新远端 provider)的五层改动指南见 [AddingStorageBackends.md](../AddingStorageBackends.md)。
 
+## S3 受跟踪整文件上传
+
+- `go/s3/objects.go` 的普通上传和 `go/s3/upload_resume_prefix.go` 的小文件 resumable 路径会把本地文件的 SHA-256 交给 `go/s3/upload_payload_hash.go`。该 helper 通过每次 `PutObject` 的 API middleware 在 SigV4 `ComputePayloadHash` 前写入 hash；AWS SDK 会清除调用方的 stack context，不能只在调用 context 上设置 hash。
+- 带 task ID 的 body 使用 `contextReadSeeker`，保留重试 rewind 能力；签名前的原始文件 hash 不触发任务字节累计，进度只反映实际请求体发送。`objects_resume_test.go` 在服务器尚未响应时钉住两条路径均为 `N/N`，同时校验请求体及 `X-Amz-Content-Sha256`。取舍见[决策记录](../notes/implemented/bug-fix/2026-09-10-s3-tracked-upload-payload-hash.md)。**Known P3 (review 2026-09-10):** body 回绕后 SDK 重试会重复累计任务字节,运行中进度快照可能瞬时超过 100%;`finishTransfer` 收尾夹紧保证终值正确。修复方向是重试前记录偏移重置进度。
+
 ## JWanFS FGW SDK(go/jwanfs)
 
 从 `jwanfs/pkg/sdk/s3` 迁入 `go/jwanfs`,项目自持副本,不依赖 legacy `jwanfs/pkg/{jtool,types,consts,minio,s3ext}` 树。

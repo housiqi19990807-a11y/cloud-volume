@@ -138,8 +138,11 @@ func newTestService(t *testing.T, backend Backend) *Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = store.Close() })
-	return NewService(store, backend)
+	service := NewService(store, backend)
+	// Close through Service so deferred chunk-protection timers stop before the
+	// TempDir cleanup attempts to remove the bbolt database on Windows.
+	t.Cleanup(func() { _ = service.Close() })
+	return service
 }
 
 func TestMaterializeAndListCreatesStableInodes(t *testing.T) {

@@ -248,8 +248,8 @@ class FileManagerBucketBrowser extends StatelessWidget {
       return ReorderableListView.builder(
         buildDefaultDragHandles: false,
         itemCount: buckets.length,
-        // Classic onReorder API keeps this building on Flutter 3.41;
-        // onReorderItem exists only on 3.47+.
+        // Flutter 3.41 needs this until the minimum SDK is raised.
+        // ignore: deprecated_member_use
         onReorder: onReorder!,
         proxyDecorator: (child, index, animation) {
           return Material(
