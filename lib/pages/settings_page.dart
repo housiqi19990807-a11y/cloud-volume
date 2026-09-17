@@ -316,6 +316,8 @@ class _SettingsPageState extends State<SettingsPage> {
             padding: const EdgeInsets.only(left: 4, top: 14, bottom: 6),
             child: Text(group.header, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: theme.colorScheme.mutedForeground)),
           ),
+          // 移动索引分组恢复带边框卡片(用户裁决;无边框基线仅适用于
+          // 文件/回收站/任务列表页)。
           ShadCard(
             padding: EdgeInsets.zero,
             child: Column(
@@ -343,6 +345,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildCard(ShadThemeData theme, String title, Widget child) {
+    // 详情分区恢复带边框卡片(用户裁决;无边框基线仅适用于文件/回收站/
+    // 任务列表页),移动与桌面同款。
     return SizedBox(
       width: double.infinity,
       child: ShadCard(

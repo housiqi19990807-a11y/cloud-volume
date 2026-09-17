@@ -70,6 +70,7 @@ class CloudStorageAccountList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: 12),
       itemCount: accounts.length,
+      // 卡片式账号块之间的常规间距(卡片容器已按用户裁决恢复)。
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final profile = accounts[index];
